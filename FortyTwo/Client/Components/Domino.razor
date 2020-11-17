@@ -1,0 +1,82 @@
+﻿@namespace FortyTwo.Client.Components
+
+<div class="domino horizontal">
+    <div data-value="@Top">
+        <!-- Left -->
+        @if (Top >= 2)
+        {
+            <span class="TL23456"></span>
+        }
+        @if (Top == 6)
+        {
+            <span class="TL6"></span>
+        }
+        @if (Top >= 4)
+        {
+            <span class="TL456"></span>
+        }
+        <!-- Center -->
+        @if (Top % 2 != 0)
+        {
+            <span class="TC135"></span>
+        }
+        <!-- Right -->
+        @if (Top >= 2)
+        {
+            <span class="TR23456"></span>
+        }
+        @if (Top == 6)
+        {
+            <span class="TR6"></span>
+        }
+        @if (Top >= 4)
+        {
+            <span class="TR456"></span>
+        }
+    </div>
+
+    <span class="line"></span>
+
+    <div data-value="@Bottom">
+        <!-- Left -->
+        @if (Bottom >= 2)
+        {
+            <span class="BL23456"></span>
+        }
+        @if (Bottom == 6)
+        {
+            <span class="BL6"></span>
+        }
+        @if (Bottom >= 4)
+        {
+            <span class="BL456"></span>
+        }
+        <!-- Center -->
+        @if (Bottom % 2 != 0)
+        {
+            <span class="BC135"></span>
+        }
+        <!-- Right -->
+        @if (Bottom >= 2)
+        {
+            <span class="BR23456"></span>
+        }
+        @if (Bottom == 6)
+        {
+            <span class="BR6"></span>
+        }
+        @if (Bottom >= 4)
+        {
+            <span class="BR456"></span>
+        }
+    </div>
+</div>
+
+
+@code {
+    [Parameter]
+    public int Top { get; set; }
+
+    [Parameter]
+    public int Bottom { get; set; }
+}

@@ -1,0 +1,32 @@
+﻿@page "/"
+
+@using FortyTwo.Shared.Models
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<style>
+    .domino-container {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+</style>
+
+<div class="domino-container">
+    @if (dominos != null)
+    {
+        @foreach (var domino in dominos)
+        {
+            <FortyTwo.Client.Components.Domino Top="domino.Top" Bottom="domino.Bottom"></FortyTwo.Client.Components.Domino>
+        }
+    }
+</div>
+
+@code {
+    private List<Domino> dominos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        dominos = await Http.GetFromJsonAsync<List<Domino>>("Dominos");
+    }
+}

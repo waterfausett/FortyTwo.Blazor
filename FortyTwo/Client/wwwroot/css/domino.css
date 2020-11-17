@@ -1,0 +1,215 @@
+﻿body {background-color: lightgray;}
+
+.horizontal {
+    transform: rotate(90deg);
+    -webkit-transform: rotate(90deg);
+    -o-transform: rotate(90deg);
+    -moz-transform: rotate(90deg);
+}
+
+.domino {
+    float: left;
+    font-size: clamp(5px, 1.42vw, 20px);
+    width: 6em;
+    height: 12em;
+    margin: 10em;
+    position: relative;
+    background-color: #fff;
+    -webkit-border-radius: .8em;
+    -moz-border-radius: .8em;
+    border-radius: .8em;
+    -moz-box-shadow: .3em .3em 0em .2em gray;
+    -webkit-box-shadow: .3em .3em 0em .2em gray;
+    box-shadow: .3em .3em 0em .2em gray;
+}
+
+    .domino.horizontal {
+        margin: -2.4em 3.6em;
+    }
+
+    .domino span {
+        background-color: #000;
+    }
+
+        .domino div[data-value="1"] span {
+            background-color: lightblue;
+        }
+        .domino div[data-value="2"] span {
+            background-color: green;
+        }
+        .domino div[data-value="3"] span {
+            background-color: indianred;
+        }
+        .domino div[data-value="4"] span {
+            background-color: sandybrown;
+        }
+        .domino div[data-value="5"] span {
+            background-color: darkblue;
+        }
+        .domino div[data-value="6"] span {
+            background-color: gold;
+        }
+
+        .domino .line {
+            width: 5.5em;
+            height: .2em;
+            position: absolute;
+            top: 5.7em;
+            left: .25em;
+            background-color: gray;
+
+        }
+
+        .domino .TL6 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 2.4em;
+            left: 0.9em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .TL456 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 0.8em;
+            left: 0.9em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .TL23456 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 4.0em;
+            left: 0.9em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .TC135 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 2.4em;
+            left: 2.45em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .TR6 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 2.4em;
+            left: 4.0em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .TR456 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 4.0em;
+            left: 4.0em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .TR23456 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 0.8em;
+            left: 4.0em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .BL6 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 8.3em;
+            left: 0.9em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .BL456 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 6.7em;
+            left: 0.9em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .BL23456 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 9.9em;
+            left: 0.9em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .BC135 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 8.3em;
+            left: 2.45em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .BR6 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 8.3em;
+            left: 4.0em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .BR456 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 9.9em;
+            left: 4.0em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
+
+        .domino .BR23456 {
+            width: 1.2em;
+            height: 1.2em;
+            position: absolute;
+            top: 6.7em;
+            left: 4.0em;
+            -webkit-border-radius: 4em;
+            -moz-border-radius: 4em;
+            border-radius: 4em;
+        }
