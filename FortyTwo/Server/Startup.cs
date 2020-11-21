@@ -1,4 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
+using AutoMapper;
+using FortyTwo.Server.AutoMapper;
 using FortyTwo.Server.Services.Security;
 using FortyTwo.Shared.Models.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -50,6 +52,12 @@ namespace FortyTwo.Server
             });
 
             services.AddRazorPages();
+
+            services.AddSingleton(new MapperConfiguration(mc =>
+            {
+                mc.AddProfile(new MappingProfile());
+                mc.AllowNullCollections = true;
+            }).CreateMapper());
 
             services.AddScoped<UserId, HttpContextUserId>();
         }

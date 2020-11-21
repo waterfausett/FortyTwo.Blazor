@@ -1,25 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace FortyTwo.Shared.Models
 {
-    // TODO: think about how we're going to track this but be able to send out of API w/o the dominos property for the other players
-    //  - interface won't be enough for this
-    //  - maybe another DTO where the Dominos property is a int holding how many that player has unless you are that player
-    //  -- maybe we'd return "you" in a sep prop?
-
-    public interface IPlayer
+    public class Player
     {
-        public Guid Id { get; set; }
-        public string Name { get; set; }
-        public bool IsActive { get; set; }
-    }
-
-    public class Player : IPlayer
-    {
+        public Guid TeamId { get; set; }
         public Guid Id { get; set; }
         public string Name { get; set; }
         public bool IsActive { get; set; }
         public List<Domino> Dominos { get; set; } = new List<Domino>();
+        public List<Trick> Tricks { get; set; } = new List<Trick>();
+        public int Points => Tricks.Sum(x => x.Value);
     }
 }

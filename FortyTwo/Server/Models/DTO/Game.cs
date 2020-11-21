@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using FortyTwo.Shared.Models;
 
-namespace FortyTwo.Shared.Models
+namespace FortyTwo.Server.Models.DTO
 {
-    public class GameContext
+    public class Game
     {
         public Guid Id { get; set; }
         public string Name { get; set; }
@@ -12,6 +13,6 @@ namespace FortyTwo.Shared.Models
         public int Trump { get; set; }
         public Trick CurrentTrick { get; set; }
         public Player CurrentPlayer => Players?.FirstOrDefault(x => x.IsActive);
-        public List<Player> Players { get; set; } = new List<Player>();
+        public List<Player> Players { get; set; }
     }
 }
