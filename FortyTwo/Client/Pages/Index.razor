@@ -13,6 +13,8 @@
     }
 </style>
 
+<button type="button" class="btn btn-link" @onclick="@(async () => await Shuffle())">Shuffle</button>
+
 <div class="domino-container">
     @if (dominos != null)
     {
@@ -27,6 +29,11 @@
     private List<Domino> dominos;
 
     protected override async Task OnInitializedAsync()
+    {
+        dominos = await Http.GetFromJsonAsync<List<Domino>>("Dominos");
+    }
+
+    public async Task Shuffle()
     {
         dominos = await Http.GetFromJsonAsync<List<Domino>>("Dominos");
     }
