@@ -19,8 +19,7 @@
                 <NotAuthorized>
                     @if (!context.User.Identity.IsAuthenticated)
                     {
-                        <!--<RedirectToLogin />-->
-                        { ShowLoginPrompt(); }
+                        ShowLoginPrompt();
                     }
                     else
                     {
@@ -41,7 +40,7 @@
 </CascadingAuthenticationState>
 
 @code {
-    public async Task ShowLoginPrompt()
+    public async void ShowLoginPrompt()
     {
         await Swal.FireAsync(new SweetAlertOptions
         {
