@@ -4,38 +4,41 @@
 @using FortyTwo.Client.ViewModels
 @inject IGamesViewModel Model
 
-<h3>Games</h3>
+<div>
+    <h3>
+        Games
+        <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchGamesAsync())">Update</button>
+    </h3>
 
-<hr />
+    <hr />
 
-<button type="button" class="btn btn-primary" @onclick="@(async () => await Model.FetchGamesAsync())">Fetch</button>
-
-<SpinnerOverlay Visible="Model.IsLoading">
-    <div>
-        @if (Model.Games?.Any() == true)
-        {
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var game in Model.Games)
-                    {
+    <SpinnerOverlay Visible="Model.IsLoading">
+        <div>
+            @if (Model.Games?.Any() == true)
+            {
+                <table>
+                    <thead>
                         <tr>
-                            <td>@game.Name</td>
+                            <th>Name</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
-        }
-        else
-        {
-            <p class="p-3">No games yet.</p>
-        }
-    </div>
-</SpinnerOverlay>
+                    </thead>
+                    <tbody>
+                        @foreach (var game in Model.Games)
+                        {
+                            <tr>
+                                <td>@game.Name</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="p-3">No games yet.</p>
+            }
+        </div>
+    </SpinnerOverlay>
+</div>
 
 @code {
     protected override async Task OnInitializedAsync()
