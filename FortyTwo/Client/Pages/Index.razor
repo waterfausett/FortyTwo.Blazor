@@ -2,10 +2,12 @@
 @attribute [Authorize]
 @layout MainLayout
 @using FortyTwo.Shared.Models
+@using FortyTwo.Client.Store
 @using FortyTwo.Client.ViewModels
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject IDominoModel DominoViewModel
+@inject IClientStore Store
 
 <style>
     .domino-container {
@@ -14,6 +16,8 @@
         flex-wrap: wrap;
     }
 </style>
+
+<a href="games">Games</a>
 
 <button type="button" class="btn btn-link" @onclick="@(async () => await ShuffleAsync())">Shuffle</button>
 
@@ -33,6 +37,8 @@
     protected override async Task OnInitializedAsync()
     {
         dominos = await Http.GetFromJsonAsync<Domino[]>("Dominos");
+
+        Store.Dominos = dominos;
     }
 
     public async Task ShuffleAsync()

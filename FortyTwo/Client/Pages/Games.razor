@@ -1,0 +1,28 @@
+﻿@page "/games"
+@attribute [Authorize]
+@layout MainLayout
+@using FortyTwo.Shared.Models
+@using FortyTwo.Client.Store
+@inject IClientStore Store
+
+<h3>Games</h3>
+
+<hr />
+
+@if (Dominos?.Any() == true)
+{
+    <h2>We got dominos!</h2>
+}
+else
+{
+    <h2>We broke boys&hellip;</h2>
+}
+
+@code {
+    public Domino[] Dominos { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Dominos = Store.Dominos;
+    }
+}
