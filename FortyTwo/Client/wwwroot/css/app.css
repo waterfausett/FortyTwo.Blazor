@@ -202,3 +202,7 @@ app {
     position: relative;
     flex: 1;
 }
+
+.swal-logout-bg {
+    background-color: #ffffff;
+}

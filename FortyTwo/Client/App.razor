@@ -1,23 +1,30 @@
+@inject IJSRuntime JS
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(Program).Assembly">
         <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+            <AuthorizeRouteView RouteData="@routeData">
                 <Authorizing>
-                    <p>Determining session state, please wait...</p>
+                    <div class="overlay-container">
+                        <div class="spinner-overlay" style="height: 100vh;">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
                 </Authorizing>
                 <NotAuthorized>
                     @if (!context.User.Identity.IsAuthenticated)
                     {
                         <!--<RedirectToLogin />-->
-                        <p>You're not authorized to reach this page. You need to log in.</p>
+                        {ShowLoginPrompt();}
                     }
-                    else
-                    {
+                        else
+                        {
                         <p>
                             You are not authorized to access
                             this resource.
                         </p>
-                    }
+                        }
                 </NotAuthorized>
             </AuthorizeRouteView>
         </Found>
@@ -28,3 +35,28 @@
         </NotFound>
     </Router>
 </CascadingAuthenticationState>
+
+@code {
+    public async Task ShowLoginPrompt()
+    {
+        await JS.InvokeAsync<object>("Swal.fire", new
+        {
+            icon = "error",
+            title = "Who goes there?!",
+            allowOutsideClick = false,
+            allowEscapeKey = false,
+            confirmButtonText = "Log in now",
+            showLoaderOnConfirm = true,
+            showClass = new { popup = "swal2-show", backdrop = "swal-logout-bg" }
+            /*
+            preConfirm = new Func<bool>(() =>
+            {
+                //window.location.href = '/auth'
+                //Navigation.NavigateTo($"authentication/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+
+                return false;
+            })
+            */
+        });
+    }
+}

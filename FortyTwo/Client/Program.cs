@@ -33,6 +33,9 @@ namespace FortyTwo.Client
 
             builder.Services.AddTransient(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("API"));
 
+            builder.Services.AddOptions();
+            builder.Services.AddAuthorizationCore();
+
             await builder.Build().RunAsync();
         }
     }
