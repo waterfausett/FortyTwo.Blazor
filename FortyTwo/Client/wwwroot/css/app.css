@@ -229,3 +229,7 @@ app {
 .invis {
     display: none;
 }
+
+a {
+    cursor: pointer;
+}
