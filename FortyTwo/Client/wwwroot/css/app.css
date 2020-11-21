@@ -28,6 +28,10 @@ app {
 
 .main {
     flex: 1;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
     .main .top-row {
@@ -99,9 +103,7 @@ app {
 
 .content {
     padding-top: 1.1rem;
-    display: flex;
-    flex-direction: column;
-    flex-wrap: wrap;
+    flex-grow: 1;
 }
 
 .navbar-toggler {
@@ -137,6 +139,12 @@ app {
     position: absolute;
     right: 0.75rem;
     top: 0.5rem;
+}
+
+#footer {
+    padding: 10px 20px;
+    border-top: 1px solid #e7eaec;
+    color: #676a6c;
 }
 
 @media (max-width: 767.98px) {
@@ -212,4 +220,12 @@ app {
 
 .hidden {
     visibility: hidden;
+}
+
+:disabled {
+    cursor: not-allowed;
+}
+
+.invis {
+    display: none;
 }
