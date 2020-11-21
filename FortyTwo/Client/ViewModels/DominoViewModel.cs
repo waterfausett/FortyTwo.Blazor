@@ -26,8 +26,7 @@ namespace FortyTwo.Client.ViewModels
 
             var responseContent = await response.Content.ReadAsStringAsync();
 
-            //return JsonSerializer.Deserialize<Domino[]>(responseContent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            return new Domino[] { new Domino { Top = 1, Bottom = 0 } };
+            return JsonSerializer.Deserialize<Domino[]>(responseContent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         }
     }
 }
