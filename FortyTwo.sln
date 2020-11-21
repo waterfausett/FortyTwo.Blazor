@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30711.63
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FortyTwo.Server", "FortyTwo\Server\FortyTwo.Server.csproj", "{2E56F0FE-A44D-42D5-B6CA-C17E805DAAC2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FortyTwo.Server", "FortyTwo\Server\FortyTwo.Server.csproj", "{2E56F0FE-A44D-42D5-B6CA-C17E805DAAC2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FortyTwo.Client", "FortyTwo\Client\FortyTwo.Client.csproj", "{75A0C30E-B9F2-42B9-86C4-745F1A16AB98}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FortyTwo.Client", "FortyTwo\Client\FortyTwo.Client.csproj", "{75A0C30E-B9F2-42B9-86C4-745F1A16AB98}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FortyTwo.Shared", "FortyTwo\Shared\FortyTwo.Shared.csproj", "{81224A9A-94FA-4DCA-B4A5-5B863CA2D514}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FortyTwo.Shared", "FortyTwo\Shared\FortyTwo.Shared.csproj", "{81224A9A-94FA-4DCA-B4A5-5B863CA2D514}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
