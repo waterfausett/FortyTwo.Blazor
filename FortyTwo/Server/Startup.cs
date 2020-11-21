@@ -1,4 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
+using FortyTwo.Server.Services.Security;
+using FortyTwo.Shared.Models.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -36,6 +38,7 @@ namespace FortyTwo.Server
             });
             
             services.AddHttpClient();
+
             services.AddControllersWithViews(options =>
             {
                 var policy = new AuthorizationPolicyBuilder()
@@ -47,6 +50,8 @@ namespace FortyTwo.Server
             });
 
             services.AddRazorPages();
+
+            services.AddScoped<UserId, HttpContextUserId>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
