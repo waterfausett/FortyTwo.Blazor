@@ -7,7 +7,9 @@
         </div>
     </div>
     }
-    @ChildContent
+    <div class="@(Visible ? "hidden" : "")">
+        @ChildContent
+    </div>
 </div>
 
 @code {

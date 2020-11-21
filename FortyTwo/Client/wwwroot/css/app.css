@@ -209,3 +209,7 @@ app {
 .swal-logout-bg {
     background-color: #ffffff;
 }
+
+.hidden {
+    visibility: hidden;
+}
