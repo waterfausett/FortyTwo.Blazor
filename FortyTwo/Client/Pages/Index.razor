@@ -5,16 +5,6 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 
-<style>
-    .domino-container {
-        display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-</style>
-
-<a href="games">Games</a>
-
 <button type="button" class="btn btn-link" @onclick="@(async () => await ShuffleAsync())">Shuffle</button>
 
 <div class="domino-container">

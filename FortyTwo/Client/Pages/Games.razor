@@ -16,45 +16,43 @@
         <div>
             @if (Model.Games?.Any() == true)
             {
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th scope="col">Name</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var game in Model.Games)
-                        {
-                            <tr>
-                                <td>@game.Name</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-
                 @foreach (var game in Model.Games)
                 {
-                    // TODO: enhance this to maybe have teams listed separately and show their scores etc.
-                    var title = string.Join(" vs ",
-				        game.Players
-					        .GroupBy(x => x.TeamId)
-					        .Select(x => string.Join(" & ", x.Select(p => p.Name)))
-					        .ToArray()
-			        );
-
                     <div class="card">
-                        <h5 class="card-header">@game.Name</h5>
-                        <div class="card-body">
-                            <h5 class="card-title">@title</h5>
-                            <div class="row mb-2">
-                                <div class="col-6">
-                                    <p class="card-text"><b>Bid</b>: @(game.BiddingPlayer.Bid.HasValue ? $"{game.BiddingPlayer.Bid}" : "?")</p>
-                                </div>
-                                <div class="col-6">
-                                    <p class="card-text"><b>Trump</b>: @(game.Trump.HasValue ? $"{game.Trump}" : "?")</p>
-                                </div>
-                            </div>
-                            <a href="#" class="btn btn-primary">Go somewhere</a>
+                        <h5 class="card-header">@game.Name <a href="/game/@game.Id" class="btn btn-sm btn-link">View</a></h5>
+                        <div class="card-body p-2">
+                            <ul class="list-group list-group-flush">
+                                @foreach (var team in game.Players.GroupBy(x => x.TeamId))
+                                {
+                                    <li class="list-group-item p-0">
+                                        <h5 class="card-title m-2">
+                                            @string.Join(" & ", team.Select(x => x.Name))
+                                            @if (team.Contains(game.CurrentPlayer))
+                                            {
+                                                <span class="active-dot"></span>
+                                            }
+                                        </h5>
+                                        <div class="m-2">
+                                            <Chip Context="info">
+                                                <Label>Score</Label>
+                                                <Badge>@team.Sum(x => x.Points)</Badge>
+                                            </Chip>
+
+                                            @if (team.Contains(game.BiddingPlayer))
+                                            {
+                                                <Chip Context="warning">
+                                                    <Label>Bid</Label>
+                                                    <Badge>@(game.BiddingPlayer.Bid.HasValue ? $"{game.BiddingPlayer.Bid}" : "?")</Badge>
+                                                </Chip>
+                                                <Chip>
+                                                    <Label>Trump</Label>
+                                                    <Badge>@(game.Trump.HasValue ? $"{game.Trump}" : "?")</Badge>
+                                                </Chip>
+                                            }
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
                         </div>
                     </div>
                 }

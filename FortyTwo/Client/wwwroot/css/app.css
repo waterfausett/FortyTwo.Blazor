@@ -233,3 +233,19 @@ app {
 a {
     cursor: pointer;
 }
+
+.no-hover {
+    pointer-events: none;
+}
+
+.valign-middle {
+    vertical-align: middle;
+}
+
+.active-dot {
+    float: right;
+    height: 15px;
+    width: 15px;
+    border-radius: 50%;
+    background-color: limegreen;
+}

@@ -1,0 +1,28 @@
+﻿:root {
+    --label-font-size: .75rem;
+    --label-font-weight: 400;
+    --label-letter-spacing: .03em;
+    --label-border-radius: .6rem;
+    --label-default-border-color: #8c8c8c;
+    --label-font-color-light: #000;
+    --label-info-bg-color: #e3f5fc;
+    --label-info-font-color: #00567a;
+    --label-info-border-color: #00567a;
+    --label-info-border-color: #00567a;
+    --badge-info-bg-color: #00567a;
+    --badge-info-color: #fff;
+    --label-success-bg-color: #dff0d0;
+    --label-success-font-color: #306b00;
+    --label-success-border-color: #306b00;
+    --badge-success-bg-color: #306b00;
+    --label-warning-bg-color: #fff4c7;
+    --label-warning-font-color: #333;
+    --label-warning-border-color: #ad7600;
+    --badge-warning-bg-color: #613200;
+    --badge-warning-color: #fff;
+    --label-danger-bg-color: #feddd7;
+    --label-danger-font-color: #991700;
+    --label-danger-border-color: #991700;
+    --badge-danger-bg-color: 991700;
+    --badge-danger-color: #fff;
+}
