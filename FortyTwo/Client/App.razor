@@ -8,7 +8,7 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData">
                 <Authorizing>
-                    <SpinnerOverlay FullHeight="true"></SpinnerOverlay>
+                    <SpinnerOverlay Visible="true" FullHeight="true"></SpinnerOverlay>
                 </Authorizing>
                 <NotAuthorized>
                     @if (!context.User.Identity.IsAuthenticated)
