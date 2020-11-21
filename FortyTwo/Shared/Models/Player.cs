@@ -9,6 +9,7 @@ namespace FortyTwo.Shared.Models
         public Guid TeamId { get; set; }
         public Guid Id { get; set; }
         public string Name { get; set; }
+        public int? Bid { get; set; }
         public bool IsActive { get; set; }
         public List<Domino> Dominos { get; set; } = new List<Domino>();
         public List<Trick> Tricks { get; set; } = new List<Trick>();

@@ -16,10 +16,10 @@
         <div>
             @if (Model.Games?.Any() == true)
             {
-                <table>
+                <table class="table">
                     <thead>
                         <tr>
-                            <th>Name</th>
+                            <th scope="col">Name</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -31,6 +31,33 @@
                         }
                     </tbody>
                 </table>
+
+                @foreach (var game in Model.Games)
+                {
+                    // TODO: enhance this to maybe have teams listed separately and show their scores etc.
+                    var title = string.Join(" vs ",
+				        game.Players
+					        .GroupBy(x => x.TeamId)
+					        .Select(x => string.Join(" & ", x.Select(p => p.Name)))
+					        .ToArray()
+			        );
+
+                    <div class="card">
+                        <h5 class="card-header">@game.Name</h5>
+                        <div class="card-body">
+                            <h5 class="card-title">@title</h5>
+                            <div class="row mb-2">
+                                <div class="col-6">
+                                    <p class="card-text"><b>Bid</b>: @(game.BiddingPlayer.Bid.HasValue ? $"{game.BiddingPlayer.Bid}" : "?")</p>
+                                </div>
+                                <div class="col-6">
+                                    <p class="card-text"><b>Trump</b>: @(game.Trump.HasValue ? $"{game.Trump}" : "?")</p>
+                                </div>
+                            </div>
+                            <a href="#" class="btn btn-primary">Go somewhere</a>
+                        </div>
+                    </div>
+                }
             }
             else
             {
