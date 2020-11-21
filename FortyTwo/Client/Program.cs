@@ -1,6 +1,7 @@
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
+using CurrieTechnologies.Razor.SweetAlert2;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -35,6 +36,8 @@ namespace FortyTwo.Client
 
             builder.Services.AddOptions();
             builder.Services.AddAuthorizationCore();
+
+            builder.Services.AddSweetAlert2();
 
             await builder.Build().RunAsync();
         }

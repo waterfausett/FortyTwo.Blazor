@@ -1,4 +1,8 @@
+@using CurrieTechnologies.Razor.SweetAlert2
 @inject IJSRuntime JS
+@inject SweetAlertService Swal
+@inject NavigationManager Navigation
+
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(Program).Assembly">
         <Found Context="routeData">
@@ -16,15 +20,15 @@
                     @if (!context.User.Identity.IsAuthenticated)
                     {
                         <!--<RedirectToLogin />-->
-                        {ShowLoginPrompt();}
+                        { ShowLoginPrompt(); }
                     }
-                        else
-                        {
+                    else
+                    {
                         <p>
                             You are not authorized to access
                             this resource.
                         </p>
-                        }
+                    }
                 </NotAuthorized>
             </AuthorizeRouteView>
         </Found>
@@ -39,24 +43,21 @@
 @code {
     public async Task ShowLoginPrompt()
     {
-        await JS.InvokeAsync<object>("Swal.fire", new
+        await Swal.FireAsync(new SweetAlertOptions
         {
-            icon = "error",
-            title = "Who goes there?!",
-            allowOutsideClick = false,
-            allowEscapeKey = false,
-            confirmButtonText = "Log in now",
-            showLoaderOnConfirm = true,
-            showClass = new { popup = "swal2-show", backdrop = "swal-logout-bg" }
-            /*
-            preConfirm = new Func<bool>(() =>
+            Icon = SweetAlertIcon.Error,
+            Title = "Who goes there?!",
+            AllowOutsideClick = false,
+            AllowEscapeKey = false,
+            ConfirmButtonText = "Log in now",
+            ShowLoaderOnConfirm = true,
+            ShowClass = new SweetAlertShowClass { Popup = "swal2-show", Backdrop = "swal-logout-bg" },
+            PreConfirm = new PreConfirmCallback(async () =>
             {
-                //window.location.href = '/auth'
-                //Navigation.NavigateTo($"authentication/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
-
-                return false;
+                Navigation.NavigateTo($"authentication/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+                await Task.Delay(TimeSpan.FromSeconds(10));
+                return "false";
             })
-            */
         });
     }
 }
