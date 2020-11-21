@@ -14,6 +14,13 @@
             Navigation.NavigateTo($"{authority}/v2/logout?client_id={clientId}");
         }
     </LogOut>
+    <CompletingLoggingIn>
+        <SpinnerOverlay FullHeight="true"></SpinnerOverlay>
+    </CompletingLoggingIn>
+    <CompletingLogOut>Get off MY LAWN!</CompletingLogOut>
+    <LogOutSucceeded>
+        <SpinnerOverlay FullHeight="true"></SpinnerOverlay>
+    </LogOutSucceeded>
 </RemoteAuthenticatorView>
 
 @code{
