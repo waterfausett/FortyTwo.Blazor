@@ -2,6 +2,7 @@ using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 using CurrieTechnologies.Razor.SweetAlert2;
+using FortyTwo.Client.ViewModels;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -38,6 +39,8 @@ namespace FortyTwo.Client
             builder.Services.AddAuthorizationCore();
 
             builder.Services.AddSweetAlert2();
+
+            builder.Services.AddTransient<IDominoModel, DominoViewModel>();
 
             await builder.Build().RunAsync();
         }

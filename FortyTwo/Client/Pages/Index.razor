@@ -2,8 +2,10 @@
 @attribute [Authorize]
 @layout MainLayout
 @using FortyTwo.Shared.Models
+@using FortyTwo.Client.ViewModels
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject IDominoModel DominoViewModel
 
 <style>
     .domino-container {
@@ -13,7 +15,7 @@
     }
 </style>
 
-<button type="button" class="btn btn-link" @onclick="@(async () => await Shuffle())">Shuffle</button>
+<button type="button" class="btn btn-link" @onclick="@(async () => await ShuffleAsync())">Shuffle</button>
 
 <div class="domino-container">
     @if (dominos != null)
@@ -26,15 +28,16 @@
 </div>
 
 @code {
-    private List<Domino> dominos;
+    private Domino[] dominos;
 
     protected override async Task OnInitializedAsync()
     {
-        dominos = await Http.GetFromJsonAsync<List<Domino>>("Dominos");
+        dominos = await Http.GetFromJsonAsync<Domino[]>("Dominos");
     }
 
-    public async Task Shuffle()
+    public async Task ShuffleAsync()
     {
-        dominos = await Http.GetFromJsonAsync<List<Domino>>("Dominos");
+        //dominos = await Http.GetFromJsonAsync<List<Domino>>("Dominos");
+        dominos = await DominoViewModel.ShuffleAsync();
     }
 }

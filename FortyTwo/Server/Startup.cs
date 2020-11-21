@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
 using AutoMapper;
 using FortyTwo.Server.AutoMapper;
 using FortyTwo.Server.Services.Security;
@@ -41,15 +42,20 @@ namespace FortyTwo.Server
             
             services.AddHttpClient();
 
-            services.AddControllersWithViews(options =>
-            {
-                var policy = new AuthorizationPolicyBuilder()
-                    .RequireAuthenticatedUser()
-                    //.RequireClaim("https://claims.fortytwo.com/read")
-                    .Build();
+            services
+                .AddControllersWithViews(options =>
+                {
+                    var policy = new AuthorizationPolicyBuilder()
+                        .RequireAuthenticatedUser()
+                        //.RequireClaim("https://claims.fortytwo.com/read")
+                        .Build();
 
-                options.Filters.Add(new AuthorizeFilter(policy));
-            });
+                    options.Filters.Add(new AuthorizeFilter(policy));
+                })
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                });
 
             services.AddRazorPages();
 
@@ -58,6 +64,8 @@ namespace FortyTwo.Server
                 mc.AddProfile(new MappingProfile());
                 mc.AllowNullCollections = true;
             }).CreateMapper());
+
+            services.AddHttpContextAccessor();
 
             services.AddScoped<UserId, HttpContextUserId>();
         }
