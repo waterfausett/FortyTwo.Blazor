@@ -21,8 +21,13 @@
     <ProjectReference Include="..\Shared\FortyTwo.Shared.csproj" />
   </ItemGroup>
 
+  <!-- 
   <ItemGroup>
     <ServiceWorker Include="wwwroot\service-worker.js" PublishedContent="wwwroot\service-worker.published.js" />
   </ItemGroup>
-
+  -->
+  <ItemGroup Condition="'$(DesignTimeBuild)' != 'true'">
+    <Content Remove="wwwroot\service-worker.js" />
+    <Content Update="wwwroot\service-worker.published.js" Link="wwwroot\service-worker.js" />
+  </ItemGroup>
 </Project>
