@@ -2,12 +2,8 @@
 @attribute [Authorize]
 @layout MainLayout
 @using FortyTwo.Shared.Models
-@using FortyTwo.Client.Store
-@using FortyTwo.Client.ViewModels
 @inject HttpClient Http
 @inject IJSRuntime JS
-@inject IDominoModel DominoViewModel
-@inject IClientStore Store
 
 <style>
     .domino-container {
@@ -36,14 +32,11 @@
 
     protected override async Task OnInitializedAsync()
     {
-        dominos = await Http.GetFromJsonAsync<Domino[]>("Dominos");
-
-        Store.Dominos = dominos;
+        await ShuffleAsync();
     }
 
     public async Task ShuffleAsync()
     {
-        //dominos = await Http.GetFromJsonAsync<List<Domino>>("Dominos");
-        dominos = await DominoViewModel.ShuffleAsync();
+        dominos = await Http.GetFromJsonAsync<Domino[]>("Dominos");
     }
 }

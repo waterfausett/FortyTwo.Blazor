@@ -7,10 +7,10 @@ namespace FortyTwo.Server.AutoMapper
     {
         public MappingProfile()
         {
-            CreateMap<Player, Models.DTO.Player>()
+            CreateMap<Player, Shared.Models.DTO.Player>()
                 .ForMember(dest => dest.Dominos, opt => opt.MapFrom(src => src.Dominos.Count));
 
-            CreateMap<GameContext, Models.DTO.Game>();
+            CreateMap<GameContext, Shared.Models.DTO.Game>();
         }
     }
 }

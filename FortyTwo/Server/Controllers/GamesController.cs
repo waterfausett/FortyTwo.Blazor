@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using FortyTwo.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -17,7 +19,7 @@ namespace FortyTwo.Server.Controllers
         }
 
         [HttpGet]
-        public IEnumerable<GameContext> Get()
+        public async Task<IEnumerable<GameContext>> Get()
         {
             return new List<GameContext>();
         }

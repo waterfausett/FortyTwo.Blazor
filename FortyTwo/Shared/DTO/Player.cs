@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace FortyTwo.Server.Models.DTO
+namespace FortyTwo.Shared.Models.DTO
 {
     public class Player
     {

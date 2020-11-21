@@ -1,28 +1,48 @@
 ﻿@page "/games"
 @attribute [Authorize]
 @layout MainLayout
-@using FortyTwo.Shared.Models
-@using FortyTwo.Client.Store
-@inject IClientStore Store
+@using FortyTwo.Client.ViewModels
+@inject IGamesViewModel Model
 
 <h3>Games</h3>
 
 <hr />
 
-@if (Dominos?.Any() == true)
-{
-    <h2>We got dominos!</h2>
-}
-else
-{
-    <h2>We broke boys&hellip;</h2>
-}
+<button type="button" class="btn btn-primary" @onclick="@(async () => await Model.FetchGamesAsync())">Fetch</button>
+
+<SpinnerOverlay Visible="Model.IsLoading">
+    <div>
+        @if (Model.Games?.Any() == true)
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var game in Model.Games)
+                    {
+                        <tr>
+                            <td>@game.Name</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="p-3">No games yet.</p>
+        }
+    </div>
+</SpinnerOverlay>
 
 @code {
-    public Domino[] Dominos { get; set; }
-
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        Dominos = Store.Dominos;
+        if (Model.Games == null)
+        {
+            await Model.FetchGamesAsync();
+        }
     }
 }

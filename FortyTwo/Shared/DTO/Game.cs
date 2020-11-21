@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using FortyTwo.Shared.Models;
 
-namespace FortyTwo.Server.Models.DTO
+namespace FortyTwo.Shared.Models.DTO
 {
     public class Game
     {
