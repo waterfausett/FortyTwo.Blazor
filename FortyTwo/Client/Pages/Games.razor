@@ -68,7 +68,7 @@
 @code {
     protected override async Task OnInitializedAsync()
     {
-        if (Model.Games == null)
+        if (Model.Games == null || !Model.Games.Any())
         {
             await Model.FetchGamesAsync();
         }

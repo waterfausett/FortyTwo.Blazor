@@ -4,12 +4,6 @@
 @using FortyTwo.Client.ViewModels
 @inject IGameViewModel Model
 
-<style>
-    .game-wrapper  [class^="col"] {
-        border: 1px solid blue;
-    }
-</style>
-
 <SpinnerOverlay Visible="Model.IsLoading">
     <div class="game-wrapper">
         <div class="row">
@@ -28,7 +22,7 @@
                         <div class="domino-container">
                             @foreach (var domino in Model.Player.Dominos)
                             {
-                                <FortyTwo.Client.Components.Domino Top="domino.Top" Bottom="domino.Bottom"></FortyTwo.Client.Components.Domino>
+                                <Domino Top="domino.Top" Bottom="domino.Bottom"></Domino>
                             }
                         </div>
                     }
