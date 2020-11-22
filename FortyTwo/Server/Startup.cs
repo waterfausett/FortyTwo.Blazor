@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using AutoMapper;
 using FortyTwo.Server.AutoMapper;
+using FortyTwo.Server.Services;
 using FortyTwo.Server.Services.Security;
 using FortyTwo.Shared.Models.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -68,6 +69,8 @@ namespace FortyTwo.Server
             services.AddHttpContextAccessor();
 
             services.AddScoped<UserId, HttpContextUserId>();
+
+            services.AddScoped<IGameService, GameService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

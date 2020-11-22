@@ -2,16 +2,64 @@
 @attribute [Authorize]
 @layout MainLayout
 @using FortyTwo.Client.ViewModels
-@inject IGamesViewModel Model
+@inject IGameViewModel Model
 
-<h3>Game</h3>
+<style>
+    .game-wrapper  [class^="col"] {
+        border: 1px solid blue;
+    }
+</style>
+
+<SpinnerOverlay Visible="Model.IsLoading">
+    <div class="game-wrapper">
+        <div class="row">
+            <div class="col-6 offset-3"></div>
+        </div>
+        <div class="row">
+            <div class="col-3"></div>
+            <div class="col-6"></div>
+            <div class="col-3"></div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <SpinnerOverlay Visible="Model.FetchingPlayer">
+                    @if (Model.Player != null)
+                    {
+                        <div class="domino-container">
+                            @foreach (var domino in Model.Player.Dominos)
+                            {
+                                <FortyTwo.Client.Components.Domino Top="domino.Top" Bottom="domino.Bottom"></FortyTwo.Client.Components.Domino>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            Failed to load your info :(
+                        </div>
+                    }
+                </SpinnerOverlay>
+            </div>
+        </div>
+    </div>
+</SpinnerOverlay>
 
 @code {
     [Parameter]
     public Guid GameId { get; set; }
 
-    protected override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
-        return base.OnInitializedAsync();
+        Model.GameId = GameId;
+
+        if (Model.Game == null)
+        {
+            await Model.FetchGameAsync();
+        }
+
+        if (Model.Player == null)
+        {
+            await Model.FetchPlayerAsync();
+        }
     }
 }

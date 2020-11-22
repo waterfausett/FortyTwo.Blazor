@@ -249,3 +249,8 @@ a {
     border-radius: 50%;
     background-color: limegreen;
 }
+
+/* Game */
+.game-wrapper .domino-container {
+    font-size: .4rem;
+}

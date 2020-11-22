@@ -33,14 +33,14 @@
                                             }
                                         </h5>
                                         <div class="m-2">
-                                            <Chip Context="info">
+                                            <Chip Context="Components.Models.ContextualClass.Info">
                                                 <Label>Score</Label>
                                                 <Badge>@team.Sum(x => x.Points)</Badge>
                                             </Chip>
 
                                             @if (team.Contains(game.BiddingPlayer))
                                             {
-                                                <Chip Context="warning">
+                                                <Chip Context="Components.Models.ContextualClass.Warning">
                                                     <Label>Bid</Label>
                                                     <Badge>@(game.BiddingPlayer.Bid.HasValue ? $"{game.BiddingPlayer.Bid}" : "?")</Badge>
                                                 </Chip>

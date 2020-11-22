@@ -1,6 +1,7 @@
 ﻿@namespace FortyTwo.Client.Components
+@using FortyTwo.Client.Components.Models
 
-<div class="domino horizontal">
+<div class="domino @(Direction == DominoDirection.Horizontal ? "horizontal" : "")">
     <div data-value="@Top">
         <!-- Left -->
         @if (Top >= 2)
@@ -79,4 +80,7 @@
 
     [Parameter]
     public int Bottom { get; set; }
+
+    [Parameter]
+    public DominoDirection Direction { get; set; } = DominoDirection.Horizontal;
 }

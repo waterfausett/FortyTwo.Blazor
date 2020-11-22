@@ -1,0 +1,14 @@
+﻿@using FortyTwo.Client.Components.Models
+
+<span class="custom-chip custom-chip-@Context.ToLower() no-hover valign-middle"> @Label @if (Badge != null) { <span class="badge badge-@Context.ToLower()">@Badge</span> }</span>
+
+@code {
+    [Parameter]
+    public RenderFragment Label { get; set; }
+
+    [Parameter]
+    public ContextualClass Context { get; set; } = ContextualClass.Light;
+
+    [Parameter]
+    public RenderFragment Badge { get; set; }
+}

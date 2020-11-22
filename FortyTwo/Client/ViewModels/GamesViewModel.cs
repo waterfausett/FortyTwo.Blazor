@@ -11,9 +11,7 @@ namespace FortyTwo.Client.ViewModels
     public interface IGamesViewModel
     {
         public bool IsLoading { get; set; }
-
         public Game[] Games { get; }
-
         Task FetchGamesAsync();
     }
 
