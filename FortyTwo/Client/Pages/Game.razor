@@ -1,4 +1,5 @@
 ﻿@page "/game/{gameId:guid}"
+@attribute [Authorize]
 @layout MainLayout
 @using FortyTwo.Client.ViewModels
 @inject IGamesViewModel Model
