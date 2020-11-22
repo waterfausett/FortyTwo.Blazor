@@ -1,0 +1,16 @@
+﻿@page "/game/{gameId:guid}"
+@layout MainLayout
+@using FortyTwo.Client.ViewModels
+@inject IGamesViewModel Model
+
+<h3>Game</h3>
+
+@code {
+    [Parameter]
+    public Guid GameId { get; set; }
+
+    protected override Task OnInitializedAsync()
+    {
+        return base.OnInitializedAsync();
+    }
+}
