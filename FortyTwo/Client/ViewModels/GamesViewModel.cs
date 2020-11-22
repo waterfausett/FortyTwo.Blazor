@@ -41,7 +41,7 @@ namespace FortyTwo.Client.ViewModels
 
             try
             {
-                var response = await _http.GetAsync("Games");
+                var response = await _http.GetAsync("api/games");
                 response.EnsureSuccessStatusCode();
 
                 var responseContent = await response.Content.ReadAsStringAsync();
