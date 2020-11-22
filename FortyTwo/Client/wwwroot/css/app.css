@@ -252,5 +252,10 @@ a {
 
 /* Game */
 .game-wrapper .domino-container {
-    font-size: .4rem;
+    font-size: min(.65rem, 1.42vw);
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
 }

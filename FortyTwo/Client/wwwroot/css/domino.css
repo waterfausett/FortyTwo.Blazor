@@ -5,9 +5,13 @@
     -moz-transform: rotate(90deg);
 }
 
+.domino-container {
+    font-size: clamp(5px, 1.42vw, 20px);
+    font-size: min(.45rem, 1.42vw);
+}
+
 .domino {
     float: left;
-    font-size: clamp(5px, 1.42vw, 20px);
     width: 6em;
     height: 12em;
     margin: 10em;
