@@ -251,11 +251,27 @@ a {
 }
 
 /* Game */
-.game-wrapper .domino-container {
-    font-size: min(.65rem, 1.42vw);
+.game-wrapper {
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-content: center;
+    flex-direction: column;
+    justify-content: space-between;
+    height: calc(100vh - 3.5rem - 18px);
+}
+
+    .game-wrapper .player-dominos {
+        min-height: 11rem;
+        padding-bottom: 12px;
+    }
+
+    .game-wrapper .board {
+        flex-grow: 1;
+    }
+
+    .game-wrapper .domino-container {
+        font-size: min(.75rem, 1.42vw);
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-content: center;
 }

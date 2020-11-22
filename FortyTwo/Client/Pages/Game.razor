@@ -6,33 +6,42 @@
 
 <SpinnerOverlay Visible="Model.IsLoading">
     <div class="game-wrapper">
-        <div class="row">
-            <div class="col-6 offset-3"></div>
+        <div>
+            <div class="row">
+                <!-- TODO: fix this so that it's displaying players in the right order relative to the logged in user -->
+                @foreach (var player in Model.Game.Players.Where(x => x.Id != UserId))
+                {
+                    <div class="col-4">
+                        <h3>@player.Name</h3>
+                        <span>@player.Dominos</span>
+                    </div>
+                }
+            </div>
         </div>
-        <div class="row">
-            <div class="col-3"></div>
-            <div class="col-6"></div>
-            <div class="col-3"></div>
+        <div class="board">
+            <h3>Get ready to play!</h3>
         </div>
-        <div class="row">
-            <div class="col-12">
-                <SpinnerOverlay Visible="Model.FetchingPlayer">
-                    @if (Model.Player != null)
-                    {
-                        <div class="domino-container">
-                            @foreach (var domino in Model.Player.Dominos)
-                            {
-                                <Domino Top="domino.Top" Bottom="domino.Bottom"></Domino>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="alert alert-danger" role="alert">
-                            Failed to load your info :(
-                        </div>
-                    }
-                </SpinnerOverlay>
+        <div class="player-dominos">
+            <div class="row">
+                <div class="col-12">
+                    <SpinnerOverlay Visible="Model.FetchingPlayer">
+                        @if (Model.Player != null)
+                        {
+                            <div class="domino-container">
+                                @foreach (var domino in Model.Player.Dominos)
+                                {
+                                    <Domino Top="domino.Top" Bottom="domino.Bottom"></Domino>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                Failed to load your info :(
+                            </div>
+                        }
+                    </SpinnerOverlay>
+                </div>
             </div>
         </div>
     </div>
@@ -42,8 +51,16 @@
     [Parameter]
     public Guid GameId { get; set; }
 
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    private string UserId;
+
     protected override async Task OnInitializedAsync()
     {
+        var authState = await authenticationStateTask;
+        UserId = authState.User.Claims.Single(c => c.Type == "sub").Value;
+
         Model.GameId = GameId;
 
         if (Model.Game == null)

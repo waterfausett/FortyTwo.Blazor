@@ -48,8 +48,8 @@ namespace FortyTwo.Server.Services
                             {
                                 new Player
                                 {
-                                    Id = "Id:Luke",
-                                    Name = "Luke",
+                                    Id = "Id:Jack",
+                                    Name = "Jack",
                                     TeamId = new Guid("a58f497f-73fe-4a8b-9af4-a409ca385c66"),
                                     IsActive = true,
                                     Dominos = dominos.GetRange(0, 7)
@@ -63,8 +63,8 @@ namespace FortyTwo.Server.Services
                                 },
                                 new Player
                                 {
-                                    Id = "Id:Sam",
-                                    Name = "Sam",
+                                    Id = "Id:Jill",
+                                    Name = "Jill",
                                     TeamId = new Guid("a58f497f-73fe-4a8b-9af4-a409ca385c66"),
                                     Dominos = dominos.GetRange(14, 7)
                                 },
