@@ -78,8 +78,9 @@ namespace FortyTwo.Server.Controllers
 
             var rng = new Random();
             var winner = rng.Next(4);
+            game.CurrentTrick.TeamId = game.Players[winner].TeamId;
 
-            game.Players[winner].Tricks.Add(game.CurrentTrick);
+            game.Tricks.Add(game.CurrentTrick);
             game.CurrentTrick = new Trick();
 
             return Ok(_mapper.Map<Shared.Models.DTO.Game>(game));

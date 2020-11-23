@@ -1,6 +1,8 @@
-﻿namespace FortyTwo.Shared.Models
+﻿using System;
+
+namespace FortyTwo.Shared.Models
 {
-    public class Domino
+    public class Domino : IEquatable<Domino>
     {
         public Domino()
         {
@@ -15,6 +17,12 @@
 
         public int Top { get; set; }
         public int Bottom { get; set; }
-        public int Value => ((Top + Bottom) % 5 == 0) ? (Top + Bottom) % 5 : 0;
+        public int Value => ((Top + Bottom) % 5 == 0) ? (Top + Bottom) : 0;
+
+        public bool Equals(Domino other)
+        {
+            return (this.Top == other.Top && this.Bottom == other.Bottom)
+                || (this.Top == other.Bottom && this.Bottom == other.Top);
+        }
     }
 }

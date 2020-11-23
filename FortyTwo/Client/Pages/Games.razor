@@ -34,8 +34,8 @@
                                         </h5>
                                         <div class="m-2">
                                             <Chip Context="Components.Models.ContextualClass.Info">
-                                                <Label>Score</Label>
-                                                <Badge>@team.Sum(x => x.Points)</Badge>
+                                                <Label>Points</Label>
+                                                <Badge>@game.Tricks.Where(x => x.TeamId == team.Key).Sum(x => x.Value)</Badge>
                                             </Chip>
 
                                             @if (team.Contains(game.BiddingPlayer))

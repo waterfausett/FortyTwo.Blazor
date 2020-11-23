@@ -10,6 +10,5 @@ namespace FortyTwo.Shared.Models.DTO
         public int? Bid { get; set; }
         public bool IsActive { get; set; }
         public int Dominos { get; set; }
-        public int Points { get; set; }
     }
 }
