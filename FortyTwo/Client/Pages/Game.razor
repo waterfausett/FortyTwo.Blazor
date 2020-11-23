@@ -62,6 +62,19 @@
             </div>
             <div class="gameboard">
                 <h3>Get ready to play!</h3>
+                <div class="current-trick">
+                    @{
+                        Model.Game.CurrentTrick.Dominos.Add(new FortyTwo.Shared.Models.Domino(5, 5));
+                        Model.Game.CurrentTrick.Dominos.Add(new FortyTwo.Shared.Models.Domino(5, 2));
+                        Model.Game.CurrentTrick.Dominos.Add(new FortyTwo.Shared.Models.Domino(3, 5));
+                        Model.Game.CurrentTrick.Dominos.Add(new FortyTwo.Shared.Models.Domino(4, 3));
+                    }
+
+                    @foreach (var domino in Model.Game.CurrentTrick.Dominos)
+                    {
+                        <Domino Instance="domino" Direction="DominoDirection.Vertical"></Domino>
+                    }
+                </div>
             </div>
             <div class="player">
                 <div class="row">
