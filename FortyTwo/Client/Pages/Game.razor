@@ -1,8 +1,10 @@
 ﻿@page "/game/{gameId:guid}"
 @attribute [Authorize]
 @layout MainLayout
+@using CurrieTechnologies.Razor.SweetAlert2
 @using FortyTwo.Client.ViewModels
 @inject IGameViewModel Model
+@inject SweetAlertService Swal
 
 <style>
     .game-wrapper {
@@ -67,7 +69,7 @@
                         <div class="domino-container">
                             @foreach (var domino in Model.Player.Dominos)
                             {
-                                <Domino Instance="domino" Selectable="Model.Player.IsActive" OnSelected="@((domino) => Console.WriteLine($"{domino.Top}/{domino.Bottom}"))"></Domino>
+                                <Domino Instance="domino" Selectable="Model.Player.IsActive" OnSelected="async (domino) => await MakeMoveAsync(domino)"></Domino>
                             }
                         </div>
                     </div>
@@ -93,6 +95,31 @@
         if (Model.Player == null)
         {
             await Model.FetchPlayerAsync();
+        }
+    }
+
+    public async Task MakeMoveAsync(FortyTwo.Shared.Models.Domino domino)
+    {
+        bool successful;
+
+        try
+        {
+            successful = await Model.MakeMoveAsync(domino);
+        }
+        catch (Exception ex)
+        {
+            successful = false;
+            Console.Error.WriteLine(ex.Message);
+        }
+
+        if (!successful)
+        {
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Error,
+                Title = "Invalid move!",
+                ConfirmButtonText = "Ok",
+            });
         }
     }
 }

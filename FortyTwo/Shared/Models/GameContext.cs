@@ -12,7 +12,7 @@ namespace FortyTwo.Shared.Models
         public string Name { get; set; }
         public Player BiddingPlayer => Players?.OrderByDescending(x => x.Bid).FirstOrDefault();
         public int? Trump { get; set; }
-        public Trick CurrentTrick { get; set; }
+        public Trick CurrentTrick { get; set; } = new Trick();
         public Player CurrentPlayer => Players?.FirstOrDefault(x => x.IsActive);
         public List<Player> Players { get; set; } = new List<Player>();
     }
