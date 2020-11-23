@@ -4,63 +4,85 @@
 @using FortyTwo.Client.ViewModels
 @inject IGameViewModel Model
 
+<style>
+    .game-wrapper {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: calc(100vh - 3.5rem - 18px);
+    }
+
+        .game-wrapper .player {
+            min-height: 11rem;
+            padding-bottom: 12px;
+        }
+
+        .game-wrapper .gameboard {
+            flex-grow: 1;
+        }
+
+        .game-wrapper .domino-container {
+            font-size: min(.75rem, 1.42vw);
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center;
+        }
+</style>
+
 <SpinnerOverlay Visible="Model.IsLoading">
-    <div class="game-wrapper">
-        <div>
-            <div class="row">
-                <!-- TODO: fix this so that it's displaying players in the right order relative to the logged in user -->
-                @foreach (var player in Model.Game.Players.Where(x => x.Id != UserId))
-                {
-                    <div class="col-4">
-                        <h3>@player.Name</h3>
-                        <span>@player.Dominos</span>
-                    </div>
-                }
+    @if (Model.Game == null || Model.Player == null)
+    {
+        <div class="alert alert-danger" role="alert">
+            Failed to load game info :(
+        </div>
+    }
+    else
+    {
+        <div class="game-wrapper">
+            <div>
+                <h5>
+                    @Model.Game.Name
+                    <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchGameAsync())">Update</button>
+                </h5>
             </div>
-        </div>
-        <div class="board">
-            <h3>Get ready to play!</h3>
-        </div>
-        <div class="player-dominos">
-            <div class="row">
-                <div class="col-12">
-                    <SpinnerOverlay Visible="Model.FetchingPlayer">
-                        @if (Model.Player != null)
-                        {
-                            <div class="domino-container">
-                                @foreach (var domino in Model.Player.Dominos)
-                                {
-                                    <Domino Top="domino.Top" Bottom="domino.Bottom"></Domino>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="alert alert-danger" role="alert">
-                                Failed to load your info :(
-                            </div>
-                        }
-                    </SpinnerOverlay>
+            <div>
+                <div class="row">
+                    @{
+                        var teammate = Model.Game.Players.FirstOrDefault(x => x.Id != Model.Player.Id && x.TeamId == Model.Player.TeamId);
+                        var opponents = Model.Game.Players.Where(x => x.TeamId != Model.Player.TeamId).ToList();
+                    }
+                    <RemotePlayer Player="opponents.ElementAtOrDefault(0)"></RemotePlayer>
+                    <RemotePlayer Player="teammate"></RemotePlayer>
+                    <RemotePlayer Player="opponents.ElementAtOrDefault(1)"></RemotePlayer>
+                </div>
+            </div>
+            <div class="gameboard">
+                <h3>Get ready to play!</h3>
+            </div>
+            <div class="player">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="domino-container">
+                            @foreach (var domino in Model.Player.Dominos)
+                            {
+                                <Domino Instance="domino" Selectable="Model.Player.IsActive" OnSelected="@((domino) => Console.WriteLine($"{domino.Top}/{domino.Bottom}"))"></Domino>
+                            }
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    }
 </SpinnerOverlay>
 
 @code {
     [Parameter]
     public Guid GameId { get; set; }
 
-    [CascadingParameter]
-    private Task<AuthenticationState> authenticationStateTask { get; set; }
-
-    private string UserId;
-
     protected override async Task OnInitializedAsync()
     {
-        var authState = await authenticationStateTask;
-        UserId = authState.User.Claims.Single(c => c.Type == "sub").Value;
-
         Model.GameId = GameId;
 
         if (Model.Game == null)

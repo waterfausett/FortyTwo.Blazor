@@ -31,6 +31,9 @@ namespace FortyTwo.Server.Controllers
 
             dominos.Shuffle();
 
+            // TODO: add in some trickery so that the dominos aren't always the same direction
+            // - 5|1 is always in this orientation currently
+
             return dominos;
         }
     }

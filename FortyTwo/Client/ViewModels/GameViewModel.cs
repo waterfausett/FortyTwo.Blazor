@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
@@ -11,8 +10,7 @@ namespace FortyTwo.Client.ViewModels
 {
     public interface IGameViewModel
     {
-        public bool IsLoading { get; set; }
-        public bool FetchingPlayer { get; set; }
+        public bool IsLoading { get; }
         public Guid GameId { get; set; }
         public Game Game { get; }
         public FortyTwo.Shared.Models.Player Player { get; set; }
@@ -31,8 +29,9 @@ namespace FortyTwo.Client.ViewModels
             _store = store;
         }
 
-        public bool IsLoading { get; set; }
-        public bool FetchingPlayer { get; set; }
+        private bool _fetchingGame;
+        private bool _fetchingPlayer;
+        public bool IsLoading => _fetchingGame || _fetchingPlayer;
 
         public Guid GameId { get; set; }
         public Game Game
@@ -44,7 +43,7 @@ namespace FortyTwo.Client.ViewModels
 
         public async Task FetchGameAsync()
         {
-            IsLoading = true;
+            _fetchingGame = true;
 
             try
             {
@@ -58,13 +57,13 @@ namespace FortyTwo.Client.ViewModels
             }
             finally
             {
-                IsLoading = false;
+                _fetchingGame = false;
             }
         }
 
         public async Task FetchPlayerAsync()
         {
-            FetchingPlayer = true;
+            _fetchingPlayer = true;
 
             try
             {
@@ -77,7 +76,7 @@ namespace FortyTwo.Client.ViewModels
             }
             finally
             {
-                FetchingPlayer = false;
+                _fetchingPlayer = false;
             }
         }
     }

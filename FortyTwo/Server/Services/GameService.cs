@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using FortyTwo.Shared.Extensions;
 
 using FortyTwo.Shared.Models;
+using FortyTwo.Shared.Models.Security;
 
 namespace FortyTwo.Server.Services
 {
@@ -15,9 +17,19 @@ namespace FortyTwo.Server.Services
 
     public class GameService : IGameService
     {
+        private readonly UserId _userId;
+
+        public GameService(UserId userId)
+        {
+            _userId = userId;
+        }
+
         public async Task<List<GameContext>> FetchGamesAsync()
         {
-            return StaticGames.Instance;
+            var games = StaticGames.Instance;
+            // TODO: clean this mess up - just hard swapping for my userId for now
+            games.ForEach(g => g.Players.Where(p => p.Id == "Id:Adam").ToList().ForEach(p => p.Id = _userId));
+            return games;
         }
 
         public async Task<GameContext> GetAsync(Guid id)
@@ -51,7 +63,6 @@ namespace FortyTwo.Server.Services
                                     Id = "Id:Jack",
                                     Name = "Jack",
                                     TeamId = new Guid("a58f497f-73fe-4a8b-9af4-a409ca385c66"),
-                                    IsActive = true,
                                     Dominos = dominos.GetRange(0, 7)
                                 },
                                 new Player
@@ -59,7 +70,8 @@ namespace FortyTwo.Server.Services
                                     Id = "Id:Adam",
                                     Name = "Adam",
                                     TeamId = new Guid("bca0607d-013a-410d-bac2-90ce4fd78bfa"),
-                                    Dominos = dominos.GetRange(7, 7)
+                                    Dominos = dominos.GetRange(7, 7),
+                                    IsActive = true,
                                 },
                                 new Player
                                 {

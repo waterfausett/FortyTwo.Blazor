@@ -1,36 +1,36 @@
-﻿@namespace FortyTwo.Client.Components
-@using FortyTwo.Client.Components.Models
+﻿@using FortyTwo.Client.Components.Models
 
-<div class="domino @(Direction == DominoDirection.Horizontal ? "horizontal" : "")">
-    <div data-value="@Top">
+<div class="domino @(Direction == DominoDirection.Horizontal ? "horizontal" : "") @(Selectable ? "clickable" : "no-hover")" 
+     @onclick="@(async () => { if (Selectable) await OnSelected.InvokeAsync(Instance); })">
+    <div data-value="@Instance.Top">
         <!-- Left -->
-        @if (Top >= 2)
+        @if (Instance.Top >= 2)
         {
             <span class="TL23456"></span>
         }
-        @if (Top == 6)
+        @if (Instance.Top == 6)
         {
             <span class="TL6"></span>
         }
-        @if (Top >= 4)
+        @if (Instance.Top >= 4)
         {
             <span class="TL456"></span>
         }
         <!-- Center -->
-        @if (Top % 2 != 0)
+        @if (Instance.Top % 2 != 0)
         {
             <span class="TC135"></span>
         }
         <!-- Right -->
-        @if (Top >= 2)
+        @if (Instance.Top >= 2)
         {
             <span class="TR23456"></span>
         }
-        @if (Top == 6)
+        @if (Instance.Top == 6)
         {
             <span class="TR6"></span>
         }
-        @if (Top >= 4)
+        @if (Instance.Top >= 4)
         {
             <span class="TR456"></span>
         }
@@ -38,35 +38,35 @@
 
     <span class="line"></span>
 
-    <div data-value="@Bottom">
+    <div data-value="@Instance.Bottom">
         <!-- Left -->
-        @if (Bottom >= 2)
+        @if (Instance.Bottom >= 2)
         {
             <span class="BL23456"></span>
         }
-        @if (Bottom == 6)
+        @if (Instance.Bottom == 6)
         {
             <span class="BL6"></span>
         }
-        @if (Bottom >= 4)
+        @if (Instance.Bottom >= 4)
         {
             <span class="BL456"></span>
         }
         <!-- Center -->
-        @if (Bottom % 2 != 0)
+        @if (Instance.Bottom % 2 != 0)
         {
             <span class="BC135"></span>
         }
         <!-- Right -->
-        @if (Bottom >= 2)
+        @if (Instance.Bottom >= 2)
         {
             <span class="BR23456"></span>
         }
-        @if (Bottom == 6)
+        @if (Instance.Bottom == 6)
         {
             <span class="BR6"></span>
         }
-        @if (Bottom >= 4)
+        @if (Instance.Bottom >= 4)
         {
             <span class="BR456"></span>
         }
@@ -76,11 +76,14 @@
 
 @code {
     [Parameter]
-    public int Top { get; set; }
-
-    [Parameter]
-    public int Bottom { get; set; }
+    public FortyTwo.Shared.Models.Domino Instance { get; set; }
 
     [Parameter]
     public DominoDirection Direction { get; set; } = DominoDirection.Horizontal;
+
+    [Parameter]
+    public bool Selectable { get; set; }
+
+    [Parameter]
+    public EventCallback<FortyTwo.Shared.Models.Domino> OnSelected { get; set; }
 }

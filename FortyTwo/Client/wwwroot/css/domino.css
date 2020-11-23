@@ -137,3 +137,9 @@
             top: 6.7em;
             left: 4.0em;
         }
+
+    .domino.clickable:hover {
+        -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
+        -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
+        box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
+    }

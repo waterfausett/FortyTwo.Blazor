@@ -42,8 +42,7 @@ namespace FortyTwo.Server.Controllers
         [HttpGet("players/{gameId}")]
         public async Task<IActionResult> GetPlayer(Guid gameId)
         {
-            //return Ok(_gameRepo[0].Players.First(x => x.Id == _userId));
-            return Ok((await _gameService.GetAsync(gameId)).Players.First(x => x.Id == "Id:Adam"));
+            return Ok((await _gameService.GetAsync(gameId)).Players.First(x => x.Id == _userId));
         }
     }
 }

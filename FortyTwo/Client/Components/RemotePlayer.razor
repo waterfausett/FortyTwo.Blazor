@@ -1,0 +1,28 @@
+﻿@using FortyTwo.Shared.Models.DTO
+
+@if (Player != null)
+{
+    <div class="col-4">
+        <h4>
+            @Player.Name
+            @if (Player.IsActive)
+            {
+                <span class="active-dot"></span>
+            }
+        </h4>
+        <span>@Player.Dominos</span>
+    </div>
+}
+else
+{
+    <div class="alert alert-danger" role="alert">
+        This spot is empty :(
+    </div>
+}
+
+
+@code {
+    [Parameter]
+    public Player Player { get; set; }
+
+}
