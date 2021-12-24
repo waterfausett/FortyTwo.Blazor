@@ -44,13 +44,24 @@
             Title = "Who goes there?!",
             AllowOutsideClick = false,
             AllowEscapeKey = false,
-            ConfirmButtonText = "Log in now",
+            ConfirmButtonText = "I can explain&hellip;",
             ShowLoaderOnConfirm = true,
             ShowClass = new SweetAlertShowClass { Popup = "swal2-show", Backdrop = "swal-logout-bg" },
             PreConfirm = new PreConfirmCallback(async () =>
             {
-                Navigation.NavigateTo($"authentication/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
-                await Task.Delay(TimeSpan.FromSeconds(10));
+                try
+                {
+                    //Navigation.NavigateTo($"authentication/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+                    await Task.Delay(TimeSpan.FromSeconds(3));
+                    await Swal.ShowValidationMessageAsync("good grief, this is taking a while&hellip;");
+                    await Task.Delay(TimeSpan.FromSeconds(7));
+                    await Swal.ShowValidationMessageAsync("");
+                }
+                catch
+                {
+                    await Swal.ShowValidationMessageAsync("well, something went wrong&hellip;");
+                }
+
                 return "false";
             })
         });
