@@ -40,10 +40,22 @@ namespace FortyTwo.Shared.Models
 
         public bool IsDouble => this.Top == this.Bottom;
 
+        public Suit GetSuit(Suit trump)
+            => IsOfSuit(trump)
+                ? trump
+                : (Suit)(Math.Max(Top, Bottom));
+
         public bool IsOfSuit(Suit suit, Suit? trump = null)
             => trump == null || suit == trump
                 ? (this.Top == (int)suit || this.Bottom == (int)suit)
                 : (this.Top == (int)suit || this.Bottom == (int)suit) && (this.Top != (int)trump || this.Bottom != (int)trump);
+
+        public int GetSuitValue(Suit suit, Suit trump)
+            => IsOfSuit(suit, trump)
+                ? IsDouble ? 7 : this.Top == (int)suit ? this.Bottom : this.Top
+                : IsOfSuit(trump)
+                    ? 10 + (IsDouble ? 7 : this.Top == (int)suit ? this.Bottom : this.Top)
+                    : 0;
 
         public bool Equals(Domino other)
         {

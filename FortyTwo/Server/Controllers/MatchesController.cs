@@ -145,6 +145,16 @@ namespace FortyTwo.Server.Controllers
                 return BadRequest("<h2>It's not your turn!</h2>");
             }
 
+            // Hack: testing validation
+            game.Trump = Suit.Threes;
+
+            // TODO: figure out how we'll handle supporting low hands
+            //  - possibly another enum entry for Low (-1)
+            if (!game.Trump.HasValue)
+            {
+                return BadRequest("<h2>Invalid move!</h2><p>We're still bidding&hellip;</p>");
+            }
+
             var player = match.Players.First(x => x.Id == _userId);
 
             if (!game.Hands.First(x => x.PlayerId == _userId).Dominos.Contains(domino))
@@ -154,10 +164,6 @@ namespace FortyTwo.Server.Controllers
 
             // TODO: validation (game rules)
 
-            // Hack: testing validation
-            game.CurrentTrick.Suit = Suit.Blanks;
-            game.Trump = Suit.Threes;
-
             if (game.CurrentTrick.Suit.HasValue
                 && !domino.IsOfSuit(game.CurrentTrick.Suit.Value, game.Trump)
                 && game.Hands.First(x => x.PlayerId == _userId).Dominos.Any(x => x.IsOfSuit(game.CurrentTrick.Suit.Value, game.Trump)))
@@ -165,15 +171,38 @@ namespace FortyTwo.Server.Controllers
                 return BadRequest($"<h2>You must follow suit!</h2><p>If you have a <code>{PluralizationProvider.Singularize(game.CurrentTrick.Suit.ToString())}</code>, you must play it.</p>");
             }
 
-            // TODO: play the domino
-
             game.Hands.First(x => x.PlayerId == _userId).Dominos.Remove(domino);
 
+            // TODO: play the domino
+            game.CurrentTrick ??= new Trick();
+            game.CurrentTrick.AddDomino(domino, game.Trump.Value);
+
+            var currnetlyWinningDomino = game.CurrentTrick.Dominos.Where(x => x != null)
+                .OrderByDescending(x => x.GetSuitValue(game.CurrentTrick.Suit.Value, game.Trump.Value))
+                .First();
+
+            if (currnetlyWinningDomino.Equals(domino))
+            {
+                game.CurrentTrick.PlayerId = _userId;
+                game.CurrentTrick.TeamId = match.Players.First(x => x.Id == _userId).TeamId;
+            }
+
             // TODO: trick is full - get ready for the next one
+            
+            if (game.CurrentTrick.IsFull())
+            {
+                game.Tricks.Add(game.CurrentTrick);
+                game.CurrentTrick = new Trick();
+            }
 
-            // TODO: implement rules for winning the trick
+            game.SelectNextPlayer();
 
-            return Ok(_mapper.Map<Shared.Models.DTO.Game>(match));
+            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match);
+
+            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
+            
+            //return Ok(_mapper.Map<Shared.Models.DTO.Game>(match));
+            return Ok();
         }
 
         [HttpPost("{id}/automoves")]
@@ -215,7 +244,12 @@ namespace FortyTwo.Server.Controllers
             game.Tricks.Add(game.CurrentTrick);
             game.CurrentTrick = new Trick();
 
-            return Ok(_mapper.Map<Shared.Models.DTO.Game>(match));
+            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match);
+
+            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
+
+            //return Ok(_mapper.Map<Shared.Models.DTO.Game>(match));
+            return Ok();
         }
     }
 }

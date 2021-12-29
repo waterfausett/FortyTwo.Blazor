@@ -195,7 +195,7 @@
                             @foreach (var domino in Model.Player.Dominos)
                             {
                                 <Domino Instance="domino"
-                                    Selectable="Model.Player.IsActive && Model.Game.Bid.HasValue && Model.Game.Trump.HasValue"
+                                    Selectable="Model.Player.IsActive"
                                     OnSelected="async (domino) => await MakeMoveAsync(domino)"></Domino>
                             }
                         </div>
@@ -226,9 +226,47 @@
             await Model.FetchPlayerAsync();
         }
 
+        // TODO: add a visual indicator of connected status
+
+        // TODO: could prolly add most of the connection management to the ViewModel
+
         _hubConnection = new HubConnectionBuilder()
             .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
             .Build();
+
+        _hubConnection.Closed += async (Exception ex) =>
+        {
+            await Console.Error.WriteLineAsync(ex.Message);
+
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Error,
+                Toast = true,
+                ShowConfirmButton = false,
+                Position = SweetAlertPosition.BottomRight,
+                Timer = 1750,
+                TimerProgressBar = true,
+                ShowCloseButton = false,
+                Title = "Disconnected"
+            });
+        };
+
+        _hubConnection.Reconnected += async (string connectionId) =>
+        { 
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Success,
+                Toast = true,
+                ShowConfirmButton = false,
+                Position = SweetAlertPosition.BottomRight,
+                Timer = 1750,
+                TimerProgressBar = true,
+                ShowCloseButton = false,
+                Title = "Reconnected"
+            });
+
+            await Model.FetchGameAsync();
+        };
 
         _hubConnection.On<FortyTwo.Shared.Models.DTO.Player>("OnPlayerAdded", (player) =>
         {
@@ -254,7 +292,7 @@
                 Timer = 1750,
                 TimerProgressBar = true,
                 ShowCloseButton = false,
-                Title = "Game Changed"
+                Title = "Game Updated"
             });
         });
 

@@ -151,9 +151,11 @@ namespace FortyTwo.Client.ViewModels
                     return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
                 }
 
+                /*
                 var game = await response.Content.ReadFromJsonAsync<Game>();
                 _store.Games.RemoveAll(x => x.Id == MatchId);
                 _store.Games.Add(game);
+                */
 
                 Player.Dominos.Remove(domino);
 
