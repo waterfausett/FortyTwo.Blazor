@@ -22,6 +22,7 @@ namespace FortyTwo.Client.ViewModels
         public Game Game { get; }
         public LoggedInPlayer Player { get; set; }
         Task FetchGameAsync();
+        void UpdateGame(Game game);
         Task FetchPlayerAsync();
         Task<string> BidAsync(Bid bid);
         Task<string> MakeMoveAsync(Domino domino);
@@ -85,6 +86,14 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
+        public void UpdateGame(Game game)
+        {
+            _store.Games.RemoveAll(x => x.Id == MatchId);
+            _store.Games.Add(game);
+
+            Player.Bid ??= game.Players.First(x => x.Id == Player.Id).Bid;
+        }
+
         public async Task FetchPlayerAsync()
         {
             _fetchingPlayer = true;
@@ -110,10 +119,11 @@ namespace FortyTwo.Client.ViewModels
                 {
                     return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
                 }
-
+                /*
                 var game = await response.Content.ReadFromJsonAsync<Game>();
                 _store.Games.RemoveAll(x => x.Id == MatchId);
                 _store.Games.Add(game);
+                */
 
                 Player.Bid = bid;
 

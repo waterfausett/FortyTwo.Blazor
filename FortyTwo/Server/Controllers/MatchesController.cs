@@ -4,12 +4,14 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
+using FortyTwo.Server.Hubs;
 using FortyTwo.Server.Services;
 using FortyTwo.Shared.Models;
 using FortyTwo.Shared.Models.DTO;
 using FortyTwo.Shared.Models.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using PluralizeService.Core;
 
@@ -24,13 +26,15 @@ namespace FortyTwo.Server.Controllers
         private readonly IMapper _mapper;
         private readonly UserId _userId;
         private readonly IMatchService _matchService;
+        private readonly IHubContext<GameHub> _gameHubContext;
 
-        public MatchesController(ILogger<MatchesController> logger, IMapper mapper, UserId userId, IMatchService matchService)
+        public MatchesController(ILogger<MatchesController> logger, IMapper mapper, UserId userId, IMatchService matchService, IHubContext<GameHub> gameHubContext)
         {
             _logger = logger;
             _mapper = mapper;
             _userId = userId;
             _matchService = matchService;
+            _gameHubContext = gameHubContext;
         }
         
         [HttpGet]
@@ -107,7 +111,12 @@ namespace FortyTwo.Server.Controllers
 
             game.SelectNextPlayer();
 
-            return Ok(_mapper.Map<Shared.Models.DTO.Game>(match));
+            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match);
+
+            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
+
+            //return Ok(gameDTO);
+            return Ok();
         }
 
         [HttpPost("{id}/moves")]

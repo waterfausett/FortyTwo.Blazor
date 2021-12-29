@@ -1,7 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 using System.Text.Json;
 using AutoMapper;
 using FortyTwo.Server.AutoMapper;
+using FortyTwo.Server.Hubs;
 using FortyTwo.Server.Services;
 using FortyTwo.Server.Services.Security;
 using FortyTwo.Shared.Models.Security;
@@ -11,6 +13,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -44,6 +47,8 @@ namespace FortyTwo.Server
             
             services.AddHttpClient();
 
+            services.AddSignalR();
+
             services
                 .AddControllersWithViews(options =>
                 {
@@ -60,6 +65,12 @@ namespace FortyTwo.Server
                 });
 
             services.AddRazorPages();
+
+            services.AddResponseCompression(opts =>
+            {
+                opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+                    new[] { "application/octet-stream" });
+            });
 
             services.AddSingleton(new MapperConfiguration(mc =>
             {
@@ -78,6 +89,8 @@ namespace FortyTwo.Server
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            app.UseResponseCompression();
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -103,6 +116,7 @@ namespace FortyTwo.Server
             {
                 endpoints.MapRazorPages();
                 endpoints.MapControllers();
+                endpoints.MapHub<GameHub>("/gamehub");
                 endpoints.MapFallbackToFile("index.html");
             });
         }

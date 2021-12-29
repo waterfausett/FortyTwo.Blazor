@@ -1,13 +1,18 @@
 ﻿@page "/game/{gameId:guid}"
 @attribute [Authorize]
 @layout MainLayout
+
 @using System
 @using System.Linq
 @using CurrieTechnologies.Razor.SweetAlert2
 @using FortyTwo.Client.ViewModels
 @using FortyTwo.Shared.Models
+@using Microsoft.AspNetCore.SignalR.Client
+
 @inject IGameViewModel Model
 @inject SweetAlertService Swal
+@inject NavigationManager NavigationManager
+@implements IDisposable
 
 <style>
     .game-wrapper {
@@ -205,6 +210,8 @@
     [Parameter]
     public Guid GameId { get; set; }
 
+    private HubConnection _hubConnection;
+
     protected override async Task OnInitializedAsync()
     {
         Model.MatchId = GameId;
@@ -218,9 +225,52 @@
         {
             await Model.FetchPlayerAsync();
         }
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
+            .Build();
+
+        _hubConnection.On<FortyTwo.Shared.Models.DTO.Player>("OnPlayerAdded", (player) =>
+        {
+            // TODO: validate
+
+            // TODO: add player
+
+            StateHasChanged();
+        });
+
+        _hubConnection.On<FortyTwo.Shared.Models.DTO.Game>("OnGameChanged", async (game) =>
+        {
+            Model.UpdateGame(game);
+
+            StateHasChanged();
+
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Success,
+                Toast = true,
+                ShowConfirmButton = false,
+                Position = SweetAlertPosition.BottomRight,
+                Timer = 1750,
+                TimerProgressBar = true,
+                ShowCloseButton = false,
+                Title = "Game Changed"
+            });
+        });
+
+        await _hubConnection.StartAsync();
+        await _hubConnection.SendAsync("JoinGameAsync", Model.MatchId);
     }
 
-    public async Task BidAsync(FortyTwo.Shared.Models.Bid bid)
+    public bool IsConnected =>
+        _hubConnection.State == HubConnectionState.Connected;
+
+    public void Dispose()
+    {
+        _ = _hubConnection?.DisposeAsync();
+    }
+
+    public async Task BidAsync(Bid bid)
     {
         string errorMessage;
 
