@@ -1,8 +1,11 @@
 ﻿@page "/game/{gameId:guid}"
 @attribute [Authorize]
 @layout MainLayout
+@using System
+@using System.Linq
 @using CurrieTechnologies.Razor.SweetAlert2
 @using FortyTwo.Client.ViewModels
+@using FortyTwo.Shared.Models
 @inject IGameViewModel Model
 @inject SweetAlertService Swal
 
@@ -67,19 +70,18 @@
         <div class="game-wrapper">
             <div>
                 <h5>
-                    @Model.Game.Name
+                    @(Model.Game.Name ?? "Name Unknown")
                     <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchGameAsync())">Update</button>
                 </h5>
             </div>
             <div>
                 <div class="row">
                     @{
-                        var teammate = Model.Game.Players.FirstOrDefault(x => x.Id != Model.Player.Id && x.TeamId == Model.Player.TeamId);
-                        var opponents = Model.Game.Players.Where(x => x.TeamId != Model.Player.TeamId).ToList();
+                        var playerIndex = Model.Game.Players.FindIndex(x => x.Id == Model.Player.Id);
                     }
-                    <RemotePlayer Player="opponents.ElementAtOrDefault(0)"></RemotePlayer>
-                    <RemotePlayer Player="teammate"></RemotePlayer>
-                    <RemotePlayer Player="opponents.ElementAtOrDefault(1)"></RemotePlayer>
+                    <RemotePlayer Player="Model.Game.Players.ElementAtOrDefault((playerIndex + 1) % Model.Game.Players.Count)"></RemotePlayer>
+                    <RemotePlayer Player="Model.Game.Players.ElementAtOrDefault((playerIndex + 2) % Model.Game.Players.Count)"></RemotePlayer>
+                    <RemotePlayer Player="Model.Game.Players.ElementAtOrDefault((playerIndex + 3) % Model.Game.Players.Count)"></RemotePlayer>
                 </div>
             </div>
             <div class="gameboard">
@@ -122,13 +124,74 @@
                     </div>
                 </div>
             </div>
+
+            @if (Model.Player.IsActive && !Model.Player.Bid.HasValue)
+            {
+                <section class="bidding-section">
+                    <SpinnerOverlay Visible="Model.Bidding">
+                        <div class="row">
+                            <div class="col-12">
+                                <p>Select a bid:</p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                @foreach (Bid bid in Model.BiddingOptions)
+                                {
+                                    var context = bid switch
+                                    {
+                                        Bid.Pass => ContextualClass.Warning,
+                                        _ => ContextualClass.Info
+                                    };
+                                    <Chip Context="context" Size="Size.Large" OnSelected="async () => await BidAsync(bid)">
+                                        <Label>
+                                            @bid.ToPrettyString()
+                                        </Label>
+                                    </Chip>
+                                }
+                            </div>
+                        </div>
+                    </SpinnerOverlay>
+                </section>
+            }
+
+            @if (Model.Game.BiddingPlayerId == Model.Player.Id && Model.Game.Players.All(x => x.Bid.HasValue) && !Model.Game.Trump.HasValue)
+            {
+                <section class="trump-select-section">
+                    <SpinnerOverlay Visible="Model.Bidding">
+                        <div class="row">
+                            <div class="col-12 text-center">
+                                @foreach (Suit suit in Enum.GetValues(typeof(Suit)))
+                                {
+                                    <Chip Context="ContextualClass.Info" Size="Size.Large"><Label>@suit</Label></Chip>
+                                }
+                            </div>
+                        </div>
+                    </SpinnerOverlay>
+                </section>
+            }
+
             <div class="player">
                 <div class="row">
                     <div class="col-12">
+                        <hr />
+
+                        <div>
+                            <label>Current Player: @Model.Game.CurrentPlayerId</label>
+                        </div>
+                        <div>
+                            <label>Current Bid: @Model.Game.Bid.ToPrettyString()</label>
+                        </div>
+                        <div>
+                            <label>Current High Bidder: @Model.Game.BiddingPlayerId</label>
+                        </div>
+
                         <div class="domino-container">
                             @foreach (var domino in Model.Player.Dominos)
                             {
-                                <Domino Instance="domino" Selectable="Model.Player.IsActive" OnSelected="async (domino) => await MakeMoveAsync(domino)"></Domino>
+                                <Domino Instance="domino"
+                                    Selectable="Model.Player.IsActive && Model.Game.Bid.HasValue && Model.Game.Trump.HasValue"
+                                    OnSelected="async (domino) => await MakeMoveAsync(domino)"></Domino>
                             }
                         </div>
                     </div>
@@ -144,7 +207,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Model.GameId = GameId;
+        Model.MatchId = GameId;
 
         if (Model.Game == null)
         {
@@ -157,26 +220,51 @@
         }
     }
 
-    public async Task MakeMoveAsync(FortyTwo.Shared.Models.Domino domino)
+    public async Task BidAsync(FortyTwo.Shared.Models.Bid bid)
     {
-        bool successful;
+        string errorMessage;
 
         try
         {
-            successful = await Model.MakeMoveAsync(domino);
+            errorMessage = await Model.BidAsync(bid);
         }
         catch (Exception ex)
         {
-            successful = false;
-            Console.Error.WriteLine(ex.Message);
+            errorMessage = ex.Message;
+            Console.Error.WriteLine();
         }
 
-        if (!successful)
+        if (!string.IsNullOrWhiteSpace(errorMessage))
         {
             await Swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Error,
-                Title = "Invalid move!",
+                Html = errorMessage,
+                ConfirmButtonText = "Ok",
+            });
+        }
+    }
+
+    public async Task MakeMoveAsync(FortyTwo.Shared.Models.Domino domino)
+    {
+        string errorMessage;
+
+        try
+        {
+            errorMessage = await Model.MakeMoveAsync(domino);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            Console.Error.WriteLine();
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Error,
+                Html = errorMessage,
                 ConfirmButtonText = "Ok",
             });
         }

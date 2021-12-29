@@ -14,6 +14,6 @@ namespace FortyTwo.Server.Services.Security
         }
 
         public override string GetUserId()
-            => _httpContextAccessor.HttpContext.User?.Claims.SingleOrDefault(c => c.Type == "sub")?.Value;
+            => "Id:Adam";//_httpContextAccessor.HttpContext.User?.Claims.SingleOrDefault(c => c.Type == "sub")?.Value;
     }
 }

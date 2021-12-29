@@ -1,7 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Net.Http;
-using System.Text.Json;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
 using FortyTwo.Client.Store;
 using FortyTwo.Shared.Models.DTO;
@@ -39,12 +38,9 @@ namespace FortyTwo.Client.ViewModels
 
             try
             {
-                using var response = await _http.GetAsync("api/games");
-                response.EnsureSuccessStatusCode();
+                var games = await _http.GetFromJsonAsync<List<Game>>("api/matches");
 
-                var responseContent = await response.Content.ReadAsStringAsync();
-
-                _store.Games = JsonSerializer.Deserialize<List<Game>>(responseContent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                _store.Games = games;
             }
             finally
             {

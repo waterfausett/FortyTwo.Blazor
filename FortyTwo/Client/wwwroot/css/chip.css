@@ -15,9 +15,15 @@
     border: .05rem solid #8c8c8c;
     border-color: var(--label-default-border-color,#8c8c8c);
     height: 1.5rem;
-    margin: 0 .3rem 0 0;
+    margin: 0 .3rem .5rem 0;
     white-space: nowrap;
 }
+
+    .custom-chip.custom-chip-large {
+        font-size: 1.1em;
+        height: 2rem;
+        padding-top: 3px;
+    }
 
     .custom-chip, .custom-chip:visited, a.custom-chip, a.custom-chip:visited {
         color: #000;

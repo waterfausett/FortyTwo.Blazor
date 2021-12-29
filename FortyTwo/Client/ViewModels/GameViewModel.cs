@@ -1,25 +1,30 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Text;
-using System.Text.Json;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
 using FortyTwo.Client.Store;
 using FortyTwo.Shared.Models;
 using FortyTwo.Shared.Models.DTO;
+using Game = FortyTwo.Shared.Models.DTO.Game;
+using Player = FortyTwo.Shared.Models.DTO.Player;
 
 namespace FortyTwo.Client.ViewModels
 {
     public interface IGameViewModel
     {
         public bool IsLoading { get; }
+        public bool Bidding { get; set; }
+        public List<Bid> BiddingOptions { get; }
         public bool MakingMove { get; set; }
-        public Guid GameId { get; set; }
+        public Guid MatchId { get; set; }
         public Game Game { get; }
-        public FortyTwo.Shared.Models.Player Player { get; set; }
+        public LoggedInPlayer Player { get; set; }
         Task FetchGameAsync();
         Task FetchPlayerAsync();
-        Task<bool> MakeMoveAsync(Domino domino);
+        Task<string> BidAsync(Bid bid);
+        Task<string> MakeMoveAsync(Domino domino);
     }
 
     public class GameViewModel : IGameViewModel
@@ -36,15 +41,32 @@ namespace FortyTwo.Client.ViewModels
         private bool _fetchingGame;
         private bool _fetchingPlayer;
         public bool IsLoading => _fetchingGame || _fetchingPlayer;
+        public bool Bidding { get; set; }
         public bool MakingMove { get; set; }
 
-        public Guid GameId { get; set; }
+        public Guid MatchId { get; set; }
         public Game Game
         {
-            get => _store.Games?.FirstOrDefault(x => x.Id == GameId);
+            get => _store.Games?.FirstOrDefault(x => x.Id == MatchId);
         }
 
-        public FortyTwo.Shared.Models.Player Player { get; set; }
+        public LoggedInPlayer Player { get; set; }
+
+        public List<Bid> BiddingOptions
+        {
+            get
+            {
+                var biddingOptions = Enum.GetValues(typeof(Bid)).OfType<Bid>().ToList();
+                if (Player.Dominos.Count(x => x.IsDouble) < 4)
+                {
+                    biddingOptions.Remove(Bid.Plunge);
+                }
+
+                biddingOptions.RemoveAll(x => x > Bid.EightyFour && (!Game.Bid.HasValue || (int)x > ((int)Game.Bid + (int)Bid.FourtyTwo)));
+
+                return biddingOptions;
+            }
+        }
 
         public async Task FetchGameAsync()
         {
@@ -52,13 +74,10 @@ namespace FortyTwo.Client.ViewModels
 
             try
             {
-                using var response = await _http.GetAsync($"api/games/{GameId}");
-                response.EnsureSuccessStatusCode();
+                var game = await _http.GetFromJsonAsync<Game>($"api/matches/{MatchId}");
 
-                var responseContent = await response.Content.ReadAsStringAsync();
-
-                _store.Games.RemoveAll(x => x.Id == GameId);
-                _store.Games.Add(JsonSerializer.Deserialize<Game>(responseContent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                _store.Games.RemoveAll(x => x.Id == MatchId);
+                _store.Games.Add(game);
             }
             finally
             {
@@ -72,12 +91,7 @@ namespace FortyTwo.Client.ViewModels
 
             try
             {
-                using var response = await _http.GetAsync($"api/games/players/{GameId}");
-                response.EnsureSuccessStatusCode();
-
-                var responseContent = await response.Content.ReadAsStringAsync();
-
-                Player = JsonSerializer.Deserialize<FortyTwo.Shared.Models.Player>(responseContent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                Player = await _http.GetFromJsonAsync<LoggedInPlayer>($"api/matches/{MatchId}/player");
             }
             finally
             {
@@ -85,29 +99,59 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public async Task<bool> MakeMoveAsync(Domino domino)
+        public async Task<string> BidAsync(Bid bid)
+        {
+            Bidding = true;
+
+            try
+            {
+                var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/bids", bid);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                }
+
+                var game = await response.Content.ReadFromJsonAsync<Game>();
+                _store.Games.RemoveAll(x => x.Id == MatchId);
+                _store.Games.Add(game);
+
+                Player.Bid = bid;
+
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+            finally
+            {
+                Bidding = false;
+            }
+        }
+
+        public async Task<string> MakeMoveAsync(Domino domino)
         {
             MakingMove = true;
 
             try
             {
-                var content = new StringContent(JsonSerializer.Serialize(domino), Encoding.UTF8, "application/json");
+                var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/moves", domino);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                }
 
-                using var response = await _http.PostAsync($"api/games/{GameId}/moves", content);
-                response.EnsureSuccessStatusCode();
-
-                var responseContent = await response.Content.ReadAsStringAsync();
-
-                _store.Games.RemoveAll(x => x.Id == GameId);
-                _store.Games.Add(JsonSerializer.Deserialize<Game>(responseContent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                var game = await response.Content.ReadFromJsonAsync<Game>();
+                _store.Games.RemoveAll(x => x.Id == MatchId);
+                _store.Games.Add(game);
 
                 Player.Dominos.Remove(domino);
 
-                return true;
+                return string.Empty;
             }
             catch (Exception ex)
             {
-                return false;
+                return ex.Message;
             }
             finally
             {

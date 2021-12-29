@@ -1,8 +1,9 @@
-﻿using System.Collections.Generic;
-using FortyTwo.Shared.Extensions;
-using FortyTwo.Shared.Models;
+﻿using FortyTwo.Shared.Models;
+using FortyTwo.Shared.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
 
 namespace FortyTwo.Server.Controllers
 {
@@ -10,31 +11,20 @@ namespace FortyTwo.Server.Controllers
     [ApiController]
     public class DominosController : ControllerBase
     {
-        private readonly ILogger<DominosController> logger;
+        private readonly ILogger<DominosController> _logger;
+        private readonly IDominoService _dominoService;
 
-        public DominosController(ILogger<DominosController> logger)
+        public DominosController(ILogger<DominosController> logger, IDominoService dominoService)
         {
-            this.logger = logger;
+            _logger = logger;
+            _dominoService = dominoService;
         }
 
+        [AllowAnonymous]
         [HttpGet]
         public IEnumerable<Domino> Get()
         {
-            var dominos = new List<Domino>();
-            for (var i = 0; i < 7; ++i)
-            {
-                for (var j = i; j < 7; ++j)
-                {
-                    dominos.Add(new Domino(i, j));
-                }
-            }
-
-            dominos.Shuffle();
-
-            // TODO: add in some trickery so that the dominos aren't always the same direction
-            // - 5|1 is always in this orientation currently
-
-            return dominos;
+            return _dominoService.Build(DominoType.DoubleSix);
         }
     }
 }

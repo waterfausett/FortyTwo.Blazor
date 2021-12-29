@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace FortyTwo.Shared.Models.DTO
 {
@@ -8,11 +7,12 @@ namespace FortyTwo.Shared.Models.DTO
     {
         public Guid Id { get; set; }
         public string Name { get; set; }
-        public Player BiddingPlayer => Players?.OrderByDescending(x => x.Bid).FirstOrDefault();
-        public int? Trump { get; set; }
+        public string BiddingPlayerId { get; set; }
+        public Bid? Bid { get; set; }
+        public Suit? Trump { get; set; }
+        public string CurrentPlayerId { get; set; }
         public Trick CurrentTrick { get; set; }
         public List<Trick> Tricks { get; set; } = new List<Trick>();
-        public Player CurrentPlayer => Players?.FirstOrDefault(x => x.IsActive);
         public List<Player> Players { get; set; }
     }
 }

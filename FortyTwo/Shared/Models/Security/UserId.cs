@@ -9,15 +9,16 @@
 
         public abstract string GetUserId();
     }
+
     internal class StaticUserId : UserId
     {
-        private readonly string _tenantId;
+        private readonly string _userId;
 
-        public StaticUserId(string tenantId)
+        public StaticUserId(string userId)
         {
-            _tenantId = tenantId;
+            _userId = userId;
         }
 
-        public override string GetUserId() => _tenantId;
+        public override string GetUserId() => _userId;
     }
 }

@@ -27,6 +27,13 @@
 
     public async Task ShuffleAsync()
     {
-        dominos = await Http.GetFromJsonAsync<Domino[]>("api/dominos");
+        try
+        {
+            dominos = await Http.GetFromJsonAsync<Domino[]>("api/dominos");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
     }
 }

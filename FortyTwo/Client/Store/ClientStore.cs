@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using FortyTwo.Shared.Models;
-using FortyTwo.Shared.Models.DTO;
+using Game = FortyTwo.Shared.Models.DTO.Game;
 
 namespace FortyTwo.Client.Store
 {

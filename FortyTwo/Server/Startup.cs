@@ -5,6 +5,7 @@ using FortyTwo.Server.AutoMapper;
 using FortyTwo.Server.Services;
 using FortyTwo.Server.Services.Security;
 using FortyTwo.Shared.Models.Security;
+using FortyTwo.Shared.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -70,7 +71,8 @@ namespace FortyTwo.Server
 
             services.AddScoped<UserId, HttpContextUserId>();
 
-            services.AddScoped<IGameService, GameService>();
+            services.AddScoped<IMatchService, MatchService>();
+            services.AddScoped<IDominoService, DominoService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

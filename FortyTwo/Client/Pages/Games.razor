@@ -27,7 +27,7 @@
                                     <li class="list-group-item p-0">
                                         <h5 class="card-title m-2">
                                             @string.Join(" & ", team.Select(x => x.Name))
-                                            @if (team.Contains(game.CurrentPlayer))
+                                            @if (team.Any(x => x.Id == game.CurrentPlayerId))
                                             {
                                                 <span class="active-dot"></span>
                                             }
@@ -38,11 +38,11 @@
                                                 <Badge>@game.Tricks.Where(x => x.TeamId == team.Key).Sum(x => x.Value)</Badge>
                                             </Chip>
 
-                                            @if (team.Contains(game.BiddingPlayer))
+                                            @if (team.Any(x => x.Id == game.BiddingPlayerId))
                                             {
                                                 <Chip Context="Components.Models.ContextualClass.Warning">
                                                     <Label>Bid</Label>
-                                                    <Badge>@(game.BiddingPlayer.Bid.HasValue ? $"{game.BiddingPlayer.Bid}" : "?")</Badge>
+                                                    <Badge>@(game.Bid.HasValue ? $"{game.Bid}" : "?")</Badge>
                                                 </Chip>
                                                 <Chip>
                                                     <Label>Trump</Label>

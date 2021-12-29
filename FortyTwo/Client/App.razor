@@ -51,7 +51,7 @@
             {
                 try
                 {
-                    //Navigation.NavigateTo($"authentication/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+                    Navigation.NavigateTo($"authentication/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
                     await Task.Delay(TimeSpan.FromSeconds(3));
                     await Swal.ShowValidationMessageAsync("good grief, this is taking a while&hellip;");
                     await Task.Delay(TimeSpan.FromSeconds(7));
