@@ -38,9 +38,10 @@
                 <div class="row">
                     @{
                         var playerIndex = Model.Match.Players.FindIndex(x => x.Id == Model.Player.Id);
+                        const int numPlayers = 4;
                     }
                     @for (var i = 1; i <= 3; ++i) {
-                        var player = Model.Match.Players.ElementAtOrDefault((playerIndex + i) % Model.CurrentGame.Hands.Count);
+                        var player = Model.Match.Players.ElementAtOrDefault((playerIndex + i) % numPlayers);
                         <RemotePlayer Player="player"
                             IsActive="player?.Id == Model.CurrentGame.CurrentPlayerId"
                             DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == player?.Id)?.Dominos ?? 0"></RemotePlayer>

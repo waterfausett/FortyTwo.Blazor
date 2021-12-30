@@ -18,12 +18,9 @@ namespace FortyTwo.Server.Services
 
         public Task<Match> CreateAsync()
         {
-            var match = new Match()
-            {
-                Players = new Player[4],
-            };
+            var match = new Match();
 
-            match.Players[0] = new Player() { Id = _user.GetUserId(), TeamId = 1 };
+            match.Players.Add(new Player() { Id = _user.GetUserId(), TeamId = 1 });
 
             StaticMatches.Instance.Add(match);
 
@@ -62,62 +59,29 @@ namespace FortyTwo.Server.Services
                     {
                         new Match
                         {
-                            Id = Guid.NewGuid(),
-                            CurrentGame = new Game
+                            Id = new Guid("ce8a4f47-d209-471c-b2c5-2574a67c8392"),
+                            CurrentGame = new Game("Game 1")
                             {
-                                Id = Guid.NewGuid(),
+                                Id = new Guid("2747a077-d51f-431f-bc97-4bcc14fe5b27"),
                                 FirstActionBy = "Id:Adam",
                                 CurrentPlayerId = "Id:Adam",
                                 Hands = new List<Hand>
                                 {
                                     new Hand
                                     {
-                                        PlayerId = "Id:Jack",
-                                        TeamId = 1,
-                                        Dominos = dominos.GetRange(0, 7)
-                                    },
-                                    new Hand
-                                    {
                                         PlayerId = "Id:Adam",
-                                        TeamId = 2,
+                                        TeamId = 1,
                                         Dominos = dominos.GetRange(7, 7),
                                     },
-                                    new Hand
-                                    {
-                                        PlayerId = "Id:Jill",
-                                        TeamId = 1,
-                                        Dominos = dominos.GetRange(14, 7)
-                                    },
-                                    new Hand
-                                    {
-                                        PlayerId = "Id:Emily",
-                                        TeamId = 2,
-                                        Dominos = dominos.GetRange(21, 7)
-                                    }
                                 }
                             },
-                            Players = new Player[4]
+                            Players = new List<Player>
                             {
                                 new Player
                                 {
-                                    Id = "Id:Jack",
-                                    TeamId = 1,
-                                },
-                                new Player
-                                {
                                     Id = "Id:Adam",
-                                    TeamId = 2,
-                                },
-                                new Player
-                                {
-                                    Id = "Id:Jill",
                                     TeamId = 1,
                                 },
-                                new Player
-                                {
-                                    Id = "Id:Emily",
-                                    TeamId = 2,
-                                }
                             },
                         }
                     };

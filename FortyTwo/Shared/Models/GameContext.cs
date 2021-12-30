@@ -14,9 +14,9 @@ namespace FortyTwo.Shared.Models
             Id = Guid.NewGuid();
         }
 
-        public Guid Id { get; set; }
-        public Player[] Players { get; set; } = new Player[4];
-        public Game CurrentGame { get; set; } = new Game();
+        public Guid Id { get; set; } // TODO: in practice, this prolly shouldn't have a public setter
+        public List<Player> Players { get; set; } = new List<Player>();
+        public Game CurrentGame { get; set; } = new Game("Game 1");
         public Dictionary<int, List<Game>> Games { get; set; } = new Dictionary<int, List<Game>>();
         public Dictionary<int, int> Scores => Games?.ToDictionary(kv => kv.Key, kv => kv.Value.Sum(g => g.Value ?? 0));
         public int? WinningTeamId
@@ -34,7 +34,13 @@ namespace FortyTwo.Shared.Models
 
     public class Game
     {
-        public Guid Id { get; set; }
+        public Game(string name)
+        {
+            Name = name;
+            Id = Guid.NewGuid();
+        }
+
+        public Guid Id { get; set; } // TODO: in practice, this prolly shouldn't have a public setter
         public string Name { get; set; }
         public string FirstActionBy { get; set; }
         public Bid? Bid { get; set; }
