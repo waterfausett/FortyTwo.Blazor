@@ -5,20 +5,24 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 
-<button type="button" class="btn btn-link" @onclick="@(async () => await ShuffleAsync())">Shuffle</button>
+<button type="button" class="btn btn-link" disabled="@IsShuffling" @onclick="@(async () => await ShuffleAsync())">Shuffle</button>
 
-<div class="domino-container">
-    @if (dominos != null)
-    {
-        @foreach (var domino in dominos)
+<SpinnerOverlay Visible="IsShuffling">
+    <div class="domino-container">
+        @if (dominos != null)
         {
-            <Domino Instance="domino"></Domino>
+            @foreach (var domino in dominos)
+            {
+                <Domino Instance="domino"></Domino>
+            }
         }
-    }
-</div>
+    </div>
+</SpinnerOverlay>
 
 @code {
     private Domino[] dominos;
+
+    private bool IsShuffling { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -27,6 +31,8 @@
 
     public async Task ShuffleAsync()
     {
+        IsShuffling = true;
+
         try
         {
             dominos = await Http.GetFromJsonAsync<Domino[]>("api/dominos");
@@ -34,6 +40,11 @@
         catch (Exception ex)
         {
             Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            await Task.Delay(2000);
+            IsShuffling = false;
         }
     }
 }
