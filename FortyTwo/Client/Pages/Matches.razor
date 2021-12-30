@@ -12,6 +12,10 @@
             @onclick="@(async () => await Model.FetchMatchesAsync())">
             Update
         </button>
+        <button type="button" class="btn btn-link pull-right" disabled="@Model.IsCreating"
+            @onclick="@(async () => await Model.CreateMatchAsync())">
+            <span class="oi oi-plus" aria-hidden="true"></span>
+        </button>
     </h3>
 
     <hr />

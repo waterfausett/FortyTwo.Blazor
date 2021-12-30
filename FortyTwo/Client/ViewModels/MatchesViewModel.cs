@@ -11,8 +11,10 @@ namespace FortyTwo.Client.ViewModels
     public interface IMatchesViewModel
     {
         public bool IsLoading { get; set; }
+        public bool IsCreating { get; set; }
         public List<Match> Matches { get; }
         Task FetchMatchesAsync();
+        Task CreateMatchAsync();
     }
 
     public class MatchesViewModel : IMatchesViewModel
@@ -27,6 +29,7 @@ namespace FortyTwo.Client.ViewModels
         }
 
         public bool IsLoading { get; set; }
+        public bool IsCreating { get; set; }
 
         public List<Match> Matches
         {
@@ -46,6 +49,20 @@ namespace FortyTwo.Client.ViewModels
             finally
             {
                 IsLoading = false;
+            }
+        }
+
+        public async Task CreateMatchAsync()
+        {
+            IsCreating = true;
+
+            try
+            {
+                await Task.Delay(1500);
+            }
+            finally
+            {
+                IsCreating = false;
             }
         }
     }
