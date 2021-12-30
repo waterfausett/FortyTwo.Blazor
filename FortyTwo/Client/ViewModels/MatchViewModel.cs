@@ -12,7 +12,7 @@ using Match = FortyTwo.Shared.Models.DTO.Match;
 
 namespace FortyTwo.Client.ViewModels
 {
-    public interface IGameViewModel
+    public interface IMatchViewModel
     {
         void Initialize(Guid matchId);
         public bool IsLoading { get; }
@@ -29,12 +29,12 @@ namespace FortyTwo.Client.ViewModels
         Task<string> MakeMoveAsync(Domino domino);
     }
 
-    public class GameViewModel : IGameViewModel
+    public class MatchViewModel : IMatchViewModel
     {
         private readonly HttpClient _http;
         private readonly IClientStore _store;
 
-        public GameViewModel(HttpClient http, IClientStore store)
+        public MatchViewModel(HttpClient http, IClientStore store)
         {
             _http = http;
             _store = store;
