@@ -58,6 +58,16 @@ namespace FortyTwo.Client.ViewModels
 
             try
             {
+                var response = await _http.PostAsync("api/matches", null);
+                if (!response.IsSuccessStatusCode)
+                {
+                    //return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                }
+
+                var match = await response.Content.ReadFromJsonAsync<Match>();
+
+                _store.Matches.Add(match);
+
                 await Task.Delay(1500);
             }
             finally

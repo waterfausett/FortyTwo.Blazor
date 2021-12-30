@@ -10,7 +10,7 @@ namespace FortyTwo.Shared.Models
         public Trick() { }
 
         public string PlayerId { get; set; }
-        public Guid? TeamId { get; set; }
+        public int? TeamId { get; set; }
         public Suit? Suit { get; set; }
         public Domino[] Dominos { get; set; } = new Domino[4];
         public int Value => Dominos?.Sum(x => x?.Value) + 1 ?? 0;

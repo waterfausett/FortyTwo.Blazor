@@ -9,7 +9,6 @@ using FortyTwo.Server.Services;
 using FortyTwo.Shared.Models;
 using FortyTwo.Shared.Models.DTO;
 using FortyTwo.Shared.Models.Security;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -17,7 +16,7 @@ using PluralizeService.Core;
 
 namespace FortyTwo.Server.Controllers
 {
-    [AllowAnonymous]
+    //[AllowAnonymous]
     [Route("api/[controller]")]
     [ApiController]
     public class MatchesController : ControllerBase
@@ -48,6 +47,14 @@ namespace FortyTwo.Server.Controllers
         public async Task<IActionResult> Get([Required] Guid id)
         {
             return Ok(_mapper.Map<Shared.Models.DTO.Match>(await _matchService.GetAsync(id)));
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Post()
+        {
+            var match = await _matchService.CreateAsync();
+
+            return Created($"/match/{match.Id}", _mapper.Map<Shared.Models.DTO.Match>(match));
         }
 
         [HttpGet("{id}/player")]

@@ -31,7 +31,8 @@ namespace FortyTwo.Client
             builder.Services.AddHttpClient("API", client => client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress))
                 .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
                     .ConfigureHandler(
-                        authorizedUrls: new[] { builder.HostEnvironment.BaseAddress })
+                        authorizedUrls: new[] { builder.HostEnvironment.BaseAddress }
+                    )
                 );
 
             builder.Services.AddTransient(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("API"));

@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="6.0.1" />
     <PackageReference Include="PluralizeService.Core" Version="1.2.21147.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="6.15.0" />
+    <PackageReference Include="System.Text.Json" Version="6.0.1" />
   </ItemGroup>
 
   <ItemGroup>

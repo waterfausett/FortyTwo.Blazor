@@ -11,18 +11,19 @@ namespace FortyTwo.Shared.Models
         public Match()
         {
             CreatedOn = DateTimeOffset.UtcNow;
+            Id = Guid.NewGuid();
         }
 
         public Guid Id { get; set; }
         public Player[] Players { get; set; } = new Player[4];
         public Game CurrentGame { get; set; } = new Game();
-        public Dictionary<Guid, List<Game>> Games { get; set; } = new Dictionary<Guid, List<Game>>();
-        public Dictionary<Guid, int> Scores => Games?.ToDictionary(kv => kv.Key, kv => kv.Value.Sum(g => g.Value ?? 0));
-        public Guid? WinningTeamId
+        public Dictionary<int, List<Game>> Games { get; set; } = new Dictionary<int, List<Game>>();
+        public Dictionary<int, int> Scores => Games?.ToDictionary(kv => kv.Key, kv => kv.Value.Sum(g => g.Value ?? 0));
+        public int? WinningTeamId
         {
             get { 
                 var teamId = Scores.FirstOrDefault(x => x.Value >= WinningScore).Key;
-                return teamId == Guid.Empty ? (Guid?)null : teamId;
+                return teamId == 0 ? (int?)null : teamId;
             }
         }
         public DateTimeOffset CreatedOn { get; set; }
@@ -57,7 +58,7 @@ namespace FortyTwo.Shared.Models
                     : (int)bid <= 42 ? 1 : (int)bid / 42; 
             }
         }
-        internal Guid? WinningTeamId {
+        internal int? WinningTeamId {
             get 
             {
                 if (BiddingPlayerId == null) return null;
@@ -86,7 +87,7 @@ namespace FortyTwo.Shared.Models
     public class Hand
     {
         public string PlayerId { get; set; }
-        public Guid TeamId { get; set; }
+        public int TeamId { get; set; }
         public List<Domino> Dominos { get; set; }
         public Bid? Bid { get; set; }
     }

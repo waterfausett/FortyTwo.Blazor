@@ -1,9 +1,12 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Security.Claims;
 using System.Text.Json;
 using AutoMapper;
 using FortyTwo.Server.AutoMapper;
+using FortyTwo.Server.Config;
 using FortyTwo.Server.Hubs;
+using FortyTwo.Server.Security;
 using FortyTwo.Server.Services;
 using FortyTwo.Server.Services.Security;
 using FortyTwo.Shared.Models.Security;
@@ -17,6 +20,7 @@ using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
 
 namespace FortyTwo.Server
 {
@@ -29,11 +33,11 @@ namespace FortyTwo.Server
 
         public IConfiguration Configuration { get; }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
-        // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
             JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+
+            services.Configure<Auth0ApiClientConfiguration>(Configuration.GetSection("Auth0:ApiClient"));
 
             services.AddAuthentication(options =>
             {
@@ -44,6 +48,13 @@ namespace FortyTwo.Server
                 options.Authority = Configuration["Auth0:Authority"];
                 options.Audience = Configuration["Auth0:ApiAudience"];
             });
+
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy(Policies.RequireAuthentication, policy => policy
+                    .RequireAuthenticatedUser()
+                );
+            });
             
             services.AddHttpClient();
 
@@ -52,12 +63,7 @@ namespace FortyTwo.Server
             services
                 .AddControllersWithViews(options =>
                 {
-                    var policy = new AuthorizationPolicyBuilder()
-                        .RequireAuthenticatedUser()
-                        //.RequireClaim("https://claims.fortytwo.com/read")
-                        .Build();
-
-                    options.Filters.Add(new AuthorizeFilter(policy));
+                    options.Filters.Add(new AuthorizeFilter(Policies.RequireAuthentication));
                 })
                 .AddJsonOptions(options =>
                 {
@@ -84,6 +90,9 @@ namespace FortyTwo.Server
 
             services.AddScoped<IMatchService, MatchService>();
             services.AddScoped<IDominoService, DominoService>();
+
+            services.AddSingleton<IAuth0AccessTokenProvider, Auth0AccessTokenProvider>();
+            services.AddSingleton<IAuth0ApiClient, Auth0ApiClient>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
