@@ -2,19 +2,17 @@
 
 @if (Player != null)
 {
-    <div class="col-4">
-        <h4>
-            @Player.Id
-            @if (IsActive)
-            {
-                <span class="active-dot"></span>
-            }
-        </h4>
-        @if (DominoCount != 0)
+    <h4>
+        @Player.Id
+        @if (IsActive)
         {
-            <span>@DominoCount</span>
+            <span class="active-dot"></span>
         }
-    </div>
+    </h4>
+    @if (DominoCount != 0)
+    {
+        <span>@DominoCount</span>
+    }
 }
 else
 {
