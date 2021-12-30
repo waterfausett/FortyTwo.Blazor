@@ -199,7 +199,7 @@
                             @foreach (var domino in Model.Player.Dominos)
                             {
                                 <Domino Instance="domino"
-                                    Selectable="Model.Player.IsActive && Model.Game.Bid.HasValue && Model.Game.Trump.HasValue"
+                                    Selectable="Model.Player.IsActive && Model.CurrentGame.Bid.HasValue && Model.CurrentGame.Trump.HasValue"
                                     OnSelected="async (domino) => await MakeMoveAsync(domino)"></Domino>
                             }
                         </div>
