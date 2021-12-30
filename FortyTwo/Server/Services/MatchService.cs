@@ -71,7 +71,6 @@ namespace FortyTwo.Server.Services
                                     {
                                         PlayerId = "Id:Adam",
                                         TeamId = 1,
-                                        Dominos = dominos.GetRange(7, 7),
                                     },
                                 }
                             },

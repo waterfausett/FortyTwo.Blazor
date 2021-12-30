@@ -94,7 +94,7 @@ namespace FortyTwo.Shared.Models
     {
         public string PlayerId { get; set; }
         public int TeamId { get; set; }
-        public List<Domino> Dominos { get; set; }
+        public List<Domino> Dominos { get; set; } = new List<Domino>();
         public Bid? Bid { get; set; }
     }
 
