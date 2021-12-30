@@ -8,7 +8,7 @@ using FortyTwo.Client.Store;
 using FortyTwo.Shared.Models;
 using FortyTwo.Shared.Models.DTO;
 using Game = FortyTwo.Shared.Models.DTO.Game;
-using Player = FortyTwo.Shared.Models.DTO.Player;
+using Match = FortyTwo.Shared.Models.DTO.Match;
 
 namespace FortyTwo.Client.ViewModels
 {
@@ -18,12 +18,12 @@ namespace FortyTwo.Client.ViewModels
         public bool Bidding { get; set; }
         public List<Bid> BiddingOptions { get; }
         public bool MakingMove { get; set; }
-        public Guid MatchId { get; set; }
-        public Game Game { get; }
+        public Match Match { get; }
+        public Game CurrentGame { get; }
         public LoggedInPlayer Player { get; set; }
-        Task FetchGameAsync();
+        Task FetchMatchAsync(Guid matchId);
         void UpdateGame(Game game);
-        Task FetchPlayerAsync();
+        Task FetchPlayerAsync(Guid matchId);
         Task<string> BidAsync(Bid bid);
         Task<string> MakeMoveAsync(Domino domino);
     }
@@ -45,10 +45,11 @@ namespace FortyTwo.Client.ViewModels
         public bool Bidding { get; set; }
         public bool MakingMove { get; set; }
 
-        public Guid MatchId { get; set; }
-        public Game Game
+        public Match Match { get; private set; }
+
+        public Game CurrentGame
         {
-            get => _store.Games?.FirstOrDefault(x => x.Id == MatchId);
+            get => Match?.CurrentGame;
         }
 
         public LoggedInPlayer Player { get; set; }
@@ -63,22 +64,23 @@ namespace FortyTwo.Client.ViewModels
                     biddingOptions.Remove(Bid.Plunge);
                 }
 
-                biddingOptions.RemoveAll(x => x > Bid.EightyFour && (!Game.Bid.HasValue || (int)x > ((int)Game.Bid + (int)Bid.FourtyTwo)));
+                biddingOptions.RemoveAll(x => x > Bid.EightyFour && (!CurrentGame.Bid.HasValue || (int)x > ((int)CurrentGame.Bid + (int)Bid.FourtyTwo)));
 
                 return biddingOptions;
             }
         }
 
-        public async Task FetchGameAsync()
+        public async Task FetchMatchAsync(Guid matchId)
         {
             _fetchingGame = true;
-
+            
             try
             {
-                var game = await _http.GetFromJsonAsync<Game>($"api/matches/{MatchId}");
+                var match = await _http.GetFromJsonAsync<Match>($"api/matches/{matchId}");
+                
+                Match = match;
 
-                _store.Games.RemoveAll(x => x.Id == MatchId);
-                _store.Games.Add(game);
+                UpdateGame(match.CurrentGame);
             }
             finally
             {
@@ -88,19 +90,23 @@ namespace FortyTwo.Client.ViewModels
 
         public void UpdateGame(Game game)
         {
-            _store.Games.RemoveAll(x => x.Id == MatchId);
+            // TODO: maybe add a tracking flag to track if we know we're waiting on an update
+
+            _store.Games.RemoveAll(x => x.Id == Match.Id);
             _store.Games.Add(game);
 
-            Player.Bid ??= game.Players.First(x => x.Id == Player.Id).Bid;
+            Match.CurrentGame = game;
+
+            Player.Bid ??= game.Hands.First(x => x.PlayerId == Player.Id).Bid;
         }
 
-        public async Task FetchPlayerAsync()
+        public async Task FetchPlayerAsync(Guid matchId)
         {
             _fetchingPlayer = true;
 
             try
             {
-                Player = await _http.GetFromJsonAsync<LoggedInPlayer>($"api/matches/{MatchId}/player");
+                Player = await _http.GetFromJsonAsync<LoggedInPlayer>($"api/matches/{matchId}/player");
             }
             finally
             {
@@ -114,7 +120,7 @@ namespace FortyTwo.Client.ViewModels
 
             try
             {
-                var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/bids", bid);
+                var response = await _http.PostAsJsonAsync($"api/matches/{Match.Id}/bids", bid);
                 if (!response.IsSuccessStatusCode)
                 {
                     return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
@@ -145,7 +151,7 @@ namespace FortyTwo.Client.ViewModels
 
             try
             {
-                var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/moves", domino);
+                var response = await _http.PostAsJsonAsync($"api/matches/{Match.Id}/moves", domino);
                 if (!response.IsSuccessStatusCode)
                 {
                     return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;

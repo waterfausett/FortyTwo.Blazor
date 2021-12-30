@@ -1,33 +1,36 @@
-﻿@page "/games"
+﻿@page "/matches"
 @attribute [Authorize]
 @layout MainLayout
 @using FortyTwo.Client.ViewModels
-@inject IGamesViewModel Model
+@using FortyTwo.Shared.Models
+@inject IMatchesViewModel Model
 
 <div>
     <h3>
-        Games
-        <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchGamesAsync())">Update</button>
+        Matches
+        <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchMatchesAsync())">Update</button>
     </h3>
 
     <hr />
 
     <SpinnerOverlay Visible="Model.IsLoading">
         <div>
-            @if (Model.Games?.Any() == true)
+            @if (Model.Matches?.Any() == true)
             {
-                @foreach (var game in Model.Games)
+                @foreach (var match in Model.Matches)
                 {
                     <div class="card">
-                        <h5 class="card-header">@game.Name <a href="/game/@game.Id" class="btn btn-sm btn-link">View</a></h5>
+                        <h5 class="card-header">@match.Id <a href="/match/@match.Id" class="btn btn-sm btn-link">View</a></h5>
                         <div class="card-body p-2">
                             <ul class="list-group list-group-flush">
-                                @foreach (var team in game.Players.GroupBy(x => x.TeamId))
+                                @foreach (var team in match.Players.GroupBy(x => x.TeamId))
                                 {
-                                    <li class="list-group-item p-0">
+                                    match.Scores.TryGetValue(team.Key, out var teamScore);
+                                    <li class="list-group-item p-0 @(match.WinningTeamId == team.Key ? "match-winner" : "")">
                                         <h5 class="card-title m-2">
                                             @string.Join(" & ", team.Select(x => x.Name))
-                                            @if (team.Any(x => x.Id == game.CurrentPlayerId))
+                                            <span class="pull-right ml-3"><label>Score: @teamScore</label></span>
+                                            @if (team.Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
                                             {
                                                 <span class="active-dot"></span>
                                             }
@@ -35,18 +38,18 @@
                                         <div class="m-2">
                                             <Chip Context="Components.Models.ContextualClass.Info">
                                                 <Label>Points</Label>
-                                                <Badge>@game.Tricks.Where(x => x.TeamId == team.Key).Sum(x => x.Value)</Badge>
+                                                <Badge>@match.CurrentGame.Tricks.Where(x => x.TeamId == team.Key).Sum(x => x.Value)</Badge>
                                             </Chip>
 
-                                            @if (team.Any(x => x.Id == game.BiddingPlayerId))
+                                            @if (team.Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
                                             {
                                                 <Chip Context="Components.Models.ContextualClass.Warning">
                                                     <Label>Bid</Label>
-                                                    <Badge>@(game.Bid.HasValue ? $"{game.Bid}" : "?")</Badge>
+                                                    <Badge>@(match.CurrentGame.Bid.HasValue ? $"{match.CurrentGame.Bid.ToPrettyString()}" : "?")</Badge>
                                                 </Chip>
                                                 <Chip>
                                                     <Label>Trump</Label>
-                                                    <Badge>@(game.Trump.HasValue ? $"{game.Trump}" : "?")</Badge>
+                                                    <Badge>@(match.CurrentGame.Trump.HasValue ? $"{match.CurrentGame.Trump}" : "?")</Badge>
                                                 </Chip>
                                             }
                                         </div>
@@ -68,9 +71,9 @@
 @code {
     protected override async Task OnInitializedAsync()
     {
-        if (Model.Games == null || !Model.Games.Any())
+        if (Model.Matches == null || !Model.Matches.Any())
         {
-            await Model.FetchGamesAsync();
+            await Model.FetchMatchesAsync();
         }
     }
 }

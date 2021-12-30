@@ -253,3 +253,20 @@ a {
     border-radius: 50%;
     background-color: limegreen;
 }
+
+.pull-right {
+    float: right;
+}
+
+.pull-left {
+    float: left;
+}
+
+.match-winner {
+    background-color: lightgreen;
+    border-radius: 14px !important;
+}
+
+.match-winner .card-title::after {
+    content: '🎉'
+}

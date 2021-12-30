@@ -41,7 +41,7 @@ namespace FortyTwo.Client
 
             builder.Services.AddSweetAlert2();
 
-            builder.Services.AddTransient<IGamesViewModel, GamesViewModel>();
+            builder.Services.AddTransient<IMatchesViewModel, MatchesViewModel>();
             builder.Services.AddTransient<IGameViewModel, GameViewModel>();
 
             builder.Services.AddSingleton<IClientStore, ClientStore>();

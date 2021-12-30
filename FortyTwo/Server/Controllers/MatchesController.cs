@@ -41,13 +41,13 @@ namespace FortyTwo.Server.Controllers
         public async Task<IActionResult> Get()
         {
             var matches = await _matchService.FetchAsync();
-            return Ok(_mapper.Map<List<Shared.Models.DTO.Game>>(matches));
+            return Ok(_mapper.Map<List<Shared.Models.DTO.Match>>(matches));
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> Get([Required] Guid id)
         {
-            return Ok(_mapper.Map<Shared.Models.DTO.Game>(await _matchService.GetAsync(id)));
+            return Ok(_mapper.Map<Shared.Models.DTO.Match>(await _matchService.GetAsync(id)));
         }
 
         [HttpGet("{id}/player")]
@@ -111,7 +111,7 @@ namespace FortyTwo.Server.Controllers
 
             game.SelectNextPlayer();
 
-            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match);
+            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
 
@@ -197,7 +197,7 @@ namespace FortyTwo.Server.Controllers
 
             game.SelectNextPlayer();
 
-            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match);
+            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
             
@@ -244,7 +244,7 @@ namespace FortyTwo.Server.Controllers
             game.Tricks.Add(game.CurrentTrick);
             game.CurrentTrick = new Trick();
 
-            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match);
+            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
 

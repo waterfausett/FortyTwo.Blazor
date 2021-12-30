@@ -1,4 +1,4 @@
-﻿using FortyTwo.Shared.Models.DTO;
+﻿using FortyTwo.Shared.Models;
 using Microsoft.AspNetCore.SignalR;
 using System;
 using System.Threading.Tasks;

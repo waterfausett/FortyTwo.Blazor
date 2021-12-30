@@ -13,6 +13,6 @@ namespace FortyTwo.Shared.Models.DTO
         public string CurrentPlayerId { get; set; }
         public Trick CurrentTrick { get; set; }
         public List<Trick> Tricks { get; set; } = new List<Trick>();
-        public List<Player> Players { get; set; }
+        public List<Hand> Hands { get; set; }
     }
 }

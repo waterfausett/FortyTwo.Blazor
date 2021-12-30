@@ -1,16 +1,19 @@
-﻿@using FortyTwo.Shared.Models.DTO
+﻿@using FortyTwo.Shared.Models
 
 @if (Player != null)
 {
     <div class="col-4">
         <h4>
             @Player.Name
-            @if (Player.IsActive)
+            @if (IsActive)
             {
                 <span class="active-dot"></span>
             }
         </h4>
-        <span>@Player.DominoCount</span>
+        @if (DominoCount != 0)
+        {
+            <span>@DominoCount</span>
+        }
     </div>
 }
 else
@@ -25,4 +28,9 @@ else
     [Parameter]
     public Player Player { get; set; }
 
+    [Parameter]
+    public bool IsActive { get; set; } = false;
+
+    [Parameter]
+    public int DominoCount { get; set; }
 }

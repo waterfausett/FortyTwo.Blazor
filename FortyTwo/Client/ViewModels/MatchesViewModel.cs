@@ -7,19 +7,19 @@ using FortyTwo.Shared.Models.DTO;
 
 namespace FortyTwo.Client.ViewModels
 {
-    public interface IGamesViewModel
+    public interface IMatchesViewModel
     {
         public bool IsLoading { get; set; }
-        public Game[] Games { get; }
-        Task FetchGamesAsync();
+        public Match[] Matches { get; }
+        Task FetchMatchesAsync();
     }
 
-    public class GamesViewModel : IGamesViewModel
+    public class MatchesViewModel : IMatchesViewModel
     {
         private readonly HttpClient _http;
         private readonly IClientStore _store;
 
-        public GamesViewModel(HttpClient http, IClientStore store)
+        public MatchesViewModel(HttpClient http, IClientStore store)
         {
             _http = http;
             _store = store;
@@ -27,20 +27,20 @@ namespace FortyTwo.Client.ViewModels
 
         public bool IsLoading { get; set; }
 
-        public Game[] Games
+        public Match[] Matches
         {
-            get => _store.Games?.ToArray();
+            get => _store.Matches?.ToArray();
         }
 
-        public async Task FetchGamesAsync()
+        public async Task FetchMatchesAsync()
         {
             IsLoading = true;
 
             try
             {
-                var games = await _http.GetFromJsonAsync<List<Game>>("api/matches");
+                var matches = await _http.GetFromJsonAsync<List<Match>>("api/matches");
 
-                _store.Games = games;
+                _store.Matches = matches;
             }
             finally
             {

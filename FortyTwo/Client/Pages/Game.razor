@@ -1,4 +1,4 @@
-﻿@page "/game/{gameId:guid}"
+﻿@page "/match/{matchId:guid}"
 @attribute [Authorize]
 @layout MainLayout
 
@@ -12,6 +12,7 @@
 @inject IGameViewModel Model
 @inject SweetAlertService Swal
 @inject NavigationManager NavigationManager
+
 @implements IDisposable
 
 <style>
@@ -64,7 +65,7 @@
 </style>
 
 <SpinnerOverlay Visible="Model.IsLoading">
-    @if (Model.Game == null || Model.Player == null)
+    @if (Model.CurrentGame == null || Model.Player == null)
     {
         <div class="alert alert-danger" role="alert">
             Failed to load game info :(
@@ -75,24 +76,27 @@
         <div class="game-wrapper">
             <div>
                 <h5>
-                    @(Model.Game.Name ?? "Name Unknown")
-                    <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchGameAsync())">Update</button>
+                    @(Model.CurrentGame.Name ?? "Name Unknown")
+                    <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchMatchAsync(MatchId))">Update</button>
                 </h5>
             </div>
             <div>
                 <div class="row">
                     @{
-                        var playerIndex = Model.Game.Players.FindIndex(x => x.Id == Model.Player.Id);
+                        var playerIndex = Model.Match.Players.FindIndex(x => x.Id == Model.Player.Id);
                     }
-                    <RemotePlayer Player="Model.Game.Players.ElementAtOrDefault((playerIndex + 1) % Model.Game.Players.Count)"></RemotePlayer>
-                    <RemotePlayer Player="Model.Game.Players.ElementAtOrDefault((playerIndex + 2) % Model.Game.Players.Count)"></RemotePlayer>
-                    <RemotePlayer Player="Model.Game.Players.ElementAtOrDefault((playerIndex + 3) % Model.Game.Players.Count)"></RemotePlayer>
+                    @for (var i = 1; i <= 3; ++i) {
+                        var player = Model.Match.Players.ElementAtOrDefault((playerIndex + i) % Model.CurrentGame.Hands.Count);
+                        <RemotePlayer Player="player"
+                            IsActive="player?.Id == Model.CurrentGame.CurrentPlayerId"
+                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == player?.Id)?.Dominos ?? 0"></RemotePlayer>
+                    }
                 </div>
             </div>
             <div class="gameboard">
                 @{
-                    var teamTricks = Model.Game.Tricks.Where(x => x.TeamId == Model.Player.TeamId);
-                    var opponentTricks = Model.Game.Tricks.Where(x => x.TeamId != Model.Player.TeamId);
+                    var teamTricks = Model.CurrentGame.Tricks.Where(x => x.TeamId == Model.Player.TeamId);
+                    var opponentTricks = Model.CurrentGame.Tricks.Where(x => x.TeamId != Model.Player.TeamId);
                 }
                 <div class="opponent-tricks">
                     <div class="mb-1">
@@ -109,7 +113,7 @@
                     }
                 </div>
                 <div class="current-trick">
-                    @foreach (var domino in Model.Game.CurrentTrick.Dominos)
+                    @foreach (var domino in Model.CurrentGame.CurrentTrick.Dominos)
                     {
                         <Domino Instance="domino" Direction="DominoDirection.Vertical"></Domino>
                     }
@@ -160,7 +164,7 @@
                 </section>
             }
 
-            @if (Model.Game.BiddingPlayerId == Model.Player.Id && Model.Game.Players.All(x => x.Bid.HasValue) && !Model.Game.Trump.HasValue)
+            @if (Model.CurrentGame.BiddingPlayerId == Model.Player.Id && Model.CurrentGame.Hands.All(x => x.Bid.HasValue) && !Model.CurrentGame.Trump.HasValue)
             {
                 <section class="trump-select-section">
                     <SpinnerOverlay Visible="Model.Bidding">
@@ -182,13 +186,13 @@
                         <hr />
 
                         <div>
-                            <label>Current Player: @Model.Game.CurrentPlayerId</label>
+                            <label>Current Player: @Model.CurrentGame.CurrentPlayerId</label>
                         </div>
                         <div>
-                            <label>Current Bid: @Model.Game.Bid.ToPrettyString()</label>
+                            <label>Current Bid: @Model.CurrentGame.Bid.ToPrettyString()</label>
                         </div>
                         <div>
-                            <label>Current High Bidder: @Model.Game.BiddingPlayerId</label>
+                            <label>Current High Bidder: @Model.CurrentGame.BiddingPlayerId</label>
                         </div>
 
                         <div class="domino-container">
@@ -208,22 +212,20 @@
 
 @code {
     [Parameter]
-    public Guid GameId { get; set; }
+    public Guid MatchId { get; set; }
 
     private HubConnection _hubConnection;
 
     protected override async Task OnInitializedAsync()
     {
-        Model.MatchId = GameId;
-
-        if (Model.Game == null)
-        {
-            await Model.FetchGameAsync();
-        }
-
         if (Model.Player == null)
         {
-            await Model.FetchPlayerAsync();
+            await Model.FetchPlayerAsync(MatchId);
+        }
+
+        if (Model.CurrentGame == null)
+        {
+            await Model.FetchMatchAsync(MatchId);
         }
 
         // TODO: add a visual indicator of connected status
@@ -265,10 +267,10 @@
                 Title = "Reconnected"
             });
 
-            await Model.FetchGameAsync();
+            await Model.FetchMatchAsync(MatchId);
         };
 
-        _hubConnection.On<FortyTwo.Shared.Models.DTO.Player>("OnPlayerAdded", (player) =>
+        _hubConnection.On<Player>("OnPlayerAdded", (player) =>
         {
             // TODO: validate
 
@@ -297,7 +299,7 @@
         });
 
         await _hubConnection.StartAsync();
-        await _hubConnection.SendAsync("JoinGameAsync", Model.MatchId);
+        await _hubConnection.SendAsync("JoinGameAsync", MatchId);
     }
 
     public bool IsConnected =>

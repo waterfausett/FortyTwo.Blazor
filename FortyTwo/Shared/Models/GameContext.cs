@@ -8,6 +8,11 @@ namespace FortyTwo.Shared.Models
     {
         private const int WinningScore = 7;
 
+        public Match()
+        {
+            CreatedOn = DateTimeOffset.UtcNow;
+        }
+
         public Guid Id { get; set; }
         public Player[] Players { get; set; } = new Player[4];
         public Game CurrentGame { get; set; } = new Game();
@@ -20,6 +25,8 @@ namespace FortyTwo.Shared.Models
                 return teamId == Guid.Empty ? (Guid?)null : teamId;
             }
         }
+        public DateTimeOffset CreatedOn { get; set; }
+        public DateTimeOffset UpdatedOn { get; set; }
 
         // TODO: validate
     }
@@ -27,6 +34,7 @@ namespace FortyTwo.Shared.Models
     public class Game
     {
         public Guid Id { get; set; }
+        public string Name { get; set; }
         public string FirstActionBy { get; set; }
         public Bid? Bid { get; set; }
         public string BiddingPlayerId { get; set; }
