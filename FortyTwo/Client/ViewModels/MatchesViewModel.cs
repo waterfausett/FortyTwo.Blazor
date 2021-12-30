@@ -15,6 +15,7 @@ namespace FortyTwo.Client.ViewModels
         public List<Match> Matches { get; }
         Task FetchMatchesAsync();
         Task CreateMatchAsync();
+        string GetPlayerName(string playerId);
     }
 
     public class MatchesViewModel : IMatchesViewModel
@@ -75,5 +76,8 @@ namespace FortyTwo.Client.ViewModels
                 IsCreating = false;
             }
         }
+
+        public string GetPlayerName(string playerId)
+            => _store.Users.FirstOrDefault(x => x.Id == playerId)?.DisplayName ?? $"Unknown Player ({playerId})";
     }
 }

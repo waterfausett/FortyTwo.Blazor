@@ -35,7 +35,7 @@
                                     match.Scores.TryGetValue(team.Key, out var teamScore);
                                     <li class="list-group-item p-0 @(match.WinningTeamId == team.Key ? "match-winner" : "")">
                                         <h5 class="card-title m-2">
-                                            @string.Join(" & ", team.Select(x => x.Id))
+                                            @string.Join(" & ", team.Select(x => Model.GetPlayerName(x.Id)))
                                             <span class="pull-right ml-3"><label>Score: @teamScore</label></span>
                                             @if (team.Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
                                             {

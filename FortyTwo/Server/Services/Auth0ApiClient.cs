@@ -29,10 +29,34 @@ namespace FortyTwo.Server.Services
             _logger = logger;
         }
 
-        public Task<List<User>> GetUsersAsync()
+        public async Task<List<User>> GetUsersAsync()
         {
             const string url = "api/v2/users?fields=identities%2Capp_metadata%2Clast_ip&include_fields=false";
-            return FetchAsync<List<User>>(url);
+
+            var users = await FetchAsync<List<User>>(url);
+
+            users.Add(new User
+            {
+                Id = "Id:Jack",
+                FirstName = "Jack"
+            });
+            users.Add(new User
+            {
+                Id = "Id:Adam",
+                FirstName = "Adam"
+            });
+            users.Add(new User
+            {
+                Id = "Id:Jill",
+                FirstName = "Jill"
+            });
+            users.Add(new User
+            {
+                Id = "Id:Emily",
+                FirstName = "Emily"
+            });
+
+            return users;
         }
 
         private async Task<T> FetchAsync<T>(string url) where T : new()
