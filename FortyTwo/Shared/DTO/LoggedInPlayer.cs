@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using FortyTwo.Shared.Models;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace FortyTwo.Shared.Models.DTO
+namespace FortyTwo.Shared.DTO
 {
     public class LoggedInPlayer
     {

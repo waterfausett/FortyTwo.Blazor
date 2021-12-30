@@ -1,7 +1,8 @@
-﻿using System;
+﻿using FortyTwo.Shared.Models;
+using System;
 using System.Collections.Generic;
 
-namespace FortyTwo.Shared.Models.DTO
+namespace FortyTwo.Shared.DTO
 {
     public class Game
     {

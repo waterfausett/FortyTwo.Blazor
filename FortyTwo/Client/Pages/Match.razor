@@ -205,7 +205,8 @@
                 Timer = 1750,
                 TimerProgressBar = true,
                 ShowCloseButton = false,
-                Title = "Disconnected"
+                Title = "Disconnected",
+                Width = "16rem"
             });
         };
 
@@ -220,7 +221,8 @@
                 Timer = 1750,
                 TimerProgressBar = true,
                 ShowCloseButton = false,
-                Title = "Reconnected"
+                Title = "Reconnected",
+                Width = "16rem"
             });
 
             await Model.FetchMatchAsync();
@@ -235,13 +237,13 @@
             StateHasChanged();
         });
 
-        _hubConnection.On<FortyTwo.Shared.Models.DTO.Game>("OnGameChanged", async (game) =>
+        _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
         {
             Model.UpdateGame(game);
 
             StateHasChanged();
 
-            await Swal.FireAsync(new SweetAlertOptions
+            _ = Swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Success,
                 Toast = true,
@@ -250,7 +252,8 @@
                 Timer = 1750,
                 TimerProgressBar = true,
                 ShowCloseButton = false,
-                Title = "Game Updated"
+                Title = "Game Updated",
+                Width = "16rem"
             });
         });
 

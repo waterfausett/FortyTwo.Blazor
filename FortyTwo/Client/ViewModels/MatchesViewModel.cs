@@ -4,7 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 using FortyTwo.Client.Store;
-using FortyTwo.Shared.Models.DTO;
+using FortyTwo.Shared.DTO;
 
 namespace FortyTwo.Client.ViewModels
 {

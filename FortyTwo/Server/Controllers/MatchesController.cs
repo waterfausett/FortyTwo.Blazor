@@ -7,7 +7,7 @@ using AutoMapper;
 using FortyTwo.Server.Hubs;
 using FortyTwo.Server.Services;
 using FortyTwo.Shared.Models;
-using FortyTwo.Shared.Models.DTO;
+using FortyTwo.Shared.DTO;
 using FortyTwo.Shared.Models.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -40,13 +40,13 @@ namespace FortyTwo.Server.Controllers
         public async Task<IActionResult> Get()
         {
             var matches = await _matchService.FetchAsync();
-            return Ok(_mapper.Map<List<Shared.Models.DTO.Match>>(matches));
+            return Ok(_mapper.Map<List<Shared.DTO.Match>>(matches));
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> Get([Required] Guid id)
         {
-            return Ok(_mapper.Map<Shared.Models.DTO.Match>(await _matchService.GetAsync(id)));
+            return Ok(_mapper.Map<Shared.DTO.Match>(await _matchService.GetAsync(id)));
         }
 
         [HttpPost]
@@ -54,7 +54,7 @@ namespace FortyTwo.Server.Controllers
         {
             var match = await _matchService.CreateAsync();
 
-            return Created($"/match/{match.Id}", _mapper.Map<Shared.Models.DTO.Match>(match));
+            return Created($"/match/{match.Id}", _mapper.Map<Shared.DTO.Match>(match));
         }
 
         [HttpGet("{id}/player")]
@@ -118,7 +118,7 @@ namespace FortyTwo.Server.Controllers
 
             game.SelectNextPlayer();
 
-            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match.CurrentGame);
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
 
@@ -204,7 +204,7 @@ namespace FortyTwo.Server.Controllers
 
             game.SelectNextPlayer();
 
-            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match.CurrentGame);
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
             
@@ -251,7 +251,7 @@ namespace FortyTwo.Server.Controllers
             game.Tricks.Add(game.CurrentTrick);
             game.CurrentTrick = new Trick();
 
-            var gameDTO = _mapper.Map<Shared.Models.DTO.Game>(match.CurrentGame);
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
 

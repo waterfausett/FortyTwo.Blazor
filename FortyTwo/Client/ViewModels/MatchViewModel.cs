@@ -6,9 +6,9 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using FortyTwo.Client.Store;
 using FortyTwo.Shared.Models;
-using FortyTwo.Shared.Models.DTO;
-using Game = FortyTwo.Shared.Models.DTO.Game;
-using Match = FortyTwo.Shared.Models.DTO.Match;
+using FortyTwo.Shared.DTO;
+using Game = FortyTwo.Shared.DTO.Game;
+using Match = FortyTwo.Shared.DTO.Match;
 
 namespace FortyTwo.Client.ViewModels
 {

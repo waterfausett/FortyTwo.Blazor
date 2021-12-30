@@ -1,5 +1,4 @@
 ﻿using FortyTwo.Shared.DTO;
-using FortyTwo.Shared.Models.DTO;
 using System.Collections.Generic;
 
 namespace FortyTwo.Client.Store

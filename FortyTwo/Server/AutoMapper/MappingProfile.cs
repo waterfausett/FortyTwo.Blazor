@@ -10,7 +10,7 @@ namespace FortyTwo.Server.AutoMapper
         {
             //CreateMap<Player, Shared.Models.DTO.Player>()
 
-            CreateMap<Match, Shared.Models.DTO.Match>();
+            CreateMap<Match, Shared.DTO.Match>();
             /*
                 .ForMember(dest => dest.Players, opt => opt.MapFrom(src => src.Players.Select(p =>
                     new Shared.Models.DTO.Player
@@ -46,10 +46,10 @@ namespace FortyTwo.Server.AutoMapper
                     })));
             */
 
-            CreateMap<Hand, Shared.Models.DTO.Hand>()
+            CreateMap<Hand, Shared.DTO.Hand>()
                 .ForMember(dest => dest.Dominos, opt => opt.MapFrom(src => src.Dominos.Count));
 
-            CreateMap<Game, Shared.Models.DTO.Game>();
+            CreateMap<Game, Shared.DTO.Game>();
                 /*
                 .ForMember(dest => dest.Players, opt => opt.MapFrom(src => src.Hands.Select(h =>
                     new Shared.Models.DTO.Player

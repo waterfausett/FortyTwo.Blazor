@@ -1,6 +1,6 @@
-﻿using System;
+﻿using FortyTwo.Shared.Models;
 
-namespace FortyTwo.Shared.Models.DTO
+namespace FortyTwo.Shared.DTO
 {
     public class Hand
     {
