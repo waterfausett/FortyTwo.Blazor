@@ -1,0 +1,50 @@
+﻿@page "/dominos"
+@attribute [Authorize]
+@layout MainLayout
+@using Domino = FortyTwo.Shared.Models.Domino
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<button type="button" class="btn btn-link" disabled="@IsShuffling" @onclick="@(async () => await ShuffleAsync())">Shuffle</button>
+
+<SpinnerOverlay Visible="IsShuffling">
+    <div class="domino-container">
+        @if (dominos != null)
+        {
+            @foreach (var domino in dominos)
+            {
+                <Domino Instance="domino"></Domino>
+            }
+        }
+    </div>
+</SpinnerOverlay>
+
+@code {
+    private Domino[] dominos;
+
+    private bool IsShuffling { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ShuffleAsync();
+    }
+
+    public async Task ShuffleAsync()
+    {
+        IsShuffling = true;
+
+        try
+        {
+            dominos = await Http.GetFromJsonAsync<Domino[]>("api/dominos");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            await Task.Delay(2000);
+            IsShuffling = false;
+        }
+    }
+}

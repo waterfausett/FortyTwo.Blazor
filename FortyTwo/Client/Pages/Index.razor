@@ -1,50 +1,86 @@
 ﻿@page "/"
 @attribute [Authorize]
 @layout MainLayout
-@using Domino = FortyTwo.Shared.Models.Domino
-@inject HttpClient Http
-@inject IJSRuntime JS
+@using FortyTwo.Client.ViewModels
+@using FortyTwo.Shared.Models
+@inject IMatchesViewModel Model
 
-<button type="button" class="btn btn-link" disabled="@IsShuffling" @onclick="@(async () => await ShuffleAsync())">Shuffle</button>
+<div>
+    <h3>
+        Matches
+        <button type="button" class="btn btn-link" disabled="@Model.IsLoading"
+            @onclick="@(async () => await Model.FetchMatchesAsync())">
+            Update
+        </button>
+        <button type="button" class="btn btn-link pull-right" disabled="@Model.IsCreating"
+            @onclick="@(async () => await Model.CreateMatchAsync())">
+            <span class="oi oi-plus" aria-hidden="true"></span>
+        </button>
+    </h3>
 
-<SpinnerOverlay Visible="IsShuffling">
-    <div class="domino-container">
-        @if (dominos != null)
-        {
-            @foreach (var domino in dominos)
+    <hr />
+
+    <SpinnerOverlay Visible="Model.IsLoading">
+        <div>
+            @if (Model.Matches?.Any() == true)
             {
-                <Domino Instance="domino"></Domino>
+                @foreach (var match in Model.Matches)
+                {
+                    <div class="card">
+                        <h5 class="card-header">@match.Id <a href="/match/@match.Id" class="btn btn-sm btn-link">View</a></h5>
+                        <div class="card-body p-2">
+                            <ul class="list-group list-group-flush">
+                                @foreach (var team in match.Players.GroupBy(x => x.TeamId))
+                                {
+                                    match.Scores.TryGetValue(team.Key, out var teamScore);
+                                    <li class="list-group-item p-0 @(match.WinningTeamId == team.Key ? "match-winner" : "")">
+                                        <h5 class="card-title m-2">
+                                            @string.Join(" & ", team.Select(x => Model.GetPlayerName(x.Id)))
+                                            <span class="pull-right ml-3"><label>Score: @teamScore</label></span>
+                                            @if (team.Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
+                                            {
+                                                <span class="active-dot"></span>
+                                            }
+                                        </h5>
+                                        <div class="m-2">
+                                            <Chip Context="Components.Models.ContextualClass.Info">
+                                                <Label>Points</Label>
+                                                <Badge>@match.CurrentGame.Tricks.Where(x => x.TeamId == team.Key).Sum(x => x.Value)</Badge>
+                                            </Chip>
+
+                                            @if (team.Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
+                                            {
+                                                <Chip Context="Components.Models.ContextualClass.Warning">
+                                                    <Label>Bid</Label>
+                                                    <Badge>@(match.CurrentGame.Bid.HasValue ? $"{match.CurrentGame.Bid.ToPrettyString()}" : "?")</Badge>
+                                                </Chip>
+                                                <Chip>
+                                                    <Label>Trump</Label>
+                                                    <Badge>@(match.CurrentGame.Trump.HasValue ? $"{match.CurrentGame.Trump}" : "?")</Badge>
+                                                </Chip>
+                                            }
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                }
             }
-        }
-    </div>
-</SpinnerOverlay>
+            else
+            {
+                <p class="p-3">No games yet.</p>
+            }
+        </div>
+    </SpinnerOverlay>
+</div>
 
 @code {
-    private Domino[] dominos;
-
-    private bool IsShuffling { get; set; }
-
     protected override async Task OnInitializedAsync()
     {
-        await ShuffleAsync();
-    }
-
-    public async Task ShuffleAsync()
-    {
-        IsShuffling = true;
-
-        try
+        if (Model.Matches == null || !Model.Matches.Any())
         {
-            dominos = await Http.GetFromJsonAsync<Domino[]>("api/dominos");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(ex.Message);
-        }
-        finally
-        {
-            await Task.Delay(2000);
-            IsShuffling = false;
+            await Model.FetchMatchesAsync();
         }
     }
 }
