@@ -2,8 +2,10 @@
 @attribute [Authorize]
 @layout MainLayout
 @using Domino = FortyTwo.Shared.Models.Domino
+@using FortyTwo.Client.Store
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject IClientStore Store
 
 <button type="button" class="btn btn-link" @onclick="@(async () => await ShuffleAsync())">Shuffle</button>
 
@@ -23,6 +25,10 @@
     protected override async Task OnInitializedAsync()
     {
         await ShuffleAsync();
+
+        StateHasChanged();
+
+        Store.Users = await Http.GetFromJsonAsync<List<FortyTwo.Shared.DTO.User>>("api/users");
     }
 
     public async Task ShuffleAsync()
