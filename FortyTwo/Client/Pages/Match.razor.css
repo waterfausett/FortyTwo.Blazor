@@ -1,0 +1,47 @@
+﻿.game-wrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: calc(100vh - 3.5rem - 18px);
+}
+
+    .game-wrapper .player {
+        min-height: 11rem;
+        padding-bottom: 12px;
+    }
+
+    .game-wrapper .gameboard {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+    }
+
+        .game-wrapper .gameboard .player-team-tricks,
+        .game-wrapper .gameboard .opponent-tricks {
+            font-size: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .game-wrapper .gameboard .player-team-tricks {
+            justify-content: flex-end;
+        }
+
+        .game-wrapper .gameboard .opponent-tricks {
+            justify-content: flex-start;
+        }
+
+        .game-wrapper .gameboard .current-trick {
+            flex: 1;
+        }
+
+    .game-wrapper .domino-container {
+        font-size: min(.75rem, 1.42vw);
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-content: center;
+    }
