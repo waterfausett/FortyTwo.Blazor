@@ -223,6 +223,7 @@ app {
 }
 
 :disabled {
+    pointer-events: initial;
     cursor: not-allowed;
 }
 

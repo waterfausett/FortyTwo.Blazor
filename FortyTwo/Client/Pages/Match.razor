@@ -28,7 +28,10 @@
             <div>
                 <h5>
                     @(Model.CurrentGame.Name ?? $"Game {Model.Match.Games.Count + 1}" ?? "Name Unknown")
-                    <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchMatchAsync())">Update</button>
+                    <button type="button" class="btn btn-link" disabled="@Model.IsLoading"
+                        @onclick="@(async () => await Model.FetchMatchAsync())">
+                        Update
+                    </button>
                 </h5>
             </div>
             <div>
