@@ -2,6 +2,8 @@
 @inject IJSRuntime JS
 @inject SweetAlertService Swal
 @inject NavigationManager Navigation
+@inject HttpClient Http
+@inject IClientStore Store
 
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(Program).Assembly">
@@ -36,6 +38,15 @@
 </CascadingAuthenticationState>
 
 @code {
+    protected override async Task OnInitializedAsync()
+    {
+        // TODO: could prolly replace this w/ a service that checks the store and fetches user info it doesn't already have
+        //  - this way we'd be fetching user info as it's relevant vs pulling the entire list of users
+        Store.Users = await Http.GetFromJsonAsync<List<FortyTwo.Shared.DTO.User>>("api/users");
+
+        await base.OnInitializedAsync();
+    }
+
     public async void ShowLoginPrompt()
     {
         await Swal.FireAsync(new SweetAlertOptions
