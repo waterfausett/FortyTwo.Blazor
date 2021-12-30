@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ namespace FortyTwo.Client.ViewModels
     public interface IMatchesViewModel
     {
         public bool IsLoading { get; set; }
-        public Match[] Matches { get; }
+        public List<Match> Matches { get; }
         Task FetchMatchesAsync();
     }
 
@@ -27,9 +28,9 @@ namespace FortyTwo.Client.ViewModels
 
         public bool IsLoading { get; set; }
 
-        public Match[] Matches
+        public List<Match> Matches
         {
-            get => _store.Matches?.ToArray();
+            get => _store.Matches?.OrderByDescending(x => x.CreatedOn).ToList();
         }
 
         public async Task FetchMatchesAsync()

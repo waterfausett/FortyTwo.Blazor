@@ -77,7 +77,7 @@
             <div>
                 <h5>
                     @(Model.CurrentGame.Name ?? "Name Unknown")
-                    <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchMatchAsync(MatchId))">Update</button>
+                    <button type="button" class="btn btn-link" @onclick="@(async () => await Model.FetchMatchAsync())">Update</button>
                 </h5>
             </div>
             <div>
@@ -218,14 +218,16 @@
 
     protected override async Task OnInitializedAsync()
     {
+        Model.Initialize(MatchId);
+
         if (Model.Player == null)
         {
-            await Model.FetchPlayerAsync(MatchId);
+            await Model.FetchPlayerAsync();
         }
 
         if (Model.CurrentGame == null)
         {
-            await Model.FetchMatchAsync(MatchId);
+            await Model.FetchMatchAsync();
         }
 
         // TODO: add a visual indicator of connected status
@@ -267,7 +269,7 @@
                 Title = "Reconnected"
             });
 
-            await Model.FetchMatchAsync(MatchId);
+            await Model.FetchMatchAsync();
         };
 
         _hubConnection.On<Player>("OnPlayerAdded", (player) =>
