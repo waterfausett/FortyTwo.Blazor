@@ -6,6 +6,7 @@
 @using System.Linq
 @using CurrieTechnologies.Razor.SweetAlert2
 @using FortyTwo.Client.ViewModels
+@using FortyTwo.Shared.Extensions
 @using FortyTwo.Shared.Models
 @using Microsoft.AspNetCore.SignalR.Client
 
@@ -283,7 +284,7 @@
         catch (Exception ex)
         {
             errorMessage = ex.Message;
-            Console.Error.WriteLine();
+            Console.Error.WriteLine(errorMessage);
         }
 
         if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -291,7 +292,7 @@
             await Swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Error,
-                Html = errorMessage,
+                Html = errorMessage.Truncate(250),
                 ConfirmButtonText = "Ok",
             });
         }
@@ -308,7 +309,7 @@
         catch (Exception ex)
         {
             errorMessage = ex.Message;
-            Console.Error.WriteLine();
+            Console.Error.WriteLine(errorMessage);
         }
 
         if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -316,7 +317,7 @@
             await Swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Error,
-                Html = errorMessage,
+                Html = errorMessage.Truncate(250),
                 ConfirmButtonText = "Ok",
             });
         }

@@ -14,7 +14,7 @@ namespace FortyTwo.Client.ViewModels
         public bool IsCreating { get; set; }
         public List<Match> Matches { get; }
         Task FetchMatchesAsync();
-        Task CreateMatchAsync();
+        Task<string> CreateMatchAsync();
         string GetPlayerName(string playerId);
     }
 
@@ -53,7 +53,7 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public async Task CreateMatchAsync()
+        public async Task<string> CreateMatchAsync()
         {
             IsCreating = true;
 
@@ -62,14 +62,14 @@ namespace FortyTwo.Client.ViewModels
                 var response = await _http.PostAsync("api/matches", null);
                 if (!response.IsSuccessStatusCode)
                 {
-                    //return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                    return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
                 }
 
                 var match = await response.Content.ReadFromJsonAsync<Match>();
 
                 _store.Matches.Add(match);
 
-                await Task.Delay(1500);
+                return string.Empty;
             }
             finally
             {

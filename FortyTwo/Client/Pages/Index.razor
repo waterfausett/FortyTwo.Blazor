@@ -1,8 +1,11 @@
 ﻿@page "/"
 @attribute [Authorize]
 @layout MainLayout
+@using CurrieTechnologies.Razor.SweetAlert2
 @using FortyTwo.Client.ViewModels
 @using FortyTwo.Shared.Models
+@using FortyTwo.Shared.Extensions
+@inject SweetAlertService Swal
 @inject IMatchesViewModel Model
 
 <div>
@@ -13,7 +16,7 @@
             Update
         </button>
         <button type="button" class="btn btn-link pull-right" disabled="@Model.IsCreating"
-            @onclick="@(async () => await Model.CreateMatchAsync())">
+            @onclick="@(async () => await CreateMatchAsync())">
             <span class="oi oi-plus" aria-hidden="true"></span>
         </button>
     </h3>
@@ -82,5 +85,31 @@
         {
             await Model.FetchMatchesAsync();
         }
+    }
+
+    private async Task CreateMatchAsync()
+    {
+        string errorMessage;
+
+        try
+        {
+            errorMessage = await Model.CreateMatchAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            Console.Error.WriteLine(errorMessage);
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Error,
+                Html = errorMessage.Truncate(250),
+                ConfirmButtonText = "Ok",
+            });
+        }
+
     }
 }

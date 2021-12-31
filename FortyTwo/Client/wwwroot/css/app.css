@@ -110,6 +110,10 @@ app {
     background-color: rgba(255, 255, 255, 0.1);
 }
 
+.oi {
+    z-index: -1;
+}
+
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }
