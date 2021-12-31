@@ -275,3 +275,23 @@ a {
 .match-winner .card-title::after {
     content: '🎉'
 }
+
+.spinner {
+    animation: spinner .75s linear infinite;
+}
+.spinner-reverse {
+    animation: spinner-reverse .75s linear infinite;
+}
+
+@keyframes spinner {
+    100% {
+        -webkit-transform: rotate(360deg);
+        transform: rotate(360deg);
+    }
+}
+@keyframes spinner-reverse {
+    100% {
+        -webkit-transform: rotate(-360deg);
+        transform: rotate(-360deg);
+    }
+}

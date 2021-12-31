@@ -11,9 +11,9 @@
 <div>
     <h3>
         Matches
-        <button type="button" class="btn btn-link" disabled="@Model.IsLoading"
+        <button type="button" class="btn btn-link" title="Refresh list" disabled="@Model.IsLoading"
             @onclick="@(async () => await Model.FetchMatchesAsync())">
-            Update
+            <span class="oi oi-loop-circular" aria-hidden="true"></span>
         </button>
         <button type="button" class="btn btn-link pull-right" disabled="@Model.IsCreating"
             @onclick="@(async () => await CreateMatchAsync())">
@@ -110,6 +110,5 @@
                 ConfirmButtonText = "Ok",
             });
         }
-
     }
 }

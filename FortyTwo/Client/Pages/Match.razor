@@ -29,9 +29,9 @@
             <div>
                 <h5>
                     @(Model.CurrentGame.Name ?? $"Game {Model.Match.Games.Count + 1}" ?? "Name Unknown")
-                    <button type="button" class="btn btn-link" disabled="@Model.IsLoading"
+                    <button type="button" class="btn btn-link" title="Refresh match" disabled="@Model.IsLoading"
                         @onclick="@(async () => await Model.FetchMatchAsync())">
-                        Update
+                        <span class="oi oi-loop-circular" aria-hidden="true"></span>
                     </button>
                 </h5>
             </div>

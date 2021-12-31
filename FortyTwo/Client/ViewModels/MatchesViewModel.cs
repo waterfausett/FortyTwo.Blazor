@@ -49,6 +49,7 @@ namespace FortyTwo.Client.ViewModels
             }
             finally
             {
+                await Task.Delay(1000);
                 IsLoading = false;
             }
         }
