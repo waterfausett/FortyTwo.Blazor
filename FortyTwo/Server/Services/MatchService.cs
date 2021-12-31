@@ -33,7 +33,8 @@ namespace FortyTwo.Server.Services
             var matches = StaticMatches.Instance
                 .Where(x => 
                     x.Players.Any(p => p.Id == _userId))
-                .OrderBy(x => x.Players.Count == 4)
+                .OrderByDescending(x => !x.WinningTeamId.HasValue)
+                .ThenByDescending(x => x.Players.Count == 4)
                 .ThenByDescending(x => x.UpdatedOn)
                 .ToList();
 
