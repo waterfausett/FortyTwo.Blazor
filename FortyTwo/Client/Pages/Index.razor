@@ -23,6 +23,25 @@
 
     <hr />
 
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" data-toggle="tab" role="tab"
+                @onclick="@(async () => {
+                    if (Model.MatchFilter == MatchFilter.Mine) return;
+                    Model.MatchFilter = MatchFilter.Mine;
+                    await Model.FetchMatchesAsync();
+                })">Mine</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-toggle="tab" role="tab"
+                @onclick="@(async () => {
+                    if (Model.MatchFilter == MatchFilter.Joinable) return;
+                    Model.MatchFilter = MatchFilter.Joinable;
+                    await Model.FetchMatchesAsync();
+                })">Joinable</a>
+        </li>
+    </ul>
+
     <SpinnerOverlay Visible="Model.IsLoading">
         <div>
             @if (Model.Matches?.Any() == true)

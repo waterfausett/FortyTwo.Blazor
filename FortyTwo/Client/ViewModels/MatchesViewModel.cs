@@ -8,10 +8,17 @@ using FortyTwo.Shared.DTO;
 
 namespace FortyTwo.Client.ViewModels
 {
+    public enum MatchFilter
+    {
+        Mine,
+        Joinable
+    }
+
     public interface IMatchesViewModel
     {
         public bool IsLoading { get; set; }
         public bool IsCreating { get; set; }
+        public MatchFilter MatchFilter { get; set; }
         public List<Match> Matches { get; }
         Task FetchMatchesAsync();
         Task<string> CreateMatchAsync();
@@ -32,6 +39,8 @@ namespace FortyTwo.Client.ViewModels
         public bool IsLoading { get; set; }
         public bool IsCreating { get; set; }
 
+        public MatchFilter MatchFilter { get; set; } = MatchFilter.Mine;
+
         public List<Match> Matches
         {
             get => _store.Matches?.OrderByDescending(x => x.CreatedOn).ToList();
@@ -43,13 +52,14 @@ namespace FortyTwo.Client.ViewModels
 
             try
             {
-                var matches = await _http.GetFromJsonAsync<List<Match>>("api/matches");
+                var matches = MatchFilter == MatchFilter.Mine
+                    ? await _http.GetFromJsonAsync<List<Match>>("api/matches")
+                    : await _http.GetFromJsonAsync<List<Match>>("api/matches/joinable");
 
                 _store.Matches = matches;
             }
             finally
             {
-                await Task.Delay(1000);
                 IsLoading = false;
             }
         }
