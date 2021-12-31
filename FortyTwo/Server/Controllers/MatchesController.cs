@@ -35,18 +35,32 @@ namespace FortyTwo.Server.Controllers
             _matchService = matchService;
             _gameHubContext = gameHubContext;
         }
-        
+
         [HttpGet]
         public async Task<IActionResult> Get()
         {
-            var matches = await _matchService.FetchAsync();
+            var matches = await _matchService.FetchForUserAsync();
+            return Ok(_mapper.Map<List<Shared.DTO.Match>>(matches));
+        }
+
+        [HttpGet("joinable")]
+        public async Task<IActionResult> GetJoinable()
+        {
+            var matches = await _matchService.FetchJoinableAsync();
             return Ok(_mapper.Map<List<Shared.DTO.Match>>(matches));
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> Get([Required] Guid id)
         {
-            return Ok(_mapper.Map<Shared.DTO.Match>(await _matchService.GetAsync(id)));
+            var match = await _matchService.GetAsync(id);
+
+            if (match == null)
+            {
+                return NotFound("Match not found!");
+            }
+
+            return Ok(_mapper.Map<Shared.DTO.Match>(match));
         }
 
         [HttpPost]

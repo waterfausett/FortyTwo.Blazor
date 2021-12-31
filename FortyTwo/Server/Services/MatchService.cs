@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using FortyTwo.Shared.Extensions;
 using FortyTwo.Shared.Models;
@@ -9,37 +10,54 @@ namespace FortyTwo.Server.Services
 {
     public class MatchService : IMatchService
     {
-        private readonly UserId _user;
+        private readonly UserId _userId;
 
         public MatchService(UserId user)
         {
-            _user = user;
+            _userId = user;
         }
 
         public Task<Match> CreateAsync()
         {
             var match = new Match();
 
-            match.Players.Add(new Player() { Id = _user.GetUserId(), TeamId = 1 });
+            match.Players.Add(new Player() { Id = _userId, TeamId = 1 });
 
             StaticMatches.Instance.Add(match);
 
             return Task.FromResult(match);
         }
 
-        public async Task<List<Match>> FetchAsync()
+        public Task<List<Match>> FetchForUserAsync()
         {
-            var matches = StaticMatches.Instance;
+            var matches = StaticMatches.Instance
+                .Where(x => 
+                    x.Players.Any(p => p.Id == _userId))
+                .ToList();
 
             // TODO: clean this mess up - just hard swapping for my userId for now
             //matches.ForEach(g => g.Players.Where(p => p.Id == "Id:Adam").ToList().ForEach(p => p.Id = (string)_userId));
 
-            return matches;
+            return Task.FromResult(matches);
+        }
+        public Task<List<Match>> FetchJoinableAsync()
+        {
+            var matches = StaticMatches.Instance
+                .Where(x =>
+                    x.Players.All(p => p.Id != _userId)
+                    && x.Players.Count < 4)
+                .ToList();
+
+            // TODO: clean this mess up - just hard swapping for my userId for now
+            //matches.ForEach(g => g.Players.Where(p => p.Id == "Id:Adam").ToList().ForEach(p => p.Id = (string)_userId));
+
+            return Task.FromResult(matches);
         }
 
-        public async Task<Match> GetAsync(Guid id)
+        public Task<Match> GetAsync(Guid id)
         {
-            return (await FetchAsync())[0];
+            return Task.FromResult(StaticMatches.Instance
+                .FirstOrDefault(x => x.Id == id));
         }
     }
 
