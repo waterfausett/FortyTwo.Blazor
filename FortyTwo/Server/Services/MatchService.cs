@@ -33,6 +33,8 @@ namespace FortyTwo.Server.Services
             var matches = StaticMatches.Instance
                 .Where(x => 
                     x.Players.Any(p => p.Id == _userId))
+                .OrderBy(x => x.Players.Count == 4)
+                .ThenByDescending(x => x.UpdatedOn)
                 .ToList();
 
             // TODO: clean this mess up - just hard swapping for my userId for now
@@ -40,12 +42,14 @@ namespace FortyTwo.Server.Services
 
             return Task.FromResult(matches);
         }
+
         public Task<List<Match>> FetchJoinableAsync()
         {
             var matches = StaticMatches.Instance
                 .Where(x =>
                     x.Players.All(p => p.Id != _userId)
                     && x.Players.Count < 4)
+                .OrderByDescending(x => x.UpdatedOn)
                 .ToList();
 
             // TODO: clean this mess up - just hard swapping for my userId for now

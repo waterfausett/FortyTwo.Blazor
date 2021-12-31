@@ -10,7 +10,7 @@ namespace FortyTwo.Shared.Models
 
         public Match()
         {
-            CreatedOn = DateTimeOffset.UtcNow;
+            CreatedOn = UpdatedOn = DateTimeOffset.UtcNow;
             Id = Guid.NewGuid();
         }
 
