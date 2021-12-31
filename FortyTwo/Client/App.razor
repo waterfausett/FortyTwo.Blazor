@@ -8,25 +8,32 @@
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(Program).Assembly">
         <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData">
-                <Authorizing>
-                    <SpinnerOverlay Visible="true" FullHeight="true"></SpinnerOverlay>
-                </Authorizing>
-                <NotAuthorized>
-                    @if (!context.User.Identity.IsAuthenticated)
-                    {
-                        ShowLoginPrompt();
-                    }
-                    else
-                    {
-                        <!-- TODO: make this better -->
-                        <p>
-                            You are not authorized to access
-                            this resource.
-                        </p>
-                    }
-                </NotAuthorized>
-            </AuthorizeRouteView>
+            @if (_initialized)
+            {
+                <AuthorizeRouteView RouteData="@routeData">
+                    <Authorizing>
+                        <SpinnerOverlay Visible="true" FullHeight="true"></SpinnerOverlay>
+                    </Authorizing>
+                    <NotAuthorized>
+                        @if (!context.User.Identity.IsAuthenticated)
+                        {
+                            ShowLoginPrompt();
+                        }
+                        else
+                        {
+                            <!-- TODO: make this better -->
+                            <p>
+                                You are not authorized to access
+                                this resource.
+                            </p>
+                        }
+                    </NotAuthorized>
+                </AuthorizeRouteView>
+            }
+            else
+            {
+                <SpinnerOverlay Visible="true" FullHeight="true"></SpinnerOverlay>
+            }
         </Found>
         <NotFound>
             <!-- TODO: make this use a different layout etc. -->
@@ -38,11 +45,23 @@
 </CascadingAuthenticationState>
 
 @code {
+    private bool _initialized;
+
     protected override async Task OnInitializedAsync()
     {
-        // TODO: could prolly replace this w/ a service that checks the store and fetches user info it doesn't already have
-        //  - this way we'd be fetching user info as it's relevant vs pulling the entire list of users
-        Store.Users = await Http.GetFromJsonAsync<List<FortyTwo.Shared.DTO.User>>("api/users");
+        _initialized = false;
+
+        try
+        {
+            // TODO: could prolly replace this w/ a service that checks the store and fetches user info it doesn't already have
+            //  - this way we'd be fetching user info as it's relevant vs pulling the entire list of users
+            Store.Users = await Http.GetFromJsonAsync<List<FortyTwo.Shared.DTO.User>>("api/users");
+        }
+        finally
+        {
+            _initialized = true;
+            StateHasChanged();
+        }
 
         await base.OnInitializedAsync();
     }
