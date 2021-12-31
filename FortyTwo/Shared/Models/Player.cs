@@ -6,6 +6,7 @@ namespace FortyTwo.Shared.Models
     {
         public int TeamId { get; set; }
         public string Id { get; set; }
+        public int Position { get; set; }
 
         public bool Equals(Player other)
         {

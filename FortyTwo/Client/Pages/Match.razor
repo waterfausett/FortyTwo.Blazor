@@ -38,17 +38,30 @@
             <div>
                 <div class="row">
                     @{
-                        var playerIndex = Model.Match.Players.FindIndex(x => x.Id == Model.Player.Id);
                         const int numPlayers = 4;
+                        var playerPosition = Model.Match.Players.FirstOrDefault(x => x.Id == Model.Player.Id)?.Position;
+                        var otherPlayers = Model.Match.Players.Where(x => x.Id != Model.Player.Id)
+                            .ToDictionary(kv => kv.Position - playerPosition > 0 ? kv.Position - playerPosition : kv.Position - playerPosition + numPlayers);
+
+                        otherPlayers.TryGetValue(1, out var adjustedPlayer1);
+                        otherPlayers.TryGetValue(2, out var adjustedPlayer2);
+                        otherPlayers.TryGetValue(3, out var adjustedPlayer3);
                     }
-                    @for (var i = 1; i <= 3; ++i) {
-                        var player = Model.Match.Players.ElementAtOrDefault((playerIndex + i) % numPlayers);
-                        <div class="col-4">
-                            <RemotePlayer Player="player"
-                                IsActive="player?.Id == Model.CurrentGame.CurrentPlayerId"
-                                DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == player?.Id)?.Dominos ?? 0"></RemotePlayer>
-                        </div>
-                    }
+                    <div class="col-4">
+                        <RemotePlayer Player="adjustedPlayer1"
+                            IsActive="adjustedPlayer1?.Id == Model.CurrentGame.CurrentPlayerId"
+                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer1?.Id)?.Dominos ?? 0"></RemotePlayer>
+                    </div>
+                    <div class="col-4">
+                        <RemotePlayer Player="adjustedPlayer2"
+                            IsActive="adjustedPlayer2?.Id == Model.CurrentGame.CurrentPlayerId"
+                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer2?.Id)?.Dominos ?? 0"></RemotePlayer>
+                    </div>
+                    <div class="col-4">
+                        <RemotePlayer Player="adjustedPlayer3"
+                            IsActive="adjustedPlayer3?.Id == Model.CurrentGame.CurrentPlayerId"
+                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer3?.Id)?.Dominos ?? 0"></RemotePlayer>
+                    </div>
                 </div>
             </div>
             <div class="gameboard">

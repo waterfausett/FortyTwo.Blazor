@@ -86,15 +86,25 @@ namespace FortyTwo.Server.Services
                             CurrentGame = new Game("Game 1")
                             {
                                 Id = new Guid("2747a077-d51f-431f-bc97-4bcc14fe5b27"),
-                                FirstActionBy = "Id:Adam",
-                                CurrentPlayerId = "Id:Adam",
+                                FirstActionBy = "Id:Jack",
+                                CurrentPlayerId = "Id:Jack",
                                 Hands = new List<Hand>
                                 {
                                     new Hand
                                     {
-                                        PlayerId = "Id:Adam",
+                                        PlayerId = "Id:Jack",
                                         TeamId = 1,
                                     },
+                                    new Hand
+                                    {
+                                        PlayerId = "Id:Jill",
+                                        TeamId = 1,
+                                    },
+                                    new Hand
+                                    {
+                                        PlayerId = "Id:Adam",
+                                        TeamId = 2,
+                                    }
                                 }
                             },
                             Players = new List<Player>
@@ -102,7 +112,14 @@ namespace FortyTwo.Server.Services
                                 new Player
                                 {
                                     Id = "Id:Adam",
+                                    TeamId = 2,
+                                    Position = 1
+                                },
+                                new Player
+                                {
+                                    Id = "Id:Jill",
                                     TeamId = 1,
+                                    Position = 2
                                 },
                             },
                         }

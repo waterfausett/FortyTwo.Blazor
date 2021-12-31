@@ -76,7 +76,19 @@ namespace FortyTwo.Server.Controllers
         {
             var match = await _matchService.GetAsync(id);
 
-            var player = new LoggedInPlayer(match.Players.First(x => x.Id == _userId))
+            if (match == null)
+            {
+                return NotFound("Match not found!");
+            }
+
+            var matchPlayer = match.Players.FirstOrDefault(x => x.Id == _userId);
+
+            if (matchPlayer == null)
+            {
+                return NotFound("Player isn't a part of this match!");
+            }
+
+            var player = new LoggedInPlayer(matchPlayer)
             {
                 IsActive = match.CurrentGame.CurrentPlayerId == _userId,
                 Dominos = match.CurrentGame.Hands.First(x => x.PlayerId == _userId).Dominos,
