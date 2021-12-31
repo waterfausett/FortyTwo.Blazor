@@ -15,7 +15,7 @@
             @onclick="@(async () => await Model.FetchMatchesAsync())">
             <span class="oi oi-loop-circular" aria-hidden="true"></span>
         </button>
-        <button type="button" class="btn btn-link pull-right" disabled="@Model.IsCreating"
+        <button type="button" class="btn btn-link pull-right" disabled="@true"
             @onclick="@(async () => await CreateMatchAsync())">
             <span class="oi oi-plus" aria-hidden="true"></span>
         </button>
