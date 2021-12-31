@@ -31,7 +31,7 @@ namespace FortyTwo.Server.Services
 
         public async Task<List<User>> GetUsersAsync()
         {
-            const string url = "api/v2/users?fields=identities%2Capp_metadata%2Clast_ip&include_fields=false";
+            const string url = "api/v2/users?fields=identities,app_metadata,last_ip&include_fields=false";
 
             var users = await FetchAsync<List<User>>(url);
 
@@ -55,6 +55,15 @@ namespace FortyTwo.Server.Services
                 Id = "Id:Emily",
                 FirstName = "Emily"
             });
+
+            return users;
+        }
+
+        public async Task<List<User>> GetUsersAsync(List<string> userIds)
+        {
+            var url = $"api/v2/users?fields=identities,app_metadata,last_ip&include_fields=false&q=user_id:(\"{string.Join("\",\"", userIds)}\")";
+
+            var users = await FetchAsync<List<User>>(url);
 
             return users;
         }
