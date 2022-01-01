@@ -4,12 +4,12 @@ using System.Linq;
 
 namespace FortyTwo.Shared.Models
 {
-    public enum Position
+    public enum Positions
     {
-        First = 1,
-        Second = 2,
-        Third = 3,
-        Fourth = 4,
+        First = 0,
+        Second = 1,
+        Third = 2,
+        Fourth = 3,
     }
 
     public enum Teams

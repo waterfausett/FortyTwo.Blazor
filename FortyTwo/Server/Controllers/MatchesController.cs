@@ -86,11 +86,18 @@ namespace FortyTwo.Server.Controllers
                 return BadRequest("Team is full");
             }
 
+            var teammatePosition = match.Players.FirstOrDefault(x => x.Team == request.Team)?.Position;
+            var position = teammatePosition != null
+                ? (Positions)(((int)teammatePosition + 2) % 4)
+                : (int)match.Players.First(x => x.Team != request.Team).Position % 2 == 0
+                    ? Positions.Second
+                    : Positions.First;
+
             match.Players.Add(new Player
             {
                 Id = _userId,
                 Team = request.Team,
-                Position = request.Position,
+                Position = position,
             });
 
             return Ok(_mapper.Map<Shared.DTO.Match>(match));

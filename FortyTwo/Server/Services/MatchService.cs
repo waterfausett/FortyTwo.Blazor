@@ -113,19 +113,19 @@ namespace FortyTwo.Server.Services
                                 {
                                     Id = "Id:Jill",
                                     Team = Teams.TeamA,
-                                    Position = 0
+                                    Position = Positions.First
                                 },
                                 new Player
                                 {
                                     Id = "Id:Jill",
                                     Team = Teams.TeamA,
-                                    Position = 2
+                                    Position = Positions.Third
                                 },
                                 new Player
                                 {
                                     Id = "Id:Emily",
                                     Team = Teams.TeamB,
-                                    Position = 1
+                                    Position = Positions.Fourth
                                 },
                             },
                         }

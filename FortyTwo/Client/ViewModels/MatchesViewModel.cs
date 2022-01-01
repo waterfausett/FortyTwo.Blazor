@@ -92,7 +92,7 @@ namespace FortyTwo.Client.ViewModels
 
         public async Task<string> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team)
         {
-            var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/players", new AddPlayerRequest { Team = team, Position = 0 });
+            var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/players", new AddPlayerRequest { Team = team });
             if (!response.IsSuccessStatusCode)
             {
                 return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
