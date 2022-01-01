@@ -81,7 +81,7 @@ namespace FortyTwo.Server.Controllers
                 return NotFound("Match not found!");
             }
 
-            if (match.Players.Count(x => x.TeamId == request.TeamId) >= 2)
+            if (match.Players.Count(x => x.Team == request.Team) >= 2)
             {
                 return BadRequest("Team is full");
             }
@@ -89,7 +89,7 @@ namespace FortyTwo.Server.Controllers
             match.Players.Add(new Player
             {
                 Id = _userId,
-                TeamId = request.TeamId,
+                Team = request.Team,
                 Position = request.Position,
             });
 
@@ -134,7 +134,7 @@ namespace FortyTwo.Server.Controllers
                 return NotFound("Match not found!");
             }
 
-            if (match.WinningTeamId != null)
+            if (match.WinningTeam != null)
             {
                 return BadRequest("<h2>This game is over.</h2>");
             }
@@ -188,7 +188,7 @@ namespace FortyTwo.Server.Controllers
                 return NotFound("Match not found!");
             }
 
-            if (match.WinningTeamId != null)
+            if (match.WinningTeam != null)
             {
                 return BadRequest("<h2>This game is over.</h2>");
             }
@@ -242,7 +242,7 @@ namespace FortyTwo.Server.Controllers
             if (currnetlyWinningDomino.Equals(domino))
             {
                 game.CurrentTrick.PlayerId = _userId;
-                game.CurrentTrick.TeamId = match.Players.First(x => x.Id == _userId).TeamId;
+                game.CurrentTrick.Team = match.Players.First(x => x.Id == _userId).Team;
             }
 
             // TODO: trick is full - get ready for the next one
@@ -279,8 +279,8 @@ namespace FortyTwo.Server.Controllers
             game.Hands.First(x => x.PlayerId == _userId).Dominos.Remove(domino);
 
             // "computer moves" for now
-            var teammate = match.Players.FirstOrDefault(x => x.Id != player.Id && x.TeamId == player.TeamId);
-            var opponents = match.Players.Where(x => x.TeamId != player.TeamId).ToList();
+            var teammate = match.Players.FirstOrDefault(x => x.Id != player.Id && x.Team == player.Team);
+            var opponents = match.Players.Where(x => x.Team != player.Team).ToList();
 
             game.CurrentTrick.Dominos[1] = game.Hands.First(x => x.PlayerId == opponents[0].Id).Dominos.First();
             game.Hands.First(x => x.PlayerId == opponents[0].Id).Dominos.RemoveRange(0, 1);
@@ -297,7 +297,7 @@ namespace FortyTwo.Server.Controllers
 
             var rng = new Random();
             var winner = rng.Next(4);
-            game.CurrentTrick.TeamId = match.Players[winner].TeamId;
+            game.CurrentTrick.Team = match.Players[winner].Team;
 
             game.Tricks.Add(game.CurrentTrick);
             game.CurrentTrick = new Trick();

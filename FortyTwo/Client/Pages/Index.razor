@@ -52,10 +52,10 @@
                         <h5 class="card-header">@match.Id <a href="/match/@match.Id" class="btn btn-sm btn-link">View</a></h5>
                         <div class="card-body p-2">
                             <ul class="list-group list-group-flush">
-                                @foreach (var team in match.Players.GroupBy(x => x.TeamId))
+                                @foreach (var team in match.Players.GroupBy(x => x.Team))
                                 {
                                     match.Scores.TryGetValue(team.Key, out var teamScore);
-                                    <li class="list-group-item p-0 @(match.WinningTeamId == team.Key ? "match-winner" : "")">
+                                    <li class="list-group-item p-0 @(match.WinningTeam == team.Key ? "match-winner" : "")">
                                         <h5 class="card-title m-2">
                                             @string.Join(" & ", team.Select(x => Model.GetPlayerName(x.Id)))
                                             <span class="pull-right ml-3"><label>Score: @teamScore</label></span>
@@ -68,7 +68,7 @@
                                             <div class="m-2">
                                                 <Chip Context="Components.Models.ContextualClass.Info">
                                                     <Label>Points</Label>
-                                                    <Badge>@match.CurrentGame.Tricks.Where(x => x.TeamId == team.Key).Sum(x => x.Value)</Badge>
+                                                    <Badge>@match.CurrentGame.Tricks.Where(x => x.Team == team.Key).Sum(x => x.Value)</Badge>
                                                 </Chip>
 
                                                 @if (team.Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
@@ -148,13 +148,13 @@
         }
     }
 
-    private async Task JoinMatchAsync(Guid matchId, int teamId)
+    private async Task JoinMatchAsync(Guid matchId, Teams team)
     {
         string errorMessage;
 
         try
         {
-            errorMessage = await Model.JoinMatchAsync(matchId, teamId);
+            errorMessage = await Model.JoinMatchAsync(matchId, team);
         }
         catch (Exception ex)
         {

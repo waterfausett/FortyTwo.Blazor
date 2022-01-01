@@ -24,7 +24,7 @@ namespace FortyTwo.Client.ViewModels
         Task FetchMatchesAsync();
         Task<string> CreateMatchAsync();
         string GetPlayerName(string playerId);
-        Task<string> JoinMatchAsync(Guid matchId, int teamId);
+        Task<string> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team);
     }
 
     public class MatchesViewModel : IMatchesViewModel
@@ -90,9 +90,9 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public async Task<string> JoinMatchAsync(Guid matchId, int teamId)
+        public async Task<string> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team)
         {
-            var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/players", new AddPlayerRequest { TeamId = teamId, Position = 0 });
+            var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/players", new AddPlayerRequest { Team = team, Position = 0 });
             if (!response.IsSuccessStatusCode)
             {
                 return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;

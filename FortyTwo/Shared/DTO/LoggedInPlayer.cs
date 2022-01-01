@@ -11,11 +11,11 @@ namespace FortyTwo.Shared.DTO
 
         public LoggedInPlayer(Player player)
         {
-            TeamId = player.TeamId;
+            Team = player.Team;
             Id = player.Id;
         }
 
-        public int TeamId { get; set; }
+        public Teams Team { get; set; }
         public string Id { get; set; }
         public Bid? Bid { get; set; }
         public bool IsActive { get; set; }

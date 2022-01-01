@@ -4,6 +4,14 @@ using System.Linq;
 
 namespace FortyTwo.Shared.Models
 {
+    public enum Position
+    {
+        First = 1,
+        Second = 2,
+        Third = 3,
+        Fourth = 4,
+    }
+
     public enum Teams
     {
         TeamA = 1,
@@ -23,14 +31,13 @@ namespace FortyTwo.Shared.Models
         public Guid Id { get; set; } // TODO: in practice, this prolly shouldn't have a public setter
         public List<Player> Players { get; set; } = new List<Player>();
         public Game CurrentGame { get; set; } = new Game("Game 1");
-        public Dictionary<int, List<Game>> Games { get; set; } = new Dictionary<int, List<Game>>();
-        public Dictionary<int, int> Scores => Games?.ToDictionary(kv => kv.Key, kv => kv.Value.Sum(g => g.Value ?? 0));
-        public int? WinningTeamId
+        public Dictionary<Teams, List<Game>> Games { get; set; } = new Dictionary<Teams, List<Game>>();
+        public Dictionary<Teams, int> Scores => Games?.ToDictionary(kv => kv.Key, kv => kv.Value.Sum(g => g.Value ?? 0));
+        public Teams? WinningTeam
         {
-            get { 
-                var teamId = Scores.FirstOrDefault(x => x.Value >= WinningScore).Key;
-                return teamId == 0 ? (int?)null : teamId;
-            }
+            get => Scores.Values.Any(x => x >= WinningScore)
+                ? Scores.First(x => x.Value >= WinningScore).Key
+                : null;
         }
         public DateTimeOffset CreatedOn { get; set; }
         public DateTimeOffset UpdatedOn { get; set; }
@@ -70,14 +77,14 @@ namespace FortyTwo.Shared.Models
                     : (int)bid <= 42 ? 1 : (int)bid / 42; 
             }
         }
-        internal int? WinningTeamId {
+        internal Teams? WinningTeam {
             get 
             {
                 if (BiddingPlayerId == null) return null;
 
-                var biddingTeamId = Hands?.FirstOrDefault(x => x.PlayerId == BiddingPlayerId)?.TeamId;
-                var otherTeamId = Hands?.FirstOrDefault(x => x.TeamId != biddingTeamId)?.TeamId;
-                var teamPoints = Tricks.GroupBy(t => t.TeamId).ToDictionary(g => g.Key, g => g.Sum(t => t.Value));
+                var biddingTeamId = Hands?.FirstOrDefault(x => x.PlayerId == BiddingPlayerId)?.Team;
+                var otherTeamId = Hands?.FirstOrDefault(x => x.Team != biddingTeamId)?.Team;
+                var teamPoints = Tricks.GroupBy(t => t.Team).ToDictionary(g => g.Key, g => g.Sum(t => t.Value));
 
                 var adjustedBid = (int)Bid % 42 == 0 ? 42 : (int)Bid;
                 return teamPoints[biddingTeamId] >= adjustedBid
@@ -99,7 +106,7 @@ namespace FortyTwo.Shared.Models
     public class Hand
     {
         public string PlayerId { get; set; }
-        public int TeamId { get; set; }
+        public Teams Team { get; set; }
         public List<Domino> Dominos { get; set; } = new List<Domino>();
         public Bid? Bid { get; set; }
     }

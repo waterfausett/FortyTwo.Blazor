@@ -21,7 +21,7 @@ namespace FortyTwo.Server.Services
         {
             var match = new Match();
 
-            match.Players.Add(new Player() { Id = _userId, TeamId = 1 });
+            match.Players.Add(new Player() { Id = _userId, Team = Teams.TeamA });
 
             StaticMatches.Instance.Add(match);
 
@@ -33,7 +33,7 @@ namespace FortyTwo.Server.Services
             var matches = StaticMatches.Instance
                 .Where(x => 
                     x.Players.Any(p => p.Id == _userId))
-                .OrderByDescending(x => !x.WinningTeamId.HasValue)
+                .OrderByDescending(x => !x.WinningTeam.HasValue)
                 .ThenByDescending(x => x.Players.Count == 4)
                 .ThenByDescending(x => x.UpdatedOn)
                 .ToList();
@@ -93,17 +93,17 @@ namespace FortyTwo.Server.Services
                                     new Hand
                                     {
                                         PlayerId = "Id:Jack",
-                                        TeamId = 1,
+                                        Team = Teams.TeamA,
                                     },
                                     new Hand
                                     {
                                         PlayerId = "Id:Jill",
-                                        TeamId = 1,
+                                        Team = Teams.TeamA,
                                     },
                                     new Hand
                                     {
                                         PlayerId = "Id:Emily",
-                                        TeamId = 2,
+                                        Team = Teams.TeamB,
                                     },
                                 }
                             },
@@ -112,19 +112,19 @@ namespace FortyTwo.Server.Services
                                 new Player
                                 {
                                     Id = "Id:Jill",
-                                    TeamId = 1,
+                                    Team = Teams.TeamA,
                                     Position = 0
                                 },
                                 new Player
                                 {
                                     Id = "Id:Jill",
-                                    TeamId = 1,
+                                    Team = Teams.TeamA,
                                     Position = 2
                                 },
                                 new Player
                                 {
                                     Id = "Id:Emily",
-                                    TeamId = 2,
+                                    Team = Teams.TeamB,
                                     Position = 1
                                 },
                             },

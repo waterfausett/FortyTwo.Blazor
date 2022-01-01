@@ -1,8 +1,10 @@
-﻿namespace FortyTwo.Shared.DTO
+﻿using FortyTwo.Shared.Models;
+
+namespace FortyTwo.Shared.DTO
 {
     public class AddPlayerRequest
     {
-        public int TeamId { get; set; }
+        public Teams Team { get; set; }
         public int Position { get; set; }
     }
 }

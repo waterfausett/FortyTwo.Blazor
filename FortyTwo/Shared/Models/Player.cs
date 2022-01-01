@@ -4,7 +4,7 @@ namespace FortyTwo.Shared.Models
 {
     public class Player : IEquatable<Player>
     {
-        public int TeamId { get; set; }
+        public Teams Team { get; set; }
         public string Id { get; set; }
         public int Position { get; set; }
 

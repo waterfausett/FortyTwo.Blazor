@@ -8,9 +8,9 @@ namespace FortyTwo.Shared.DTO
         public Guid Id { get; set; }
         public List<Models.Player> Players { get; set; }
         public Game CurrentGame { get; set; } = new Game();
-        public Dictionary<int, List<Game>> Games { get; set; } = new Dictionary<int, List<Game>>();
-        public Dictionary<int, int> Scores { get; set; }
-        public int? WinningTeamId { get; set; }
+        public Dictionary<Models.Teams, List<Game>> Games { get; set; } = new Dictionary<Models.Teams, List<Game>>();
+        public Dictionary<Models.Teams, int> Scores { get; set; }
+        public Models.Teams? WinningTeam { get; set; }
         public DateTimeOffset CreatedOn { get; set; }
         public DateTimeOffset UpdatedOn { get; set; }
     }

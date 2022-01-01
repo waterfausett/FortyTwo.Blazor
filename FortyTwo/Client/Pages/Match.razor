@@ -66,8 +66,8 @@
             </div>
             <div class="gameboard">
                 @{
-                    var teamTricks = Model.CurrentGame.Tricks.Where(x => x.TeamId == Model.Player.TeamId);
-                    var opponentTricks = Model.CurrentGame.Tricks.Where(x => x.TeamId != Model.Player.TeamId);
+                    var teamTricks = Model.CurrentGame.Tricks.Where(x => x.Team == Model.Player.Team);
+                    var opponentTricks = Model.CurrentGame.Tricks.Where(x => x.Team != Model.Player.Team);
                 }
                 <div class="opponent-tricks">
                     <div class="mb-1">
