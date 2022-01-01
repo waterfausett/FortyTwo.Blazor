@@ -11,17 +11,16 @@ namespace FortyTwo.Client.ViewModels
 {
     public enum MatchFilter
     {
-        Mine,
-        Joinable
+        Active,
+        Completed
     }
 
     public interface IMatchesViewModel
     {
         public bool IsLoading { get; set; }
         public bool IsCreating { get; set; }
-        public MatchFilter MatchFilter { get; set; }
         public List<Match> Matches { get; }
-        Task FetchMatchesAsync();
+        Task FetchMatchesAsync(MatchFilter? matchFilter = null);
         Task<string> CreateMatchAsync();
         string GetPlayerName(string playerId);
         Task<string> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team);
@@ -41,24 +40,26 @@ namespace FortyTwo.Client.ViewModels
         public bool IsLoading { get; set; }
         public bool IsCreating { get; set; }
 
-        public MatchFilter MatchFilter { get; set; } = MatchFilter.Mine;
+        private MatchFilter _matchFilter;
 
         public List<Match> Matches
         {
             get => _store.Matches?.OrderByDescending(x => x.CreatedOn).ToList();
         }
 
-        public async Task FetchMatchesAsync()
+        public async Task FetchMatchesAsync(MatchFilter? matchFilter = null)
         {
+            if (matchFilter.HasValue && _matchFilter == matchFilter) return;
+
             IsLoading = true;
 
             try
             {
-                var matches = MatchFilter == MatchFilter.Mine
-                    ? await _http.GetFromJsonAsync<List<Match>>("api/matches")
-                    : await _http.GetFromJsonAsync<List<Match>>("api/matches/joinable");
+                var matches = await _http.GetFromJsonAsync<List<Match>>($"api/matches?completed={matchFilter == MatchFilter.Completed}");
 
                 _store.Matches = matches;
+
+                if (matchFilter.HasValue) _matchFilter = matchFilter.Value;
             }
             finally
             {

@@ -28,30 +28,23 @@ namespace FortyTwo.Server.Services
             return Task.FromResult(match);
         }
 
-        public Task<List<Match>> FetchForUserAsync()
+        public Task<List<Match>> FetchForUserAsync(bool completed)
         {
-            var matches = StaticMatches.Instance
-                .Where(x => 
-                    x.Players.Any(p => p.Id == _userId))
-                .OrderByDescending(x => !x.WinningTeam.HasValue)
-                .ThenByDescending(x => x.Players.Count == 4)
-                .ThenByDescending(x => x.UpdatedOn)
-                .ToList();
-
-            // TODO: clean this mess up - just hard swapping for my userId for now
-            //matches.ForEach(g => g.Players.Where(p => p.Id == "Id:Adam").ToList().ForEach(p => p.Id = (string)_userId));
-
-            return Task.FromResult(matches);
-        }
-
-        public Task<List<Match>> FetchJoinableAsync()
-        {
-            var matches = StaticMatches.Instance
-                .Where(x =>
-                    x.Players.All(p => p.Id != _userId)
-                    && x.Players.Count < 4)
-                .OrderByDescending(x => x.UpdatedOn)
-                .ToList();
+            var matches = !completed
+                ? StaticMatches.Instance
+                    .Where(x => 
+                        (x.Players.Any(p => p.Id == _userId) || x.Players.Count < 4)
+                        && !x.WinningTeam.HasValue)
+                    .OrderByDescending(x => x.Players.Any(p => p.Id == _userId))
+                    .ThenByDescending(x => x.Players.Count == 4)
+                    .ThenByDescending(x => x.UpdatedOn)
+                    .ToList()
+                : StaticMatches.Instance
+                    .Where(x =>
+                        x.Players.Any(p => p.Id == _userId)
+                        && x.WinningTeam.HasValue)
+                    .OrderByDescending(x => x.UpdatedOn)
+                    .ToList();
 
             // TODO: clean this mess up - just hard swapping for my userId for now
             //matches.ForEach(g => g.Players.Where(p => p.Id == "Id:Adam").ToList().ForEach(p => p.Id = (string)_userId));

@@ -27,18 +27,14 @@
         <li class="nav-item">
             <a class="nav-link active" data-toggle="tab" role="tab"
                 @onclick="@(async () => {
-                    if (Model.MatchFilter == MatchFilter.Mine) return;
-                    Model.MatchFilter = MatchFilter.Mine;
-                    await Model.FetchMatchesAsync();
-                })">Mine</a>
+                    await Model.FetchMatchesAsync(MatchFilter.Active);
+                })">Active</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" data-toggle="tab" role="tab"
                 @onclick="@(async () => {
-                    if (Model.MatchFilter == MatchFilter.Joinable) return;
-                    Model.MatchFilter = MatchFilter.Joinable;
-                    await Model.FetchMatchesAsync();
-                })">Joinable</a>
+                    await Model.FetchMatchesAsync(MatchFilter.Completed);
+                })">Completed</a>
         </li>
     </ul>
 

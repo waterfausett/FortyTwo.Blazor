@@ -37,18 +37,12 @@ namespace FortyTwo.Server.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get()
+        public async Task<IActionResult> Get([FromQuery] bool completed)
         {
-            var matches = await _matchService.FetchForUserAsync();
+            var matches = await _matchService.FetchForUserAsync(completed);
             return Ok(_mapper.Map<List<Shared.DTO.Match>>(matches));
         }
 
-        [HttpGet("joinable")]
-        public async Task<IActionResult> GetJoinable()
-        {
-            var matches = await _matchService.FetchJoinableAsync();
-            return Ok(_mapper.Map<List<Shared.DTO.Match>>(matches));
-        }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> Get([Required] Guid id)
