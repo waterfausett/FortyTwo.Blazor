@@ -71,6 +71,31 @@ namespace FortyTwo.Server.Controllers
             return Created($"/match/{match.Id}", _mapper.Map<Shared.DTO.Match>(match));
         }
 
+        [HttpPost("{id}/players")]
+        public async Task<IActionResult> AddPlayer([Required] Guid id, AddPlayerRequest request)
+        {
+            var match = await _matchService.GetAsync(id);
+
+            if (match == null)
+            {
+                return NotFound("Match not found!");
+            }
+
+            if (match.Players.Count(x => x.TeamId == request.TeamId) >= 2)
+            {
+                return BadRequest("Team is full");
+            }
+
+            match.Players.Add(new Player
+            {
+                Id = _userId,
+                TeamId = request.TeamId,
+                Position = request.Position,
+            });
+
+            return Ok(_mapper.Map<Shared.DTO.Match>(match));
+        }
+
         [HttpGet("{id}/player")]
         public async Task<IActionResult> GetPlayer([Required] Guid id)
         {

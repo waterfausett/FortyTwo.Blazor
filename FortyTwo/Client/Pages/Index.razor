@@ -64,23 +64,32 @@
                                                 <span class="active-dot"></span>
                                             }
                                         </h5>
-                                        <div class="m-2">
-                                            <Chip Context="Components.Models.ContextualClass.Info">
-                                                <Label>Points</Label>
-                                                <Badge>@match.CurrentGame.Tricks.Where(x => x.TeamId == team.Key).Sum(x => x.Value)</Badge>
-                                            </Chip>
+                                        <div class="d-flex justify-content-between">
+                                            <div class="m-2">
+                                                <Chip Context="Components.Models.ContextualClass.Info">
+                                                    <Label>Points</Label>
+                                                    <Badge>@match.CurrentGame.Tricks.Where(x => x.TeamId == team.Key).Sum(x => x.Value)</Badge>
+                                                </Chip>
 
-                                            @if (team.Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
-                                            {
-                                                <Chip Context="Components.Models.ContextualClass.Warning">
-                                                    <Label>Bid</Label>
-                                                    <Badge>@(match.CurrentGame.Bid.HasValue ? $"{match.CurrentGame.Bid.ToPrettyString()}" : "?")</Badge>
-                                                </Chip>
-                                                <Chip>
-                                                    <Label>Trump</Label>
-                                                    <Badge>@(match.CurrentGame.Trump.HasValue ? $"{match.CurrentGame.Trump}" : "?")</Badge>
-                                                </Chip>
-                                            }
+                                                @if (team.Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
+                                                {
+                                                    <Chip Context="Components.Models.ContextualClass.Warning">
+                                                        <Label>Bid</Label>
+                                                        <Badge>@(match.CurrentGame.Bid.HasValue ? $"{match.CurrentGame.Bid.ToPrettyString()}" : "?")</Badge>
+                                                    </Chip>
+                                                    <Chip>
+                                                        <Label>Trump</Label>
+                                                        <Badge>@(match.CurrentGame.Trump.HasValue ? $"{match.CurrentGame.Trump}" : "?")</Badge>
+                                                    </Chip>
+                                                }
+                                            </div>
+                                            <div>
+                                                @if (team.Count() < 2 && match.Players.All(x => x.Id != _user.GetUserId()))
+                                                {
+                                                    <button type="button" class="btn btn-primary"
+                                                        @onclick="@(async () => await JoinMatchAsync(match.Id, team.Key))">Join Game</button>
+                                                }
+                                            </div>
                                         </div>
                                     </li>
                                 }
@@ -98,8 +107,16 @@
 </div>
 
 @code {
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    private System.Security.Claims.ClaimsPrincipal _user;
+
     protected override async Task OnInitializedAsync()
     {
+        var authState = await authenticationStateTask;
+        _user = authState.User;
+
         if (Model.Matches == null || !Model.Matches.Any())
         {
             await Model.FetchMatchesAsync();
@@ -113,6 +130,31 @@
         try
         {
             errorMessage = await Model.CreateMatchAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            Console.Error.WriteLine(errorMessage);
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Error,
+                Html = errorMessage.Truncate(250),
+                ConfirmButtonText = "Ok",
+            });
+        }
+    }
+
+    private async Task JoinMatchAsync(Guid matchId, int teamId)
+    {
+        string errorMessage;
+
+        try
+        {
+            errorMessage = await Model.JoinMatchAsync(matchId, teamId);
         }
         catch (Exception ex)
         {

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -23,6 +24,7 @@ namespace FortyTwo.Client.ViewModels
         Task FetchMatchesAsync();
         Task<string> CreateMatchAsync();
         string GetPlayerName(string playerId);
+        Task<string> JoinMatchAsync(Guid matchId, int teamId);
     }
 
     public class MatchesViewModel : IMatchesViewModel
@@ -86,6 +88,22 @@ namespace FortyTwo.Client.ViewModels
             {
                 IsCreating = false;
             }
+        }
+
+        public async Task<string> JoinMatchAsync(Guid matchId, int teamId)
+        {
+            var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/players", new AddPlayerRequest { TeamId = teamId, Position = 0 });
+            if (!response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+            }
+
+            var match = await response.Content.ReadFromJsonAsync<Match>();
+
+            _store.Matches.RemoveAll(x => x.Id == matchId);
+            _store.Matches.Add(match);
+
+            return string.Empty;
         }
 
         public string GetPlayerName(string playerId)

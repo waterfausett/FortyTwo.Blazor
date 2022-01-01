@@ -102,24 +102,30 @@ namespace FortyTwo.Server.Services
                                     },
                                     new Hand
                                     {
-                                        PlayerId = "Id:Adam",
+                                        PlayerId = "Id:Emily",
                                         TeamId = 2,
-                                    }
+                                    },
                                 }
                             },
                             Players = new List<Player>
                             {
                                 new Player
                                 {
-                                    Id = "Id:Adam",
-                                    TeamId = 2,
-                                    Position = 1
+                                    Id = "Id:Jill",
+                                    TeamId = 1,
+                                    Position = 0
                                 },
                                 new Player
                                 {
                                     Id = "Id:Jill",
                                     TeamId = 1,
                                     Position = 2
+                                },
+                                new Player
+                                {
+                                    Id = "Id:Emily",
+                                    TeamId = 2,
+                                    Position = 1
                                 },
                             },
                         }

@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using FortyTwo.Shared.Extensions;
 using FortyTwo.Shared.Models.Security;
 using Microsoft.AspNetCore.Http;
 
@@ -14,6 +15,6 @@ namespace FortyTwo.Server.Services.Security
         }
 
         public override string GetUserId()
-            => "Id:Adam";//_httpContextAccessor.HttpContext.User?.Claims.SingleOrDefault(c => c.Type == "sub")?.Value;
+            => _httpContextAccessor.HttpContext.User?.GetUserId();//?.Claims.SingleOrDefault(c => c.Type == "sub")?.Value;
     }
 }
