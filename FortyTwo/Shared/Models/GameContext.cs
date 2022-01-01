@@ -24,13 +24,19 @@ namespace FortyTwo.Shared.Models
 
         public Match()
         {
-            CreatedOn = UpdatedOn = DateTimeOffset.UtcNow;
             Id = Guid.NewGuid();
+            CreatedOn = UpdatedOn = DateTimeOffset.UtcNow;
+            Teams = new Dictionary<Teams, List<Player>>()
+            {
+                { Models.Teams.TeamA, new List<Player>() },
+                { Models.Teams.TeamB, new List<Player>() },
+            };
         }
 
         public Guid Id { get; set; } // TODO: in practice, this prolly shouldn't have a public setter
-        public List<Player> Players { get; set; } = new List<Player>();
         public Game CurrentGame { get; set; } = new Game("Game 1");
+        public Dictionary<Teams, List<Player>> Teams { get; set; }
+        public IReadOnlyList<Player> Players => Teams.SelectMany(x => x.Value).ToList();
         public Dictionary<Teams, List<Game>> Games { get; set; } = new Dictionary<Teams, List<Game>>();
         public Dictionary<Teams, int> Scores => Games?.ToDictionary(kv => kv.Key, kv => kv.Value.Sum(g => g.Value ?? 0));
         public Teams? WinningTeam

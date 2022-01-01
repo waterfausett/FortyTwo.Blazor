@@ -21,7 +21,7 @@ namespace FortyTwo.Server.Services
         {
             var match = new Match();
 
-            match.Players.Add(new Player() { Id = _userId, Team = Teams.TeamA });
+            match.Teams[Teams.TeamA].Add(new Player() { Id = _userId });
 
             StaticMatches.Instance.Add(match);
 
@@ -100,30 +100,38 @@ namespace FortyTwo.Server.Services
                                     },
                                 }
                             },
-                            Players = new List<Player>
+                            Teams = new Dictionary<Teams, List<Player>>()
                             {
-                                new Player
                                 {
-                                    Id = "Id:Jill",
-                                    Team = Teams.TeamA,
-                                    Position = Positions.First
+                                    Teams.TeamA,
+                                    new List<Player>
+                                    {
+                                        new Player
+                                        {
+                                            Id = "Id:Jack",
+                                            Position = Positions.First
+                                        },
+                                        new Player
+                                        {
+                                            Id = "Id:Jill",
+                                            Position = Positions.Third
+                                        },
+                                    }
                                 },
-                                new Player
                                 {
-                                    Id = "Id:Jill",
-                                    Team = Teams.TeamA,
-                                    Position = Positions.Third
-                                },
-                                new Player
-                                {
-                                    Id = "Id:Emily",
-                                    Team = Teams.TeamB,
-                                    Position = Positions.Fourth
-                                },
-                            },
+                                    Teams.TeamB,
+                                    new List<Player>
+                                    {
+                                        new Player
+                                        {
+                                            Id = "Id:Emily",
+                                            Position = Positions.Second
+                                        },
+                                    }
+                                }
+                            }
                         }
                     };
-
                 }
 
                 return _matches;

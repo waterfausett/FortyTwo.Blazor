@@ -75,22 +75,27 @@ namespace FortyTwo.Server.Controllers
                 return NotFound("Match not found!");
             }
 
-            if (match.Players.Count(x => x.Team == request.Team) >= 2)
+            if (!match.Teams.TryGetValue(request.Team, out var teammates))
+            {
+                return BadRequest("Invalid Team");
+            }
+
+            if (teammates.Count >= 2)
             {
                 return BadRequest("Team is full");
             }
 
-            var teammatePosition = match.Players.FirstOrDefault(x => x.Team == request.Team)?.Position;
+            var teammatePosition = teammates.FirstOrDefault()?.Position;
+
             var position = teammatePosition != null
                 ? (Positions)(((int)teammatePosition + 2) % 4)
-                : (int)match.Players.First(x => x.Team != request.Team).Position % 2 == 0
+                : (int)match.Teams[(request.Team == Teams.TeamA ? Teams.TeamB : Teams.TeamA)].First().Position % 2 == 0
                     ? Positions.Second
                     : Positions.First;
 
-            match.Players.Add(new Player
+            teammates.Add(new Player
             {
                 Id = _userId,
-                Team = request.Team,
                 Position = position,
             });
 
@@ -107,7 +112,7 @@ namespace FortyTwo.Server.Controllers
                 return NotFound("Match not found!");
             }
 
-            var matchPlayer = match.Players.FirstOrDefault(x => x.Id == _userId);
+            var matchPlayer = match.Players.First(x => x.Id == _userId);
 
             if (matchPlayer == null)
             {
@@ -116,9 +121,10 @@ namespace FortyTwo.Server.Controllers
 
             var player = new LoggedInPlayer(matchPlayer)
             {
+                Team = match.Teams[Teams.TeamA].Any(x => x.Id == _userId) ? Teams.TeamA : Teams.TeamB,
                 IsActive = match.CurrentGame.CurrentPlayerId == _userId,
-                Dominos = match.CurrentGame.Hands.First(x => x.PlayerId == _userId).Dominos,
-                Bid = match.CurrentGame.Hands.First(x => x.PlayerId == _userId).Bid
+                Dominos = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Dominos,
+                Bid = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Bid
             };
 
             return Ok(player);
@@ -243,7 +249,7 @@ namespace FortyTwo.Server.Controllers
             if (currnetlyWinningDomino.Equals(domino))
             {
                 game.CurrentTrick.PlayerId = _userId;
-                game.CurrentTrick.Team = match.Players.First(x => x.Id == _userId).Team;
+                game.CurrentTrick.Team = match.Teams.First(kv => kv.Value.Any(x => x.Id == _userId)).Key;
             }
 
             // TODO: trick is full - get ready for the next one
@@ -264,6 +270,7 @@ namespace FortyTwo.Server.Controllers
             return Ok();
         }
 
+        /*
         [HttpPost("{id}/automoves")]
         public async Task<IActionResult> PostAutoMove([Required] Guid id, [FromBody] Domino domino)
         {
@@ -310,5 +317,6 @@ namespace FortyTwo.Server.Controllers
             //return Ok(_mapper.Map<Shared.Models.DTO.Game>(match));
             return Ok();
         }
+        */
     }
 }

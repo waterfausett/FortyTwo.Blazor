@@ -48,47 +48,87 @@
                         <h5 class="card-header">@match.Id <a href="/match/@match.Id" class="btn btn-sm btn-link">View</a></h5>
                         <div class="card-body p-2">
                             <ul class="list-group list-group-flush">
-                                @foreach (var team in match.Players.GroupBy(x => x.Team))
-                                {
-                                    match.Scores.TryGetValue(team.Key, out var teamScore);
-                                    <li class="list-group-item p-0 @(match.WinningTeam == team.Key ? "match-winner" : "")">
-                                        <h5 class="card-title m-2">
-                                            @string.Join(" & ", team.Select(x => Model.GetPlayerName(x.Id)))
-                                            <span class="pull-right ml-3"><label>Score: @teamScore</label></span>
-                                            @if (team.Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
-                                            {
-                                                <span class="active-dot"></span>
-                                            }
-                                        </h5>
-                                        <div class="d-flex justify-content-between">
-                                            <div class="m-2">
-                                                <Chip Context="Components.Models.ContextualClass.Info">
-                                                    <Label>Points</Label>
-                                                    <Badge>@match.CurrentGame.Tricks.Where(x => x.Team == team.Key).Sum(x => x.Value)</Badge>
-                                                </Chip>
 
-                                                @if (team.Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
-                                                {
-                                                    <Chip Context="Components.Models.ContextualClass.Warning">
-                                                        <Label>Bid</Label>
-                                                        <Badge>@(match.CurrentGame.Bid.HasValue ? $"{match.CurrentGame.Bid.ToPrettyString()}" : "?")</Badge>
-                                                    </Chip>
-                                                    <Chip>
-                                                        <Label>Trump</Label>
-                                                        <Badge>@(match.CurrentGame.Trump.HasValue ? $"{match.CurrentGame.Trump}" : "?")</Badge>
-                                                    </Chip>
-                                                }
-                                            </div>
-                                            <div>
-                                                @if (team.Count() < 2 && match.Players.All(x => x.Id != _user.GetUserId()))
-                                                {
-                                                    <button type="button" class="btn btn-primary"
-                                                        @onclick="@(async () => await JoinMatchAsync(match.Id, team.Key))">Join Game</button>
-                                                }
-                                            </div>
+                                @* TODO: make a component for this *@
+
+                                @match.Scores.TryGetValue(Teams.TeamA, out var teamAScore);
+                                <li class="list-group-item p-0 @(match.WinningTeam == Teams.TeamA ? "match-winner" : "")">
+                                    <h5 class="card-title m-2">
+                                        @string.Join(" & ", match.Teams[Teams.TeamA].Select(x => Model.GetPlayerName(x.Id)))
+                                        <span class="pull-right ml-3"><label>Score: @teamAScore</label></span>
+                                        @if (match.Teams[Teams.TeamA].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
+                                        {
+                                            <span class="active-dot"></span>
+                                        }
+                                    </h5>
+                                    <div class="d-flex justify-content-between">
+                                        <div class="m-2">
+                                            <Chip Context="Components.Models.ContextualClass.Info">
+                                                <Label>Points</Label>
+                                                <Badge>@match.CurrentGame.Tricks.Where(x => x.Team == Teams.TeamA).Sum(x => x.Value)</Badge>
+                                            </Chip>
+
+                                            @if (match.Teams[Teams.TeamA].Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
+                                            {
+                                                <Chip Context="Components.Models.ContextualClass.Warning">
+                                                    <Label>Bid</Label>
+                                                    <Badge>@(match.CurrentGame.Bid.HasValue ? $"{match.CurrentGame.Bid.ToPrettyString()}" : "?")</Badge>
+                                                </Chip>
+                                                <Chip>
+                                                    <Label>Trump</Label>
+                                                    <Badge>@(match.CurrentGame.Trump.HasValue ? $"{match.CurrentGame.Trump}" : "?")</Badge>
+                                                </Chip>
+                                            }
                                         </div>
-                                    </li>
-                                }
+                                        <div>
+                                            @if (match.Teams[Teams.TeamA].Count() < 2 && match.Teams.SelectMany(x => x.Value).All(x => x.Id != _user.GetUserId()))
+                                            {
+                                                <button type="button" class="btn btn-primary"
+                                                    @onclick="@(async () => await JoinMatchAsync(match.Id, Teams.TeamA))">Join Game</button>
+                                            }
+                                        </div>
+                                    </div>
+                                </li>
+
+                                @match.Scores.TryGetValue(Teams.TeamB, out var teamBScore);
+                                <li class="list-group-item p-0 @(match.WinningTeam == Teams.TeamB ? "match-winner" : "")">
+                                    <h5 class="card-title m-2">
+                                        @string.Join(" & ", match.Teams[Teams.TeamB].Select(x => Model.GetPlayerName(x.Id)))
+                                        <span class="pull-right ml-3"><label>Score: @teamBScore</label></span>
+                                        @if (match.Teams[Teams.TeamB].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
+                                        {
+                                            <span class="active-dot"></span>
+                                        }
+                                    </h5>
+                                    <div class="d-flex justify-content-between">
+                                        <div class="m-2">
+                                            <Chip Context="Components.Models.ContextualClass.Info">
+                                                <Label>Points</Label>
+                                                <Badge>@match.CurrentGame.Tricks.Where(x => x.Team == Teams.TeamB).Sum(x => x.Value)</Badge>
+                                            </Chip>
+
+                                            @if (match.Teams[Teams.TeamB].Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
+                                            {
+                                                <Chip Context="Components.Models.ContextualClass.Warning">
+                                                    <Label>Bid</Label>
+                                                    <Badge>@(match.CurrentGame.Bid.HasValue ? $"{match.CurrentGame.Bid.ToPrettyString()}" : "?")</Badge>
+                                                </Chip>
+                                                <Chip>
+                                                    <Label>Trump</Label>
+                                                    <Badge>@(match.CurrentGame.Trump.HasValue ? $"{match.CurrentGame.Trump}" : "?")</Badge>
+                                                </Chip>
+                                            }
+                                        </div>
+                                        <div>
+                                            @if (match.Teams[Teams.TeamB].Count() < 2 && match.Teams.SelectMany(x => x.Value).All(x => x.Id != _user.GetUserId()))
+                                            {
+                                                <button type="button" class="btn btn-primary"
+                                                    @onclick="@(async () => await JoinMatchAsync(match.Id, Teams.TeamB))">Join Game</button>
+                                            }
+                                        </div>
+                                    </div>
+                                </li>
+
                             </ul>
                         </div>
                     </div>

@@ -167,7 +167,7 @@
                         </div>
 
                         <div class="domino-container">
-                            @foreach (var domino in Model.Player.Dominos)
+                            @foreach (var domino in Model.Player.Dominos ?? new List<FortyTwo.Shared.Models.Domino>())
                             {
                                 <Domino Instance="domino"
                                     Selectable="Model.Player.IsActive && Model.CurrentGame.Bid.HasValue && Model.CurrentGame.Trump.HasValue"
