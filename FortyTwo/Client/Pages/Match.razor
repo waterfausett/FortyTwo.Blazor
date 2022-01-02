@@ -277,11 +277,11 @@
 
         _hubConnection.On<Player>("OnPlayerAdded", (player) =>
         {
-        // TODO: validate
+            // TODO: validate
 
-        // TODO: add player
+            // TODO: add player
 
-        StateHasChanged();
+            StateHasChanged();
         });
 
         _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
