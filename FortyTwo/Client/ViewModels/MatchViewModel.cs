@@ -77,7 +77,7 @@ namespace FortyTwo.Client.ViewModels
 
                 if (CurrentGame.Bid.HasValue)
                 {
-                    biddingOptions.RemoveAll(x => x != Bid.Pass && x <= CurrentGame.Bid.Value);
+                    biddingOptions.RemoveAll(x => (x != Bid.Pass && x != Bid.Plunge) && x <= CurrentGame.Bid.Value);
                 }
 
                 biddingOptions.RemoveAll(x => x > Bid.EightyFour && (!CurrentGame.Bid.HasValue || (int)x > ((int)CurrentGame.Bid + (int)Bid.FourtyTwo)));
