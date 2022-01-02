@@ -24,7 +24,7 @@ namespace FortyTwo.Server.Controllers
         [HttpGet]
         public IEnumerable<Domino> Get()
         {
-            return _dominoService.Build(DominoType.DoubleSix);
+            return _dominoService.InitDominos(DominoType.DoubleSix);
         }
     }
 }

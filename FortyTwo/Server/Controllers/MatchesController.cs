@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using PluralizeService.Core;
+using FortyTwo.Shared.Services;
 
 namespace FortyTwo.Server.Controllers
 {
@@ -25,14 +26,16 @@ namespace FortyTwo.Server.Controllers
         private readonly IMapper _mapper;
         private readonly UserId _userId;
         private readonly IMatchService _matchService;
+        private readonly IDominoService _dominoService;
         private readonly IHubContext<GameHub> _gameHubContext;
 
-        public MatchesController(ILogger<MatchesController> logger, IMapper mapper, UserId userId, IMatchService matchService, IHubContext<GameHub> gameHubContext)
+        public MatchesController(ILogger<MatchesController> logger, IMapper mapper, UserId userId, IMatchService matchService, IDominoService dominoService, IHubContext<GameHub> gameHubContext)
         {
             _logger = logger;
             _mapper = mapper;
             _userId = userId;
             _matchService = matchService;
+            _dominoService = dominoService;
             _gameHubContext = gameHubContext;
         }
 
@@ -75,6 +78,7 @@ namespace FortyTwo.Server.Controllers
                 return NotFound("Match not found!");
             }
 
+            // TODO: might could solve this w/ a global rule to say that incoming enum values have to parse
             if (!match.Teams.TryGetValue(request.Team, out var teammates))
             {
                 return BadRequest("Invalid Team");
@@ -99,8 +103,24 @@ namespace FortyTwo.Server.Controllers
                 Position = position,
             });
 
+            match.CurrentGame.Hands.Add(new Shared.Models.Hand() { PlayerId = _userId, Team = request.Team });
+
+            // if we have a full roster, setup the first game
+            if (match.CurrentGame.Hands.Count == 4)
+            {
+                var dominos = _dominoService.InitDominos(DominoType.DoubleSix);
+
+                // TODO: maybe make this even more random
+
+                match.CurrentGame.Hands[0].Dominos = dominos.GetRange(0, 7);
+                match.CurrentGame.Hands[1].Dominos = dominos.GetRange(7, 7);
+                match.CurrentGame.Hands[2].Dominos = dominos.GetRange(14, 7);
+                match.CurrentGame.Hands[3].Dominos = dominos.GetRange(21, 7);
+            }
+
             return Ok(_mapper.Map<Shared.DTO.Match>(match));
         }
+
 
         [HttpGet("{id}/player")]
         public async Task<IActionResult> GetPlayer([Required] Guid id)
@@ -156,7 +176,7 @@ namespace FortyTwo.Server.Controllers
                 return BadRequest("<h2>It's not your turn!</h2>");
             }
 
-            if (game.Hands.First(x => x.PlayerId != _userId).Bid.HasValue)
+            if (game.Hands.First(x => x.PlayerId == _userId).Bid.HasValue)
             {
                 return BadRequest("<h2>You have already submitted a bid!</h2>");
             }
@@ -174,7 +194,62 @@ namespace FortyTwo.Server.Controllers
                 game.BiddingPlayerId = _userId;
             }
 
-            game.SelectNextPlayer();
+            // TODO: might be able to say, "if the person bidding is the one that shuffled, then we're done"
+
+            if (game.Hands.Any(x => !x.Bid.HasValue))
+            {
+                match.SelectNextPlayer();
+            }
+            else
+            {
+                game.CurrentPlayerId = game.BiddingPlayerId;
+            }
+
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
+
+            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
+
+            //return Ok(gameDTO);
+            return Ok();
+        }
+
+        [HttpPost("{id}/selectTrump")]
+        public async Task<IActionResult> PostSelectTrump([Required] Guid id, [FromBody] Suit suit)
+        {
+            var match = await _matchService.GetAsync(id);
+            var game = match.CurrentGame;
+
+            if (match == null)
+            {
+                return NotFound("Match not found!");
+            }
+
+            if (match.WinningTeam != null)
+            {
+                return BadRequest("<h2>This game is over.</h2>");
+            }
+
+            if (game == null)
+            {
+                return NotFound("<h2>No active game found.</h2>");
+            }
+
+            if (game.CurrentPlayerId != _userId)
+            {
+                return BadRequest("<h2>It's not your turn!</h2>");
+            }
+
+            if (game.Hands.Any(x => !x.Bid.HasValue))
+            {
+                return BadRequest("<h2>We're still bidding!</h2>");
+            }
+
+            if (game.Trump.HasValue)
+            {
+                return BadRequest("<h2>This game already has a trump!</h2>");
+            }
+
+            game.Trump = suit;
 
             var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
@@ -210,11 +285,9 @@ namespace FortyTwo.Server.Controllers
                 return BadRequest("<h2>It's not your turn!</h2>");
             }
 
-            // Hack: testing validation
-            game.Trump = Suit.Threes;
-
             // TODO: figure out how we'll handle supporting low hands
             //  - possibly another enum entry for Low (-1)
+
             if (!game.Trump.HasValue)
             {
                 return BadRequest("<h2>Invalid move!</h2><p>We're still bidding&hellip;</p>");
@@ -260,7 +333,7 @@ namespace FortyTwo.Server.Controllers
                 game.CurrentTrick = new Trick();
             }
 
-            game.SelectNextPlayer();
+            match.SelectNextPlayer();
 
             var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 

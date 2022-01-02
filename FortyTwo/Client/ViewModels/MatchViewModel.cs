@@ -26,6 +26,7 @@ namespace FortyTwo.Client.ViewModels
         void UpdateGame(Game game);
         Task FetchPlayerAsync();
         Task<string> BidAsync(Bid bid);
+        Task<string> SelectTrumpAsync(Suit suit);
         Task<string> MakeMoveAsync(Domino domino);
     }
 
@@ -74,6 +75,11 @@ namespace FortyTwo.Client.ViewModels
                     biddingOptions.Remove(Bid.Plunge);
                 }
 
+                if (CurrentGame.Bid.HasValue)
+                {
+                    biddingOptions.RemoveAll(x => x != Bid.Pass && x <= CurrentGame.Bid.Value);
+                }
+
                 biddingOptions.RemoveAll(x => x > Bid.EightyFour && (!CurrentGame.Bid.HasValue || (int)x > ((int)CurrentGame.Bid + (int)Bid.FourtyTwo)));
 
                 return biddingOptions;
@@ -106,6 +112,7 @@ namespace FortyTwo.Client.ViewModels
             Match.CurrentGame = game;
 
             Player.Bid ??= game.Hands.First(x => x.PlayerId == Player.Id).Bid;
+            Player.IsActive = game.CurrentPlayerId == Player.Id;
         }
 
         public async Task FetchPlayerAsync()
@@ -135,6 +142,30 @@ namespace FortyTwo.Client.ViewModels
                 }
 
                 Player.Bid = bid;
+
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+            finally
+            {
+                Bidding = false;
+            }
+        }
+
+        public async Task<string> SelectTrumpAsync(Suit suit)
+        {
+            Bidding = true;
+
+            try
+            {
+                var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/selectTrump", suit);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                }
 
                 return string.Empty;
             }

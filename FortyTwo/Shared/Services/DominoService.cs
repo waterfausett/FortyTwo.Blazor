@@ -6,22 +6,22 @@ namespace FortyTwo.Shared.Services
 {
     public enum DominoType
     {
-        DoubleSix = 7
+        DoubleSix = 6
     }
 
     public interface IDominoService
     {
-        List<Domino> Build(DominoType type, bool shuffle = true);
+        List<Domino> InitDominos(DominoType type, bool shuffle = true);
     }
 
     public class DominoService : IDominoService
     {
-        public List<Domino> Build(DominoType type, bool shuffle = true)
+        public List<Domino> InitDominos(DominoType type, bool shuffle = true)
         {
             var dominos = new List<Domino>();
-            for (var i = 0; i < (int) type; ++i)
+            for (var i = 0; i <= (int) type; ++i)
             {
-                for (var j = i; j < (int) type; ++j)
+                for (var j = i; j <= (int) type; ++j)
                 {
                     dominos.Add(new Domino(i, j));
                 }

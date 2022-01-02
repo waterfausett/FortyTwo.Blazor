@@ -23,6 +23,11 @@ namespace FortyTwo.Server.Services
 
             match.Teams[Teams.TeamA].Add(new Player() { Id = _userId });
 
+            match.CurrentGame.FirstActionBy = _userId;
+            match.CurrentGame.CurrentPlayerId = _userId;
+
+            match.CurrentGame.Hands.Add(new Hand() { PlayerId = _userId, Team = Teams.TeamA });
+
             StaticMatches.Instance.Add(match);
 
             return Task.FromResult(match);
@@ -132,7 +137,10 @@ namespace FortyTwo.Server.Services
                             }
                         }
                     };
+
+                    _matches.Clear();
                 }
+
 
                 return _matches;
             }
@@ -141,9 +149,9 @@ namespace FortyTwo.Server.Services
         private static List<Domino> InitDominos()
         {
             var dominos = new List<Domino>();
-            for (var i = 0; i < 7; ++i)
+            for (var i = 0; i <= 6; ++i)
             {
-                for (var j = i; j < 7; ++j)
+                for (var j = i; j <= 6; ++j)
                 {
                     dominos.Add(new Domino(i, j));
                 }

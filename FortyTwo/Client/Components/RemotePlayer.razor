@@ -3,7 +3,8 @@
 @if (Player != null)
 {
     <h4>
-        @Player.Id
+        @*Player.Id*@
+        @GetPlayerName(Player.Id)
         @if (IsActive)
         {
             <span class="active-dot"></span>
@@ -31,4 +32,10 @@ else
 
     [Parameter]
     public int DominoCount { get; set; }
+
+    [Inject]
+    public IClientStore Store { get; set; }
+
+    public string GetPlayerName(string playerId)
+        => Store.Users.FirstOrDefault(x => x.Id == playerId)?.DisplayName ?? $"Unknown Player ({playerId})";
 }

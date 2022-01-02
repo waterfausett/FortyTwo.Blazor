@@ -143,7 +143,7 @@
                             <div class="col-12 text-center">
                                 @foreach (Suit suit in Enum.GetValues(typeof(Suit)))
                                 {
-                                    <Chip Context="ContextualClass.Info" Size="Size.Large"><Label>@suit</Label></Chip>
+                                    <Chip Context="ContextualClass.Info" Size="Size.Large" OnSelected="async () => await SelectTrumpAsync(suit)"><Label>@suit</Label></Chip>
                                 }
                             </div>
                         </div>
@@ -293,6 +293,31 @@
         try
         {
             errorMessage = await Model.BidAsync(bid);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            Console.Error.WriteLine(errorMessage);
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Error,
+                Html = errorMessage.Truncate(250),
+                ConfirmButtonText = "Ok",
+            });
+        }
+    }
+
+    public async Task SelectTrumpAsync(Suit suit)
+    {
+        string errorMessage;
+
+        try
+        {
+            errorMessage = await Model.SelectTrumpAsync(suit);
         }
         catch (Exception ex)
         {

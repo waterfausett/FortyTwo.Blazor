@@ -12,6 +12,14 @@ namespace FortyTwo.Shared.Models
         Fourth = 3,
     }
 
+    public static class PositionsExtensions
+    {
+        public static Positions NextPosition(this Positions position)
+        {
+            return (Positions)(((int)position + 1) % 4);
+        }
+    }
+
     public enum Teams
     {
         TeamA = 1,
@@ -48,6 +56,17 @@ namespace FortyTwo.Shared.Models
         public DateTimeOffset CreatedOn { get; set; }
         public DateTimeOffset UpdatedOn { get; set; }
 
+        public void SelectNextPlayer()
+        {
+            // TODO: should no-op or blow up here?
+
+            if (string.IsNullOrWhiteSpace(CurrentGame?.CurrentPlayerId)) return;
+
+            var nextPlayerPosition = Players.First(x => x.Id == CurrentGame.CurrentPlayerId).Position.NextPosition();
+
+            CurrentGame.CurrentPlayerId = Players.First(x => x.Position == nextPlayerPosition).Id;
+        }
+
         // TODO: validate
     }
 
@@ -68,7 +87,7 @@ namespace FortyTwo.Shared.Models
         public string CurrentPlayerId { get; set; }
 
         // TODO: consider changing this to be a dictionary
-        public List<Hand> Hands { get; set; } // this shouldn't be fully exposed
+        public List<Hand> Hands { get; set; } = new List<Hand>(); // this shouldn't be fully exposed
         public Trick CurrentTrick { get; set; } = new Trick();
         public List<Trick> Tricks { get; set; } = new List<Trick>();
         internal int? Value
@@ -83,7 +102,7 @@ namespace FortyTwo.Shared.Models
                     : (int)bid <= 42 ? 1 : (int)bid / 42; 
             }
         }
-        internal Teams? WinningTeam {
+        public Teams? WinningTeam {
             get 
             {
                 if (BiddingPlayerId == null) return null;
@@ -99,13 +118,6 @@ namespace FortyTwo.Shared.Models
                         ? otherTeamId
                         : null;
             }
-        }
-
-        public void SelectNextPlayer()
-        {
-            var nextPlayerIndex = Hands.FindIndex(x => x.PlayerId == CurrentPlayerId) + 1;
-
-            CurrentPlayerId = Hands[nextPlayerIndex % Hands.Count].PlayerId;
         }
     }
 
