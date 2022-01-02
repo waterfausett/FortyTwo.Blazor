@@ -330,10 +330,13 @@ namespace FortyTwo.Server.Controllers
             if (game.CurrentTrick.IsFull())
             {
                 game.Tricks.Add(game.CurrentTrick);
+                game.CurrentPlayerId = game.CurrentTrick.PlayerId;
                 game.CurrentTrick = new Trick();
             }
-
-            match.SelectNextPlayer();
+            else
+            {
+                match.SelectNextPlayer();
+            }
 
             var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
