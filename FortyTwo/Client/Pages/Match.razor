@@ -277,11 +277,11 @@
 
         _hubConnection.On<Player>("OnPlayerAdded", (player) =>
         {
-            // TODO: validate
+        // TODO: validate
 
-            // TODO: add player
+        // TODO: add player
 
-            StateHasChanged();
+        StateHasChanged();
         });
 
         _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
@@ -301,14 +301,26 @@
 
             if (game.WinningTeam.HasValue)
             {
+                var icon = SweetAlertIcon.Error;
+                var title = "Game Over!";
+                var text = "The other team set you 😢";
+
+                if (Model.Player.Team == game.WinningTeam)
+                {
+                    icon = SweetAlertIcon.Success;
+                    title = "Victory!";
+                    text = "Your team made your bid!";
+                }
+
                 await Swal.FireAsync(new SweetAlertOptions
                 {
-                    Icon = Model.Player.Team == game.WinningTeam ? SweetAlertIcon.Success : SweetAlertIcon.Error,
-                    Title = "Game Over",
-                    Text = "",
+                    Icon = icon,
+                    Title = title,
+                    Text = text,
                     ShowConfirmButton = true,
                     ConfirmButtonText = "Ready up",
                     ConfirmButtonColor = "green",
+                    FocusConfirm = true,
                     ShowCancelButton = false,
                     ShowCloseButton = false,
                     AllowEscapeKey = false,
