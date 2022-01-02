@@ -205,6 +205,8 @@
 
         // TODO: could prolly add most of the connection management to the ViewModel
 
+        // TODO: handle signalr connection exceptions
+
         _hubConnection = new HubConnectionBuilder()
             .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
             .Build();
