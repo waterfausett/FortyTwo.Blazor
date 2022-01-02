@@ -286,22 +286,35 @@
 
         _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
         {
-            Model.UpdateGame(game);
+            if (Model.CurrentGame.CurrentTrick.Dominos.Count(x => x != null) == 3 && game.CurrentTrick.Dominos.All(x => x == null))
+            {
+                Model.CurrentGame.CurrentTrick.AddDomino(game.Tricks.Last().Dominos.Last(), Model.CurrentGame.Trump.Value);
+
+                StateHasChanged();
+
+                await Task.Delay(1000);
+            }
+
+            await Model.UpdateGame(game);
 
             StateHasChanged();
 
-            _ = Swal.FireAsync(new SweetAlertOptions
+            if (game.WinningTeam.HasValue)
             {
-                Icon = SweetAlertIcon.Success,
-                Toast = true,
-                ShowConfirmButton = false,
-                Position = SweetAlertPosition.BottomRight,
-                Timer = 1750,
-                TimerProgressBar = true,
-                ShowCloseButton = false,
-                Title = "Game Updated",
-                Width = "16rem"
-            });
+                await Swal.FireAsync(new SweetAlertOptions
+                {
+                    Icon = Model.Player.Team == game.WinningTeam ? SweetAlertIcon.Success : SweetAlertIcon.Error,
+                    Title = "Game Over",
+                    Text = "",
+                    ShowConfirmButton = true,
+                    ConfirmButtonText = "Ready up",
+                    ConfirmButtonColor = "green",
+                    ShowCancelButton = false,
+                    ShowCloseButton = false,
+                    AllowEscapeKey = false,
+                    AllowOutsideClick = false,
+                });
+            }
         });
 
         await _hubConnection.StartAsync();

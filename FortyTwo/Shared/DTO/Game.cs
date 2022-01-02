@@ -15,5 +15,6 @@ namespace FortyTwo.Shared.DTO
         public Trick CurrentTrick { get; set; }
         public List<Trick> Tricks { get; set; } = new List<Trick>();
         public List<Hand> Hands { get; set; }
+        public Teams? WinningTeam { get; set; }
     }
 }

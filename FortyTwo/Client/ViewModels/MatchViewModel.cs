@@ -23,7 +23,7 @@ namespace FortyTwo.Client.ViewModels
         public Game CurrentGame { get; }
         public LoggedInPlayer Player { get; set; }
         Task FetchMatchAsync();
-        void UpdateGame(Game game);
+        Task UpdateGame(Game game);
         Task FetchPlayerAsync();
         Task<string> BidAsync(Bid bid);
         Task<string> SelectTrumpAsync(Suit suit);
@@ -97,7 +97,7 @@ namespace FortyTwo.Client.ViewModels
                 _store.Matches.RemoveAll(x => x.Id == MatchId);
                 _store.Matches.Add(match);
 
-                UpdateGame(match.CurrentGame);
+                await UpdateGame(match.CurrentGame);
             }
             finally
             {
@@ -105,7 +105,7 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public void UpdateGame(Game game)
+        public async Task UpdateGame(Game game)
         {
             // TODO: maybe add a tracking flag to track if we know we're waiting on an update
 

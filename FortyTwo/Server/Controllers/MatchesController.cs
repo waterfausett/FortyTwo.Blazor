@@ -272,7 +272,7 @@ namespace FortyTwo.Server.Controllers
 
             if (match.WinningTeam != null)
             {
-                return BadRequest("<h2>This game is over.</h2>");
+                return BadRequest("<h2>This match is over.</h2>");
             }
 
             if (game == null)
