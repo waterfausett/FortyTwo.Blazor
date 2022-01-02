@@ -2,14 +2,30 @@
 
 @if (Player != null)
 {
-    <h4>
-        @*Player.Id*@
-        @GetPlayerName(Player.Id)
+    <h4 class="ellipsis">
         @if (IsActive)
         {
-            <span class="active-dot"></span>
+            <span class="active-dot mr-2"></span>
         }
+        @GetPlayerName(Player.Id)
     </h4>
+
+    @if (Bid.HasValue)
+    {
+        <Chip Context="Components.Models.ContextualClass.Warning">
+            <Label>Bid</Label>
+            <Badge>@Bid.Value.ToPrettyString()</Badge>
+        </Chip>
+    }
+
+    @if (Trump.HasValue)
+    {
+        <Chip>
+            <Label>Trump</Label>
+            <Badge>@Trump.Value</Badge>
+        </Chip>
+    }
+
     @if (DominoCount != 0)
     {
         <span>@DominoCount</span>
@@ -32,6 +48,12 @@ else
 
     [Parameter]
     public int DominoCount { get; set; }
+
+    [Parameter]
+    public Bid? Bid { get; set; }
+
+    [Parameter]
+    public Suit? Trump { get; set; }
 
     [Inject]
     public IClientStore Store { get; set; }

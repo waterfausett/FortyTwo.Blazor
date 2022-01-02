@@ -50,20 +50,33 @@
                     <div class="col-4">
                         <RemotePlayer Player="adjustedPlayer1"
                             IsActive="adjustedPlayer1?.Id == Model.CurrentGame.CurrentPlayerId"
-                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer1?.Id)?.Dominos ?? 0"></RemotePlayer>
+                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer1?.Id)?.Dominos ?? 0"
+                            Bid="!Model.CurrentGame.Trump.HasValue || Model.CurrentGame.BiddingPlayerId == adjustedPlayer1?.Id ? Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer1?.Id)?.Bid : null"
+                            Trump="Model.CurrentGame.BiddingPlayerId == adjustedPlayer1?.Id ? Model.CurrentGame.Trump : null"></RemotePlayer>
                     </div>
-                    <div class="col-4">
+                    <div class="col-4" style="border-left: solid 1px lightgrey; border-right: solid 1px lightgrey;">
                         <RemotePlayer Player="adjustedPlayer2"
                             IsActive="adjustedPlayer2?.Id == Model.CurrentGame.CurrentPlayerId"
-                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer2?.Id)?.Dominos ?? 0"></RemotePlayer>
+                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer2?.Id)?.Dominos ?? 0"
+                            Bid="!Model.CurrentGame.Trump.HasValue || Model.CurrentGame.BiddingPlayerId == adjustedPlayer2?.Id ? Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer2?.Id)?.Bid : null"
+                            Trump="Model.CurrentGame.BiddingPlayerId == adjustedPlayer2?.Id ? Model.CurrentGame.Trump : null"></RemotePlayer>
                     </div>
                     <div class="col-4">
                         <RemotePlayer Player="adjustedPlayer3"
                             IsActive="adjustedPlayer3?.Id == Model.CurrentGame.CurrentPlayerId"
-                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer3?.Id)?.Dominos ?? 0"></RemotePlayer>
+                            DominoCount="Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer3?.Id)?.Dominos ?? 0"
+                            Bid="!Model.CurrentGame.Trump.HasValue || Model.CurrentGame.BiddingPlayerId == adjustedPlayer3?.Id? Model.CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer3?.Id)?.Bid : null"
+                            Trump="Model.CurrentGame.BiddingPlayerId == adjustedPlayer3?.Id ? Model.CurrentGame.Trump : null"></RemotePlayer>
                     </div>
                 </div>
             </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <hr/>
+                </div>
+            </div>
+
             <div class="gameboard">
                 @{
                     var teamTricks = Model.CurrentGame.Tricks.Where(x => x.Team == Model.Player.Team);
@@ -83,7 +96,7 @@
                         </div>
                     }
                 </div>
-                <div class="current-trick">
+                <div class="current-trick p-4">
                     @foreach (var domino in Model.CurrentGame.CurrentTrick.Dominos)
                     {
                         <Domino Instance="domino" Direction="DominoDirection.Vertical"></Domino>
@@ -156,15 +169,23 @@
                     <div class="col-12">
                         <hr />
 
-                        <div>
-                            <label>Current Player: @Model.CurrentGame.CurrentPlayerId</label>
-                        </div>
-                        <div>
-                            <label>Current Bid: @Model.CurrentGame.Bid.ToPrettyString()</label>
-                        </div>
-                        <div>
-                            <label>Current High Bidder: @Model.CurrentGame.BiddingPlayerId</label>
-                        </div>
+                        @if (!Model.CurrentGame.Trump.HasValue || Model.CurrentGame.BiddingPlayerId == Model.Player.Id)
+                        {
+                            @if (Model.Player.Bid.HasValue)
+                            {
+                                <Chip Context="Components.Models.ContextualClass.Warning">
+                                    <Label>Bid</Label>
+                                    <Badge>@Model.Player.Bid.Value.ToPrettyString()</Badge>
+                                </Chip>
+                            }
+                            @if (Model.CurrentGame.Trump.HasValue)
+                            {
+                                <Chip>
+                                    <Label>Trump</Label>
+                                    <Badge>@Model.CurrentGame.Trump.Value</Badge>
+                                </Chip>
+                            }
+                        }
 
                         <div class="domino-container">
                             @foreach (var domino in Model.Player.Dominos ?? new List<FortyTwo.Shared.Models.Domino>())

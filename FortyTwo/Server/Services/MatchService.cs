@@ -138,7 +138,7 @@ namespace FortyTwo.Server.Services
                         }
                     };
 
-                    _matches.Clear();
+                    //_matches.Clear();
                 }
 
 

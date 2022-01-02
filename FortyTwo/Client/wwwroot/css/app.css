@@ -259,6 +259,12 @@ a {
     background-color: limegreen;
 }
 
+.ellipsis {
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
 .pull-right {
     float: right;
 }
