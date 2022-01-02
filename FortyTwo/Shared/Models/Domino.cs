@@ -48,7 +48,7 @@ namespace FortyTwo.Shared.Models
         public bool IsOfSuit(Suit suit, Suit? trump = null)
             => trump == null || suit == trump
                 ? (this.Top == (int)suit || this.Bottom == (int)suit)
-                : (this.Top == (int)suit || this.Bottom == (int)suit) && (this.Top != (int)trump || this.Bottom != (int)trump);
+                : (this.Top == (int)suit && this.Bottom != (int)trump ) || (this.Bottom == (int)suit && this.Top != (int)trump);
 
         public int GetSuitValue(Suit suit, Suit trump)
             => IsOfSuit(suit, trump)
