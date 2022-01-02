@@ -15,7 +15,7 @@
             @onclick="@(async () => await Model.FetchMatchesAsync())">
             <span class="oi oi-loop-circular" aria-hidden="true"></span>
         </button>
-        <button type="button" class="btn btn-link pull-right" disabled="@true"
+        <button type="button" class="btn btn-link pull-right" disabled="@Model.IsCreating"
             @onclick="@(async () => await CreateMatchAsync())">
             <span class="oi oi-plus" aria-hidden="true"></span>
         </button>
@@ -51,15 +51,19 @@
 
                                 @* TODO: make a component for this *@
 
-                                @match.Scores.TryGetValue(Teams.TeamA, out var teamAScore);
+                                @{ match.Scores.TryGetValue(Teams.TeamA, out var teamAScore); }
                                 <li class="list-group-item p-0 @(match.WinningTeam == Teams.TeamA ? "match-winner" : "")">
-                                    <h5 class="card-title m-2">
-                                        @string.Join(" & ", match.Teams[Teams.TeamA].Select(x => Model.GetPlayerName(x.Id)))
-                                        <span class="pull-right ml-3"><label>Score: @teamAScore</label></span>
-                                        @if (match.Teams[Teams.TeamA].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
-                                        {
-                                            <span class="active-dot"></span>
-                                        }
+                                    <h5 class="card-title m-2 d-flex justify-content-between">
+                                        <div>
+                                            @if (true || match.Teams[Teams.TeamA].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
+                                            {
+                                                <span class="active-dot mr-2"></span>
+                                            }
+                                            @string.Join(" & ", match.Teams[Teams.TeamA].Select(x => Model.GetPlayerName(x.Id)))
+                                        </div>
+                                        <div>
+                                            <span><label>Score: @teamAScore</label></span>
+                                        </div>
                                     </h5>
                                     <div class="d-flex justify-content-between">
                                         <div class="m-2">
@@ -90,15 +94,19 @@
                                     </div>
                                 </li>
 
-                                @match.Scores.TryGetValue(Teams.TeamB, out var teamBScore);
+                                @{ match.Scores.TryGetValue(Teams.TeamB, out var teamBScore); }
                                 <li class="list-group-item p-0 @(match.WinningTeam == Teams.TeamB ? "match-winner" : "")">
-                                    <h5 class="card-title m-2">
-                                        @string.Join(" & ", match.Teams[Teams.TeamB].Select(x => Model.GetPlayerName(x.Id)))
-                                        <span class="pull-right ml-3"><label>Score: @teamBScore</label></span>
-                                        @if (match.Teams[Teams.TeamB].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
-                                        {
-                                            <span class="active-dot"></span>
-                                        }
+                                    <h5 class="card-title m-2 d-flex justify-content-between">
+                                        <div>
+                                            @if (match.Teams[Teams.TeamB].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
+                                            {
+                                                <span class="active-dot mr-2"></span>
+                                            }
+                                            @string.Join(" & ", match.Teams[Teams.TeamB].Select(x => Model.GetPlayerName(x.Id)))
+                                        </div>
+                                        <div>
+                                            <span><label>Score: @teamBScore</label></span>
+                                        </div>
                                     </h5>
                                     <div class="d-flex justify-content-between">
                                         <div class="m-2">
