@@ -44,14 +44,14 @@
             {
                 @foreach (var match in Model.Matches)
                 {
-                    <div class="card">
+                    <div class="card mb-2">
                         @if (match.Players.Count == 4)
                         {
-                            <h5 class="card-header">@match.Id <a href="/match/@match.Id" class="btn btn-sm btn-link">View</a></h5>
+                            <h5 class="card-header"><a href="/match/@match.Id" class="btn btn-sm btn-link">View</a></h5>
                         }
                         else
                         {
-                            <h5 class="card-header">@match.Id <span class="text-muted">waiting for more players&hellip;</span></h5>
+                            <h5 class="card-header"><span class="text-muted">waiting for more players&hellip;</span></h5>
                         }
                         <div class="card-body p-2">
                             <ul class="list-group list-group-flush">
@@ -69,7 +69,7 @@
                                             @string.Join(" & ", match.Teams[Teams.TeamA].OrderBy(x => x.Position).Select(x => Model.GetPlayerName(x.Id)))
                                         </div>
                                         <div>
-                                            <span><label>Score: @teamAScore</label></span>
+                                            <span><label>Score: <span data-score="@teamAScore"></span></label></span>
                                         </div>
                                     </h5>
                                     <div class="d-flex justify-content-between">
@@ -112,7 +112,7 @@
                                             @string.Join(" & ", match.Teams[Teams.TeamB].OrderBy(x => x.Position).Select(x => Model.GetPlayerName(x.Id)))
                                         </div>
                                         <div>
-                                            <span><label>Score: @teamBScore</label></span>
+                                            <span><label>Score: <span data-score="@teamBScore"></span></label></span>
                                         </div>
                                     </h5>
                                     <div class="d-flex justify-content-between">

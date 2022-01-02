@@ -265,6 +265,67 @@ a {
     white-space:nowrap;
 }
 
+span[data-score="1"]::after {
+    content: '/';
+    display: inline-block
+}
+span[data-score="2"]::after {
+    content: 'V';
+    display: inline-block;
+    position: relative;
+    top: -2px;
+    -webkit-transform: rotate(-180deg);
+    -moz-transform: rotate(-180deg);
+    -o-transform: rotate(-180deg);
+    transform: rotate(-180deg);
+    ms-filter: "progid:DXImageTransform.Microsoft.BasicImage(rotation=2)";
+    filter: progid:DXImageTransform.Microsoft.BasicImage(rotation=2)
+}
+span[data-score="3"]::after {
+    content: 'A';
+    display: inline-block
+}
+span[data-score="4"]::after {
+    content: 'A l';
+    display: inline-block
+}
+span[data-score="5"]::after {
+    content: 'A L';
+    display: inline-block
+}
+span[data-score="6"]::after {
+    content: 'A L l';
+    display: inline-block
+}
+span[data-score="7"]::after {
+    content: 'A L L';
+    display: inline-block
+}
+span[data-score="8"]::after {
+    content: 'A L L l';
+    display: inline-block
+}
+span[data-score="9"]::after {
+    content: 'A L L L';
+    display: inline-block
+}
+span[data-score="10"]::after {
+    content: 'A L L L l';
+    display: inline-block
+}
+span[data-score="11"]::after {
+    content: 'A L L L L';
+    display: inline-block
+}
+span[data-score="12"]::after {
+    content: 'A L L L L l';
+    display: inline-block
+}
+span[data-score="13"]::after {
+    content: 'A L L L L L';
+    display: inline-block
+}
+
 .pull-right {
     float: right;
 }
