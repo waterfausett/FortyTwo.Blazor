@@ -18,6 +18,7 @@ namespace FortyTwo.Shared.Models
         TeamB = 2,
     }
 
+    /*
     public class Match
     {
         private const int WinningScore = 7;
@@ -64,9 +65,12 @@ namespace FortyTwo.Shared.Models
 
         // TODO: validate
     }
+    */
 
     public class Game
     {
+        public Game() { }
+
         public Game(string name)
         {
             Name = name;
@@ -186,20 +190,6 @@ namespace FortyTwo.Shared.Models
         public static Positions NextPosition(this Positions position)
         {
             return (Positions)(((int)position + 1) % 4);
-        }
-    }
-
-    public static class MatchExtensions
-    {
-        public static void SelectNextPlayer(this Match match)
-        {
-            // TODO: should no-op or blow up here?
-
-            if (string.IsNullOrWhiteSpace(match.CurrentGame?.CurrentPlayerId)) return;
-
-            var nextPlayerPosition = match.Players.First(x => x.Id == match.CurrentGame.CurrentPlayerId).Position.NextPosition();
-
-            match.CurrentGame.CurrentPlayerId = match.Players.First(x => x.Position == nextPlayerPosition).Id;
         }
     }
 }

@@ -8,7 +8,7 @@ namespace FortyTwo.Shared.DTO
     {
         public Guid Id { get; set; }
         public Dictionary<Models.Teams, List<Models.Player>> Teams { get; set; }
-        public IReadOnlyList<Models.Player> Players => Teams.SelectMany(x => x.Value).ToList();
+        public IReadOnlyList<Models.Player> Players => Teams?.SelectMany(x => x.Value).ToList();
         public Game CurrentGame { get; set; } = new Game();
         public Dictionary<Models.Teams, List<Game>> Games { get; set; } = new Dictionary<Models.Teams, List<Game>>();
         public Dictionary<Models.Teams, int> Scores { get; set; }

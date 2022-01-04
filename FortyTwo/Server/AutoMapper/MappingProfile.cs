@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using FortyTwo.Shared.Models;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace FortyTwo.Server.AutoMapper
@@ -10,7 +11,14 @@ namespace FortyTwo.Server.AutoMapper
         {
             //CreateMap<Player, Shared.Models.DTO.Player>()
 
-            CreateMap<Match, Shared.DTO.Match>();
+            CreateMap<Entity.Models.Match, Shared.DTO.Match>()
+                .ForMember(dest => dest.Players, opt => opt.Ignore())
+                .ForMember(dest => dest.Teams, opt => opt.MapFrom(src => new Dictionary<Teams, List<Player>>()
+                {
+                    { Teams.TeamA, src.Players.Where(p => (int)p.Position % 2 == 0).Select(x => new Player() { Id = x.PlayerId, Position = x.Position }).ToList() },
+                    { Teams.TeamB, src.Players.Where(p => (int)p.Position % 2 != 0).Select(x => new Player() { Id = x.PlayerId, Position = x.Position }).ToList() },
+                }));
+                    
             /*
                 .ForMember(dest => dest.Players, opt => opt.MapFrom(src => src.Players.Select(p =>
                     new Shared.Models.DTO.Player

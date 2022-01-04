@@ -15,11 +15,11 @@ namespace FortyTwo.Entity.Migrations
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
+                    current_game_json = table.Column<string>(type: "jsonb", nullable: true),
+                    games_json = table.Column<string>(type: "jsonb", nullable: true),
+                    winning_team = table.Column<int>(type: "integer", nullable: true),
                     created_on = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    updated_on = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    current_game_json = table.Column<string>(type: "text", nullable: true),
-                    games_json = table.Column<string>(type: "text", nullable: true),
-                    winning_team = table.Column<int>(type: "integer", nullable: true)
+                    updated_on = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {

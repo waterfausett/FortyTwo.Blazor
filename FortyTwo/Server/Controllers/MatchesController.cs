@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using PluralizeService.Core;
 using FortyTwo.Shared.Services;
+using FortyTwo.Entity.Models;
 
 namespace FortyTwo.Server.Controllers
 {
@@ -78,22 +79,24 @@ namespace FortyTwo.Server.Controllers
                 return NotFound("Match not found!");
             }
 
-            // TODO: might could solve this w/ a global rule to say that incoming enum values have to parse
-            if (!match.Teams.TryGetValue(request.Team, out var teammates))
-            {
-                return BadRequest("Invalid Team");
-            }
+            // TODO: might should have a global rule to say that incoming enum values have to parse
 
-            if (teammates.Count >= 2)
+            var teams = match.Players
+                .GroupBy(x => (int)x.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB)
+                .ToDictionary(k => k.Key, v => v.ToList());
+
+            teams.TryGetValue(request.Team, out var teammates);
+
+                if (teammates?.Count >= 2)
             {
                 return BadRequest("Team is full");
             }
 
-            var teammatePosition = teammates.FirstOrDefault()?.Position;
+            var teammatePosition = teammates?.FirstOrDefault()?.Position;
 
             var position = teammatePosition != null
                 ? (Positions)(((int)teammatePosition + 2) % 4)
-                : (int)match.Teams[(request.Team == Teams.TeamA ? Teams.TeamB : Teams.TeamA)].First().Position % 2 == 0
+                : (int)teams[(request.Team == Teams.TeamA ? Teams.TeamB : Teams.TeamA)].First().Position % 2 == 0
                     ? Positions.Second
                     : Positions.First;
 
@@ -117,16 +120,19 @@ namespace FortyTwo.Server.Controllers
                 return NotFound("Match not found!");
             }
 
-            var matchPlayer = match.Players.First(x => x.Id == _userId);
+            var matchPlayer = match.Players.First(x => x.PlayerId == _userId);
 
             if (matchPlayer == null)
             {
                 return NotFound("Player isn't a part of this match!");
             }
 
-            var player = new LoggedInPlayer(matchPlayer)
+            // TODO: automapper?
+
+            var player = new LoggedInPlayer()
             {
-                Team = match.Teams[Teams.TeamA].Any(x => x.Id == _userId) ? Teams.TeamA : Teams.TeamB,
+                Id = matchPlayer.PlayerId,
+                Team = (int)matchPlayer.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB,
                 IsActive = match.CurrentGame.CurrentPlayerId == _userId,
                 Dominos = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Dominos,
                 Bid = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Bid
@@ -278,7 +284,7 @@ namespace FortyTwo.Server.Controllers
                 return BadRequest("<h2>Invalid move!</h2><p>We're still bidding&hellip;</p>");
             }
 
-            var player = match.Players.First(x => x.Id == _userId);
+            var player = match.Players.First(x => x.PlayerId == _userId);
 
             if (!game.Hands.First(x => x.PlayerId == _userId).Dominos.Contains(domino))
             {
@@ -307,7 +313,7 @@ namespace FortyTwo.Server.Controllers
             if (currnetlyWinningDomino.Equals(domino))
             {
                 game.CurrentTrick.PlayerId = _userId;
-                game.CurrentTrick.Team = match.Teams.First(kv => kv.Value.Any(x => x.Id == _userId)).Key;
+                game.CurrentTrick.Team = (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB;
             }
 
             // TODO: trick is full - get ready for the next one

@@ -25,10 +25,12 @@ namespace FortyTwo.Entity.Mappings
                 .IsRequired();
 
             builder.Property(x => x.CurrentGame)
-                .HasColumnName("current_game_json");
+                .HasColumnName("current_game_json")
+                .HasJsonConversion();
 
             builder.Property(x => x.Games)
-                .HasColumnName("games_json");
+                .HasColumnName("games_json")
+                .HasJsonConversion();
 
             builder.Property(x => x.WinningTeam)
                 .HasColumnName("winning_team");

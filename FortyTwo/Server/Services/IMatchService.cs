@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using FortyTwo.Entity.Models;
 using FortyTwo.Shared.Models;
 
 namespace FortyTwo.Server.Services

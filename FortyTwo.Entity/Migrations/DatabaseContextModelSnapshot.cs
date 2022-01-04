@@ -34,11 +34,11 @@ namespace FortyTwo.Entity.Migrations
                         .HasColumnName("created_on");
 
                     b.Property<string>("CurrentGame")
-                        .HasColumnType("text")
+                        .HasColumnType("jsonb")
                         .HasColumnName("current_game_json");
 
                     b.Property<string>("Games")
-                        .HasColumnType("text")
+                        .HasColumnType("jsonb")
                         .HasColumnName("games_json");
 
                     b.Property<DateTimeOffset>("UpdatedOn")

@@ -9,11 +9,6 @@ namespace FortyTwo.Shared.DTO
         [JsonConstructor]
         public LoggedInPlayer() { }
 
-        public LoggedInPlayer(Player player)
-        {
-            Id = player.Id;
-        }
-
         public string Id { get; set; }
         public Teams Team { get; set; }
         public Bid? Bid { get; set; }

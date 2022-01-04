@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FortyTwo.Entity.Migrations
 {
     [DbContext(typeof(DatabaseContext))]
-    [Migration("20220104051831_Initial")]
+    [Migration("20220104060930_Initial")]
     partial class Initial
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -36,11 +36,11 @@ namespace FortyTwo.Entity.Migrations
                         .HasColumnName("created_on");
 
                     b.Property<string>("CurrentGame")
-                        .HasColumnType("text")
+                        .HasColumnType("jsonb")
                         .HasColumnName("current_game_json");
 
                     b.Property<string>("Games")
-                        .HasColumnType("text")
+                        .HasColumnType("jsonb")
                         .HasColumnName("games_json");
 
                     b.Property<DateTimeOffset>("UpdatedOn")
