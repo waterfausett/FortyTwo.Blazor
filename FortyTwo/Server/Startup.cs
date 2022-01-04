@@ -3,6 +3,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using AutoMapper;
+using FortyTwo.Entity;
 using FortyTwo.Server.AutoMapper;
 using FortyTwo.Server.Config;
 using FortyTwo.Server.Hubs;
@@ -93,6 +94,8 @@ namespace FortyTwo.Server
 
             services.AddSingleton<IAuth0AccessTokenProvider, Auth0AccessTokenProvider>();
             services.AddSingleton<IAuth0ApiClient, Auth0ApiClient>();
+
+            services.AddScoped<DatabaseContext>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

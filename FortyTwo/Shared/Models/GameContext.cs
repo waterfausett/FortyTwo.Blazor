@@ -12,14 +12,6 @@ namespace FortyTwo.Shared.Models
         Fourth = 3,
     }
 
-    public static class PositionsExtensions
-    {
-        public static Positions NextPosition(this Positions position)
-        {
-            return (Positions)(((int)position + 1) % 4);
-        }
-    }
-
     public enum Teams
     {
         TeamA = 1,
@@ -39,10 +31,13 @@ namespace FortyTwo.Shared.Models
                 { Models.Teams.TeamA, new List<Player>() },
                 { Models.Teams.TeamB, new List<Player>() },
             };
+            CurrentGame = new Game("Game 1");
         }
 
-        public Guid Id { get; set; } // TODO: in practice, this prolly shouldn't have a public setter
-        public Game CurrentGame { get; set; } = new Game("Game 1");
+        public Match(Guid id) : base() { Id = id; }
+
+        public Guid Id { get; }
+        public Game CurrentGame { get; set; }
         public Dictionary<Teams, List<Player>> Teams { get; set; }
         public IReadOnlyList<Player> Players => Teams.SelectMany(x => x.Value).ToList();
         public Dictionary<Teams, List<Game>> Games { get; set; } = new Dictionary<Teams, List<Game>>();
@@ -90,7 +85,7 @@ namespace FortyTwo.Shared.Models
         public List<Hand> Hands { get; set; } = new List<Hand>(); // this shouldn't be fully exposed
         public Trick CurrentTrick { get; set; } = new Trick();
         public List<Trick> Tricks { get; set; } = new List<Trick>();
-        internal int? Value
+        public int? Value
         {
             get 
             {
@@ -184,5 +179,27 @@ namespace FortyTwo.Shared.Models
             => bid == null || !bid.HasValue
                 ? "N/A"
                 : bid.Value.ToPrettyString();
+    }
+
+    public static class PositionsExtensions
+    {
+        public static Positions NextPosition(this Positions position)
+        {
+            return (Positions)(((int)position + 1) % 4);
+        }
+    }
+
+    public static class MatchExtensions
+    {
+        public static void SelectNextPlayer(this Match match)
+        {
+            // TODO: should no-op or blow up here?
+
+            if (string.IsNullOrWhiteSpace(match.CurrentGame?.CurrentPlayerId)) return;
+
+            var nextPlayerPosition = match.Players.First(x => x.Id == match.CurrentGame.CurrentPlayerId).Position.NextPosition();
+
+            match.CurrentGame.CurrentPlayerId = match.Players.First(x => x.Position == nextPlayerPosition).Id;
+        }
     }
 }

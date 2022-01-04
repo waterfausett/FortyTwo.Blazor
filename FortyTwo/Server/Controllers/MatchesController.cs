@@ -97,28 +97,13 @@ namespace FortyTwo.Server.Controllers
                     ? Positions.Second
                     : Positions.First;
 
-            teammates.Add(new Player
+            var updatedMatch = await _matchService.AddPlayerAsync(id, new Player
             {
                 Id = _userId,
                 Position = position,
             });
 
-            match.CurrentGame.Hands.Add(new Shared.Models.Hand() { PlayerId = _userId, Team = request.Team });
-
-            // if we have a full roster, setup the first game
-            if (match.CurrentGame.Hands.Count == 4)
-            {
-                var dominos = _dominoService.InitDominos(DominoType.DoubleSix);
-
-                // TODO: maybe make this even more random
-
-                match.CurrentGame.Hands[0].Dominos = dominos.GetRange(0, 7);
-                match.CurrentGame.Hands[1].Dominos = dominos.GetRange(7, 7);
-                match.CurrentGame.Hands[2].Dominos = dominos.GetRange(14, 7);
-                match.CurrentGame.Hands[3].Dominos = dominos.GetRange(21, 7);
-            }
-
-            return Ok(_mapper.Map<Shared.DTO.Match>(match));
+            return Ok(_mapper.Map<Shared.DTO.Match>(updatedMatch));
         }
 
 
