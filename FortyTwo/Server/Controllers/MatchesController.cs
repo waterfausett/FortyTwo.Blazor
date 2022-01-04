@@ -240,6 +240,8 @@ namespace FortyTwo.Server.Controllers
                 return BadRequest("<h2>This game already has a trump!</h2>");
             }
 
+            // TODO: sever should validate that we should use this value
+
             game.Trump = suit;
 
             var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
