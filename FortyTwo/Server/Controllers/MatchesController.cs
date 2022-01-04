@@ -222,15 +222,17 @@ namespace FortyTwo.Server.Controllers
                 return BadRequest("<h2>This game already has a trump!</h2>");
             }
 
-            // TODO: sever should validate that we should use this value
+            if (game.BiddingPlayerId != _userId)
+            {
+                return BadRequest("<h2>You're not the highest bidder!</h2>");
+            }
 
-            game.Trump = suit;
+            var updatedMatch = await _matchService.SetTrumpForCurrentGameAsync(id, suit);
 
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(updatedMatch.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
 
-            //return Ok(gameDTO);
             return Ok();
         }
 

@@ -100,9 +100,13 @@ namespace FortyTwo.Server.Services
             return _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
         }
 
+
+        // TODO: the back/forth flow is kinda weird - wonder if we should just send SignalR events from here?
+
+
         public async Task<Match> BidAsync(Guid id, Bid bid)
         {
-            var match = await _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
+            var match = await _context.Matches.Where(x => x.Id == id).FirstOrDefaultAsync();
 
             match.CurrentGame.Hands.First(x => x.PlayerId == _userId).Bid = bid;
 
@@ -122,6 +126,17 @@ namespace FortyTwo.Server.Services
             {
                 match.CurrentGame.CurrentPlayerId = match.CurrentGame.BiddingPlayerId;
             }
+
+            await _context.SaveChangesAsync();
+
+            return match;
+        }
+
+        public async Task<Match> SetTrumpForCurrentGameAsync(Guid id, Suit suit)
+        {
+            var match = await _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
+
+            match.CurrentGame.Trump ??= suit;
 
             await _context.SaveChangesAsync();
 
