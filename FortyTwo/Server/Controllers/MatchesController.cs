@@ -177,30 +177,12 @@ namespace FortyTwo.Server.Controllers
                 return BadRequest($"<h2>Insufficient bid!</h2><p>A new bid must be hight than the current bid of <code>{game.Bid.Value.ToPrettyString()}</code></p>");
             }
 
-            game.Hands.First(x => x.PlayerId == _userId).Bid = bid;
+            var updatedMatch = await _matchService.BidAsync(id, bid);
 
-            if (bid != Bid.Pass)
-            {
-                game.Bid = bid;
-                game.BiddingPlayerId = _userId;
-            }
-
-            // TODO: might be able to say, "if the person bidding is the one that shuffled, then we're done"
-
-            if (game.Hands.Any(x => !x.Bid.HasValue))
-            {
-                match.SelectNextPlayer();
-            }
-            else
-            {
-                game.CurrentPlayerId = game.BiddingPlayerId;
-            }
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(updatedMatch.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
 
-            //return Ok(gameDTO);
             return Ok();
         }
 

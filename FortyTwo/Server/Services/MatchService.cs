@@ -99,5 +99,33 @@ namespace FortyTwo.Server.Services
         {
             return _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
         }
+
+        public async Task<Match> BidAsync(Guid id, Bid bid)
+        {
+            var match = await _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
+
+            match.CurrentGame.Hands.First(x => x.PlayerId == _userId).Bid = bid;
+
+            if (bid != Bid.Pass)
+            {
+                match.CurrentGame.Bid = bid;
+                match.CurrentGame.BiddingPlayerId = _userId;
+            }
+
+            // TODO: might be able to say, "if the person bidding is the one that shuffled, then we're done"
+
+            if (match.CurrentGame.Hands.Any(x => !x.Bid.HasValue))
+            {
+                match.SelectNextPlayer();
+            }
+            else
+            {
+                match.CurrentGame.CurrentPlayerId = match.CurrentGame.BiddingPlayerId;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return match;
+        }
     }
 }

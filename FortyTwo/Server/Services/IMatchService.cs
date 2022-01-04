@@ -12,5 +12,6 @@ namespace FortyTwo.Server.Services
         Task<List<Match>> FetchForUserAsync(bool completed);
         Task<Match> GetAsync(Guid id);
         Task<Match> AddPlayerAsync(Guid id, Player player);
+        Task<Match> BidAsync(Guid id, Bid bid);
     }
 }
