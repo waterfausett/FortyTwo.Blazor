@@ -7,7 +7,7 @@ on:
     - release/*
 
 jobs:
-  build_computersanta:
+  build_fortytwogame:
     runs-on: ubuntu-16.04
     steps:
     - uses: actions/checkout@v1
