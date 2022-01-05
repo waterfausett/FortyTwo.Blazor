@@ -9,6 +9,7 @@ COPY *.sln .
 COPY ["FortyTwo/Client/FortyTwo.Client.csproj", "FortyTwo/Client/"]
 COPY ["FortyTwo/Server/FortyTwo.Server.csproj", "FortyTwo/Server/"]
 COPY ["FortyTwo/Shared/FortyTwo.Shared.csproj", "FortyTwo/Shared/"]
+COPY ["FortyTwo.Entity/FortyTwo.Entity.csproj", "FortyTwo.Entity/"]
 
 RUN dotnet restore
 COPY . .
