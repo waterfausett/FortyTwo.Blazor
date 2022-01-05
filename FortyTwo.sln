@@ -9,7 +9,13 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FortyTwo.Client", "FortyTwo
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FortyTwo.Shared", "FortyTwo\Shared\FortyTwo.Shared.csproj", "{81224A9A-94FA-4DCA-B4A5-5B863CA2D514}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FortyTwo.Entity", "FortyTwo.Entity\FortyTwo.Entity.csproj", "{C3CA9396-8FD7-40B3-A21A-AF004689CF55}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FortyTwo.Entity", "FortyTwo.Entity\FortyTwo.Entity.csproj", "{C3CA9396-8FD7-40B3-A21A-AF004689CF55}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{76CA0F7D-6F1A-4D8C-AD81-9FDD5FB23D2B}"
+	ProjectSection(SolutionItems) = preProject
+		.dockerignore = .dockerignore
+		Dockerfile = Dockerfile
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
