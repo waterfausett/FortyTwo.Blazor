@@ -25,9 +25,9 @@ namespace FortyTwo.Client.ViewModels
         Task FetchMatchAsync();
         Task UpdateGame(Game game);
         Task FetchPlayerAsync();
-        Task<string> BidAsync(Bid bid);
-        Task<string> SelectTrumpAsync(Suit suit);
-        Task<string> MakeMoveAsync(Domino domino);
+        Task<ExceptionDetails> BidAsync(Bid bid);
+        Task<ExceptionDetails> SelectTrumpAsync(Suit suit);
+        Task<ExceptionDetails> MakeMoveAsync(Domino domino);
     }
 
     public class MatchViewModel : IMatchViewModel
@@ -131,7 +131,7 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public async Task<string> BidAsync(Bid bid)
+        public async Task<ExceptionDetails> BidAsync(Bid bid)
         {
             Bidding = true;
 
@@ -140,16 +140,16 @@ namespace FortyTwo.Client.ViewModels
                 var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/bids", bid);
                 if (!response.IsSuccessStatusCode)
                 {
-                    return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                    return await response.Content.ReadFromJsonAsync<ExceptionDetails>();
                 }
 
                 Player.Bid = bid;
 
-                return string.Empty;
+                return null;
             }
             catch (Exception ex)
             {
-                return ex.Message;
+                return new ExceptionDetails { Title = ex.Message };
             }
             finally
             {
@@ -157,7 +157,7 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public async Task<string> SelectTrumpAsync(Suit suit)
+        public async Task<ExceptionDetails> SelectTrumpAsync(Suit suit)
         {
             Bidding = true;
 
@@ -166,14 +166,14 @@ namespace FortyTwo.Client.ViewModels
                 var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/selectTrump", suit);
                 if (!response.IsSuccessStatusCode)
                 {
-                    return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                    return await response.Content.ReadFromJsonAsync<ExceptionDetails>();
                 }
 
-                return string.Empty;
+                return null;
             }
             catch (Exception ex)
             {
-                return ex.Message;
+                return new ExceptionDetails { Title = ex.Message };
             }
             finally
             {
@@ -181,7 +181,7 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public async Task<string> MakeMoveAsync(Domino domino)
+        public async Task<ExceptionDetails> MakeMoveAsync(Domino domino)
         {
             MakingMove = true;
 
@@ -190,16 +190,16 @@ namespace FortyTwo.Client.ViewModels
                 var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/moves", domino);
                 if (!response.IsSuccessStatusCode)
                 {
-                    return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                    return await response.Content.ReadFromJsonAsync<ExceptionDetails>();
                 }
 
                 Player.Dominos.Remove(domino);
 
-                return string.Empty;
+                return null;
             }
             catch (Exception ex)
             {
-                return ex.Message;
+                return new ExceptionDetails { Title = ex.Message };
             }
             finally
             {

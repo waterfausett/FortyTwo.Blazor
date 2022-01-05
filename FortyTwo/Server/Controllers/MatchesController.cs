@@ -12,9 +12,7 @@ using FortyTwo.Shared.Models.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
-using PluralizeService.Core;
 using FortyTwo.Shared.Services;
-using FortyTwo.Entity.Models;
 
 namespace FortyTwo.Server.Controllers
 {
@@ -44,9 +42,9 @@ namespace FortyTwo.Server.Controllers
         public async Task<IActionResult> Get([FromQuery] bool completed)
         {
             var matches = await _matchService.FetchForUserAsync(completed);
+
             return Ok(_mapper.Map<List<Shared.DTO.Match>>(matches));
         }
-
 
         [HttpGet("{id}")]
         public async Task<IActionResult> Get([Required] Guid id)
@@ -70,45 +68,12 @@ namespace FortyTwo.Server.Controllers
         }
 
         [HttpPost("{id}/players")]
-        public async Task<IActionResult> AddPlayer([Required] Guid id, AddPlayerRequest request)
+        public async Task<IActionResult> AddPlayer([Required] Guid id, [Required, FromBody] AddPlayerRequest request)
         {
-            var match = await _matchService.GetAsync(id);
+            var match = await _matchService.AddPlayerAsync(id, request.Team);
 
-            if (match == null)
-            {
-                return NotFound("Match not found!");
-            }
-
-            // TODO: might should have a global rule to say that incoming enum values have to parse
-
-            var teams = match.Players
-                .GroupBy(x => (int)x.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB)
-                .ToDictionary(k => k.Key, v => v.ToList());
-
-            teams.TryGetValue(request.Team, out var teammates);
-
-                if (teammates?.Count >= 2)
-            {
-                return BadRequest("Team is full");
-            }
-
-            var teammatePosition = teammates?.FirstOrDefault()?.Position;
-
-            var position = teammatePosition != null
-                ? (Positions)(((int)teammatePosition + 2) % 4)
-                : (int)teams[(request.Team == Teams.TeamA ? Teams.TeamB : Teams.TeamA)].First().Position % 2 == 0
-                    ? Positions.Second
-                    : Positions.First;
-
-            var updatedMatch = await _matchService.AddPlayerAsync(id, new Player
-            {
-                Id = _userId,
-                Position = position,
-            });
-
-            return Ok(_mapper.Map<Shared.DTO.Match>(updatedMatch));
+            return Ok(_mapper.Map<Shared.DTO.Match>(match));
         }
-
 
         [HttpGet("{id}/player")]
         public async Task<IActionResult> GetPlayer([Required] Guid id)
@@ -127,8 +92,6 @@ namespace FortyTwo.Server.Controllers
                 return NotFound("Player isn't a part of this match!");
             }
 
-            // TODO: automapper?
-
             var player = new LoggedInPlayer()
             {
                 Id = matchPlayer.PlayerId,
@@ -142,44 +105,11 @@ namespace FortyTwo.Server.Controllers
         }
 
         [HttpPost("{id}/bids")]
-        public async Task<IActionResult> PostBid([Required] Guid id, [FromBody] Bid bid)
+        public async Task<IActionResult> PostBid([Required] Guid id, [Required, FromBody] Bid bid)
         {
-            var match = await _matchService.GetAsync(id);
-            var game = match.CurrentGame;
+            var match = await _matchService.BidAsync(id, bid);
 
-            if (match == null)
-            {
-                return NotFound("Match not found!");
-            }
-
-            if (match.WinningTeam != null)
-            {
-                return BadRequest("<h2>This game is over.</h2>");
-            }
-
-            if (game == null)
-            {
-                return NotFound("<h2>No active game found.</h2>");
-            }
-
-            if (game.CurrentPlayerId != _userId)
-            {
-                return BadRequest("<h2>It's not your turn!</h2>");
-            }
-
-            if (game.Hands.First(x => x.PlayerId == _userId).Bid.HasValue)
-            {
-                return BadRequest("<h2>You have already submitted a bid!</h2>");
-            }
-
-            if (bid != Bid.Pass && game.Bid.HasValue && game.Bid >= bid)
-            {
-                return BadRequest($"<h2>Insufficient bid!</h2><p>A new bid must be hight than the current bid of <code>{game.Bid.Value.ToPrettyString()}</code></p>");
-            }
-
-            var updatedMatch = await _matchService.BidAsync(id, bid);
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(updatedMatch.CurrentGame);
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
 
@@ -187,49 +117,11 @@ namespace FortyTwo.Server.Controllers
         }
 
         [HttpPost("{id}/selectTrump")]
-        public async Task<IActionResult> PostSelectTrump([Required] Guid id, [FromBody] Suit suit)
+        public async Task<IActionResult> PostTrump([Required] Guid id, [Required, FromBody] Suit suit)
         {
-            var match = await _matchService.GetAsync(id);
-            var game = match.CurrentGame;
+            var match = await _matchService.SetTrumpForCurrentGameAsync(id, suit);
 
-            if (match == null)
-            {
-                return NotFound("Match not found!");
-            }
-
-            if (match.WinningTeam != null)
-            {
-                return BadRequest("<h2>This game is over.</h2>");
-            }
-
-            if (game == null)
-            {
-                return NotFound("<h2>No active game found.</h2>");
-            }
-
-            if (game.CurrentPlayerId != _userId)
-            {
-                return BadRequest("<h2>It's not your turn!</h2>");
-            }
-
-            if (game.Hands.Any(x => !x.Bid.HasValue))
-            {
-                return BadRequest("<h2>We're still bidding!</h2>");
-            }
-
-            if (game.Trump.HasValue)
-            {
-                return BadRequest("<h2>This game already has a trump!</h2>");
-            }
-
-            if (game.BiddingPlayerId != _userId)
-            {
-                return BadRequest("<h2>You're not the highest bidder!</h2>");
-            }
-
-            var updatedMatch = await _matchService.SetTrumpForCurrentGameAsync(id, suit);
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(updatedMatch.CurrentGame);
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
 
@@ -237,89 +129,14 @@ namespace FortyTwo.Server.Controllers
         }
 
         [HttpPost("{id}/moves")]
-        public async Task<IActionResult> PostMove([Required] Guid id, [FromBody] Domino domino)
+        public async Task<IActionResult> PostMove([Required] Guid id, [Required, FromBody] Domino domino)
         {
-            var match = await _matchService.GetAsync(id);
-            var game = match.CurrentGame;
-
-            if (match == null)
-            {
-                return NotFound("Match not found!");
-            }
-
-            if (match.WinningTeam != null)
-            {
-                return BadRequest("<h2>This match is over.</h2>");
-            }
-
-            if (game == null)
-            {
-                return NotFound("<h2>No active game found.</h2>");
-            }
-
-            if (game.CurrentPlayerId != _userId)
-            {
-                return BadRequest("<h2>It's not your turn!</h2>");
-            }
-
-            // TODO: figure out how we'll handle supporting low hands
-            //  - possibly another enum entry for Low (-1)
-
-            if (!game.Trump.HasValue)
-            {
-                return BadRequest("<h2>Invalid move!</h2><p>We're still bidding&hellip;</p>");
-            }
-
-            var player = match.Players.First(x => x.PlayerId == _userId);
-
-            if (!game.Hands.First(x => x.PlayerId == _userId).Dominos.Contains(domino))
-            {
-                return BadRequest("<h2>Invalid domino!</h2>");
-            }
-
-            // TODO: validation (game rules)
-
-            if (game.CurrentTrick.Suit.HasValue
-                && !domino.IsOfSuit(game.CurrentTrick.Suit.Value, game.Trump)
-                && game.Hands.First(x => x.PlayerId == _userId).Dominos.Any(x => x.IsOfSuit(game.CurrentTrick.Suit.Value, game.Trump)))
-            {
-                return BadRequest($"<h2>You must follow suit!</h2><p>If you have a <code>{PluralizationProvider.Singularize(game.CurrentTrick.Suit.ToString())}</code>, you must play it.</p>");
-            }
-
-            game.Hands.First(x => x.PlayerId == _userId).Dominos.Remove(domino);
-
-            // TODO: play the domino
-            game.CurrentTrick ??= new Trick();
-            game.CurrentTrick.AddDomino(domino, game.Trump.Value);
-
-            var currnetlyWinningDomino = game.CurrentTrick.Dominos.Where(x => x != null)
-                .OrderByDescending(x => x.GetSuitValue(game.CurrentTrick.Suit.Value, game.Trump.Value))
-                .First();
-
-            if (currnetlyWinningDomino.Equals(domino))
-            {
-                game.CurrentTrick.PlayerId = _userId;
-                game.CurrentTrick.Team = (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB;
-            }
-
-            // TODO: trick is full - get ready for the next one
-            
-            if (game.CurrentTrick.IsFull())
-            {
-                game.Tricks.Add(game.CurrentTrick);
-                game.CurrentPlayerId = game.CurrentTrick.PlayerId;
-                game.CurrentTrick = new Trick();
-            }
-            else
-            {
-                match.SelectNextPlayer();
-            }
+            var match = await _matchService.PlayDominoAsync(id, domino);
 
             var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
             await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
             
-            //return Ok(_mapper.Map<Shared.Models.DTO.Game>(match));
             return Ok();
         }
 

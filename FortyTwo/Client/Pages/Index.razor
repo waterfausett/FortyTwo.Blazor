@@ -176,24 +176,15 @@
 
     private async Task CreateMatchAsync()
     {
-        string errorMessage;
+        var error = await Model.CreateMatchAsync();
 
-        try
-        {
-            errorMessage = await Model.CreateMatchAsync();
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-            Console.Error.WriteLine(errorMessage);
-        }
-
-        if (!string.IsNullOrWhiteSpace(errorMessage))
+        if (error != null)
         {
             await Swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Error,
-                Html = errorMessage.Truncate(250),
+                Title = error.Title,
+                Html = error.Detail.Truncate(250),
                 ConfirmButtonText = "Ok",
             });
         }
@@ -201,24 +192,15 @@
 
     private async Task JoinMatchAsync(Guid matchId, Teams team)
     {
-        string errorMessage;
+        var error = await Model.JoinMatchAsync(matchId, team);
 
-        try
-        {
-            errorMessage = await Model.JoinMatchAsync(matchId, team);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-            Console.Error.WriteLine(errorMessage);
-        }
-
-        if (!string.IsNullOrWhiteSpace(errorMessage))
+        if (error != null)
         {
             await Swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Error,
-                Html = errorMessage.Truncate(250),
+                Title = error.Title,
+                Html = error.Detail.Truncate(250),
                 ConfirmButtonText = "Ok",
             });
         }

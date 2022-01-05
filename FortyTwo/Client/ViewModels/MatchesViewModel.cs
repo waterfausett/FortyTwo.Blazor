@@ -21,9 +21,9 @@ namespace FortyTwo.Client.ViewModels
         public bool IsCreating { get; set; }
         public List<Match> Matches { get; }
         Task FetchMatchesAsync(MatchFilter? matchFilter = null);
-        Task<string> CreateMatchAsync();
+        Task<ExceptionDetails> CreateMatchAsync();
         string GetPlayerName(string playerId);
-        Task<string> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team);
+        Task<ExceptionDetails> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team);
     }
 
     public class MatchesViewModel : IMatchesViewModel
@@ -67,7 +67,7 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public async Task<string> CreateMatchAsync()
+        public async Task<ExceptionDetails> CreateMatchAsync()
         {
             IsCreating = true;
 
@@ -76,14 +76,18 @@ namespace FortyTwo.Client.ViewModels
                 var response = await _http.PostAsync("api/matches", null);
                 if (!response.IsSuccessStatusCode)
                 {
-                    return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                    return await response.Content.ReadFromJsonAsync<ExceptionDetails>();
                 }
 
                 var match = await response.Content.ReadFromJsonAsync<Match>();
 
                 _store.Matches.Add(match);
 
-                return string.Empty;
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return new ExceptionDetails { Title = ex.Message };
             }
             finally
             {
@@ -91,20 +95,27 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public async Task<string> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team)
+        public async Task<ExceptionDetails> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team)
         {
-            var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/players", new AddPlayerRequest { Team = team });
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                return await response.Content.ReadAsStringAsync() ?? response.ReasonPhrase;
+                var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/players", new AddPlayerRequest { Team = team });
+                if (!response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadFromJsonAsync<ExceptionDetails>();
+                }
+
+                var match = await response.Content.ReadFromJsonAsync<Match>();
+
+                _store.Matches.RemoveAll(x => x.Id == matchId);
+                _store.Matches.Add(match);
+
+                return null;
             }
-
-            var match = await response.Content.ReadFromJsonAsync<Match>();
-
-            _store.Matches.RemoveAll(x => x.Id == matchId);
-            _store.Matches.Add(match);
-
-            return string.Empty;
+            catch (Exception ex)
+            {
+                return new ExceptionDetails { Title = ex.Message };
+            }
         }
 
         public string GetPlayerName(string playerId)

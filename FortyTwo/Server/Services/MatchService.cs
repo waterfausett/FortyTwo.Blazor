@@ -15,12 +15,14 @@ namespace FortyTwo.Server.Services
     {
         private readonly DatabaseContext _context;
         private readonly UserId _userId;
+        private readonly IMatchValidationService _matchValidationService;
         private readonly IDominoService _dominoService;
 
-        public MatchService(DatabaseContext context, UserId user, IDominoService dominoService)
+        public MatchService(DatabaseContext context, UserId user, IMatchValidationService matchValidationService, IDominoService dominoService)
         {
             _context = context;
             _userId = user;
+            _matchValidationService = matchValidationService;
             _dominoService = dominoService;
         }
 
@@ -42,19 +44,36 @@ namespace FortyTwo.Server.Services
             return match;
         }
 
-        public async Task<Match> AddPlayerAsync(Guid id, Player player)
+        public async Task<Match> AddPlayerAsync(Guid id, Teams team)
         {
             var match = await _context.Matches.Include(x => x.Players).FirstAsync(x => x.Id == id);
+
+            _matchValidationService
+                .IsActive(match)
+                .IsNotFull(match);
+
+            var teams = match.Players
+                .GroupBy(x => (int)x.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB)
+                .ToDictionary(k => k.Key, v => v.ToList());
+
+            teams.TryGetValue(team, out var teammates);
+
+            var teammatePosition = teammates?.FirstOrDefault()?.Position;
+
+            var position = teammatePosition != null
+                ? (Positions)(((int)teammatePosition + 2) % 4)
+                : (int)teams[(team == Teams.TeamA ? Teams.TeamB : Teams.TeamA)].First().Position % 2 == 0
+                    ? Positions.Second
+                    : Positions.First;
 
             match.Players.Add(new MatchPlayer
             {
                 MatchId = match.Id,
-                PlayerId = player.Id,
-                Position = player.Position,
+                PlayerId = _userId,
+                Position = position,
             });
 
-
-            match.CurrentGame.Hands.Add(new Hand() { PlayerId = _userId, Team = (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB });
+            match.CurrentGame.Hands.Add(new Hand() { PlayerId = _userId, Team = (int)position % 2 == 0 ? Teams.TeamA : Teams.TeamB });
 
             // if we have a full roster, setup the first game
             if (match.CurrentGame.Hands.Count == 4)
@@ -100,13 +119,14 @@ namespace FortyTwo.Server.Services
             return _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
         }
 
-
-        // TODO: the back/forth flow is kinda weird - wonder if we should just send SignalR events from here?
-
-
         public async Task<Match> BidAsync(Guid id, Bid bid)
         {
-            var match = await _context.Matches.Where(x => x.Id == id).FirstOrDefaultAsync();
+            var match = await _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
+
+            _matchValidationService
+                .IsActive(match).IsActive(match.CurrentGame)
+                .IsActiveTurn(match.CurrentGame, _userId)
+                .ValidateBid(match.CurrentGame, _userId, bid);
 
             match.CurrentGame.Hands.First(x => x.PlayerId == _userId).Bid = bid;
 
@@ -136,7 +156,68 @@ namespace FortyTwo.Server.Services
         {
             var match = await _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
 
+            _matchValidationService
+                .IsActive(match)
+                .IsActive(match.CurrentGame)
+                .IsActiveTurn(match.CurrentGame, _userId)
+                .BiddingComplete(match.CurrentGame)
+                .IsActiveBidder(match.CurrentGame, _userId);
+
             match.CurrentGame.Trump ??= suit;
+
+            await _context.SaveChangesAsync();
+
+            return match;
+        }
+
+        public async Task<Match> PlayDominoAsync(Guid id, Domino domino)
+        {
+            var match = await _context.Matches
+                .Include(x => x.Players)
+                .Where(x => x.Id == id)
+                .FirstOrDefaultAsync();
+
+            _matchValidationService
+                .IsActive(match)
+                .IsActive(match.CurrentGame)
+                .IsActiveTurn(match.CurrentGame, _userId)
+                .IsReadyToPlay(match.CurrentGame)
+                .HasDomino(match.CurrentGame, _userId, domino)
+                .IsValidDomino(match.CurrentGame, _userId, domino);
+
+            // TODO: figure out how we'll handle supporting low hands
+            //  - possibly another enum entry for Low (-1)
+
+            var player = match.Players.First(x => x.PlayerId == _userId);
+
+            match.CurrentGame.Hands.First(x => x.PlayerId == _userId).Dominos.Remove(domino);
+
+            // TODO: play the domino
+            match.CurrentGame.CurrentTrick ??= new Trick();
+            match.CurrentGame.CurrentTrick.AddDomino(domino, match.CurrentGame.Trump.Value);
+
+            var currnetlyWinningDomino = match.CurrentGame.CurrentTrick.Dominos.Where(x => x != null)
+                .OrderByDescending(x => x.GetSuitValue(match.CurrentGame.CurrentTrick.Suit.Value, match.CurrentGame.Trump.Value))
+                .First();
+
+            if (currnetlyWinningDomino.Equals(domino))
+            {
+                match.CurrentGame.CurrentTrick.PlayerId = _userId;
+                match.CurrentGame.CurrentTrick.Team = (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB;
+            }
+
+            // TODO: trick is full - get ready for the next one
+
+            if (match.CurrentGame.CurrentTrick.IsFull())
+            {
+                match.CurrentGame.Tricks.Add(match.CurrentGame.CurrentTrick);
+                match.CurrentGame.CurrentPlayerId = match.CurrentGame.CurrentTrick.PlayerId;
+                match.CurrentGame.CurrentTrick = new Trick();
+            }
+            else
+            {
+                match.SelectNextPlayer();
+            }
 
             await _context.SaveChangesAsync();
 

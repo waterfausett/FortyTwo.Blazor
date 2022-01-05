@@ -343,24 +343,15 @@
 
     public async Task BidAsync(Bid bid)
     {
-        string errorMessage;
+        var error = await Model.BidAsync(bid);
 
-        try
-        {
-            errorMessage = await Model.BidAsync(bid);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-            Console.Error.WriteLine(errorMessage);
-        }
-
-        if (!string.IsNullOrWhiteSpace(errorMessage))
+        if (error != null)
         {
             await Swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Error,
-                Html = errorMessage.Truncate(250),
+                Title = error.Title,
+                Html = error.Detail.Truncate(250),
                 ConfirmButtonText = "Ok",
             });
         }
@@ -368,24 +359,15 @@
 
     public async Task SelectTrumpAsync(Suit suit)
     {
-        string errorMessage;
+        var error = await Model.SelectTrumpAsync(suit);
 
-        try
-        {
-            errorMessage = await Model.SelectTrumpAsync(suit);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-            Console.Error.WriteLine(errorMessage);
-        }
-
-        if (!string.IsNullOrWhiteSpace(errorMessage))
+        if (error != null)
         {
             await Swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Error,
-                Html = errorMessage.Truncate(250),
+                Title = error.Title,
+                Html = error.Detail.Truncate(250),
                 ConfirmButtonText = "Ok",
             });
         }
@@ -393,24 +375,15 @@
 
     public async Task MakeMoveAsync(FortyTwo.Shared.Models.Domino domino)
     {
-        string errorMessage;
+        var error = await Model.MakeMoveAsync(domino);
 
-        try
-        {
-            errorMessage = await Model.MakeMoveAsync(domino);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-            Console.Error.WriteLine(errorMessage);
-        }
-
-        if (!string.IsNullOrWhiteSpace(errorMessage))
+        if (error != null)
         {
             await Swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Error,
-                Html = errorMessage.Truncate(250),
+                Title = error.Title,
+                Html = error.Detail.Truncate(250),
                 ConfirmButtonText = "Ok",
             });
         }

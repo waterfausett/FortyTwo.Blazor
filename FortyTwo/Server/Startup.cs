@@ -7,6 +7,7 @@ using FortyTwo.Entity;
 using FortyTwo.Server.AutoMapper;
 using FortyTwo.Server.Config;
 using FortyTwo.Server.Hubs;
+using FortyTwo.Server.Middleware;
 using FortyTwo.Server.Security;
 using FortyTwo.Server.Services;
 using FortyTwo.Server.Services.Security;
@@ -95,6 +96,8 @@ namespace FortyTwo.Server
             services.AddSingleton<IAuth0AccessTokenProvider, Auth0AccessTokenProvider>();
             services.AddSingleton<IAuth0ApiClient, Auth0ApiClient>();
 
+            services.AddScoped<IMatchValidationService, MatchValidationService>();
+
             services.AddScoped<DatabaseContext>();
         }
 
@@ -114,6 +117,8 @@ namespace FortyTwo.Server
                 // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                 app.UseHsts();
             }
+
+            app.UseGlobalErrorHandler(env.IsDevelopment());
 
             app.UseHttpsRedirection();
             app.UseBlazorFrameworkFiles();
