@@ -50,7 +50,8 @@ namespace FortyTwo.Server.Services
 
             _matchValidationService
                 .IsActive(match)
-                .IsNotFull(match);
+                .IsNotFull(match)
+                .IsNotMatchPlayer(match, _userId);
 
             var teams = match.Players
                 .GroupBy(x => (int)x.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB)
@@ -119,9 +120,35 @@ namespace FortyTwo.Server.Services
             return _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
         }
 
+        public async Task<Shared.DTO.LoggedInPlayer> GetPlayerForMatch(Guid id)
+        {
+            var match = await _context.Matches
+                .Include(x => x.Players)
+                .Where(x => x.Id == id)
+                .FirstOrDefaultAsync();
+
+            _matchValidationService
+                .IsActive(match).IsActive(match.CurrentGame)
+                .IsMatchPlayer(match, _userId);
+
+            var matchPlayer = match.Players.First(x => x.PlayerId == _userId);
+
+            return new Shared.DTO.LoggedInPlayer()
+            {
+                Id = matchPlayer.PlayerId,
+                Team = (int)matchPlayer.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB,
+                IsActive = match.CurrentGame.CurrentPlayerId == _userId,
+                Dominos = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Dominos,
+                Bid = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Bid
+            };
+        }
+
         public async Task<Match> BidAsync(Guid id, Bid bid)
         {
-            var match = await _context.Matches.Include(x => x.Players).Where(x => x.Id == id).FirstOrDefaultAsync();
+            var match = await _context.Matches
+                .Include(x => x.Players)
+                .Where(x => x.Id == id)
+                .FirstOrDefaultAsync();
 
             _matchValidationService
                 .IsActive(match).IsActive(match.CurrentGame)

@@ -16,5 +16,7 @@ namespace FortyTwo.Server.Services
         IMatchValidationService IsReadyToPlay(Game game);
         IMatchValidationService HasDomino(Game game, UserId userId, Domino domino);
         IMatchValidationService IsValidDomino(Game game, UserId userId, Domino domino);
+        IMatchValidationService IsMatchPlayer(Match match, UserId userId);
+        IMatchValidationService IsNotMatchPlayer(Match match, UserId userId);
     }
 }

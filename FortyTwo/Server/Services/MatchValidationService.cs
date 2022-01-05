@@ -103,5 +103,21 @@ namespace FortyTwo.Server.Services
 
             return this;
         }
+
+        public IMatchValidationService IsMatchPlayer(Match match, UserId userId)
+        {
+            if (match.Players.All(x => x.PlayerId != userId))
+                throw new CustomValidationException("You aren't a part of this match!");
+
+            return this;
+        }
+
+        public IMatchValidationService IsNotMatchPlayer(Match match, UserId userId)
+        {
+            if (match.Players.Any(x => x.PlayerId == userId))
+                throw new CustomValidationException("You are already in this match!");
+
+            return this;
+        }
     }
 }

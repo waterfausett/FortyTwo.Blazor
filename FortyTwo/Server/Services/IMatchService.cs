@@ -15,5 +15,6 @@ namespace FortyTwo.Server.Services
         Task<Match> BidAsync(Guid id, Bid bid);
         Task<Match> SetTrumpForCurrentGameAsync(Guid id, Suit suit);
         Task<Match> PlayDominoAsync(Guid id, Domino domino);
+        Task<Shared.DTO.LoggedInPlayer> GetPlayerForMatch(Guid id);
     }
 }

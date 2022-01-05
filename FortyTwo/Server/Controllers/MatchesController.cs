@@ -25,16 +25,14 @@ namespace FortyTwo.Server.Controllers
         private readonly IMapper _mapper;
         private readonly UserId _userId;
         private readonly IMatchService _matchService;
-        private readonly IDominoService _dominoService;
         private readonly IHubContext<GameHub> _gameHubContext;
 
-        public MatchesController(ILogger<MatchesController> logger, IMapper mapper, UserId userId, IMatchService matchService, IDominoService dominoService, IHubContext<GameHub> gameHubContext)
+        public MatchesController(ILogger<MatchesController> logger, IMapper mapper, UserId userId, IMatchService matchService, IHubContext<GameHub> gameHubContext)
         {
             _logger = logger;
             _mapper = mapper;
             _userId = userId;
             _matchService = matchService;
-            _dominoService = dominoService;
             _gameHubContext = gameHubContext;
         }
 
@@ -78,28 +76,7 @@ namespace FortyTwo.Server.Controllers
         [HttpGet("{id}/player")]
         public async Task<IActionResult> GetPlayer([Required] Guid id)
         {
-            var match = await _matchService.GetAsync(id);
-
-            if (match == null)
-            {
-                return NotFound("Match not found!");
-            }
-
-            var matchPlayer = match.Players.First(x => x.PlayerId == _userId);
-
-            if (matchPlayer == null)
-            {
-                return NotFound("Player isn't a part of this match!");
-            }
-
-            var player = new LoggedInPlayer()
-            {
-                Id = matchPlayer.PlayerId,
-                Team = (int)matchPlayer.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB,
-                IsActive = match.CurrentGame.CurrentPlayerId == _userId,
-                Dominos = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Dominos,
-                Bid = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Bid
-            };
+            var player = await _matchService.GetPlayerForMatch(id);
 
             return Ok(player);
         }
