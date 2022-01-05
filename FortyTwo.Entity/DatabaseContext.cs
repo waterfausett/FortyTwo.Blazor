@@ -8,10 +8,31 @@ namespace FortyTwo.Entity
 {
     public class DatabaseContext : DbContext
     {
+        private readonly NpgsqlConnection _connection;
+
         public DatabaseContext(IConfiguration configuration)
-            : base(new DbContextOptionsBuilder().UseNpgsql(new NpgsqlConnection(configuration["FortyTwo:DatabaseConnectionString"]),
-                options => options.EnableRetryOnFailure()).Options)
-        { }
+        {
+            var databaseUri = new Uri(configuration["DATABASE_URL"]);
+            var userInfo = databaseUri.UserInfo.Split(':');
+
+            var builder = new NpgsqlConnectionStringBuilder
+            {
+                Host = databaseUri.Host,
+                Port = databaseUri.Port,
+                Username = userInfo[0],
+                Password = userInfo[1],
+                Database = databaseUri.LocalPath.TrimStart('/')
+            };
+
+            _connection = new NpgsqlConnection(builder.ToString());
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder options)
+        {
+            options.UseNpgsql(_connection, options => options.EnableRetryOnFailure());
+
+            base.OnConfiguring(options);
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
