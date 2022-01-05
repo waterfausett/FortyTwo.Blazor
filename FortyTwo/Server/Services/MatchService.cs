@@ -74,6 +74,9 @@ namespace FortyTwo.Server.Services
                 Position = position,
             });
 
+
+            // TODO: maybe split this last part out?
+
             match.CurrentGame.Hands.Add(new Hand() { PlayerId = _userId, Team = (int)position % 2 == 0 ? Teams.TeamA : Teams.TeamB });
 
             // if we have a full roster, setup the first game
