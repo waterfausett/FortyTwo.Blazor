@@ -13,21 +13,13 @@ namespace FortyTwo.Entity.Models
             Players = new List<MatchPlayer>();
         }
 
-        public Match(Guid id) : base() { Id = id; }
+        public Match(Guid id) : this() { Id = id; }
 
         public Guid Id { get; }
         public Game CurrentGame { get; set; }
         public Dictionary<Teams, List<Game>> Games { get; set; }
         public Dictionary<Teams, int> Scores => Games?.ToDictionary(kv => kv.Key, kv => kv.Value.Sum(g => g.Value ?? 0));
         public Teams? WinningTeam { get; set; }
-        /*
-         * TODO: move this to the service
-        {
-            get => Scores.Values.Any(x => x >= WinningScore)
-                ? Scores.First(x => x.Value >= WinningScore).Key
-                : null;
-        }
-        */
         public DateTimeOffset CreatedOn { get; set; }
         public DateTimeOffset UpdatedOn { get; set; }
 
