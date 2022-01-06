@@ -48,8 +48,8 @@ namespace FortyTwo.Server
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             }).AddJwtBearer(options =>
             {
-                options.Authority = Configuration["Auth0:Authority"];
-                options.Audience = Configuration["Auth0:ApiAudience"];
+                options.Authority = Configuration["Auth0_Authority"];
+                options.Audience = Configuration["Auth0_ApiAudience"];
             });
 
             services.AddAuthorization(options =>

@@ -23,9 +23,9 @@ namespace FortyTwo.Server.Controllers
             {
                 Auth0 = new
                 {
-                    ClientId = _configuration["Auth0:ClientId"],
-                    Authority = _configuration["Auth0:Authority"],
-                    ApiAudience = _configuration["Auth0:ApiAudience"]
+                    ClientId = _configuration["Auth0_ClientId"],
+                    Authority = _configuration["Auth0_Authority"],
+                    ApiAudience = _configuration["Auth0_ApiAudience"]
                 }
             };
 

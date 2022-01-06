@@ -23,7 +23,7 @@ namespace FortyTwo.Client
                 builder.Configuration.Bind("Auth0", options.ProviderOptions);
                 options.ProviderOptions.ResponseType = "code";
                 options.ProviderOptions.DefaultScopes.Add("email");
-                options.ProviderOptions.DefaultScopes.Add(builder.Configuration["Auth0:ApiAudience"]);
+                options.ProviderOptions.DefaultScopes.Add(builder.Configuration["Auth0_ApiAudience"]);
             });
 
             builder.Services.AddApiAuthorization();
