@@ -24,5 +24,4 @@ WORKDIR /app
 COPY --from=publish /app/publish .
 #ENTRYPOINT ["dotnet", "FortyTwo.Server.dll"]
 # heroku uses the following
-
-CMD DATABASE_URL=$DATABASE_URL Auth0_ClientId=$Auth0_ClientId Auth0_Authority=$Auth0_Authority Auth0_ApiAudience=$Auth0_ApiAudience ASPNETCORE_URLS=http://*:$PORT dotnet FortyTwo.Server.dll
+CMD DATABASE_URL=$DATABASE_URL Auth0_ClientId=$Auth0_ClientId Auth0_Authority=$Auth0_Authority Auth0_ApiAudience=$Auth0_ApiAudience Auth0_ApiClient_PublicOrigin=$Auth0_ApiClient_PublicOrigin Auth0_ApiClient_ClientId=$Auth0_ApiClient_ClientId Auth0_ApiClient_ClientSecret=$Auth0_ApiClient_ClientSecret Auth0_ApiClient_Audience=$Auth0_ApiClient_Audience ASPNETCORE_URLS=http://*:$PORT dotnet FortyTwo.Server.dll

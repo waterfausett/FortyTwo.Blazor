@@ -1,7 +1,6 @@
-﻿using FortyTwo.Server.Config;
-using FortyTwo.Server.Services.Security;
+﻿using FortyTwo.Server.Services.Security;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -17,19 +16,19 @@ namespace FortyTwo.Server.Services
 
     internal class Auth0AccessTokenProvider : IAuth0AccessTokenProvider
     {
-        private readonly IOptionsMonitor<Auth0ApiClientConfiguration> _apiClientConfig;
+        private readonly IConfiguration _configuration;
         private readonly HttpClient _httpClient;
 
         private readonly IMemoryCache _cache;
 
         public Auth0AccessTokenProvider(
-            IOptionsMonitor<Auth0ApiClientConfiguration> apiClientConfig,
+            IConfiguration configuration,
             IHttpClientFactory httpClientFactory,
             IMemoryCache memoryCache)
         {
-            _apiClientConfig = apiClientConfig;
+            _configuration = configuration;
             _httpClient = httpClientFactory.CreateClient();
-            _httpClient.BaseAddress = new Uri(_apiClientConfig.CurrentValue.PublicOrigin);
+            _httpClient.BaseAddress = new Uri(_configuration["Auth0_ApiClient_PublicOrigin"]);
             _cache = memoryCache;
         }
 
@@ -45,9 +44,9 @@ namespace FortyTwo.Server.Services
             var content = new Dictionary<string, string>
             {
                 {"grant_type", "client_credentials"},
-                {"client_id", _apiClientConfig.CurrentValue.ClientId},
-                {"client_secret", _apiClientConfig.CurrentValue.ClientSecret},
-                {"audience", _apiClientConfig.CurrentValue.Audience}
+                {"client_id", _configuration["Auth0_ApiClient_ClientId"]},
+                {"client_secret", _configuration["Auth0_ApiClient_ClientSecret"]},
+                {"audience", _configuration["Auth0_ApiClient_Audience"]}
             };
             using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new FormUrlEncodedContent(content) };
             var response = await _httpClient.SendAsync(request);

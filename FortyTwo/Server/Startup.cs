@@ -1,11 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
-using System.Security.Claims;
 using System.Text.Json;
 using AutoMapper;
 using FortyTwo.Entity;
 using FortyTwo.Server.AutoMapper;
-using FortyTwo.Server.Config;
 using FortyTwo.Server.Hubs;
 using FortyTwo.Server.Middleware;
 using FortyTwo.Server.Security;
@@ -14,7 +12,6 @@ using FortyTwo.Server.Services.Security;
 using FortyTwo.Shared.Models.Security;
 using FortyTwo.Shared.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Authorization;
@@ -23,7 +20,6 @@ using Microsoft.AspNetCore.Rewrite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.IdentityModel.Tokens;
 
 namespace FortyTwo.Server
 {
@@ -39,8 +35,6 @@ namespace FortyTwo.Server
         public void ConfigureServices(IServiceCollection services)
         {
             JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
-
-            services.Configure<Auth0ApiClientConfiguration>(Configuration.GetSection("Auth0:ApiClient"));
 
             services.AddAuthentication(options =>
             {

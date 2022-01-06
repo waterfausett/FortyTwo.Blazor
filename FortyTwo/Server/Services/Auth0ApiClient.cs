@@ -1,7 +1,6 @@
-﻿using FortyTwo.Server.Config;
-using FortyTwo.Shared.DTO;
+﻿using FortyTwo.Shared.DTO;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -21,11 +20,11 @@ namespace FortyTwo.Server.Services
         private readonly HttpClient _httpClient;
         private readonly ILogger _logger;
 
-        public Auth0ApiClient(IOptionsMonitor<Auth0ApiClientConfiguration> apiClientConfig, IAuth0AccessTokenProvider accessTokenProvider, IHttpClientFactory httpClientFactory, ILogger<Auth0ApiClient> logger)
+        public Auth0ApiClient(IConfiguration configuration, IAuth0AccessTokenProvider accessTokenProvider, IHttpClientFactory httpClientFactory, ILogger<Auth0ApiClient> logger)
         {
             _accessTokenProvider = accessTokenProvider;
             _httpClient = httpClientFactory.CreateClient();
-            _httpClient.BaseAddress = new Uri(apiClientConfig.CurrentValue.PublicOrigin);
+            _httpClient.BaseAddress = new Uri(configuration["Auth0_ApiClient_PublicOrigin"]);
             _logger = logger;
         }
 
