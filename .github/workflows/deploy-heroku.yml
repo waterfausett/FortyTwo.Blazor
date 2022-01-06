@@ -1,4 +1,4 @@
-name: CI
+name: CD-Heroku
 
 on:
   push:
@@ -15,8 +15,11 @@ jobs:
       env: 
         HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         APP_NAME: ${{ 'fortytwogame' }}
+        AUTH0_CLIENTID: ${{ secrets.AUTH0_CLIENTID }}
       run: |
         cd ./
         docker login --username=_ --password=$HEROKU_API_KEY registry.heroku.com
+        docker build \
+        --build-arg Auth0_ClientId=$AUTH0_CLIENTID
         heroku container:push web -a $APP_NAME
         heroku container:release web -a $APP_NAME
