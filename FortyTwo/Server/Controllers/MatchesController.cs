@@ -1,37 +1,31 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using FortyTwo.Server.Hubs;
 using FortyTwo.Server.Services;
 using FortyTwo.Shared.Models;
 using FortyTwo.Shared.DTO;
-using FortyTwo.Shared.Models.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
-using FortyTwo.Shared.Services;
 
 namespace FortyTwo.Server.Controllers
 {
-    //[AllowAnonymous]
     [Route("api/[controller]")]
     [ApiController]
     public class MatchesController : ControllerBase
     {
         private readonly ILogger<MatchesController> _logger;
         private readonly IMapper _mapper;
-        private readonly UserId _userId;
         private readonly IMatchService _matchService;
         private readonly IHubContext<GameHub> _gameHubContext;
 
-        public MatchesController(ILogger<MatchesController> logger, IMapper mapper, UserId userId, IMatchService matchService, IHubContext<GameHub> gameHubContext)
+        public MatchesController(ILogger<MatchesController> logger, IMapper mapper, IMatchService matchService, IHubContext<GameHub> gameHubContext)
         {
             _logger = logger;
             _mapper = mapper;
-            _userId = userId;
             _matchService = matchService;
             _gameHubContext = gameHubContext;
         }
