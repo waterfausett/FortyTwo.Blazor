@@ -9,11 +9,6 @@ namespace FortyTwo.Shared.Services
         DoubleSix = 6
     }
 
-    public interface IDominoService
-    {
-        List<Domino> InitDominos(DominoType type, bool shuffle = true);
-    }
-
     public class DominoService : IDominoService
     {
         public List<Domino> InitDominos(DominoType type, bool shuffle = true)
