@@ -17,7 +17,7 @@ namespace FortyTwo.Server
                 {
                     config
                         .AddEnvironmentVariables()
-                        .AddUserSecrets<Program>();
+                        .AddUserSecrets<Program>(optional: true);
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
