@@ -4,8 +4,6 @@ namespace FortyTwo.Entity.Models
 {
     public class Match
     {
-        private const int WinningScore = 7;
-
         public Match()
         {
             Id = Guid.NewGuid();

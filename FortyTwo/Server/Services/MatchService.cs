@@ -244,7 +244,12 @@ namespace FortyTwo.Server.Services
                 match.CurrentGame.CurrentPlayerId = match.CurrentGame.CurrentTrick.PlayerId;
                 match.CurrentGame.CurrentTrick = new Trick();
             }
-            else
+
+            match.WinningTeam = match.Scores.Any(x => x.Value >= Shared.Constants.WinningScore)
+                ? match.Scores.Aggregate((x, y) => x.Value > y.Value ? x : y).Key
+                : null;
+
+            if (!match.WinningTeam.HasValue)
             {
                 match.SelectNextPlayer();
             }
