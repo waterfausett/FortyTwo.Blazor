@@ -5,10 +5,6 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-ARG Auth0_ClientId
-
-ENV Auth0_ClientId ${Auth0_ClientId?notset}
-
 FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
 WORKDIR /src
 COPY ["FortyTwo/Server/FortyTwo.Server.csproj", "FortyTwo/Server/"]
