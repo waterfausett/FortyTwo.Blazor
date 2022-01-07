@@ -83,6 +83,14 @@ namespace FortyTwo.Server.Controllers
             return Ok(player);
         }
 
+        [HttpPatch("{id}/players")]
+        public async Task<IActionResult> PatchPlayer(Guid id, PlayerPatchRequest request)
+        {
+            await _matchService.PatchPlayerAsync(id, request);
+
+            return Ok();
+        }
+
         [HttpPost("{id}/bids")]
         public async Task<IActionResult> PostBid([Required] Guid id, [Required, FromBody] Bid bid)
         {

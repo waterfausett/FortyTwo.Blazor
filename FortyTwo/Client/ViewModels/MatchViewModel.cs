@@ -9,6 +9,8 @@ using FortyTwo.Shared.Models;
 using FortyTwo.Shared.DTO;
 using Game = FortyTwo.Shared.DTO.Game;
 using Match = FortyTwo.Shared.DTO.Match;
+using System.Text.Json;
+using System.Text;
 
 namespace FortyTwo.Client.ViewModels
 {
@@ -26,6 +28,7 @@ namespace FortyTwo.Client.ViewModels
         Task UpdateGame(Game game);
         Task FetchPlayerAsync();
         Task<ExceptionDetails> BidAsync(Bid bid);
+        Task<ExceptionDetails> UpdatePlayerAsync(bool ready);
         Task<ExceptionDetails> SelectTrumpAsync(Suit suit);
         Task<ExceptionDetails> MakeMoveAsync(Domino domino);
     }
@@ -173,6 +176,27 @@ namespace FortyTwo.Client.ViewModels
             finally
             {
                 Bidding = false;
+            }
+        }
+
+        public async Task<ExceptionDetails> UpdatePlayerAsync(bool ready)
+        {
+            try
+            {
+                var content = new StringContent(JsonSerializer.Serialize(new PlayerPatchRequest { Ready = ready }), Encoding.UTF8, "application/json");
+                using var response = await _http.PatchAsync($"api/matches/{MatchId}/players", content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadFromJsonAsync<ExceptionDetails>();
+                }
+
+                Player.Ready = ready;
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return new ExceptionDetails { Title = ex.Message };
             }
         }
 

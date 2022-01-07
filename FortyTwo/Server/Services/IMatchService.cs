@@ -12,6 +12,7 @@ namespace FortyTwo.Server.Services
         Task DeleteAsync(Guid id);
         Task<List<Match>> FetchForUserAsync(bool completed);
         Task<Match> GetAsync(Guid id);
+        Task PatchPlayerAsync(Guid id, Shared.DTO.PlayerPatchRequest request);
         Task<Match> AddPlayerAsync(Guid id, Teams team);
         Task<Match> BidAsync(Guid id, Bid bid);
         Task<Match> SetTrumpForCurrentGameAsync(Guid id, Suit suit);

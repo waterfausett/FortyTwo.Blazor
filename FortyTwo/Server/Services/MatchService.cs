@@ -54,6 +54,31 @@ namespace FortyTwo.Server.Services
             return _context.SaveChangesAsync();
         }
 
+        public async Task PatchPlayerAsync(Guid id, Shared.DTO.PlayerPatchRequest request)
+        {
+            var match = await _context.Matches
+                .Include(x => x.Players)
+                .Where(x => x.Id == id)
+                .FirstOrDefaultAsync();
+
+            _matchValidationService
+                .IsActive(match).IsActive(match.CurrentGame)
+                .IsMatchPlayer(match, _userId);
+
+            var matchPlayer = match.Players.First(x => x.PlayerId == _userId);
+
+            if (request.Ready.HasValue)
+            {
+                matchPlayer.Ready = request.Ready.Value;
+            }
+
+            if (!_context.ChangeTracker.HasChanges()) return;
+
+            match.UpdatedOn = DateTimeOffset.UtcNow;
+
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<Match> AddPlayerAsync(Guid id, Teams team)
         {
             var match = await _context.Matches.Include(x => x.Players).FirstAsync(x => x.Id == id);
@@ -154,6 +179,7 @@ namespace FortyTwo.Server.Services
                 Id = matchPlayer.PlayerId,
                 Team = (int)matchPlayer.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB,
                 IsActive = match.CurrentGame.CurrentPlayerId == _userId,
+                Ready = matchPlayer.Ready,
                 Dominos = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Dominos,
                 Bid = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Bid
             };

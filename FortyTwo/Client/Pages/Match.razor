@@ -172,6 +172,24 @@
             }
 
             <div class="player">
+                <div>
+                    @if (Model.CurrentGame.WinningTeam.HasValue)
+                    {
+                        if (!Model.Player.Ready)
+                        {
+                            <button type="button" class="btn btn-success"
+                                @onclick="@(async () => await UpdatePlayerAsync(ready: true))">
+                                Ready Up!
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="alert alert-success" role="alert">
+                                ✔ Ready <span class="text-muted">waiting on other players&hellip;</span>
+                            </div>
+                        }
+                    }
+                </div>
                 <div class="row">
                     <div class="col-12">
                         <hr />
@@ -318,13 +336,10 @@
                     Title = title,
                     Text = text,
                     ShowConfirmButton = true,
-                    ConfirmButtonText = "Ready up",
-                    ConfirmButtonColor = "green",
+                    ConfirmButtonText = "OK",
                     FocusConfirm = true,
                     ShowCancelButton = false,
                     ShowCloseButton = false,
-                    AllowEscapeKey = false,
-                    AllowOutsideClick = false,
                 });
             }
         });
@@ -356,6 +371,23 @@
             });
         }
     }
+
+    public async Task UpdatePlayerAsync(bool ready)
+    {
+        var error = await Model.UpdatePlayerAsync(ready);
+
+        if (error != null)
+        {
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Error,
+                Title = error.Title,
+                Html = error.Detail.Truncate(250),
+                ConfirmButtonText = "Ok",
+            });
+        }
+    }
+
 
     public async Task SelectTrumpAsync(Suit suit)
     {
