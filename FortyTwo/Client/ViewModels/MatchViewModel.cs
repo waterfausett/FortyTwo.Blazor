@@ -97,6 +97,17 @@ namespace FortyTwo.Client.ViewModels
                 _store.Matches.RemoveAll(x => x.Id == MatchId);
                 _store.Matches.Add(match);
 
+                var unknownUserIds = match.Players
+                    .Select(x => x.Id)
+                    .Except(_store.Users.Select(x => x.Id))
+                    .ToList();
+
+                if (unknownUserIds.Any())
+                {
+                    var usersResponse = await _http.PostAsJsonAsync("api/users", unknownUserIds);
+                    _store.Users.AddRange(await usersResponse.Content.ReadFromJsonAsync<List<User>>());
+                }
+
                 await UpdateGame(match.CurrentGame);
             }
             finally

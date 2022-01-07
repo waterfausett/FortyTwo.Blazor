@@ -59,6 +59,17 @@ namespace FortyTwo.Client.ViewModels
 
                 _store.Matches = matches;
 
+                var unknownUserIds = matches.SelectMany(x => x.Players)
+                    .Select(x => x.Id)
+                    .Except(_store.Users.Select(x => x.Id))
+                    .ToList();
+
+                if (unknownUserIds.Any())
+                {
+                    var usersResponse = await _http.PostAsJsonAsync("api/users", unknownUserIds);
+                    _store.Users.AddRange(await usersResponse.Content.ReadFromJsonAsync<List<User>>());
+                }
+
                 if (matchFilter.HasValue) _matchFilter = matchFilter.Value;
             }
             finally

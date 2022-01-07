@@ -1,5 +1,6 @@
 ﻿using FortyTwo.Server.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace FortyTwo.Server.Controllers
@@ -21,6 +22,15 @@ namespace FortyTwo.Server.Controllers
             var users = await _apiClient.GetUsersAsync();
 
             return Ok(users);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Get(List<string> userIds)
+        {
+            var users = await _apiClient.GetUsersAsync(userIds);
+
+            return Ok(users);
+
         }
     }
 }

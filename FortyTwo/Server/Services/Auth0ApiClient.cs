@@ -9,11 +9,6 @@ using System.Threading.Tasks;
 
 namespace FortyTwo.Server.Services
 {
-    public interface IAuth0ApiClient
-    {
-        Task<List<User>> GetUsersAsync();
-    }
-
     internal class Auth0ApiClient : IAuth0ApiClient
     {
         private readonly IAuth0AccessTokenProvider _accessTokenProvider;
@@ -33,27 +28,6 @@ namespace FortyTwo.Server.Services
             const string url = "api/v2/users?fields=identities,app_metadata,last_ip&include_fields=false";
 
             var users = await FetchAsync<List<User>>(url);
-
-            users.Add(new User
-            {
-                Id = "Id:Jack",
-                FirstName = "Jack"
-            });
-            users.Add(new User
-            {
-                Id = "Id:Adam",
-                FirstName = "Adam"
-            });
-            users.Add(new User
-            {
-                Id = "Id:Jill",
-                FirstName = "Jill"
-            });
-            users.Add(new User
-            {
-                Id = "Id:Emily",
-                FirstName = "Emily"
-            });
 
             return users;
         }
