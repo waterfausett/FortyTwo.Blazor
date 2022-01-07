@@ -54,7 +54,7 @@ namespace FortyTwo.Server.Services
             return _context.SaveChangesAsync();
         }
 
-        public async Task PatchPlayerAsync(Guid id, Shared.DTO.PlayerPatchRequest request)
+        public async Task<Match> PatchPlayerAsync(Guid id, Shared.DTO.PlayerPatchRequest request)
         {
             var match = await _context.Matches
                 .Include(x => x.Players)
@@ -69,14 +69,51 @@ namespace FortyTwo.Server.Services
 
             if (request.Ready.HasValue)
             {
-                matchPlayer.Ready = request.Ready.Value;
+                ReadyUp(match, matchPlayer, request.Ready.Value);
             }
 
-            if (!_context.ChangeTracker.HasChanges()) return;
+            if (!_context.ChangeTracker.HasChanges()) return null;
 
             match.UpdatedOn = DateTimeOffset.UtcNow;
 
             await _context.SaveChangesAsync();
+
+            return match;
+        }
+
+        private void ReadyUp(Match match, MatchPlayer matchPlayer, bool ready)
+        {
+            matchPlayer.Ready = ready;
+
+            if (match.CurrentGame.WinningTeam.HasValue && match.Players.All(x => x.Ready))
+            {
+                var lastGame = match.CurrentGame;
+
+                match.Games.TryGetValue(match.CurrentGame.WinningTeam.Value, out var matchGames);
+                matchGames ??= new List<Game>();
+
+                matchGames.Add(match.CurrentGame);
+                match.Games[match.CurrentGame.WinningTeam.Value] = matchGames;
+
+                match.CurrentGame = new Game($"Game {match.Games.Values.Count + 1}");
+
+                var firstActionByPosition = match.Players.First(x => x.PlayerId == lastGame.FirstActionBy).Position.NextPosition();
+                var firstActionBy = match.Players.First(x => x.Position == firstActionByPosition).PlayerId;
+
+                match.CurrentGame.FirstActionBy = firstActionBy;
+                match.CurrentGame.CurrentPlayerId = firstActionBy;
+
+                var dominos = _dominoService.InitDominos(DominoType.DoubleSix);
+                foreach (var player in match.Players)
+                {
+                    match.CurrentGame.Hands.Add(new Hand() 
+                    { 
+                        PlayerId = player.PlayerId,
+                        Team = (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB,
+                        Dominos = dominos.GetRange((int)player.Position * 7, 7)
+                    });
+                }
+            }
         }
 
         public async Task<Match> AddPlayerAsync(Guid id, Teams team)
@@ -296,7 +333,7 @@ namespace FortyTwo.Server.Services
                 ? match.Scores.Aggregate((x, y) => x.Value > y.Value ? x : y).Key
                 : null;
 
-            if (match.CurrentGame.WinningTeam.HasValue)
+            if (!match.WinningTeam.HasValue && match.CurrentGame.WinningTeam.HasValue)
             {
                 match.Players.ForEach(x => x.Ready = false);
             }

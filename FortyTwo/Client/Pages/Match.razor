@@ -302,6 +302,12 @@
             StateHasChanged();
         });
 
+        _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnMatchChanged", async (game) =>
+        {
+            await Model.FetchMatchAsync();
+            await Model.FetchPlayerAsync();
+        });
+
         _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
         {
             if (Model.CurrentGame.CurrentTrick.Dominos.Count(x => x != null) == 3 && game.CurrentTrick.Dominos.All(x => x == null))

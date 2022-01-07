@@ -86,7 +86,13 @@ namespace FortyTwo.Server.Controllers
         [HttpPatch("{id}/players")]
         public async Task<IActionResult> PatchPlayer(Guid id, PlayerPatchRequest request)
         {
-            await _matchService.PatchPlayerAsync(id, request);
+            var match = await _matchService.PatchPlayerAsync(id, request);
+
+            if (match != null)
+            {
+                var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
+                await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnMatchChanged", matchDTO);
+            }
 
             return Ok();
         }
