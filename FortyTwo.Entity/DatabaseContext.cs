@@ -8,7 +8,11 @@ namespace FortyTwo.Entity
 {
     public class DatabaseContext : DbContext
     {
-        private readonly NpgsqlConnection _connection;
+        private readonly NpgsqlConnection _pgsqlConnection;
+
+        public DatabaseContext(DbContextOptions<DatabaseContext> options)
+           : base(options)
+        { }
 
         public DatabaseContext(IConfiguration configuration)
         {
@@ -24,12 +28,15 @@ namespace FortyTwo.Entity
                 Database = databaseUri.LocalPath.TrimStart('/')
             };
 
-            _connection = new NpgsqlConnection(builder.ToString());
+            _pgsqlConnection = new NpgsqlConnection(builder.ToString());
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
-            options.UseNpgsql(_connection, options => options.EnableRetryOnFailure());
+            if (_pgsqlConnection != null)
+            {
+                options.UseNpgsql(_pgsqlConnection, options => options.EnableRetryOnFailure());
+            }
 
             base.OnConfiguring(options);
         }

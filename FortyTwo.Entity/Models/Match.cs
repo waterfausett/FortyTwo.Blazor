@@ -31,8 +31,6 @@ namespace FortyTwo.Entity.Models
     {
         public static void SelectNextPlayer(this Match match)
         {
-            // TODO: should no-op or blow up here?
-
             if (string.IsNullOrWhiteSpace(match.CurrentGame?.CurrentPlayerId)) return;
 
             var nextPlayerPosition = match.Players.First(x => x.PlayerId == match.CurrentGame.CurrentPlayerId).Position.NextPosition();

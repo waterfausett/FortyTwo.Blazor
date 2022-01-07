@@ -218,19 +218,19 @@ namespace FortyTwo.Server.Services
             // TODO: figure out how we'll handle supporting low hands
             //  - possibly another enum entry for Low (-1)
 
-            var player = match.Players.First(x => x.PlayerId == _userId);
+            var player = match.Players.Single(x => x.PlayerId == _userId);
 
-            match.CurrentGame.Hands.First(x => x.PlayerId == _userId).Dominos.Remove(domino);
+            match.CurrentGame.Hands.Single(x => x.PlayerId == _userId).Dominos.Remove(domino);
 
             // TODO: play the domino
             match.CurrentGame.CurrentTrick ??= new Trick();
             match.CurrentGame.CurrentTrick.AddDomino(domino, match.CurrentGame.Trump.Value);
 
-            var currnetlyWinningDomino = match.CurrentGame.CurrentTrick.Dominos.Where(x => x != null)
+            var currentlyWinningDomino = match.CurrentGame.CurrentTrick.Dominos.Where(x => x != null)
                 .OrderByDescending(x => x.GetSuitValue(match.CurrentGame.CurrentTrick.Suit.Value, match.CurrentGame.Trump.Value))
                 .First();
 
-            if (currnetlyWinningDomino.Equals(domino))
+            if (currentlyWinningDomino.Equals(domino))
             {
                 match.CurrentGame.CurrentTrick.PlayerId = _userId;
                 match.CurrentGame.CurrentTrick.Team = (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB;
@@ -243,13 +243,12 @@ namespace FortyTwo.Server.Services
                 match.CurrentGame.Tricks.Add(match.CurrentGame.CurrentTrick);
                 match.CurrentGame.CurrentPlayerId = match.CurrentGame.CurrentTrick.PlayerId;
                 match.CurrentGame.CurrentTrick = new Trick();
+
+                match.WinningTeam = match.Scores.Any(x => x.Value >= Shared.Constants.WinningScore)
+                    ? match.Scores.Aggregate((x, y) => x.Value > y.Value ? x : y).Key
+                    : null;
             }
-
-            match.WinningTeam = match.Scores.Any(x => x.Value >= Shared.Constants.WinningScore)
-                ? match.Scores.Aggregate((x, y) => x.Value > y.Value ? x : y).Key
-                : null;
-
-            if (!match.WinningTeam.HasValue)
+            else
             {
                 match.SelectNextPlayer();
             }

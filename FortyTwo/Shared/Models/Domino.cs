@@ -55,7 +55,7 @@ namespace FortyTwo.Shared.Models
                 ? IsDouble ? 7 : this.Top == (int)suit ? this.Bottom : this.Top
                 : IsOfSuit(trump)
                     ? 10 + (IsDouble ? 7 : this.Top == (int)suit ? this.Bottom : this.Top)
-                    : 0;
+                    : -1;
 
         public bool Equals(Domino other)
         {
