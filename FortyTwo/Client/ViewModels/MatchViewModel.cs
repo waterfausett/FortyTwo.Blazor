@@ -75,6 +75,9 @@ namespace FortyTwo.Client.ViewModels
                     biddingOptions.Remove(Bid.Plunge);
                 }
 
+                // HACK: always remove this option until it's fully supported in the rest of the app
+                biddingOptions.Remove(Bid.Plunge);
+
                 if (CurrentGame.Bid.HasValue)
                 {
                     biddingOptions.RemoveAll(x => (x != Bid.Pass && x != Bid.Plunge) && x <= CurrentGame.Bid.Value);
