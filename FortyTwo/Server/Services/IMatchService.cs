@@ -9,6 +9,7 @@ namespace FortyTwo.Server.Services
     public interface IMatchService
     {
         Task<Match> CreateAsync();
+        Task DeleteAsync(Guid id);
         Task<List<Match>> FetchForUserAsync(bool completed);
         Task<Match> GetAsync(Guid id);
         Task<Match> AddPlayerAsync(Guid id, Teams team);

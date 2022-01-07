@@ -59,6 +59,14 @@ namespace FortyTwo.Server.Controllers
             return Created($"/match/{match.Id}", _mapper.Map<Shared.DTO.Match>(match));
         }
 
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(Guid id)
+        {
+            await _matchService.DeleteAsync(id);
+
+            return Ok();
+        }
+
         [HttpPost("{id}/players")]
         public async Task<IActionResult> AddPlayer([Required] Guid id, [Required, FromBody] AddPlayerRequest request)
         {

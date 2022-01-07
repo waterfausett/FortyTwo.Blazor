@@ -22,6 +22,7 @@ namespace FortyTwo.Client.ViewModels
         public List<Match> Matches { get; }
         Task FetchMatchesAsync(MatchFilter? matchFilter = null);
         Task<ExceptionDetails> CreateMatchAsync();
+        Task<ExceptionDetails> DeleteMatchAsync(Guid matchId);
         string GetPlayerName(string playerId);
         Task<ExceptionDetails> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team);
     }
@@ -103,6 +104,26 @@ namespace FortyTwo.Client.ViewModels
             finally
             {
                 IsCreating = false;
+            }
+        }
+
+        public async Task<ExceptionDetails> DeleteMatchAsync(Guid matchId)
+        {
+            try
+            {
+                var response = await _http.DeleteAsync($"api/matches/{matchId}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadFromJsonAsync<ExceptionDetails>();
+                }
+
+                _store.Matches.RemoveAll(match => match.Id == matchId);
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return new ExceptionDetails { Title = ex.Message };
             }
         }
 

@@ -190,6 +190,22 @@
         }
     }
 
+    private async Task DeleteMatchAsync(Guid id)
+    {
+        var error = await Model.DeleteMatchAsync(id);
+
+        if (error != null)
+        {
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Error,
+                Title = error.Title,
+                Html = error.Detail.Truncate(250),
+                ConfirmButtonText = "Ok",
+            });
+        }
+    }
+
     private async Task JoinMatchAsync(Guid matchId, Teams team)
     {
         var error = await Model.JoinMatchAsync(matchId, team);

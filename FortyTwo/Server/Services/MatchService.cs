@@ -44,6 +44,16 @@ namespace FortyTwo.Server.Services
             return match;
         }
 
+        public Task DeleteAsync(Guid id)
+        {
+            var match = new Match(id);
+
+            _context.Matches.Attach(match);
+            _context.Matches.Remove(match);
+
+            return _context.SaveChangesAsync();
+        }
+
         public async Task<Match> AddPlayerAsync(Guid id, Teams team)
         {
             var match = await _context.Matches.Include(x => x.Players).FirstAsync(x => x.Id == id);
