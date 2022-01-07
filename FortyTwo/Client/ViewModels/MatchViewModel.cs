@@ -127,7 +127,7 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public Task UpdateGame(Game game)
+        public async Task UpdateGame(Game game)
         {
             // TODO: maybe add a tracking flag to track if we know we're waiting on an update
 
@@ -136,7 +136,10 @@ namespace FortyTwo.Client.ViewModels
             Player.Bid ??= game.Hands.First(x => x.PlayerId == Player.Id).Bid;
             Player.IsActive = game.CurrentPlayerId == Player.Id;
 
-            return Task.CompletedTask;
+            if (game.WinningTeam.HasValue)
+            {
+                await FetchPlayerAsync();
+            }
         }
 
         public async Task FetchPlayerAsync()
