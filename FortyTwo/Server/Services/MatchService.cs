@@ -102,6 +102,8 @@ namespace FortyTwo.Server.Services
                 match.CurrentGame.Hands[3].Dominos = dominos.GetRange(21, 7);
             }
 
+            match.UpdatedOn = DateTimeOffset.UtcNow;
+
             await _context.SaveChangesAsync();
 
             return match;
@@ -187,6 +189,8 @@ namespace FortyTwo.Server.Services
                 match.CurrentGame.CurrentPlayerId = match.CurrentGame.BiddingPlayerId;
             }
 
+            match.UpdatedOn = DateTimeOffset.UtcNow;
+
             await _context.SaveChangesAsync();
 
             return match;
@@ -204,6 +208,8 @@ namespace FortyTwo.Server.Services
                 .IsActiveBidder(match.CurrentGame, _userId);
 
             match.CurrentGame.Trump ??= suit;
+
+            match.UpdatedOn = DateTimeOffset.UtcNow;
 
             await _context.SaveChangesAsync();
 
@@ -262,6 +268,8 @@ namespace FortyTwo.Server.Services
             {
                 match.SelectNextPlayer();
             }
+
+            match.UpdatedOn = DateTimeOffset.UtcNow;
 
             await _context.SaveChangesAsync();
 
