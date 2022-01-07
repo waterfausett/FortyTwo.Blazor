@@ -25,11 +25,11 @@
     }
     else
     {
-        <div class="d-flex justify-content-between">
+        <div class="row justify-content-between border-bottom">
             @{ Model.Match.Scores.TryGetValue(Teams.TeamA, out var teamAScore); }
             @{ Model.Match.Scores.TryGetValue(Teams.TeamB, out var teamBScore); }
-            <div><label><b>Us:</b> <span data-score="@(Model.Player.Team == Teams.TeamA ? teamAScore : teamBScore)"></span></label></div>
-            <div><label><b>Them:</b> <span data-score="@(Model.Player.Team == Teams.TeamA ? teamBScore : teamAScore)"></span></label></div>
+            <div class="col-3 offset-1"><label><b>Us:</b> <span data-score="@(Model.Player.Team == Teams.TeamA ? teamAScore : teamBScore)"></span></label></div>
+            <div class="col-3"><label><b>Them:</b> <span data-score="@(Model.Player.Team == Teams.TeamA ? teamBScore : teamAScore)"></span></label></div>
         </div>
 
         <div class="game-wrapper">
