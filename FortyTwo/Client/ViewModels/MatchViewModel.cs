@@ -83,6 +83,11 @@ namespace FortyTwo.Client.ViewModels
                     biddingOptions.RemoveAll(x => (x != Bid.Pass && x != Bid.Plunge) && x <= CurrentGame.Bid.Value);
                 }
 
+                if (CurrentGame.Hands.Count(x => x.Bid == Bid.Pass) == 3)
+                {
+                    biddingOptions.Remove(Bid.Pass);
+                }
+
                 biddingOptions.RemoveAll(x => x > Bid.EightyFour && (!CurrentGame.Bid.HasValue || (int)x > ((int)CurrentGame.Bid + (int)Bid.FourtyTwo)));
 
                 return biddingOptions;

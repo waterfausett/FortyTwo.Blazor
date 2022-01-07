@@ -64,6 +64,9 @@ namespace FortyTwo.Server.Services
                 throw new CustomValidationException("Insufficient bid!",
                     $"A new bid must be hight than the current bid of <code>{game.Bid.Value.ToPrettyString()}</code>");
 
+            if (game.Hands.Count(x => x.Bid == Bid.Pass) == 3 && bid == Bid.Pass)
+                throw new CustomValidationException("Invalid Bid", "Everyone can't pass! You have to bid 😅");
+
             return this;
         }
 
