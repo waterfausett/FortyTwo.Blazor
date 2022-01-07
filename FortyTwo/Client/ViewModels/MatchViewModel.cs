@@ -185,20 +185,27 @@ namespace FortyTwo.Client.ViewModels
         {
             MakingMove = true;
 
+            var currentPlayerId = CurrentGame.CurrentPlayerId;
             try
             {
+                CurrentGame.CurrentPlayerId = null;
+
+                Player.Dominos.Remove(domino);
+                CurrentGame.CurrentTrick.AddDomino(domino, CurrentGame.Trump.Value);
+
                 var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/moves", domino);
                 if (!response.IsSuccessStatusCode)
                 {
                     return await response.Content.ReadFromJsonAsync<ExceptionDetails>();
                 }
 
-                Player.Dominos.Remove(domino);
-
                 return null;
             }
             catch (Exception ex)
             {
+                CurrentGame.CurrentPlayerId = currentPlayerId;
+                Player.Dominos.Add(domino);
+
                 return new ExceptionDetails { Title = ex.Message };
             }
             finally
