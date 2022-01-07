@@ -30,7 +30,7 @@ namespace FortyTwo.Server.Services
         {
             var match = new Match();
 
-            match.Players.Add(new MatchPlayer() { MatchId = match.Id, PlayerId = _userId, Position = Positions.First });
+            match.Players.Add(new MatchPlayer() { MatchId = match.Id, PlayerId = _userId, Position = Positions.First, Ready = true });
 
             match.CurrentGame.FirstActionBy = _userId;
             match.CurrentGame.CurrentPlayerId = _userId;
@@ -82,6 +82,7 @@ namespace FortyTwo.Server.Services
                 MatchId = match.Id,
                 PlayerId = _userId,
                 Position = position,
+                Ready = true,
             });
 
 
@@ -259,14 +260,19 @@ namespace FortyTwo.Server.Services
                 match.CurrentGame.Tricks.Add(match.CurrentGame.CurrentTrick);
                 match.CurrentGame.CurrentPlayerId = match.CurrentGame.CurrentTrick.PlayerId;
                 match.CurrentGame.CurrentTrick = new Trick();
-
-                match.WinningTeam = match.Scores.Any(x => x.Value >= Shared.Constants.WinningScore)
-                    ? match.Scores.Aggregate((x, y) => x.Value > y.Value ? x : y).Key
-                    : null;
             }
             else
             {
                 match.SelectNextPlayer();
+            }
+
+            match.WinningTeam = match.Scores.Any(x => x.Value >= Shared.Constants.WinningScore)
+                ? match.Scores.Aggregate((x, y) => x.Value > y.Value ? x : y).Key
+                : null;
+
+            if (match.CurrentGame.WinningTeam.HasValue)
+            {
+                match.Players.ForEach(x => x.Ready = false);
             }
 
             match.UpdatedOn = DateTimeOffset.UtcNow;
@@ -274,6 +280,22 @@ namespace FortyTwo.Server.Services
             await _context.SaveChangesAsync();
 
             return match;
+        }
+
+        public async Task MarkPlayerReadyAsync(Guid id)
+        {
+            var matchPlayer = await _context.MatchPlayers
+                .Where(x => x.MatchId == id && x.PlayerId == _userId)
+                .FirstOrDefaultAsync();
+
+            _matchValidationService
+                .IsActive(matchPlayer);
+
+            if (matchPlayer.Ready) return;
+
+            matchPlayer.Ready = true;
+
+            await _context.SaveChangesAsync();
         }
     }
 }

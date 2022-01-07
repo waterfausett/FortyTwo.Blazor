@@ -8,6 +8,7 @@ namespace FortyTwo.Entity.Models
         public Guid MatchId { get; set; }
         public string PlayerId { get; set; }
         public Positions Position { get; set; }
+        public bool Ready { get; set; }
 
         public Match Match { get; set; }
     }

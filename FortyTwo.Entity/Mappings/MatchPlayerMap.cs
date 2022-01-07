@@ -24,6 +24,10 @@ namespace FortyTwo.Entity.Mappings
                 .HasColumnName("position")
                 .IsRequired();
 
+            builder.Property(x => x.Ready)
+                .HasColumnName("is_ready")
+                .IsRequired();
+
             // Relationships
             builder.HasOne(x => x.Match)
                 .WithMany(x => x.Players);

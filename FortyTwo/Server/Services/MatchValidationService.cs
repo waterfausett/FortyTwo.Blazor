@@ -28,6 +28,14 @@ namespace FortyTwo.Server.Services
             return this;
         }
 
+        public IMatchValidationService IsActive(MatchPlayer matchPlayer)
+        {
+            if (matchPlayer == null)
+                throw new CustomValidationException("Player not found!");
+
+            return this;
+        }
+
         public IMatchValidationService IsActive(Game game)
         {
             if (game == null)

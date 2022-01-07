@@ -48,6 +48,6 @@ namespace FortyTwo.Entity
         }
 
         public DbSet<Match> Matches { get; set; }
-        public DbSet<Match> MatchPlayers { get; set; }
+        public DbSet<MatchPlayer> MatchPlayers { get; set; }
     }
 }
