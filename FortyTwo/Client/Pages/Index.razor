@@ -62,7 +62,7 @@
                                 <li class="list-group-item p-0 @(match.WinningTeam == Teams.TeamA ? "match-winner" : "")">
                                     <h5 class="card-title m-2 d-flex justify-content-between">
                                         <div>
-                                            @if (true || match.Teams[Teams.TeamA].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
+                                            @if (match.Teams[Teams.TeamA].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
                                             {
                                                 <span class="active-dot mr-2"></span>
                                             }
