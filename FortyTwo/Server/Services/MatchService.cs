@@ -62,7 +62,7 @@ namespace FortyTwo.Server.Services
                 .FirstOrDefaultAsync();
 
             _matchValidationService
-                .IsActive(match).IsActive(match.CurrentGame)
+                .IsActive(match)
                 .IsMatchPlayer(match, _userId);
 
             var matchPlayer = match.Players.First(x => x.PlayerId == _userId);
@@ -230,7 +230,8 @@ namespace FortyTwo.Server.Services
                 .FirstOrDefaultAsync();
 
             _matchValidationService
-                .IsActive(match).IsActive(match.CurrentGame)
+                .IsActive(match)
+                .IsActive(match.CurrentGame)
                 .IsActiveTurn(match.CurrentGame, _userId)
                 .ValidateBid(match.CurrentGame, _userId, bid);
 
