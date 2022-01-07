@@ -242,6 +242,7 @@ namespace FortyTwo.Client.ViewModels
                 var response = await _http.PostAsJsonAsync($"api/matches/{MatchId}/moves", domino);
                 if (!response.IsSuccessStatusCode)
                 {
+                    Reset();
                     return await response.Content.ReadFromJsonAsync<ExceptionDetails>();
                 }
 
@@ -249,14 +250,24 @@ namespace FortyTwo.Client.ViewModels
             }
             catch (Exception ex)
             {
-                CurrentGame.CurrentPlayerId = currentPlayerId;
-                Player.Dominos.Add(domino);
-
+                Reset();
                 return new ExceptionDetails { Title = ex.Message };
             }
             finally
             {
                 MakingMove = false;
+            }
+
+            void Reset()
+            {
+                CurrentGame.CurrentPlayerId = currentPlayerId;
+                Player.Dominos.Add(domino);
+
+                var index = Array.IndexOf(CurrentGame.CurrentTrick.Dominos, domino);
+                if (index != -1)
+                {
+                    CurrentGame.CurrentTrick.Dominos[index] = null;
+                }
             }
         }
     }
