@@ -3,6 +3,7 @@
     flex-direction: column;
     justify-content: space-between;
     height: calc(100vh - 3.5rem - 18px);
+    height: calc(100vh - 3.5rem - 51px);
 }
 
     .game-wrapper .player {
