@@ -27,6 +27,8 @@ namespace FortyTwo.Client.ViewModels
         public LoggedInPlayer Player { get; set; }
         Task FetchMatchAsync();
         Task UpdateGame(Game game);
+        Task UpdateMatch(Match match);
+
         Task FetchPlayerAsync();
         Task<ExceptionDetails> BidAsync(Bid bid);
         Task<ExceptionDetails> UpdatePlayerAsync(bool ready);
@@ -103,7 +105,7 @@ namespace FortyTwo.Client.ViewModels
         public async Task FetchMatchAsync()
         {
             _fetchingGame = true;
-            
+
             try
             {
                 var match = await _http.GetFromJsonAsync<Match>($"api/matches/{MatchId}");
@@ -134,6 +136,14 @@ namespace FortyTwo.Client.ViewModels
             {
                 await FetchPlayerAsync();
             }
+        }
+
+        public async Task UpdateMatch(Match match)
+        {
+            _store.Matches.RemoveAll(x => x.Id == MatchId);
+            _store.Matches.Add(match);
+
+            await UpdateGame(match.CurrentGame);
         }
 
         public async Task FetchPlayerAsync()

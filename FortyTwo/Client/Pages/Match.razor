@@ -304,10 +304,19 @@
             StateHasChanged();
         });
 
-        _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnMatchChanged", async (game) =>
+        _hubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", async (match) =>
         {
-            await Model.FetchMatchAsync();
+            await Model.UpdateMatch(match);
             await Model.FetchPlayerAsync();
+
+            StateHasChanged();
+
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Info,
+                Title = "The next game has started",
+                ConfirmButtonText = "Ok",
+            });
         });
 
         _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
