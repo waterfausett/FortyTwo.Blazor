@@ -213,11 +213,16 @@
                         }
 
                         <div class="domino-container">
-                            @foreach (var domino in Model.Player.Dominos ?? new List<FortyTwo.Shared.Models.Domino>())
+                            @{ var playerDominos = Model.Player.Dominos ?? new List<FortyTwo.Shared.Models.Domino>(); }
+                            @for (var i = 0; i < playerDominos.Count; ++i)
                             {
-                                <Domino Instance="domino"
+                                <Domino Instance="playerDominos[i]"
                                     Selectable="!Model.MakingMove && Model.Player.IsActive && Model.CurrentGame.Bid.HasValue && Model.CurrentGame.Trump.HasValue"
                                     OnSelected="async (domino) => await MakeMoveAsync(domino)"></Domino>
+                                if ((i + 1) % 4 == 0)
+                                {
+                                    <div class="domino-spacer d-none d-lg-block"></div>
+                                }
                             }
                         </div>
                     </div>

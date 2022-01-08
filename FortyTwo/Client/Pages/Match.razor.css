@@ -46,3 +46,7 @@
         justify-content: center;
         align-content: center;
     }
+
+        .game-wrapper .domino-container .domino-spacer {
+            flex-basis: 100%;
+        }
