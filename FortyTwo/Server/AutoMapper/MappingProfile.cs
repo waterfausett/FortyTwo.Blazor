@@ -17,8 +17,8 @@ namespace FortyTwo.Server.AutoMapper
                 .ForMember(dest => dest.Players, opt => opt.Ignore())
                 .ForMember(dest => dest.Teams, opt => opt.MapFrom(src => new Dictionary<Teams, List<Player>>()
                 {
-                    { Teams.TeamA, src.Players.Where(p => (int)p.Position % 2 == 0).Select(x => new Player() { Id = x.PlayerId, Position = x.Position }).ToList() },
-                    { Teams.TeamB, src.Players.Where(p => (int)p.Position % 2 != 0).Select(x => new Player() { Id = x.PlayerId, Position = x.Position }).ToList() },
+                    { Teams.TeamA, src.Players.Where(p => (int)p.Position % 2 == 0).Select(x => new Player() { Id = x.PlayerId, Position = x.Position, Ready = x.Ready }).ToList() },
+                    { Teams.TeamB, src.Players.Where(p => (int)p.Position % 2 != 0).Select(x => new Player() { Id = x.PlayerId, Position = x.Position, Ready = x.Ready }).ToList() },
                 }));
 
             CreateMap<Hand, Shared.DTO.Hand>()

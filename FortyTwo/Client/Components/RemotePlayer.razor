@@ -26,6 +26,14 @@
         </Chip>
     }
 
+    @if (Ready == true)
+    {
+        <Chip Context="Components.Models.ContextualClass.Success">
+            <Label>Ready</Label>
+            <Badge>✔</Badge>
+        </Chip>
+    }
+
     @if (DominoCount != 0)
     {
         <span>@DominoCount</span>
@@ -54,6 +62,9 @@ else
 
     [Parameter]
     public Suit? Trump { get; set; }
+
+    [Parameter]
+    public bool? Ready { get; set; }
 
     [Inject]
     public IClientStore Store { get; set; }
