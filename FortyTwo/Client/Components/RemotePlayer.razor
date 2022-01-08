@@ -1,51 +1,52 @@
 ﻿@using FortyTwo.Shared.Models
 
-@if (Player != null)
-{
-    <h4 class="ellipsis">
-        @if (IsActive)
+<div class="player-remote @(IsActive ? "active" : "")">
+    @if (Player != null)
+    {
+        <h4 class="ellipsis">
+            @if (IsActive)
+            {
+                <span class="active-dot mr-2"></span>
+            }
+            @GetPlayerName(Player.Id)
+        </h4>
+
+        @if (Bid.HasValue)
         {
-            <span class="active-dot mr-2"></span>
+            <Chip Context="Components.Models.ContextualClass.Warning">
+                <Label>Bid</Label>
+                <Badge>@Bid.Value.ToPrettyString()</Badge>
+            </Chip>
         }
-        @GetPlayerName(Player.Id)
-    </h4>
 
-    @if (Bid.HasValue)
-    {
-        <Chip Context="Components.Models.ContextualClass.Warning">
-            <Label>Bid</Label>
-            <Badge>@Bid.Value.ToPrettyString()</Badge>
-        </Chip>
+        @if (Trump.HasValue)
+        {
+            <Chip>
+                <Label>Trump</Label>
+                <Badge>@Trump.Value</Badge>
+            </Chip>
+        }
+
+        @if (Ready == true)
+        {
+            <Chip Context="Components.Models.ContextualClass.Success">
+                <Label>Ready</Label>
+                <Badge>✔</Badge>
+            </Chip>
+        }
+
+        @if (DominoCount != 0)
+        {
+            <span>@DominoCount</span>
+        }
     }
-
-    @if (Trump.HasValue)
+    else
     {
-        <Chip>
-            <Label>Trump</Label>
-            <Badge>@Trump.Value</Badge>
-        </Chip>
+        <div class="alert alert-danger" role="alert">
+            This spot is empty :(
+        </div>
     }
-
-    @if (Ready == true)
-    {
-        <Chip Context="Components.Models.ContextualClass.Success">
-            <Label>Ready</Label>
-            <Badge>✔</Badge>
-        </Chip>
-    }
-
-    @if (DominoCount != 0)
-    {
-        <span>@DominoCount</span>
-    }
-}
-else
-{
-    <div class="alert alert-danger" role="alert">
-        This spot is empty :(
-    </div>
-}
-
+</div>
 
 @code {
     [Parameter]

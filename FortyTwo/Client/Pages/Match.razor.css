@@ -51,3 +51,10 @@
         .game-wrapper .domino-container .domino-spacer {
             flex-basis: 100%;
         }
+
+.player.active {
+    -moz-box-shadow: 0px 0px 50px 5px lightgreen;
+    -webkit-box-shadow: 0px 0px 50px 5px lightgreen;
+    box-shadow: 0px 0px 50px 5px lightgreen;
+    border-radius: 8px;
+}

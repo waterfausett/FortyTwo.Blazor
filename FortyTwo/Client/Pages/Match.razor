@@ -174,7 +174,7 @@
                 </section>
             }
 
-            <div class="player">
+            <div class="player @(Model.Player.IsActive ? "active" : "")">
                 <div>
                     @if (Model.CurrentGame.WinningTeam.HasValue)
                     {
