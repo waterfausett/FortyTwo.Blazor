@@ -20,9 +20,11 @@
     -webkit-border-radius: .8em;
     -moz-border-radius: .8em;
     border-radius: .8em;
-    -moz-box-shadow: .3em .3em 0em .2em gray;
-    -webkit-box-shadow: .3em .3em 0em .2em gray;
-    box-shadow: .3em .3em 0em .2em gray;
+    border-top: solid 1px grey;
+    border-left: solid 1px grey;
+    -moz-box-shadow: .3em .3em 0em .12em gray;
+    -webkit-box-shadow: .3em .3em 0em .12em gray;
+    box-shadow: .3em .3em 0em .12em gray;
 }
 
     .domino.horizontal {
