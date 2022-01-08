@@ -6,6 +6,7 @@ namespace FortyTwo.Server.Services
 {
     public interface IMatchValidationService
     {
+        IMatchValidationService IsNotNull(Match match);
         IMatchValidationService IsActive(Match match);
         IMatchValidationService IsNotFull(Match match);
         IMatchValidationService IsActive(MatchPlayer match);

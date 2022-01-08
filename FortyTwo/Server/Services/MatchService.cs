@@ -200,7 +200,7 @@ namespace FortyTwo.Server.Services
                 .FirstOrDefaultAsync();
 
             _matchValidationService
-                .IsActive(match)
+                .IsNotNull(match)
                 .IsMatchPlayer(match, _userId);
 
             var matchPlayer = match.Players.First(x => x.PlayerId == _userId);

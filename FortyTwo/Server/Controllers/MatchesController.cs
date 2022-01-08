@@ -126,13 +126,11 @@ namespace FortyTwo.Server.Controllers
         {
             var match = await _matchService.PlayDominoAsync(id, domino);
 
-            if (!match.CurrentGame.WinningTeam.HasValue)
-            {
-                var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
-                await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
-            }
-            else
+            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
+
+            if (match.CurrentGame.WinningTeam.HasValue)
             {
                 var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
                 await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnMatchChanged", matchDTO);

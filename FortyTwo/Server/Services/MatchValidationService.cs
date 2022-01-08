@@ -9,10 +9,17 @@ namespace FortyTwo.Server.Services
 {
     public class MatchValidationService : IMatchValidationService
     {
-        public IMatchValidationService IsActive(Match match)
+        public IMatchValidationService IsNotNull(Match match)
         {
             if (match == null)
                 throw new CustomValidationException("Match not found!");
+
+            return this;
+        }
+
+        public IMatchValidationService IsActive(Match match)
+        {
+            IsNotNull(match);
 
             if (match.WinningTeam != null)
                 throw new CustomValidationException("This match is over");
