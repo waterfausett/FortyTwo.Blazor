@@ -28,6 +28,38 @@
 </ul>
 
 @code{
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    [Inject]
+    private IClientStore Store { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await authenticationStateTask;
+        if (authState?.User?.Identity?.IsAuthenticated == true)
+        {
+            AddLoggedInUserAsync(authState.User);
+        }
+
+        await base.OnInitializedAsync();
+    }
+
+    public void AddLoggedInUserAsync(System.Security.Claims.ClaimsPrincipal principal)
+    {
+        var loggedInUserId = principal?.Claims.SingleOrDefault(c => c.Type == "sub")?.Value;
+        if (!string.IsNullOrWhiteSpace(loggedInUserId) && Store.Users.All(x => x.Id != loggedInUserId))
+        {
+            Store.Users.Add(new FortyTwo.Shared.DTO.User()
+            {
+                Id = loggedInUserId,
+                Email = principal.Identity?.Name,
+                Nickname = principal.Claims.SingleOrDefault(c => c.Type == "nickname")?.Value,
+                Picture = principal.Claims.SingleOrDefault(c => c.Type == "picture")?.Value
+            });
+        }
+    }
+
     private async Task BeginSignOut(MouseEventArgs args)
     {
         await SignOutManager.SetSignOutState();

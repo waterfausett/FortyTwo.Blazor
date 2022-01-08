@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
+using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
 using FortyTwo.Shared.DTO;
 
@@ -31,11 +32,13 @@ namespace FortyTwo.Client.ViewModels
     {
         private readonly HttpClient _http;
         private readonly IClientStore _store;
+        private readonly IUserService _userService;
 
-        public MatchesViewModel(HttpClient http, IClientStore store)
+        public MatchesViewModel(HttpClient http, IClientStore store, IUserService userService)
         {
             _http = http;
             _store = store;
+            _userService = userService;
         }
 
         public bool IsLoading { get; set; }
@@ -60,16 +63,9 @@ namespace FortyTwo.Client.ViewModels
 
                 _store.Matches = matches;
 
-                var unknownUserIds = matches.SelectMany(x => x.Players)
+                await _userService.SyncUsersAsync(matches.SelectMany(x => x.Players)
                     .Select(x => x.Id)
-                    .Except(_store.Users.Select(x => x.Id))
-                    .ToList();
-
-                if (unknownUserIds.Any())
-                {
-                    var usersResponse = await _http.PostAsJsonAsync("api/users", unknownUserIds);
-                    _store.Users.AddRange(await usersResponse.Content.ReadFromJsonAsync<List<User>>());
-                }
+                    .ToList());
 
                 if (matchFilter.HasValue) _matchFilter = matchFilter.Value;
             }

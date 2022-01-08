@@ -11,6 +11,7 @@ using Game = FortyTwo.Shared.DTO.Game;
 using Match = FortyTwo.Shared.DTO.Match;
 using System.Text.Json;
 using System.Text;
+using FortyTwo.Client.Services;
 
 namespace FortyTwo.Client.ViewModels
 {
@@ -37,11 +38,13 @@ namespace FortyTwo.Client.ViewModels
     {
         private readonly HttpClient _http;
         private readonly IClientStore _store;
+        private readonly IUserService _userService;
 
-        public MatchViewModel(HttpClient http, IClientStore store)
+        public MatchViewModel(HttpClient http, IClientStore store, IUserService userService)
         {
             _http = http;
             _store = store;
+            _userService = userService;
         }
 
         public void Initialize(Guid matchId)
@@ -108,16 +111,7 @@ namespace FortyTwo.Client.ViewModels
                 _store.Matches.RemoveAll(x => x.Id == MatchId);
                 _store.Matches.Add(match);
 
-                var unknownUserIds = match.Players
-                    .Select(x => x.Id)
-                    .Except(_store.Users.Select(x => x.Id))
-                    .ToList();
-
-                if (unknownUserIds.Any())
-                {
-                    var usersResponse = await _http.PostAsJsonAsync("api/users", unknownUserIds);
-                    _store.Users.AddRange(await usersResponse.Content.ReadFromJsonAsync<List<User>>());
-                }
+                await _userService.SyncUsersAsync(match.Players.Select(x => x.Id).ToList());
 
                 await UpdateGame(match.CurrentGame);
             }

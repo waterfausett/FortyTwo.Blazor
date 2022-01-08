@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using FortyTwo.Client.Services;
 using FortyTwo.Shared.DTO;
 
 namespace FortyTwo.Client.Store

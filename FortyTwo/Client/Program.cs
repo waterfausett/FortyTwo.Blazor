@@ -2,6 +2,7 @@ using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 using CurrieTechnologies.Razor.SweetAlert2;
+using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
 using FortyTwo.Client.ViewModels;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
@@ -46,6 +47,7 @@ namespace FortyTwo.Client
             builder.Services.AddTransient<IMatchViewModel, MatchViewModel>();
 
             builder.Services.AddSingleton<IClientStore, ClientStore>();
+            builder.Services.AddScoped<IUserService, UserService>();
 
             await builder.Build().RunAsync();
         }

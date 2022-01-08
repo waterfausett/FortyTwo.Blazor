@@ -16,7 +16,7 @@ namespace FortyTwo.Shared.DTO
         public string Picture { get; set; }
 
         public string DisplayName
-            => Email// HACK: testing //Nickname
+            => Nickname
                 ?? ($"{FirstName} {(!string.IsNullOrWhiteSpace(LastName) ? $"{LastName?.Substring(0, 1)}." : "")}")
                 ?? Email
                 ?? $"Unknown User ({Id})";
