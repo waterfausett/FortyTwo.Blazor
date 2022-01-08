@@ -377,7 +377,7 @@
 
             StateHasChanged();
 
-            _ = ShowNotificationIfGameOverAsync(game);
+            await ShowNotificationIfGameOverAsync(game);
         });
 
         await _hubConnection.StartAsync();
