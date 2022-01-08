@@ -322,6 +322,36 @@
                     ConfirmButtonText = "Ok",
                 });
             }
+            else if (match.WinningTeam.HasValue)
+            {
+                var alertOptions = new SweetAlertOptions
+                {
+                    ShowConfirmButton = true,
+                    ConfirmButtonText = "OK",
+                    FocusConfirm = true,
+                    ShowCancelButton = false,
+                    ShowCloseButton = false,
+                };
+
+                var biddingTeam = (int)Model.Match.Players.First(x => x.Id == Model.CurrentGame.BiddingPlayerId).Position % 2 == 0
+                    ? Teams.TeamA
+                    : Teams.TeamB;
+
+                if (Model.Player.Team == match.WinningTeam)
+                {
+                    alertOptions.Icon = SweetAlertIcon.Success;
+                    alertOptions.Title = "Victory!";
+                    alertOptions.Text = "Your team won the match! 🥳🎈";
+                }
+                else
+                {
+                    alertOptions.Icon = SweetAlertIcon.Error;
+                    alertOptions.Title = "Game Over!";
+                    alertOptions.Text = "The other team won the match 😭...";
+                }
+
+                await Swal.FireAsync(alertOptions);
+            }
         });
 
         _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
