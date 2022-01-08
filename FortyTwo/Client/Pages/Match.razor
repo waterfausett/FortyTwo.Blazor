@@ -306,17 +306,22 @@
 
         _hubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", async (match) =>
         {
+            var newGameStarting = Model.CurrentGame.Id != match.CurrentGame.Id;
+
             await Model.UpdateMatch(match);
             await Model.FetchPlayerAsync();
 
             StateHasChanged();
 
-            await Swal.FireAsync(new SweetAlertOptions
+            if (newGameStarting)
             {
-                Icon = SweetAlertIcon.Info,
-                Title = "The next game has started",
-                ConfirmButtonText = "Ok",
-            });
+                await Swal.FireAsync(new SweetAlertOptions
+                {
+                    Icon = SweetAlertIcon.Info,
+                    Title = "The next game has started",
+                    ConfirmButtonText = "Ok",
+                });
+            }
         });
 
         _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
