@@ -41,6 +41,10 @@
                 @for (var i = 0; i < DominoCount; ++i)
                 {
                     <Domino Direction="DominoDirection.Horizontal" ShowPlaceHolder="true" Selectable="false"></Domino>
+                    if ((i + 1) % 4 == 0)
+                    {
+                        <div class="domino-spacer d-none d-lg-block"></div>
+                    }
                 }
             </div>
         }
