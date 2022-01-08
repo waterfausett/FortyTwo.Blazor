@@ -326,8 +326,12 @@
                 await Swal.FireAsync(new SweetAlertOptions
                 {
                     Icon = SweetAlertIcon.Info,
+                    Toast = true,
+                    ShowConfirmButton = false,
+                    Timer = 1750,
+                    TimerProgressBar = true,
+                    ShowCloseButton = false,
                     Title = "The next game has started",
-                    ConfirmButtonText = "Ok",
                 });
             }
             else if (match.WinningTeam.HasValue)
