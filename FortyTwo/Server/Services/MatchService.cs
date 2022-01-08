@@ -95,7 +95,7 @@ namespace FortyTwo.Server.Services
                 matchGames.Add(match.CurrentGame);
                 match.Games[match.CurrentGame.WinningTeam.Value] = matchGames;
 
-                match.CurrentGame = new Game($"Game {match.Games.Values.Count + 1}");
+                match.CurrentGame = new Game($"Game {match.Games.SelectMany(x => x.Value).Count() + 1}");
 
                 var firstActionByPosition = match.Players.First(x => x.PlayerId == lastGame.FirstActionBy).Position.NextPosition();
                 var firstActionBy = match.Players.First(x => x.Position == firstActionByPosition).PlayerId;
