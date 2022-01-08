@@ -75,6 +75,10 @@
         </div>
     </div>
 }
+else if (ShowPlaceHolder)
+{
+    <div class="domino @(Direction == DominoDirection.Horizontal ? "horizontal" : "")"></div>
+}
 
 @code {
     [Parameter]
@@ -88,4 +92,7 @@
 
     [Parameter]
     public EventCallback<FortyTwo.Shared.Models.Domino> OnSelected { get; set; }
+
+    [Parameter]
+    public bool ShowPlaceHolder { get; set; }
 }
