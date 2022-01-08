@@ -255,7 +255,10 @@ namespace FortyTwo.Client.ViewModels
             void Reset()
             {
                 CurrentGame.CurrentPlayerId = currentPlayerId;
-                Player.Dominos.Add(domino);
+                if (!Player.Dominos.Contains(domino))
+                {
+                    Player.Dominos.Add(domino);
+                }
 
                 var index = Array.IndexOf(CurrentGame.CurrentTrick.Dominos, domino);
                 if (index != -1)
