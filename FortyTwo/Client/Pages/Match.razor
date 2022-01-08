@@ -89,27 +89,7 @@
                     var teamTricks = Model.CurrentGame.Tricks.Where(x => x.Team == Model.Player.Team);
                     var opponentTricks = Model.CurrentGame.Tricks.Where(x => x.Team != Model.Player.Team);
                 }
-                <div class="opponent-tricks">
-                    <div class="mb-1">
-                        <Chip Context="ContextualClass.Info"><Label>Points</Label><Badge>@opponentTricks.Sum(x => x.Value)</Badge></Chip>
-                    </div>
-                    @foreach (var trick in opponentTricks)
-                    {
-                        <div class="row">
-                            @foreach (var domino in trick.Dominos)
-                            {
-                                <Domino Instance="domino" Direction="DominoDirection.Vertical"></Domino>
-                            }
-                        </div>
-                    }
-                </div>
-                <div class="current-trick p-4">
-                    @foreach (var domino in Model.CurrentGame.CurrentTrick.Dominos)
-                    {
-                        <Domino Instance="domino" Direction="DominoDirection.Vertical"></Domino>
-                    }
-                </div>
-                <div class="player-team-tricks">
+                <div class="player-team-tricks ml-1">
                     @foreach (var trick in teamTricks.Reverse())
                     {
                         <div class="row">
@@ -122,6 +102,26 @@
                     <div class="mt-1 float-right">
                         <Chip Context="ContextualClass.Info"><Label>Points</Label><Badge>@teamTricks.Sum(x => x.Value)</Badge></Chip>
                     </div>
+                </div>
+                <div class="current-trick p-4">
+                    @foreach (var domino in Model.CurrentGame.CurrentTrick.Dominos)
+                    {
+                        <Domino Instance="domino" Direction="DominoDirection.Vertical"></Domino>
+                    }
+                </div>
+                <div class="opponent-tricks mr-1">
+                    <div class="mb-1">
+                        <Chip Context="ContextualClass.Info"><Label>Points</Label><Badge>@opponentTricks.Sum(x => x.Value)</Badge></Chip>
+                    </div>
+                    @foreach (var trick in opponentTricks)
+                    {
+                        <div class="row">
+                            @foreach (var domino in trick.Dominos)
+                            {
+                                <Domino Instance="domino" Direction="DominoDirection.Vertical"></Domino>
+                            }
+                        </div>
+                    }
                 </div>
             </div>
 

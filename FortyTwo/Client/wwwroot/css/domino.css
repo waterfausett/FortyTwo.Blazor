@@ -144,4 +144,5 @@
         -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
         -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
         box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
+        border: none;
     }
