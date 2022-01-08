@@ -89,12 +89,6 @@ namespace FortyTwo.Server.Services
             {
                 var lastGame = match.CurrentGame;
 
-                match.Games.TryGetValue(match.CurrentGame.WinningTeam.Value, out var matchGames);
-                matchGames ??= new List<Game>();
-
-                matchGames.Add(match.CurrentGame);
-                match.Games[match.CurrentGame.WinningTeam.Value] = matchGames;
-
                 match.CurrentGame = new Game($"Game {match.Games.SelectMany(x => x.Value).Count() + 1}");
 
                 var firstActionByPosition = match.Players.First(x => x.PlayerId == lastGame.FirstActionBy).Position.NextPosition();
@@ -328,6 +322,15 @@ namespace FortyTwo.Server.Services
             else
             {
                 match.SelectNextPlayer();
+            }
+
+            if (match.CurrentGame.WinningTeam.HasValue && match.Games.SelectMany(x => x.Value).All(x => x.Id != match.CurrentGame.Id))
+            {
+                match.Games.TryGetValue(match.CurrentGame.WinningTeam.Value, out var matchGames);
+                matchGames ??= new List<Game>();
+
+                matchGames.Add(match.CurrentGame);
+                match.Games[match.CurrentGame.WinningTeam.Value] = matchGames;
             }
 
             match.WinningTeam = match.Scores.Any(x => x.Value >= Shared.Constants.WinningScore)
