@@ -36,6 +36,7 @@
 
         .game-wrapper .gameboard .current-trick {
             flex: 1;
+            font-size: min(1rem, 1.42vw);
         }
 
     .game-wrapper .domino-container {

@@ -106,7 +106,7 @@
                         <Chip Context="ContextualClass.Info"><Label>Points</Label><Badge>@teamTricks.Sum(x => x.Value)</Badge></Chip>
                     </div>
                 </div>
-                <div class="current-trick p-4">
+                <div class="current-trick p-4 d-flex justify-content-center align-items-center">
                     @foreach (var domino in Model.CurrentGame.CurrentTrick.Dominos)
                     {
                         <Domino Instance="domino" Direction="DominoDirection.Vertical"></Domino>
@@ -377,40 +377,7 @@
 
             StateHasChanged();
 
-            if (game.WinningTeam.HasValue)
-            {
-                var alertOptions = new SweetAlertOptions
-                {
-                    ShowConfirmButton = true,
-                    ConfirmButtonText = "OK",
-                    FocusConfirm = true,
-                    ShowCancelButton = false,
-                    ShowCloseButton = false,
-                };
-
-                var biddingTeam = (int)Model.Match.Players.First(x => x.Id == Model.CurrentGame.BiddingPlayerId).Position % 2 == 0
-                    ? Teams.TeamA
-                    : Teams.TeamB;
-
-                if (Model.Player.Team == game.WinningTeam)
-                {
-                    alertOptions.Icon = SweetAlertIcon.Success;
-                    alertOptions.Title = "Victory!";
-                    alertOptions.Text = biddingTeam == Model.Player.Team
-                        ? "Your team made their bid! 🥳🎈"
-                        : "You set the other team! 🎉";
-                }
-                else
-                {
-                    alertOptions.Icon = SweetAlertIcon.Error;
-                    alertOptions.Title = "Game Over!";
-                    alertOptions.Text = biddingTeam == Model.Player.Team
-                        ? "The other team set you 😡"
-                        : "The other team made their bid 😒";
-                }
-
-                await Swal.FireAsync(alertOptions);
-            }
+            _ = ShowNotificationIfGameOverAsync(game);
         });
 
         await _hubConnection.StartAsync();
@@ -423,6 +390,43 @@
     public void Dispose()
     {
         _ = _hubConnection?.DisposeAsync();
+    }
+
+    public async Task ShowNotificationIfGameOverAsync(FortyTwo.Shared.DTO.Game game)
+    {
+        if (!game.WinningTeam.HasValue) return;
+        
+        var alertOptions = new SweetAlertOptions
+        {
+            ShowConfirmButton = true,
+            ConfirmButtonText = "OK",
+            FocusConfirm = true,
+            ShowCancelButton = false,
+            ShowCloseButton = false,
+        };
+
+        var biddingTeam = (int)Model.Match.Players.First(x => x.Id == Model.CurrentGame.BiddingPlayerId).Position % 2 == 0
+            ? Teams.TeamA
+            : Teams.TeamB;
+
+        if (Model.Player.Team == game.WinningTeam)
+        {
+            alertOptions.Icon = SweetAlertIcon.Success;
+            alertOptions.Title = "Victory!";
+            alertOptions.Text = biddingTeam == Model.Player.Team
+                ? "Your team made their bid! 🥳🎈"
+                : "You set the other team! 🎉";
+        }
+        else
+        {
+            alertOptions.Icon = SweetAlertIcon.Error;
+            alertOptions.Title = "Game Over!";
+            alertOptions.Text = biddingTeam == Model.Player.Team
+                ? "The other team set you 😡"
+                : "The other team made their bid 😒";
+        }
+
+        await Swal.FireAsync(alertOptions);
     }
 
     public async Task BidAsync(Bid bid)
