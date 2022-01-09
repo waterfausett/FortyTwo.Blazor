@@ -1,8 +1,11 @@
 @using CurrieTechnologies.Razor.SweetAlert2
+@using Microsoft.AspNetCore.SignalR.Client
 @inject IJSRuntime JS
 @inject SweetAlertService Swal
 @inject NavigationManager Navigation
 @inject HttpClient Http
+@inject HubConnection HubConnection
+@implements IDisposable
 
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(Program).Assembly">
@@ -50,7 +53,53 @@
     {
         _initialized = true;
 
+        await RegisterSignalRAsync();
+
         await base.OnInitializedAsync();
+    }
+
+    public void Dispose()
+    {
+        _ = HubConnection?.DisposeAsync();
+    }
+
+    private async Task RegisterSignalRAsync()
+    {
+        HubConnection.Closed += async (Exception ex) =>
+        {
+            Console.Error.WriteLine(ex.Message);
+
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Error,
+                Toast = true,
+                ShowConfirmButton = false,
+                Position = SweetAlertPosition.BottomRight,
+                Timer = 1750,
+                TimerProgressBar = true,
+                ShowCloseButton = false,
+                Title = "Disconnected",
+                Width = "16rem"
+            });
+        };
+
+        HubConnection.Reconnected += async (string connectionId) =>
+        {
+            await Swal.FireAsync(new SweetAlertOptions
+            {
+                Icon = SweetAlertIcon.Success,
+                Toast = true,
+                ShowConfirmButton = false,
+                Position = SweetAlertPosition.BottomRight,
+                Timer = 1750,
+                TimerProgressBar = true,
+                ShowCloseButton = false,
+                Title = "Reconnected",
+                Width = "16rem"
+            });
+        };
+
+        await HubConnection.StartAsync();
     }
 
     public async void ShowLoginPrompt()

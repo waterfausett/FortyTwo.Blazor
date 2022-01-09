@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace FortyTwo.Client.Pages
 {
-    public partial class Match : IDisposable
+    public partial class Match
     {
         [Parameter]
         public Guid MatchId { get; set; }
@@ -24,7 +24,8 @@ namespace FortyTwo.Client.Pages
         [Inject]
         public NavigationManager NavigationManager { get; set; }
 
-        private HubConnection _hubConnection;
+        [Inject]
+        public HubConnection HubConnection { get; set; }
 
         protected override async Task OnInitializedAsync()
         {
@@ -48,56 +49,12 @@ namespace FortyTwo.Client.Pages
 
             // TODO: handle signalr connection exceptions
 
-            _hubConnection = new HubConnectionBuilder()
-                .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
-                .Build();
-
-            _hubConnection.Closed += async (Exception ex) =>
+            HubConnection.Reconnected += async (string connectionId) =>
             {
-                await Console.Error.WriteLineAsync(ex.Message);
-
-                await Swal.FireAsync(new SweetAlertOptions
-                {
-                    Icon = SweetAlertIcon.Error,
-                    Toast = true,
-                    ShowConfirmButton = false,
-                    Position = SweetAlertPosition.BottomRight,
-                    Timer = 1750,
-                    TimerProgressBar = true,
-                    ShowCloseButton = false,
-                    Title = "Disconnected",
-                    Width = "16rem"
-                });
-            };
-
-            _hubConnection.Reconnected += async (string connectionId) =>
-            {
-                await Swal.FireAsync(new SweetAlertOptions
-                {
-                    Icon = SweetAlertIcon.Success,
-                    Toast = true,
-                    ShowConfirmButton = false,
-                    Position = SweetAlertPosition.BottomRight,
-                    Timer = 1750,
-                    TimerProgressBar = true,
-                    ShowCloseButton = false,
-                    Title = "Reconnected",
-                    Width = "16rem"
-                });
-
                 await Model.FetchMatchAsync();
             };
 
-            _hubConnection.On<Player>("OnPlayerAdded", (player) =>
-            {
-                // TODO: validate
-
-                // TODO: add player
-
-                StateHasChanged();
-            });
-
-            _hubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", async (match) =>
+            HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", async (match) =>
             {
                 var newGameStarting = Model.CurrentGame.Id != match.CurrentGame.Id;
 
@@ -151,7 +108,7 @@ namespace FortyTwo.Client.Pages
                 }
             });
 
-            _hubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
+            HubConnection.On<FortyTwo.Shared.DTO.Game>("OnGameChanged", async (game) =>
             {
                 if (Model.CurrentGame.CurrentTrick.Dominos.Count(x => x != null) == 3 && game.CurrentTrick.Dominos.All(x => x == null))
                 {
@@ -169,17 +126,11 @@ namespace FortyTwo.Client.Pages
                 await ShowNotificationIfGameOverAsync(game);
             });
 
-            await _hubConnection.StartAsync();
-            await _hubConnection.SendAsync("JoinGameAsync", MatchId);
+            await HubConnection.SendAsync("JoinGameAsync", MatchId);
         }
 
         public bool IsConnected =>
-            _hubConnection.State == HubConnectionState.Connected;
-
-        public void Dispose()
-        {
-            _ = _hubConnection?.DisposeAsync();
-        }
+            HubConnection.State == HubConnectionState.Connected;
 
         public async Task ShowNotificationIfGameOverAsync(FortyTwo.Shared.DTO.Game game)
         {

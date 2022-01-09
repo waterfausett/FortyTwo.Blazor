@@ -5,8 +5,10 @@ using CurrieTechnologies.Razor.SweetAlert2;
 using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
 using FortyTwo.Client.ViewModels;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -48,6 +50,14 @@ namespace FortyTwo.Client
 
             builder.Services.AddSingleton<IClientStore, ClientStore>();
             builder.Services.AddScoped<IUserService, UserService>();
+
+            builder.Services.AddSingleton<HubConnection>(s =>
+            {
+                var navManager = s.GetService<NavigationManager>();
+                return new HubConnectionBuilder()
+                    .WithUrl(navManager.ToAbsoluteUri("/gamehub"))
+                    .Build();
+            });
 
             await builder.Build().RunAsync();
         }
