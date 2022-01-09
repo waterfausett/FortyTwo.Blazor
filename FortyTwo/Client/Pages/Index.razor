@@ -1,12 +1,9 @@
 ﻿@page "/"
 @attribute [Authorize]
 @layout MainLayout
-@using CurrieTechnologies.Razor.SweetAlert2
 @using FortyTwo.Client.ViewModels
 @using FortyTwo.Shared.Models
 @using FortyTwo.Shared.Extensions
-@inject SweetAlertService Swal
-@inject IMatchesViewModel Model
 
 <div>
     <h3>
@@ -156,69 +153,3 @@
         </div>
     </SpinnerOverlay>
 </div>
-
-@code {
-    [CascadingParameter]
-    private Task<AuthenticationState> authenticationStateTask { get; set; }
-
-    private System.Security.Claims.ClaimsPrincipal _user;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await authenticationStateTask;
-        _user = authState.User;
-
-        if (Model.Matches == null || !Model.Matches.Any())
-        {
-            await Model.FetchMatchesAsync();
-        }
-    }
-
-    private async Task CreateMatchAsync()
-    {
-        var error = await Model.CreateMatchAsync();
-
-        if (error != null)
-        {
-            await Swal.FireAsync(new SweetAlertOptions
-            {
-                Icon = SweetAlertIcon.Error,
-                Title = error.Title,
-                Html = error.Detail.Truncate(250),
-                ConfirmButtonText = "Ok",
-            });
-        }
-    }
-
-    private async Task DeleteMatchAsync(Guid id)
-    {
-        var error = await Model.DeleteMatchAsync(id);
-
-        if (error != null)
-        {
-            await Swal.FireAsync(new SweetAlertOptions
-            {
-                Icon = SweetAlertIcon.Error,
-                Title = error.Title,
-                Html = error.Detail.Truncate(250),
-                ConfirmButtonText = "Ok",
-            });
-        }
-    }
-
-    private async Task JoinMatchAsync(Guid matchId, Teams team)
-    {
-        var error = await Model.JoinMatchAsync(matchId, team);
-
-        if (error != null)
-        {
-            await Swal.FireAsync(new SweetAlertOptions
-            {
-                Icon = SweetAlertIcon.Error,
-                Title = error.Title,
-                Html = error.Detail.Truncate(250),
-                ConfirmButtonText = "Ok",
-            });
-        }
-    }
-}
