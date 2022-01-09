@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace FortyTwo.Client.Pages
 {
-    public partial class Match
+    public partial class Match : IAsyncDisposable
     {
         [Parameter]
         public Guid MatchId { get; set; }
@@ -127,6 +127,11 @@ namespace FortyTwo.Client.Pages
             });
 
             await HubConnection.SendAsync("JoinGameAsync", MatchId);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await HubConnection?.SendAsync("LeaveGameAsync", MatchId);
         }
 
         public bool IsConnected =>

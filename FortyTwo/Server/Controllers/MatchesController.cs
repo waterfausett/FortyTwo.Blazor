@@ -56,7 +56,10 @@ namespace FortyTwo.Server.Controllers
         {
             var match = await _matchService.CreateAsync();
 
-            return Created($"/match/{match.Id}", _mapper.Map<Shared.DTO.Match>(match));
+            var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
+            await _gameHubContext.Clients.All.SendAsync("OnMatchChanged", matchDTO);
+
+            return Created($"/match/{match.Id}", matchDTO);
         }
 
         [HttpDelete("{id}")]
@@ -72,7 +75,10 @@ namespace FortyTwo.Server.Controllers
         {
             var match = await _matchService.AddPlayerAsync(id, request.Team);
 
-            return Ok(_mapper.Map<Shared.DTO.Match>(match));
+            var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
+            await _gameHubContext.Clients.All.SendAsync("OnMatchChanged", matchDTO);
+
+            return Ok(matchDTO);
         }
 
         [HttpGet("{id}/player")]

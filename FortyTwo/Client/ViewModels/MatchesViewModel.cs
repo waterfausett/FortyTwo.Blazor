@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
 using FortyTwo.Shared.DTO;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace FortyTwo.Client.ViewModels
 {

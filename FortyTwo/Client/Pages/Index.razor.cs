@@ -1,9 +1,11 @@
 ﻿using CurrieTechnologies.Razor.SweetAlert2;
+using FortyTwo.Client.Store;
 using FortyTwo.Client.ViewModels;
 using FortyTwo.Shared.Extensions;
 using FortyTwo.Shared.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.SignalR.Client;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,6 +19,12 @@ namespace FortyTwo.Client.Pages
 
         [Inject]
         public IMatchesViewModel Model { get; set; }
+
+        [Inject]
+        public HubConnection HubConnection { get; set; }
+
+        [Inject]
+        public IClientStore Store { get; set; }
 
         [CascadingParameter]
         private Task<AuthenticationState> authenticationStateTask { get; set; }
@@ -32,6 +40,14 @@ namespace FortyTwo.Client.Pages
             {
                 await Model.FetchMatchesAsync();
             }
+
+            HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", (match) =>
+            {
+                Store.Matches.RemoveAll(x => x.Id == match.Id);
+                Store.Matches.Add(match);
+
+                StateHasChanged();
+            });
         }
 
         private async Task CreateMatchAsync()
