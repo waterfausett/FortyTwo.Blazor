@@ -1,4 +1,5 @@
 ﻿using CurrieTechnologies.Razor.SweetAlert2;
+using FortyTwo.Client.ViewModels;
 using FortyTwo.Shared.Extensions;
 using FortyTwo.Shared.Models;
 using Microsoft.AspNetCore.Components;
@@ -9,10 +10,19 @@ using System.Threading.Tasks;
 
 namespace FortyTwo.Client.Pages
 {
-    public partial class Match
+    public partial class Match : IDisposable
     {
         [Parameter]
         public Guid MatchId { get; set; }
+
+        [Inject]
+        public IMatchViewModel Model { get; set; }
+
+        [Inject]
+        public SweetAlertService Swal { get; set; }
+
+        [Inject]
+        public NavigationManager NavigationManager { get; set; }
 
         private HubConnection _hubConnection;
 

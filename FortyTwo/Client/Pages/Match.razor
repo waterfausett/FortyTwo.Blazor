@@ -1,20 +1,7 @@
 ﻿@page "/match/{matchId:guid}"
 @attribute [Authorize]
 @layout MainLayout
-
-@using System
-@using System.Linq
-@using CurrieTechnologies.Razor.SweetAlert2
-@using FortyTwo.Client.ViewModels
-@using FortyTwo.Shared.Extensions
 @using FortyTwo.Shared.Models
-@using Microsoft.AspNetCore.SignalR.Client
-
-@inject IMatchViewModel Model
-@inject SweetAlertService Swal
-@inject NavigationManager NavigationManager
-
-@implements IDisposable
 
 <SpinnerOverlay Visible="Model.IsLoading">
     @if (Model.CurrentGame == null || Model.Player == null)
