@@ -45,8 +45,6 @@ namespace FortyTwo.Client.Pages
 
             // TODO: add a visual indicator of connected status
 
-            // TODO: could prolly add most of the connection management to the ViewModel
-
             // TODO: handle signalr connection exceptions
 
             HubConnection.Reconnected += async (string connectionId) =>
