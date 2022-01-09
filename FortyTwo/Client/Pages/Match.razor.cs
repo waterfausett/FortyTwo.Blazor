@@ -12,20 +12,11 @@ namespace FortyTwo.Client.Pages
 {
     public partial class Match : IAsyncDisposable
     {
-        [Parameter]
-        public Guid MatchId { get; set; }
-
-        [Inject]
-        public IMatchViewModel Model { get; set; }
-
-        [Inject]
-        public SweetAlertService Swal { get; set; }
-
-        [Inject]
-        public NavigationManager NavigationManager { get; set; }
-
-        [Inject]
-        public HubConnection HubConnection { get; set; }
+        [Parameter] public Guid MatchId { get; set; }
+        [Inject] public IMatchViewModel Model { get; set; }
+        [Inject] public SweetAlertService Swal { get; set; }
+        [Inject] public NavigationManager NavigationManager { get; set; }
+        [Inject] public HubConnection HubConnection { get; set; }
 
         protected override async Task OnInitializedAsync()
         {

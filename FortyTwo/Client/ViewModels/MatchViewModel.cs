@@ -15,6 +15,7 @@ using FortyTwo.Client.Services;
 
 namespace FortyTwo.Client.ViewModels
 {
+    // TODO: refactor this out :D
     public interface IMatchViewModel
     {
         void Initialize(Guid matchId);
