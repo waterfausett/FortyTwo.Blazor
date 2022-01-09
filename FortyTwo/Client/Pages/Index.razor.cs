@@ -2,7 +2,6 @@
 using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
 using FortyTwo.Client.ViewModels;
-using FortyTwo.Shared.Extensions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -18,7 +17,7 @@ namespace FortyTwo.Client.Pages
         [Inject] public SweetAlertService Swal { get; set; }
         [Inject] public HubConnection HubConnection { get; set; }
         [Inject] public IClientStore Store { get; set; }
-        [Inject] public ApiClient ApiClient { get; set; }
+        [Inject] public IApiClient ApiClient { get; set; }
 
         [CascadingParameter] private Task<AuthenticationState> authenticationStateTask { get; set; }
         private System.Security.Claims.ClaimsPrincipal _user;
@@ -75,18 +74,7 @@ namespace FortyTwo.Client.Pages
 
             try
             {
-                var error = await ApiClient.CreateMatchAsync();
-
-                if (error != null)
-                {
-                    await Swal.FireAsync(new SweetAlertOptions
-                    {
-                        Icon = SweetAlertIcon.Error,
-                        Title = error.Title,
-                        Html = error.Detail.Truncate(250),
-                        ConfirmButtonText = "Ok",
-                    });
-                }
+                await ApiClient.CreateMatchAsync();
             }
             finally
             {
@@ -94,36 +82,14 @@ namespace FortyTwo.Client.Pages
             }
         }
 
-        private async Task DeleteMatchAsync(Guid id)
+        private Task DeleteMatchAsync(Guid id)
         {
-            var error = await ApiClient.DeleteMatchAsync(id);
-
-            if (error != null)
-            {
-                await Swal.FireAsync(new SweetAlertOptions
-                {
-                    Icon = SweetAlertIcon.Error,
-                    Title = error.Title,
-                    Html = error.Detail.Truncate(250),
-                    ConfirmButtonText = "Ok",
-                });
-            }
+            return ApiClient.DeleteMatchAsync(id);
         }
 
-        private async Task JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team)
+        private Task JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team)
         {
-            var error = await ApiClient.JoinMatchAsync(matchId, team);
-
-            if (error != null)
-            {
-                await Swal.FireAsync(new SweetAlertOptions
-                {
-                    Icon = SweetAlertIcon.Error,
-                    Title = error.Title,
-                    Html = error.Detail.Truncate(250),
-                    ConfirmButtonText = "Ok",
-                });
-            }
+            return ApiClient.JoinMatchAsync(matchId, team);
         }
     }
 }
