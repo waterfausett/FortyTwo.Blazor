@@ -2,17 +2,19 @@
 @attribute [Authorize]
 @layout MainLayout
 @using FortyTwo.Client.ViewModels
+@using FortyTwo.Client.Services
 @using FortyTwo.Shared.Models
 @using FortyTwo.Shared.Extensions
+@inject IUserService UserService
 
 <div>
     <h3>
         Matches
-        <button type="button" class="btn btn-link" title="Refresh list" disabled="@Model.IsLoading"
-            @onclick="@(async () => await Model.FetchMatchesAsync())">
+        <button type="button" class="btn btn-link" title="Refresh list" disabled="@IsLoading"
+            @onclick="@(async () => await FetchMatchesAsync())">
             <span class="oi oi-loop-circular" aria-hidden="true"></span>
         </button>
-        <button type="button" class="btn btn-link pull-right" disabled="@Model.IsCreating"
+        <button type="button" class="btn btn-link pull-right" disabled="@IsCreating"
             @onclick="@(async () => await CreateMatchAsync())">
             <span class="oi oi-plus" aria-hidden="true"></span>
         </button>
@@ -23,23 +25,19 @@
     <ul class="nav nav-tabs" role="tablist">
         <li class="nav-item">
             <a class="nav-link active" data-toggle="tab" role="tab"
-                @onclick="@(async () => {
-                    await Model.FetchMatchesAsync(MatchFilter.Active);
-                })">Active</a>
+                @onclick="@(async () => await FetchMatchesAsync(MatchFilter.Active))">Active</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" data-toggle="tab" role="tab"
-                @onclick="@(async () => {
-                    await Model.FetchMatchesAsync(MatchFilter.Completed);
-                })">Completed</a>
+                @onclick="@(async () => await FetchMatchesAsync(MatchFilter.Completed))">Completed</a>
         </li>
     </ul>
 
-    <SpinnerOverlay Visible="Model.IsLoading">
+    <SpinnerOverlay Visible="IsLoading">
         <div>
-            @if (Model.Matches?.Any() == true)
+            @if (Matches?.Any() == true)
             {
-                @foreach (var match in Model.Matches)
+                @foreach (var match in Matches)
                 {
                     <div class="card mb-2">
                         @if (match.Players.Count == 4)
@@ -63,7 +61,7 @@
                                             {
                                                 <span class="active-dot mr-2"></span>
                                             }
-                                            @string.Join(" & ", match.Teams[Teams.TeamA].OrderBy(x => x.Position).Select(x => Model.GetPlayerName(x.Id)))
+                                            @string.Join(" & ", match.Teams[Teams.TeamA].OrderBy(x => x.Position).Select(x => UserService.GetUserName(x.Id)))
                                         </div>
                                         <div>
                                             <span><label>Score: <span data-score="@teamAScore"></span></label></span>
@@ -106,7 +104,7 @@
                                             {
                                                 <span class="active-dot mr-2"></span>
                                             }
-                                            @string.Join(" & ", match.Teams[Teams.TeamB].OrderBy(x => x.Position).Select(x => Model.GetPlayerName(x.Id)))
+                                            @string.Join(" & ", match.Teams[Teams.TeamB].OrderBy(x => x.Position).Select(x => UserService.GetUserName(x.Id)))
                                         </div>
                                         <div>
                                             <span><label>Score: <span data-score="@teamBScore"></span></label></span>

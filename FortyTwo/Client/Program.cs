@@ -59,6 +59,8 @@ namespace FortyTwo.Client
                     .Build();
             });
 
+            builder.Services.AddScoped<ApiClient>();
+
             await builder.Build().RunAsync();
         }
     }

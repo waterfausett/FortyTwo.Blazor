@@ -65,5 +65,8 @@ namespace FortyTwo.Client.Services
 
             return await usersResponse.Content.ReadFromJsonAsync<List<User>>();
         }
+
+        public string GetUserName(string userId)
+            => _store.Users.FirstOrDefault(x => x.Id == userId)?.DisplayName ?? $"Unknown Player ({userId})";
     }
 }

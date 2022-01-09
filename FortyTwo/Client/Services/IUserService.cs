@@ -14,5 +14,6 @@ namespace FortyTwo.Client.Services
         /// <returns></returns>
         Task SyncUsersAsync(List<string> userIds);
         Task<List<User>> FetchUsersAsync(List<string> userIds);
+        string GetUserName(string userId);
     }
 }

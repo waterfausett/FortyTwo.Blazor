@@ -1,62 +1,35 @@
-﻿using System;
+﻿using FortyTwo.Client.Store;
+using FortyTwo.Client.ViewModels;
+using FortyTwo.Shared.DTO;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-using FortyTwo.Client.Services;
-using FortyTwo.Client.Store;
-using FortyTwo.Shared.DTO;
 
-namespace FortyTwo.Client.ViewModels
+namespace FortyTwo.Client.Services
 {
-    public enum MatchFilter
+    public interface IApiClient
     {
-        Active,
-        Completed
+
     }
 
-    public interface IMatchesViewModel
-    {
-        public bool IsLoading { get; set; }
-        public bool IsCreating { get; set; }
-        public List<Match> Matches { get; }
-        Task FetchMatchesAsync(MatchFilter? matchFilter = null);
-        Task<ExceptionDetails> CreateMatchAsync();
-        Task<ExceptionDetails> DeleteMatchAsync(Guid matchId);
-        string GetPlayerName(string playerId);
-        Task<ExceptionDetails> JoinMatchAsync(Guid matchId, FortyTwo.Shared.Models.Teams team);
-    }
-
-    public class MatchesViewModel : IMatchesViewModel
+    public class ApiClient : IApiClient, IDisposable
     {
         private readonly HttpClient _http;
         private readonly IClientStore _store;
         private readonly IUserService _userService;
 
-        public MatchesViewModel(HttpClient http, IClientStore store, IUserService userService)
+        public ApiClient(HttpClient http, IClientStore store, IUserService userService)
         {
             _http = http;
             _store = store;
             _userService = userService;
         }
 
-        public bool IsLoading { get; set; }
-        public bool IsCreating { get; set; }
-
-        private MatchFilter _matchFilter;
-
-        public List<Match> Matches
+        public async Task<ExceptionDetails> FetchMatchesAsync(MatchFilter? matchFilter = null)
         {
-            get => _store.Matches?.OrderByDescending(x => x.CreatedOn).ToList();
-        }
-
-        public async Task FetchMatchesAsync(MatchFilter? matchFilter = null)
-        {
-            if (matchFilter.HasValue && _matchFilter == matchFilter) return;
-
-            IsLoading = true;
-
             try
             {
                 var matches = await _http.GetFromJsonAsync<List<Match>>($"api/matches?completed={matchFilter == MatchFilter.Completed}");
@@ -67,18 +40,16 @@ namespace FortyTwo.Client.ViewModels
                     .Select(x => x.Id)
                     .ToList());
 
-                if (matchFilter.HasValue) _matchFilter = matchFilter.Value;
+                return null;
             }
-            finally
+            catch (Exception ex)
             {
-                IsLoading = false;
+                return new ExceptionDetails { Title = ex.Message };
             }
         }
 
         public async Task<ExceptionDetails> CreateMatchAsync()
         {
-            IsCreating = true;
-
             try
             {
                 var response = await _http.PostAsync("api/matches", null);
@@ -96,10 +67,6 @@ namespace FortyTwo.Client.ViewModels
             catch (Exception ex)
             {
                 return new ExceptionDetails { Title = ex.Message };
-            }
-            finally
-            {
-                IsCreating = false;
             }
         }
 
@@ -146,7 +113,9 @@ namespace FortyTwo.Client.ViewModels
             }
         }
 
-        public string GetPlayerName(string playerId)
-            => _store.Users.FirstOrDefault(x => x.Id == playerId)?.DisplayName ?? $"Unknown Player ({playerId})";
+        public void Dispose()
+        {
+            _http?.Dispose();
+        }
     }
 }
