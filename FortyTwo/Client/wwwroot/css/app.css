@@ -5,11 +5,6 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
-body {
-    background-image: url(../img/noise.png);
-    background-color: var(--background-color, rgba(0, 0, 0, 0.01));
-}
-
 a, .btn-link {
     color: #0366d6;
 }

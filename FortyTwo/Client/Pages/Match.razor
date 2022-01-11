@@ -3,6 +3,13 @@
 @layout MainLayout
 @using FortyTwo.Shared.Models
 
+<style>
+    body {
+        background-image: url(../img/noise.png);
+        background-color: var(--match-background-color);
+    }
+</style>
+
 <SpinnerOverlay Visible="Model.IsLoading">
     @if (Model.CurrentGame == null || Model.Player == null)
     {

@@ -25,8 +25,10 @@
     --label-danger-border-color: #991700;
     --badge-danger-bg-color: 991700;
     --badge-danger-color: #fff;
-    --background-color: rgba(0, 0, 0, 0.014);
-    /*dark mode
-    --background-color: rgb(33, 36, 37);
-    */
+    --match-background-color: rgba(0, 0, 0, 0.01);
 }
+
+    :root .dark-theme {
+        --match-background-color: rgb(33, 36, 37);
+        color: white;
+    }
