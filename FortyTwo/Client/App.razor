@@ -4,6 +4,7 @@
 @inject SweetAlertService Swal
 @inject NavigationManager Navigation
 @inject HttpClient Http
+@inject IClientStore Store
 @inject HubConnection HubConnection
 @implements IDisposable
 
@@ -98,6 +99,14 @@
                 Width = "16rem"
             });
         };
+
+        HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", (match) =>
+        {
+            Store.Matches.RemoveAll(x => x.Id == match.Id);
+            Store.Matches.Add(match);
+
+            StateHasChanged();
+        });
 
         await HubConnection.StartAsync();
     }

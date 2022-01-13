@@ -3,11 +3,14 @@ using FortyTwo.Client.Store;
 using FortyTwo.Client.ViewModels;
 using FortyTwo.Shared.DTO;
 using FortyTwo.Shared.Extensions;
+using FortyTwo.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace FortyTwo.Client.Services
@@ -43,6 +46,37 @@ namespace FortyTwo.Client.Services
             {
                 await HandleException(new ExceptionDetails { Title = ex.Message });
             }
+        }
+
+        public async Task FetchMatchAsync(Guid matchId)
+        {
+            try
+            {
+                var match = await _http.GetFromJsonAsync<Match>($"api/matches/{matchId}");
+
+                _store.Matches.RemoveAll(x => x.Id == matchId);
+                _store.Matches.Add(match);
+
+                await _userService.SyncUsersAsync(match.Players.Select(x => x.Id).ToList());
+            }
+            catch (Exception ex)
+            {
+                await HandleException(new ExceptionDetails { Title = ex.Message });
+            }
+        }
+
+        public async Task<LoggedInPlayer> FetchMatchPlayerAsync(Guid matchId)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<LoggedInPlayer>($"api/matches/{matchId}/player");
+            }
+            catch (Exception ex)
+            {
+                await HandleException(new ExceptionDetails { Title = ex.Message });
+            }
+
+            return null;
         }
 
         public async Task CreateMatchAsync()
@@ -102,6 +136,84 @@ namespace FortyTwo.Client.Services
             {
                 await HandleException(new ExceptionDetails { Title = ex.Message });
             }
+        }
+
+        public async Task<bool> UpdateMatchPlayerAsync(Guid matchId, bool ready)
+        {
+            try
+            {
+                var content = new StringContent(JsonSerializer.Serialize(new PlayerPatchRequest { Ready = ready }), Encoding.UTF8, "application/json");
+                using var response = await _http.PatchAsync($"api/matches/{matchId}/players", content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                }
+            }
+            catch (Exception ex)
+            {
+                await HandleException(new ExceptionDetails { Title = ex.Message });
+                return false;
+            }
+
+            return true;
+        }
+
+        public async Task<bool> BidAsync(Guid matchId, Bid bid)
+        {
+            try
+            {
+                var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/bids", bid);
+                if (!response.IsSuccessStatusCode)
+                {
+                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                }
+
+            }
+            catch (Exception ex)
+            {
+                await HandleException(new ExceptionDetails { Title = ex.Message });
+                return false;
+            }
+
+            return true;
+        }
+
+        public async Task<bool> SelectTrumpAsync(Guid matchId, Suit suit)
+        {
+            try
+            {
+                var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/selectTrump", suit);
+                if (!response.IsSuccessStatusCode)
+                {
+                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                }
+            }
+            catch (Exception ex)
+            {
+                await HandleException(new ExceptionDetails { Title = ex.Message });
+                return false;
+            }
+
+            return true;
+        }
+
+        public async Task<bool> MakeMoveAsync(Guid matchId, Domino domino)
+        {
+            try
+            {
+                var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/moves", domino);
+                if (!response.IsSuccessStatusCode)
+                {
+                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                }
+            }
+            catch (Exception ex)
+            {
+                await HandleException(new ExceptionDetails { Title = ex.Message });
+                return false;
+            }
+
+            return true;
         }
 
         private async Task HandleException(ExceptionDetails exception)

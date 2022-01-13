@@ -4,7 +4,6 @@ using FortyTwo.Client.Store;
 using FortyTwo.Client.ViewModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.SignalR.Client;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,7 +14,6 @@ namespace FortyTwo.Client.Pages
     public partial class Index
     {
         [Inject] public SweetAlertService Swal { get; set; }
-        [Inject] public HubConnection HubConnection { get; set; }
         [Inject] public IClientStore Store { get; set; }
         [Inject] public IApiClient ApiClient { get; set; }
 
@@ -40,14 +38,6 @@ namespace FortyTwo.Client.Pages
             {
                 await FetchMatchesAsync();
             }
-
-            HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", (match) =>
-            {
-                Store.Matches.RemoveAll(x => x.Id == match.Id);
-                Store.Matches.Add(match);
-
-                StateHasChanged();
-            });
         }
 
         public async Task FetchMatchesAsync(MatchFilter? matchFilter = null)

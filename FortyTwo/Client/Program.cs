@@ -45,8 +45,6 @@ namespace FortyTwo.Client
 
             builder.Services.AddSweetAlert2();
 
-            builder.Services.AddTransient<IMatchViewModel, MatchViewModel>();
-
             builder.Services.AddSingleton<IClientStore, ClientStore>();
             builder.Services.AddScoped<IUserService, UserService>();
 

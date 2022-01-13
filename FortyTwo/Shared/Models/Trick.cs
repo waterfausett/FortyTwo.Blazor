@@ -18,6 +18,9 @@ namespace FortyTwo.Shared.Models
         public bool IsFull()
             => Array.IndexOf(Dominos, null) == -1;
 
+        public bool IsEmpty()
+            => Array.TrueForAll(Dominos, x => x == null);
+
         public void AddDomino(Domino domino, Suit trump)
         {
             var index = Array.IndexOf(Dominos, null);
