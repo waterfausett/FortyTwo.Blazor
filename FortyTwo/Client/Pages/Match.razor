@@ -122,59 +122,19 @@
                 </div>
             </div>
 
-            @if (Player.IsActive && !Player.Bid.HasValue)
-            {
-                <section class="bidding-section">
-                    <SpinnerOverlay Visible="Bidding">
-                        <div class="row">
-                            <div class="col-12">
-                                <p>Select a bid:</p>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-12">
-                                @foreach (Bid bid in BiddingOptions)
-                                {
-                                    var context = bid switch
-                                    {
-                                        Bid.Pass => ContextualClass.Warning,
-                                        _ => ContextualClass.Info
-                                    };
-                                    <Chip Context="context" Size="Size.Large" OnSelected="async () => await BidAsync(bid)">
-                                        <Label>
-                                            @bid.ToPrettyString()
-                                        </Label>
-                                    </Chip>
-                                }
-                            </div>
-                        </div>
-                    </SpinnerOverlay>
-                </section>
-            }
+            <div class="row">
+                <div class="col-12">
+                    <hr/>
+                </div>
+            </div>
 
-            @if (CurrentGame.BiddingPlayerId == Player.Id && CurrentGame.Hands.All(x => x.Bid.HasValue) && !CurrentGame.Trump.HasValue)
-            {
-                <section class="trump-select-section">
-                    <SpinnerOverlay Visible="Bidding">
-                        <div class="row">
-                            <div class="col-12 text-center">
-                                @foreach (Suit suit in Enum.GetValues(typeof(Suit)))
-                                {
-                                    <Chip Context="ContextualClass.Info" Size="Size.Large" OnSelected="async () => await SelectTrumpAsync(suit)"><Label>@suit</Label></Chip>
-                                }
-                            </div>
-                        </div>
-                    </SpinnerOverlay>
-                </section>
-            }
-
-            <div class="player @(Player.IsActive ? "active" : "")">
+            <div class="player p-2 @(Player.IsActive ? "active" : "")">
                 <div>
                     @if (CurrentGame.WinningTeam.HasValue)
                     {
                         if (!Player.Ready)
                         {
-                            <button type="button" class="btn btn-success"
+                            <button type="button" class="btn btn-success m-2"
                                 @onclick="@(async () => await UpdatePlayerAsync(ready: true))">
                                 Ready Up!
                             </button>
@@ -187,10 +147,60 @@
                         }
                     }
                 </div>
+
+                @if (Player.IsActive && !Player.Bid.HasValue)
+                {
+                    <section class="bidding-section">
+                        <SpinnerOverlay Visible="Bidding">
+                            <div class="row">
+                                <div class="col-12">
+                                    <p>Select a bid:</p>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    @foreach (Bid bid in BiddingOptions)
+                                    {
+                                        var context = bid switch
+                                        {
+                                            Bid.Pass => ContextualClass.Warning,
+                                            _ => ContextualClass.Info
+                                        };
+                                        <Chip Context="context" Size="Size.Large" OnSelected="async () => await BidAsync(bid)">
+                                            <Label>
+                                                @bid.ToPrettyString()
+                                            </Label>
+                                        </Chip>
+                                    }
+                                </div>
+                            </div>
+                        </SpinnerOverlay>
+                    </section>
+                }
+
+                @if (CurrentGame.BiddingPlayerId == Player.Id && CurrentGame.Hands.All(x => x.Bid.HasValue) && !CurrentGame.Trump.HasValue)
+                {
+                    <section class="trump-select-section">
+                        <SpinnerOverlay Visible="Bidding">
+                            <div class="row">
+                                <div class="col-12">
+                                    <p>Select a trump:</p>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12 text-center">
+                                    @foreach (Suit suit in Enum.GetValues(typeof(Suit)))
+                                    {
+                                        <Chip Context="ContextualClass.Info" Size="Size.Large" OnSelected="async () => await SelectTrumpAsync(suit)"><Label>@suit</Label></Chip>
+                                    }
+                                </div>
+                            </div>
+                        </SpinnerOverlay>
+                    </section>
+                }
+
                 <div class="row">
                     <div class="col-12">
-                        <hr /> <!-- TODO: move this -->
-
                         @if (!CurrentGame.Trump.HasValue || CurrentGame.BiddingPlayerId == Player.Id)
                         {
                             @if (Player.Bid.HasValue)
