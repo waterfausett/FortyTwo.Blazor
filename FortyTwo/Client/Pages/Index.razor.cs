@@ -16,6 +16,7 @@ namespace FortyTwo.Client.Pages
         [Inject] public SweetAlertService Swal { get; set; }
         [Inject] public IClientStore Store { get; set; }
         [Inject] public IApiClient ApiClient { get; set; }
+        [Inject] public IUserService UserService { get; set; }
 
         [CascadingParameter] private Task<AuthenticationState> authenticationStateTask { get; set; }
         private System.Security.Claims.ClaimsPrincipal _user;
