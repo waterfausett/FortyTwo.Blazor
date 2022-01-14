@@ -147,6 +147,7 @@ namespace FortyTwo.Client.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    return false;
                 }
             }
             catch (Exception ex)
@@ -166,8 +167,8 @@ namespace FortyTwo.Client.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    return false;
                 }
-
             }
             catch (Exception ex)
             {
@@ -186,6 +187,7 @@ namespace FortyTwo.Client.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    return false;
                 }
             }
             catch (Exception ex)
@@ -205,6 +207,7 @@ namespace FortyTwo.Client.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    return false;
                 }
             }
             catch (Exception ex)
