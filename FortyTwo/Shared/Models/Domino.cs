@@ -37,6 +37,7 @@ namespace FortyTwo.Shared.Models
         public int Bottom { get; }
         public Orientation Orientation { get; set; }
         public int Value => ((Top + Bottom) % 5 == 0) ? (Top + Bottom) : 0;
+        public int Order { get; set; }
 
         public bool IsDouble => this.Top == this.Bottom;
 

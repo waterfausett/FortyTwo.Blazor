@@ -58,3 +58,7 @@
     box-shadow: 0px 0px 50px 5px lightgreen;
     border-radius: 8px;
 }
+
+.sortable-domino {
+    display: inline-block;
+}

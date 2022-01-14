@@ -1,4 +1,5 @@
-﻿using CurrieTechnologies.Razor.SweetAlert2;
+﻿using BlazorSortableJS.Components;
+using CurrieTechnologies.Razor.SweetAlert2;
 using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
 using FortyTwo.Shared.DTO;
@@ -68,6 +69,14 @@ namespace FortyTwo.Client.Pages
             }
         }
 
+        private SortGroup<Domino> MyGroup;
+
+        public async Task OnSort(SortableEvent<Domino> e)
+        {
+            await e.Sender.GetOrderListAsync("Order");
+            Player.Dominos = Player.Dominos.OrderBy(x => x.Order).ToList();
+        }
+
         public bool IsConnected =>
             HubConnection.State == HubConnectionState.Connected;
 
@@ -126,6 +135,10 @@ namespace FortyTwo.Client.Pages
             try
             {
                 Player = await ApiClient.FetchMatchPlayerAsync(MatchId);
+                if (MyGroup != null)
+                {
+                    await MyGroup.UpdateAsync();
+                }
             }
             finally
             {
@@ -183,30 +196,27 @@ namespace FortyTwo.Client.Pages
 
                 Player.Dominos.Remove(domino);
                 CurrentGame.CurrentTrick.AddDomino(domino, CurrentGame.Trump.Value);
+                await MyGroup.UpdateAsync();
 
                 if (!await ApiClient.MakeMoveAsync(MatchId, domino))
                 {
-                    Reset();
+                    CurrentGame.CurrentPlayerId = currentPlayerId;
+                    if (!Player.Dominos.Contains(domino))
+                    {
+                        Player.Dominos.Add(domino);
+                        await MyGroup.UpdateAsync();
+                    }
+
+                    var index = Array.IndexOf(CurrentGame.CurrentTrick.Dominos, domino);
+                    if (index != -1)
+                    {
+                        CurrentGame.CurrentTrick.Dominos[index] = null;
+                    }
                 }
             }
             finally
             {
                 MakingMove = false;
-            }
-
-            void Reset()
-            {
-                CurrentGame.CurrentPlayerId = currentPlayerId;
-                if (!Player.Dominos.Contains(domino))
-                {
-                    Player.Dominos.Add(domino);
-                }
-
-                var index = Array.IndexOf(CurrentGame.CurrentTrick.Dominos, domino);
-                if (index != -1)
-                {
-                    CurrentGame.CurrentTrick.Dominos[index] = null;
-                }
             }
         }
 
@@ -228,6 +238,11 @@ namespace FortyTwo.Client.Pages
                 var newGameStarting = match.Players.All(x => x.Ready) && CurrentGame.Tricks.Count == 0 && CurrentGame.CurrentTrick.IsEmpty();
                 if (newGameStarting)
                 {
+                    if (MyGroup != null)
+                    {
+                        await MyGroup.UpdateAsync();
+                    }
+
                     await Swal.FireAsync(new SweetAlertOptions
                     {
                         Icon = SweetAlertIcon.Info,

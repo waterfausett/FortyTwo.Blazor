@@ -69,7 +69,18 @@ namespace FortyTwo.Client.Services
         {
             try
             {
-                return await _http.GetFromJsonAsync<LoggedInPlayer>($"api/matches/{matchId}/player");
+                var user = await _http.GetFromJsonAsync<LoggedInPlayer>($"api/matches/{matchId}/player");
+
+                if (user?.Dominos != null)
+                {
+                    user.Dominos = user.Dominos
+                        .Select((x, index) => new { Domino = x, Index = index + 1 })
+                        .OrderBy(x => x.Domino?.Order ?? x.Index)
+                        .Select(x => x.Domino)
+                        .ToList();
+                }
+
+                return user;
             }
             catch (Exception ex)
             {

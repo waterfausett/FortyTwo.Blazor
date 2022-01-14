@@ -2,7 +2,7 @@
 
 @if (Instance != null)
 {
-    <div class="domino @(Direction == DominoDirection.Horizontal ? "horizontal" : "") @(Selectable ? "clickable" : "no-hover")" 
+    <div class="domino @(Direction == DominoDirection.Horizontal ? "horizontal" : "") @(Selectable ? "clickable" : "")" 
      @onclick="@(async () => { if (Selectable) await OnSelected.InvokeAsync(Instance); })">
         <div data-value="@Instance.Top">
             <!-- Left -->

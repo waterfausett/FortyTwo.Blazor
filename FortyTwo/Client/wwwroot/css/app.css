@@ -21,6 +21,11 @@ app {
     flex-direction: column;
 }
 
+.sortable-horizontal li {
+    display: inline-block;
+    list-style-type: none;
+}
+
 .top-row {
     height: 3.5rem;
     display: flex;
