@@ -37,10 +37,8 @@ namespace FortyTwo.Client.Pages
             var authState = await authenticationStateTask;
             _user = authState.User;
 
-            if (Matches == null || !Matches.Any())
-            {
-                await FetchMatchesAsync();
-            }
+            // TODO: maybe should page this one day?
+            await FetchMatchesAsync();
 
             await RegisterSignalRAsync();
         }
