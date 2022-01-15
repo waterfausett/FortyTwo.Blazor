@@ -102,8 +102,7 @@
 
         HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", (match) =>
         {
-            Store.Matches.RemoveAll(x => x.Id == match.Id);
-            Store.Matches.Add(match);
+            Store.Matches.AddOrUpdate(match.Id, match, (_, __) => match);
 
             StateHasChanged();
         });

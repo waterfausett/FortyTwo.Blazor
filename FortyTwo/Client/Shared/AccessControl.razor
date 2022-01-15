@@ -48,15 +48,17 @@
     public void AddLoggedInUserAsync(System.Security.Claims.ClaimsPrincipal principal)
     {
         var loggedInUserId = principal?.Claims.SingleOrDefault(c => c.Type == "sub")?.Value;
-        if (!string.IsNullOrWhiteSpace(loggedInUserId) && Store.Users.All(x => x.Id != loggedInUserId))
+        if (!string.IsNullOrWhiteSpace(loggedInUserId) && Store.Users.Values.All(x => x.Id != loggedInUserId))
         {
-            Store.Users.Add(new FortyTwo.Shared.DTO.User()
-            {
-                Id = loggedInUserId,
-                Email = principal.Identity?.Name,
-                Nickname = principal.Claims.SingleOrDefault(c => c.Type == "nickname")?.Value,
-                Picture = principal.Claims.SingleOrDefault(c => c.Type == "picture")?.Value
-            });
+            var loggedInUser = new FortyTwo.Shared.DTO.User()
+                {
+                    Id = loggedInUserId,
+                    Email = principal.Identity?.Name,
+                    Nickname = principal.Claims.SingleOrDefault(c => c.Type == "nickname")?.Value,
+                    Picture = principal.Claims.SingleOrDefault(c => c.Type == "picture")?.Value
+                };
+
+            Store.Users.AddOrUpdate(loggedInUserId, loggedInUser, (_, __) => loggedInUser);
         }
     }
 

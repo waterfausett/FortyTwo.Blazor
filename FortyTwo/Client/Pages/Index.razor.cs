@@ -27,7 +27,7 @@ namespace FortyTwo.Client.Pages
         public bool IsCreating { get; set; }
         public List<FortyTwo.Shared.DTO.Match> Matches
         {
-            get => Store.Matches?.OrderByDescending(x => x.CreatedOn).ToList();
+            get => Store.Matches.Values.OrderByDescending(x => x.CreatedOn).ToList();
         }
 
         private MatchFilter _matchFilter;
