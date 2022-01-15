@@ -4,6 +4,7 @@ using FortyTwo.Client.Store;
 using FortyTwo.Client.ViewModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.SignalR.Client;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,9 +12,10 @@ using System.Threading.Tasks;
 
 namespace FortyTwo.Client.Pages
 {
-    public partial class Index
+    public partial class Index : IAsyncDisposable
     {
         [Inject] public SweetAlertService Swal { get; set; }
+        [Inject] public HubConnection HubConnection { get; set; }
         [Inject] public IClientStore Store { get; set; }
         [Inject] public IApiClient ApiClient { get; set; }
         [Inject] public IUserService UserService { get; set; }
@@ -39,6 +41,18 @@ namespace FortyTwo.Client.Pages
             {
                 await FetchMatchesAsync();
             }
+
+            await RegisterSignalRAsync();
+        }
+
+        private async Task RegisterSignalRAsync()
+        {
+            await HubConnection.SendAsync("JoinGroupAsync", "matches-list");
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await HubConnection?.SendAsync("LeaveGroupAsync", "matches-list");
         }
 
         public async Task FetchMatchesAsync(MatchFilter? matchFilter = null)

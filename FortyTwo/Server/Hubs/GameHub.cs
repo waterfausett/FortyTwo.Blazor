@@ -12,7 +12,17 @@ namespace FortyTwo.Server.Hubs
             await Groups.AddToGroupAsync(Context.ConnectionId, matchId.ToString());
         }
 
-        public async Task LeaveGameAsync(string groupName)
+        public async Task LeaveGameAsync(Guid matchId)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, matchId.ToString());
+        }
+
+        public async Task JoinGroupAsync(string groupName)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        }
+
+        public async Task LeaveGroupAsync(string groupName)
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
         }

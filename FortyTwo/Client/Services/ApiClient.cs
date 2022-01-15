@@ -102,7 +102,10 @@ namespace FortyTwo.Client.Services
 
                 var match = await response.Content.ReadFromJsonAsync<Match>();
 
-                _store.Matches.Add(match);
+                if (_store.Matches.All(x => x.Id != match.Id))
+                {
+                    _store.Matches.Add(match);
+                }
             }
             catch (Exception ex)
             {
