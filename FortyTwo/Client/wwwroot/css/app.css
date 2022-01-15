@@ -34,6 +34,7 @@ app {
 }
 
 .main {
+    position: relative;
     flex: 1;
     height: 100vh;
     display: flex;
@@ -55,6 +56,10 @@ app {
 .main .top-row a:first-child {
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.main .swal2-container {
+    position: absolute;
 }
 
 .sidebar {
