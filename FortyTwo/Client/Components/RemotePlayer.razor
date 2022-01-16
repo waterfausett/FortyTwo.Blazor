@@ -1,6 +1,6 @@
 ﻿@using FortyTwo.Shared.Models
 
-<div class="player-remote @(IsActive ? "active" : "")">
+<div class="player-remote @(IsActive ? "active" : "") p-2">
     @if (Player != null)
     {
         <h4 class="ellipsis">
@@ -29,10 +29,7 @@
 
         @if (Ready == true)
         {
-            <Chip Context="Components.Models.ContextualClass.Success">
-                <Label>Ready</Label>
-                <Badge>✔</Badge>
-            </Chip>
+            <div class="ribbon ribbon-top-right"><span>ready</span></div>
         }
 
         @if (DominoCount != 0)

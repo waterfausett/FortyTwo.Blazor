@@ -25,6 +25,7 @@
     -moz-box-shadow: .3em .3em 0em .12em gray;
     -webkit-box-shadow: .3em .3em 0em .12em gray;
     box-shadow: .3em .3em 0em .12em gray;
+    z-index: -1;
 }
 
     .domino.horizontal {
