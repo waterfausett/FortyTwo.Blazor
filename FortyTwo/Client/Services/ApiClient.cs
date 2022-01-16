@@ -98,7 +98,7 @@ namespace FortyTwo.Client.Services
                 var response = await _http.PostAsync("api/matches", null);
                 if (!response.IsSuccessStatusCode)
                 {
-                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    await HandleException(response);
                 }
 
                 var match = await response.Content.ReadFromJsonAsync<Match>();
@@ -121,7 +121,7 @@ namespace FortyTwo.Client.Services
                 var response = await _http.DeleteAsync($"api/matches/{matchId}");
                 if (!response.IsSuccessStatusCode)
                 {
-                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    await HandleException(response);
                 }
 
                 _store.Matches.RemoveAll(match => match.Id == matchId);
@@ -139,7 +139,7 @@ namespace FortyTwo.Client.Services
                 var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/players", new AddPlayerRequest { Team = team });
                 if (!response.IsSuccessStatusCode)
                 {
-                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    await HandleException(response);
                 }
 
                 var match = await response.Content.ReadFromJsonAsync<Match>();
@@ -161,7 +161,7 @@ namespace FortyTwo.Client.Services
                 using var response = await _http.PatchAsync($"api/matches/{matchId}/players", content);
                 if (!response.IsSuccessStatusCode)
                 {
-                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    await HandleException(response);
                     return false;
                 }
             }
@@ -181,7 +181,7 @@ namespace FortyTwo.Client.Services
                 var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/bids", bid);
                 if (!response.IsSuccessStatusCode)
                 {
-                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    await HandleException(response);
                     return false;
                 }
             }
@@ -201,7 +201,7 @@ namespace FortyTwo.Client.Services
                 var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/selectTrump", suit);
                 if (!response.IsSuccessStatusCode)
                 {
-                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    await HandleException(response);
                     return false;
                 }
             }
@@ -221,7 +221,7 @@ namespace FortyTwo.Client.Services
                 var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/moves", domino);
                 if (!response.IsSuccessStatusCode)
                 {
-                    await HandleException(await response.Content.ReadFromJsonAsync<ExceptionDetails>());
+                    await HandleException(response);
                     return false;
                 }
             }
@@ -234,6 +234,30 @@ namespace FortyTwo.Client.Services
             return true;
         }
 
+        private async Task HandleException(HttpResponseMessage response)
+        {
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                await _swal.FireAsync(new SweetAlertOptions
+                {
+                    Toast = true,
+                    Timer = 1750,
+                    TimerProgressBar = true,
+                    Position = SweetAlertPosition.BottomRight,
+                    ShowConfirmButton = false,
+                    Icon = SweetAlertIcon.Error,
+                    Title = "Unauthorized",
+                    Target = ".main"
+                });
+
+                return;
+            }
+
+            var exception = await response.Content.ReadFromJsonAsync<ExceptionDetails>();
+
+            await HandleException(exception);
+        }
+
         private async Task HandleException(ExceptionDetails exception)
         {
             if (exception == null) return;
@@ -241,7 +265,7 @@ namespace FortyTwo.Client.Services
             await _swal.FireAsync(new SweetAlertOptions
             {
                 Icon = SweetAlertIcon.Error,
-                Title = exception.Title,
+                Title = !string.IsNullOrEmpty(exception.Title) ? exception.Title : "Something went wrong",
                 Html = exception.Detail.Truncate(250),
                 ConfirmButtonText = "Ok",
                 Target = ".main"
