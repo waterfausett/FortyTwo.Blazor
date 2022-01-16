@@ -43,10 +43,17 @@ namespace FortyTwo.Server.Services
             return this;
         }
 
-        public IMatchValidationService IsActive(Game game)
+        public IMatchValidationService IsNotNull(Game game)
         {
             if (game == null)
-                throw new CustomValidationException("No active game found");
+                throw new CustomValidationException("Game not found!");
+
+            return this;
+        }
+
+        public IMatchValidationService IsActive(Game game)
+        {
+            IsNotNull(game);
 
             if (game.WinningTeam != null)
                 throw new CustomValidationException("This game is over");

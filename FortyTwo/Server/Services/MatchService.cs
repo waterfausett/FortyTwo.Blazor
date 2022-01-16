@@ -283,8 +283,8 @@ namespace FortyTwo.Server.Services
                 .FirstOrDefaultAsync();
 
             _matchValidationService
-                .IsActive(match)
-                .IsActive(match.CurrentGame)
+                .IsNotNull(match)
+                .IsNotNull(match.CurrentGame)
                 .IsActiveTurn(match.CurrentGame, _userId)
                 .IsReadyToPlay(match.CurrentGame)
                 .HasDomino(match.CurrentGame, _userId, domino)
@@ -311,7 +311,7 @@ namespace FortyTwo.Server.Services
                 match.CurrentGame.CurrentTrick.Team = (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB;
             }
 
-            // TODO: trick is full - get ready for the next one
+            var alreadyHadAWinner = match.CurrentGame.WinningTeam.HasValue;
 
             if (match.CurrentGame.CurrentTrick.IsFull())
             {
@@ -337,7 +337,7 @@ namespace FortyTwo.Server.Services
                 ? match.Scores.Aggregate((x, y) => x.Value > y.Value ? x : y).Key
                 : null;
 
-            if (!match.WinningTeam.HasValue && match.CurrentGame.WinningTeam.HasValue)
+            if (!match.WinningTeam.HasValue && match.CurrentGame.WinningTeam.HasValue && !alreadyHadAWinner)
             {
                 match.Players.ForEach(x => x.Ready = false);
             }
