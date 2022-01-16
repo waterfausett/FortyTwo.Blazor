@@ -253,6 +253,8 @@ namespace FortyTwo.Client.Pages
                         ShowCloseButton = false,
                         Title = "The next game has started",
                     });
+
+                    _gameOverNotificationAlreadyShown = false;
                 }
                 else if (match.WinningTeam.HasValue)
                 {
@@ -312,17 +314,20 @@ namespace FortyTwo.Client.Pages
             await HubConnection?.SendAsync("LeaveGameAsync", MatchId);
         }
 
-        public async Task ShowNotificationIfGameOverAsync(Game game)
+        private bool _gameOverNotificationAlreadyShown;
+        public Task ShowNotificationIfGameOverAsync(Game game)
         {
-            if (!game.WinningTeam.HasValue) return;
+            if (!game.WinningTeam.HasValue || _gameOverNotificationAlreadyShown) return Task.CompletedTask;
 
             var alertOptions = new SweetAlertOptions
             {
-                ShowConfirmButton = true,
-                ConfirmButtonText = "OK",
-                FocusConfirm = true,
-                ShowCancelButton = false,
+                Toast = true,
+                Timer = 1750,
+                TimerProgressBar = true,
                 ShowCloseButton = false,
+                ShowConfirmButton = false,
+                Position = SweetAlertPosition.BottomRight,
+                Width = "24rem"
             };
 
             var biddingTeam = (int)Model.Players.First(x => x.Id == Model.CurrentGame.BiddingPlayerId).Position % 2 == 0
@@ -346,7 +351,11 @@ namespace FortyTwo.Client.Pages
                     : "The other team made their bid 😒";
             }
 
-            await Swal.FireAsync(alertOptions);
+            _ = Swal.FireAsync(alertOptions);
+
+            _gameOverNotificationAlreadyShown = true;
+
+            return Task.CompletedTask;
         }
     }
 }
