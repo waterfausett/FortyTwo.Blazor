@@ -252,6 +252,7 @@ namespace FortyTwo.Client.Pages
                         TimerProgressBar = true,
                         ShowCloseButton = false,
                         Title = "The next game has started",
+                        Target = ".main"
                     });
 
                     _gameOverNotificationAlreadyShown = false;
