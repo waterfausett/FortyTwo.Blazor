@@ -243,6 +243,7 @@ namespace FortyTwo.Client.Services
                 Title = exception.Title,
                 Html = exception.Detail.Truncate(250),
                 ConfirmButtonText = "Ok",
+                Target = ".main"
             });
         }
 
