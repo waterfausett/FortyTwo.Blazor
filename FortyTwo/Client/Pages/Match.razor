@@ -10,6 +10,13 @@
         background-image: url(../img/noise.png);
         background-color: var(--match-background-color);
     }
+
+    .team-scores .stamp {
+        position: absolute;
+        top: -10px;
+        left: -60px;
+        opacity: 0.5;
+    }
 </style>
 
 <SpinnerOverlay Visible="IsLoading">
@@ -21,11 +28,23 @@
     }
     else
     {
-        <div class="row justify-content-between border-bottom">
+        <div class="row justify-content-between border-bottom team-scores">
             @{ Model.Scores.TryGetValue(Teams.TeamA, out var teamAScore); }
             @{ Model.Scores.TryGetValue(Teams.TeamB, out var teamBScore); }
-            <div class="col-3 offset-1"><label><b>Us:</b> <span data-score="@(Player.Team == Teams.TeamA ? teamAScore : teamBScore)"></span></label></div>
-            <div class="col-3"><label><b>Them:</b> <span data-score="@(Player.Team == Teams.TeamA ? teamBScore : teamAScore)"></span></label></div>
+            <div class="col-3 offset-1">
+                <label><b>Us:</b> <span data-score="@(Player.Team == Teams.TeamA ? teamAScore : teamBScore)"></span></label>
+                @if (Model.WinningTeam.HasValue && Model.WinningTeam == Player.Team)
+                {
+                    <span class="stamp is-approved">Winners!</span>
+                }
+            </div>
+            <div class="col-3">
+                <label><b>Them:</b> <span data-score="@(Player.Team == Teams.TeamA ? teamBScore : teamAScore)"></span></label>
+                @if (Model.WinningTeam.HasValue && Model.WinningTeam != Player.Team)
+                {
+                    <span class="stamp is-approved">Winners!</span>
+                }
+            </div>
         </div>
 
         <div class="game-wrapper">
