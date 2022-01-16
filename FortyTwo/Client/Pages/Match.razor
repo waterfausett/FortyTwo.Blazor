@@ -222,12 +222,14 @@
                         }
 
                         <div class="domino-container">
+                            <!-- TODO: can make this thing be a div instead of ul (might be better) -->
                             <SortGroup Items="@Player.Dominos" Class="sortable-horizontal d-flex flex-wrap justify-content-center m-0 p-0" TemplateClass="sortable-domino" @ref="MyGroup" TItem="FortyTwo.Shared.Models.Domino" OnSort="OnSort">
                                 <Template Context="domino">
                                     <Domino Instance="@domino.Data"
                                         Selectable="!MakingMove && Player.IsActive && CurrentGame.Bid.HasValue && CurrentGame.Trump.HasValue"
                                         OnSelected="async (domino) => await MakeMoveAsync(domino)"></Domino>
 
+                                    <!-- TODO: this ain't workin' right now -->
                                     @if (domino.Data.Order % 4 == 0)
                                     {
                                         <div class="domino-spacer d-none d-lg-block"></div> 
