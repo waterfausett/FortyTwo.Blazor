@@ -2,6 +2,7 @@
     position: relative;
     box-shadow: 0 0 15px rgba(0,0,0,.1);
     border-radius: 8px;
+    min-height: 110px;
 }
 .player-remote.active {
     -moz-box-shadow: 0px 3px 24px limegreen;
