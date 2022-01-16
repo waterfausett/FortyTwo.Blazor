@@ -73,6 +73,7 @@ namespace FortyTwo.Client.Services
 
                 if (user?.Dominos != null)
                 {
+                    // TODO: this doesn't actually do anything b/c .Order isn't nullable so everything stays set at 0 🤪
                     user.Dominos = user.Dominos
                         .Select((x, index) => new { Domino = x, Index = index + 1 })
                         .OrderBy(x => x.Domino?.Order ?? x.Index)
