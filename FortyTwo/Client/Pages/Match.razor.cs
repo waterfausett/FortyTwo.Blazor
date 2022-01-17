@@ -122,6 +122,12 @@ namespace FortyTwo.Client.Pages
             Player.Bid ??= game.Hands.First(x => x.PlayerId == Player.Id).Bid;
             Player.IsActive = game.CurrentPlayerId == Player.Id;
 
+            if (Player.IsActive && PreselectedMove != null)
+            {
+                await MakeMoveAsync(PreselectedMove);
+                PreselectedMove = null;
+            }
+
             if (game.WinningTeam.HasValue)
             {
                 await FetchPlayerAsync();
@@ -183,6 +189,23 @@ namespace FortyTwo.Client.Pages
             {
                 Bidding = false;
             }
+        }
+
+        private Domino PreselectedMove; // TODO: rename
+        // TODO: try to play this when it's my turn
+
+        public Task PreselectAsync(Domino domino)
+        {
+            if (PreselectedMove?.Equals(domino) == true)
+            {
+                PreselectedMove = null;
+            }
+            else
+            {
+                PreselectedMove = domino;
+            }
+
+            return Task.CompletedTask;
         }
 
         public async Task MakeMoveAsync(Domino domino)

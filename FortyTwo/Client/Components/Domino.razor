@@ -2,8 +2,9 @@
 
 @if (Instance != null)
 {
-    <div class="domino @(Direction == DominoDirection.Horizontal ? "horizontal" : "") @(Selectable ? "clickable" : "")" 
-     @onclick="@(async () => { if (Selectable) await OnSelected.InvokeAsync(Instance); })">
+    <div class="domino @(Direction == DominoDirection.Horizontal ? "horizontal" : "") @(Selectable ? "clickable" : "") @(Preselected ? "preselected" : "")" 
+        @onclick="@(async () => { if (Selectable) await OnSelected.InvokeAsync(Instance); })"
+        @ondblclick="@(async () => { if (!Selectable) await OnDblClick.InvokeAsync(Instance); })">
         @{ var topValue = (Instance.Orientation == FortyTwo.Shared.Models.Orientation.Left ? Instance.Top : Instance.Bottom); }
         <div data-value="@topValue">
             <!-- Left -->
@@ -94,6 +95,12 @@ else if (ShowPlaceHolder)
 
     [Parameter]
     public EventCallback<FortyTwo.Shared.Models.Domino> OnSelected { get; set; }
+
+    [Parameter]
+    public bool Preselected { get; set; }
+
+    [Parameter]
+    public EventCallback<FortyTwo.Shared.Models.Domino> OnDblClick { get; set; } = new EventCallback<FortyTwo.Shared.Models.Domino>();
 
     [Parameter]
     public bool ShowPlaceHolder { get; set; }

@@ -148,3 +148,10 @@
         box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
         border: none;
     }
+
+    .domino.preselected {
+        -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em rgba(205, 92, 92, 0.5);
+        -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em rgba(205, 92, 92, 0.5);
+        box-shadow: 0.1em 0.1em 0.1em 0.5em rgba(205, 92, 92, 0.5);
+        border: none;
+    }

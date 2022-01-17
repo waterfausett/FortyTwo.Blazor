@@ -245,7 +245,9 @@
                                 <Template Context="domino">
                                     <Domino Instance="@domino.Data"
                                         Selectable="!MakingMove && Player.IsActive && CurrentGame.Bid.HasValue && CurrentGame.Trump.HasValue"
-                                        OnSelected="async (domino) => await MakeMoveAsync(domino)"></Domino>
+                                        OnSelected="async (domino) => await MakeMoveAsync(domino)"
+                                        Preselected="domino.Data.Equals(PreselectedMove)"
+                                        OnDblClick="async (domino) => await PreselectAsync(domino)"></Domino>
                                 </Template>
                             </SortGroup>
                         </div>

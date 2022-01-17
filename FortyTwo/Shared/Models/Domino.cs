@@ -60,6 +60,7 @@ namespace FortyTwo.Shared.Models
 
         public bool Equals(Domino other)
         {
+            if (other == null) return false;
             return (this.Top == other.Top && this.Bottom == other.Bottom)
                 || (this.Top == other.Bottom && this.Bottom == other.Top);
         }
