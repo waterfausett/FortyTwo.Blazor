@@ -248,6 +248,11 @@
                                         OnSelected="async (domino) => await MakeMoveAsync(domino)"
                                         Preselected="domino.Data.Equals(PreselectedMove)"
                                         OnDblClick="async (domino) => await PreselectAsync(domino)"></Domino>
+                                    <!-- TODO: this ain't workin' right now -->
+                                    @if (domino.Data.Order % 4 == 0)
+                                    {
+                                        <div class="domino-spacer d-none d-lg-block"></div> 
+                                    }
                                 </Template>
                             </SortGroup>
                         </div>
