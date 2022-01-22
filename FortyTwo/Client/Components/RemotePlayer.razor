@@ -1,6 +1,6 @@
 ﻿@using FortyTwo.Shared.Models
 
-<div class="player-remote @(IsActive ? "active" : "") p-2">
+<div class="player-remote @(IsActive ? "active" : "") p-2" @attributes="InputAttributes">
     @if (Player != null)
     {
         <h4 class="ellipsis">
@@ -55,6 +55,9 @@
 </div>
 
 @code {
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object> InputAttributes { get; set; }
+
     [Parameter]
     public Player Player { get; set; }
 
