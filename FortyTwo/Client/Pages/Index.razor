@@ -35,112 +35,84 @@
         <div>
             @if (Matches?.Any() == true)
             {
-                @foreach (var match in Matches)
-                {
-                    <div class="card mb-2">
-                        @if (match.Players.Count == 4)
+                <table class="table table-hover table-responsive-sm">
+                    <thead>
+                        <th scope="col"></th>
+                        <th scope="col">Team</th>
+                        <th scope="col">Team</th>
+                    </thead>
+                    <tbody>
+                        @foreach (var match in Matches)
                         {
-                            <h5 class="card-header"><a href="/match/@match.Id" class="btn btn-sm btn-link">View</a></h5>
-                        }
-                        else
-                        {
-                            <h5 class="card-header"><span class="text-muted">waiting for more players&hellip;</span></h5>
-                        }
-                        <div class="card-body p-2">
-                            <ul class="list-group list-group-flush">
-
-                                @* TODO: make a component for this ? *@
-
-                                @{ match.Scores.TryGetValue(Teams.TeamA, out var teamAScore); }
-                                <li class="list-group-item p-0 @(match.WinningTeam == Teams.TeamA ? "match-winner" : "")">
-                                    <h5 class="card-title m-2 d-flex justify-content-between">
-                                        <div>
+                            <tr>
+                                <th scope="row">
+                                    @if (match.Players.Count != 4)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-link" title="waiting for more players&hellip;" disabled>view</button>
+                                    }
+                                    else
+                                    {
+                                        <a href="/match/@match.Id" class="btn btn-sm btn-link">view</a>
+                                    }
+                                </th>
+                                <td>
+                                    <div class="d-flex">
+                                        <div class="ellipsis">
                                             @if (match.Teams[Teams.TeamA].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
                                             {
-                                                <span class="active-dot mr-2"></span>
+                                                <span class="active-dot align-middle mr-2"></span>
                                             }
                                             @string.Join(" & ", match.Teams[Teams.TeamA].OrderBy(x => x.Position).Select(x => UserService.GetUserName(x.Id)))
                                         </div>
-                                        <div>
-                                            <span><label>Score: <span data-score="@teamAScore"></span></label></span>
-                                        </div>
-                                    </h5>
-                                    <div class="d-flex justify-content-between">
-                                        <div class="m-2">
-                                            <Chip Context="Components.Models.ContextualClass.Info">
-                                                <Label>Points</Label>
-                                                <Badge>@match.CurrentGame.Tricks.Where(x => x.Team == Teams.TeamA).Sum(x => x.Value)</Badge>
-                                            </Chip>
-
-                                            @if (match.Teams[Teams.TeamA].Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
-                                            {
+                                        @{ match.Scores.TryGetValue(Teams.TeamA, out var teamAScore); }
+                                        @if (teamAScore > 0)
+                                        {
+                                            <div class="ml-2">
                                                 <Chip Context="Components.Models.ContextualClass.Warning">
-                                                    <Label>Bid</Label>
-                                                    <Badge>@(match.CurrentGame.Bid.HasValue ? $"{match.CurrentGame.Bid.ToPrettyString()}" : "?")</Badge>
+                                                    <Label><span data-score="@teamAScore"></span></Label>
                                                 </Chip>
-                                                <Chip>
-                                                    <Label>Trump</Label>
-                                                    <Badge>@(match.CurrentGame.Trump.HasValue ? $"{match.CurrentGame.Trump}" : "?")</Badge>
-                                                </Chip>
-                                            }
-                                        </div>
-                                        <div>
+                                            </div>
+                                        }
+                                        <div class="ml-auto">
                                             @if (match.Teams[Teams.TeamA].Count() < 2 && match.Teams.SelectMany(x => x.Value).All(x => x.Id != _user.GetUserId()))
                                             {
                                                 <button type="button" class="btn btn-primary"
-                                                    @onclick="@(async () => await JoinMatchAsync(match.Id, Teams.TeamA))">Join Game</button>
+                                                    @onclick="@(async () => await JoinMatchAsync(match.Id, Teams.TeamA))">Join</button>
                                             }
                                         </div>
                                     </div>
-                                </li>
-
-                                @{ match.Scores.TryGetValue(Teams.TeamB, out var teamBScore); }
-                                <li class="list-group-item p-0 @(match.WinningTeam == Teams.TeamB ? "match-winner" : "")">
-                                    <h5 class="card-title m-2 d-flex justify-content-between">
-                                        <div>
+                                </td>
+                                <td>
+                                    <div class="d-flex">
+                                        <div class="ellipsis">
                                             @if (match.Teams[Teams.TeamB].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
                                             {
-                                                <span class="active-dot mr-2"></span>
+                                                <span class="active-dot align-middle mr-2"></span>
                                             }
                                             @string.Join(" & ", match.Teams[Teams.TeamB].OrderBy(x => x.Position).Select(x => UserService.GetUserName(x.Id)))
                                         </div>
-                                        <div>
-                                            <span><label>Score: <span data-score="@teamBScore"></span></label></span>
-                                        </div>
-                                    </h5>
-                                    <div class="d-flex justify-content-between">
-                                        <div class="m-2">
-                                            <Chip Context="Components.Models.ContextualClass.Info">
-                                                <Label>Points</Label>
-                                                <Badge>@match.CurrentGame.Tricks.Where(x => x.Team == Teams.TeamB).Sum(x => x.Value)</Badge>
-                                            </Chip>
-
-                                            @if (match.Teams[Teams.TeamB].Any(x => x.Id == match.CurrentGame.BiddingPlayerId))
-                                            {
+                                        @{ match.Scores.TryGetValue(Teams.TeamB, out var teamBScore); }
+                                        @if (teamBScore > 0)
+                                        {
+                                            <div class="ml-2">
                                                 <Chip Context="Components.Models.ContextualClass.Warning">
-                                                    <Label>Bid</Label>
-                                                    <Badge>@(match.CurrentGame.Bid.HasValue ? $"{match.CurrentGame.Bid.ToPrettyString()}" : "?")</Badge>
+                                                    <Label><span data-score="@teamBScore"></span></Label>
                                                 </Chip>
-                                                <Chip>
-                                                    <Label>Trump</Label>
-                                                    <Badge>@(match.CurrentGame.Trump.HasValue ? $"{match.CurrentGame.Trump}" : "?")</Badge>
-                                                </Chip>
-                                            }
-                                        </div>
-                                        <div>
+                                            </div>
+                                        }
+                                        <div class="ml-auto">
                                             @if (match.Teams[Teams.TeamB].Count() < 2 && match.Teams.SelectMany(x => x.Value).All(x => x.Id != _user.GetUserId()))
                                             {
                                                 <button type="button" class="btn btn-primary"
-                                                    @onclick="@(async () => await JoinMatchAsync(match.Id, Teams.TeamB))">Join Game</button>
+                                                    @onclick="@(async () => await JoinMatchAsync(match.Id, Teams.TeamB))">Join</button>
                                             }
                                         </div>
                                     </div>
-                                </li>
-
-                            </ul>
-                        </div>
-                    </div>
-                }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             }
             else
             {
