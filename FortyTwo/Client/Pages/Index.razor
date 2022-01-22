@@ -43,7 +43,7 @@
         <div>
             @if (Matches?.Any() == true)
             {
-                <table class="table table-hover table-responsive-sm">
+                <table class="table table-hover table-responsive-sm d-flex flex-column">
                     <thead>
                         <tr class="d-flex">
                             <th scope="col" class="col-2"></th>
@@ -51,7 +51,7 @@
                             <th scope="col" class="col-5">Team</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody style="height: calc(100vh - 180px - 4.7rem); overflow: auto;">
                         @foreach (var match in Matches)
                         {
                             <tr class="d-flex">
