@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @layout MainLayout
 @using FortyTwo.Client.ViewModels
+@using FortyTwo.Shared.DTO
 @using FortyTwo.Shared.Models
 @using FortyTwo.Shared.Extensions
 
@@ -20,12 +21,16 @@
 
     <hr />
 
-    <ul class="nav nav-tabs" role="tablist">
-        <li class="nav-item">
+    <ul class="nav nav-tabs d-flex" role="tablist">
+        <li class="nav-item noselect">
+            <a class="nav-link" data-toggle="tab" role="tab"
+                @onclick="@(async () => await FetchMatchesAsync(MatchFilter.Joinable))">Find a Game</a>
+        </li>
+        <li class="nav-item noselect">
             <a class="nav-link active" data-toggle="tab" role="tab"
                 @onclick="@(async () => await FetchMatchesAsync(MatchFilter.Active))">Active</a>
         </li>
-        <li class="nav-item">
+        <li class="nav-item noselect ml-auto">
             <a class="nav-link" data-toggle="tab" role="tab"
                 @onclick="@(async () => await FetchMatchesAsync(MatchFilter.Completed))">Completed</a>
         </li>
@@ -37,15 +42,17 @@
             {
                 <table class="table table-hover table-responsive-sm">
                     <thead>
-                        <th scope="col"></th>
-                        <th scope="col">Team</th>
-                        <th scope="col">Team</th>
+                        <tr class="d-flex">
+                            <th scope="col" class="col-2"></th>
+                            <th scope="col" class="col-5">Team</th>
+                            <th scope="col" class="col-5">Team</th>
+                        </tr>
                     </thead>
                     <tbody>
                         @foreach (var match in Matches)
                         {
-                            <tr>
-                                <th scope="row">
+                            <tr class="d-flex">
+                                <th scope="row" class="col-2">
                                     @if (match.Players.Count != 4)
                                     {
                                         <button type="button" class="btn btn-sm btn-link" title="waiting for more players&hellip;" disabled>view</button>
@@ -55,7 +62,7 @@
                                         <a href="/match/@match.Id" class="btn btn-sm btn-link">view</a>
                                     }
                                 </th>
-                                <td>
+                                <td class="col-5">
                                     <div class="d-flex">
                                         <div class="ellipsis">
                                             @if (match.Teams[Teams.TeamA].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))
@@ -82,7 +89,7 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td>
+                                <td class="col-5">
                                     <div class="d-flex">
                                         <div class="ellipsis">
                                             @if (match.Teams[Teams.TeamB].Any(x => x.Id == match.CurrentGame.CurrentPlayerId))

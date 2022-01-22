@@ -166,23 +166,34 @@ namespace FortyTwo.Server.Services
             return match;
         }
 
-        public async Task<List<Match>> FetchForUserAsync(bool completed)
+        public async Task<List<Match>> FetchForUserAsync(Shared.DTO.MatchFilter filter)
         {
-            var matches = !completed
-                ? await _context.Matches.Include(x => x.Players)
-                    .Where(x => 
-                        (x.Players.Any(p => p.PlayerId == _userId) || x.Players.Count < 4)
-                        && !x.WinningTeam.HasValue)
-                    .OrderByDescending(x => x.Players.Any(p => p.PlayerId == _userId))
-                    .ThenByDescending(x => x.Players.Count == 4)
-                    .ThenByDescending(x => x.UpdatedOn)
-                    .ToListAsync()
-                : await _context.Matches.Include(x => x.Players)
-                    .Where(x =>
-                        x.Players.Any(p => p.PlayerId == _userId)
-                        && x.WinningTeam.HasValue)
-                    .OrderByDescending(x => x.UpdatedOn)
-                    .ToListAsync();
+            var matches = filter switch
+            {
+                Shared.DTO.MatchFilter.Active =>
+                    await _context.Matches.Include(x => x.Players)
+                        .Where(x =>
+                            x.Players.Any(p => p.PlayerId == _userId)
+                            && !x.WinningTeam.HasValue)
+                        .OrderByDescending(x => x.UpdatedOn)
+                        .ToListAsync(),
+                Shared.DTO.MatchFilter.Completed =>
+                    await _context.Matches.Include(x => x.Players)
+                        .Where(x =>
+                            x.Players.Any(p => p.PlayerId == _userId)
+                            && x.WinningTeam.HasValue)
+                        .OrderByDescending(x => x.UpdatedOn)
+                        .ToListAsync(),
+                Shared.DTO.MatchFilter.Joinable =>
+                    await _context.Matches.Include(x => x.Players)
+                        .Where(x =>
+                            (x.Players.All(p => p.PlayerId != _userId) && x.Players.Count < 4)
+                            && !x.WinningTeam.HasValue)
+                        .OrderByDescending(x => x.UpdatedOn)
+                        .ThenByDescending(x => x.Players.Count)
+                        .ToListAsync(),
+                _ => throw new NotImplementedException($"Unsupported MatchFilter: {filter}")
+            };
 
             return matches;
         }

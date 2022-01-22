@@ -1,7 +1,6 @@
 ﻿using CurrieTechnologies.Razor.SweetAlert2;
 using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
-using FortyTwo.Client.ViewModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -30,7 +29,7 @@ namespace FortyTwo.Client.Pages
             get => Store.Matches?.OrderByDescending(x => x.CreatedOn).ToList();
         }
 
-        private MatchFilter _matchFilter;
+        private FortyTwo.Shared.DTO.MatchFilter _matchFilter = FortyTwo.Shared.DTO.MatchFilter.Active;
 
         protected override async Task OnInitializedAsync()
         {
@@ -53,7 +52,7 @@ namespace FortyTwo.Client.Pages
             await HubConnection?.SendAsync("LeaveGroupAsync", "matches-list");
         }
 
-        public async Task FetchMatchesAsync(MatchFilter? matchFilter = null)
+        public async Task FetchMatchesAsync(FortyTwo.Shared.DTO.MatchFilter? matchFilter = null)
         {
             if (matchFilter.HasValue && _matchFilter == matchFilter) return;
 
@@ -61,7 +60,7 @@ namespace FortyTwo.Client.Pages
 
             try
             {
-                await ApiClient.FetchMatchesAsync(matchFilter);
+                await ApiClient.FetchMatchesAsync(matchFilter ?? _matchFilter);
 
                 if (matchFilter.HasValue) _matchFilter = matchFilter.Value;
             }

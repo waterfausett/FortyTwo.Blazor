@@ -31,9 +31,9 @@ namespace FortyTwo.Server.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get([FromQuery] bool completed)
+        public async Task<IActionResult> Get([FromQuery] MatchFilter filter)
         {
-            var matches = await _matchService.FetchForUserAsync(completed);
+            var matches = await _matchService.FetchForUserAsync(filter);
 
             return Ok(_mapper.Map<List<Shared.DTO.Match>>(matches));
         }

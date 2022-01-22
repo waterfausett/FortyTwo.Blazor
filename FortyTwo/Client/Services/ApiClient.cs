@@ -34,7 +34,7 @@ namespace FortyTwo.Client.Services
         {
             try
             {
-                var matches = await _http.GetFromJsonAsync<List<Match>>($"api/matches?completed={matchFilter == MatchFilter.Completed}");
+                var matches = await _http.GetFromJsonAsync<List<Match>>($"api/matches?filter={matchFilter}");
 
                 _store.Matches = matches;
 
