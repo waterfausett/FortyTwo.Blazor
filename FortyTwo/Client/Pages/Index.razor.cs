@@ -49,6 +49,7 @@ namespace FortyTwo.Client.Pages
         {
             if (matchFilter.HasValue && _matchFilter == matchFilter) return;
 
+            _matchFilter = matchFilter ?? _matchFilter;
             IsLoading = true;
 
             try
@@ -58,8 +59,6 @@ namespace FortyTwo.Client.Pages
 
                 if (matchFilter.HasValue)
                 {
-                    _matchFilter = matchFilter.Value;
-
                     var hubAction = (matchFilter == FortyTwo.Shared.DTO.MatchFilter.Joinable)
                         ? "JoinGroupAsync"
                         : "LeaveGroupAsync";

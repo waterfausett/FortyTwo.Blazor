@@ -13,10 +13,13 @@
             @onclick="@(async () => await FetchMatchesAsync())">
             <span class="oi oi-loop-circular" aria-hidden="true"></span>
         </button>
-        <button type="button" class="btn btn-link pull-right" disabled="@IsCreating"
-            @onclick="@(async () => await CreateMatchAsync())">
-            <span class="oi oi-plus" aria-hidden="true"></span>
-        </button>
+        @if (_matchFilter == MatchFilter.Active)
+        {
+            <button type="button" class="btn btn-link pull-right" disabled="@IsCreating"
+                @onclick="@(async () => await CreateMatchAsync())">
+                <span class="oi oi-plus" aria-hidden="true"></span>
+            </button>
+        }
     </h3>
 
     <hr />
