@@ -28,11 +28,11 @@
         </li>
         <li class="nav-item noselect">
             <a class="nav-link active" data-toggle="tab" role="tab"
-                @onclick="@(async () => await FetchMatchesAsync(MatchFilter.Active))">Active</a>
+                @onclick="@(async () => await FetchMatchesAsync(MatchFilter.Active))">Active Games</a>
         </li>
-        <li class="nav-item noselect ml-auto">
+        <li class="nav-item text-muted noselect ml-auto">
             <a class="nav-link" data-toggle="tab" role="tab"
-                @onclick="@(async () => await FetchMatchesAsync(MatchFilter.Completed))">Completed</a>
+                @onclick="@(async () => await FetchMatchesAsync(MatchFilter.Completed))">Game History</a>
         </li>
     </ul>
 
