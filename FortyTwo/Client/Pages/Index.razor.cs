@@ -38,18 +38,11 @@ namespace FortyTwo.Client.Pages
 
             // TODO: maybe should page this one day?
             await FetchMatchesAsync();
-
-            await RegisterSignalRAsync();
-        }
-
-        private async Task RegisterSignalRAsync()
-        {
-            await HubConnection.SendAsync("JoinGroupAsync", "matches-list");
         }
 
         public async ValueTask DisposeAsync()
         {
-            await HubConnection?.SendAsync("LeaveGroupAsync", "matches-list");
+            await HubConnection?.SendAsync("LeaveGroupAsync", "find-a-match");
         }
 
         public async Task FetchMatchesAsync(FortyTwo.Shared.DTO.MatchFilter? matchFilter = null)
@@ -62,7 +55,17 @@ namespace FortyTwo.Client.Pages
             {
                 await ApiClient.FetchMatchesAsync(matchFilter ?? _matchFilter);
 
-                if (matchFilter.HasValue) _matchFilter = matchFilter.Value;
+
+                if (matchFilter.HasValue)
+                {
+                    _matchFilter = matchFilter.Value;
+
+                    var hubAction = (matchFilter == FortyTwo.Shared.DTO.MatchFilter.Joinable)
+                        ? "JoinGroupAsync"
+                        : "LeaveGroupAsync";
+
+                    await HubConnection?.SendAsync(hubAction, "find-a-match");
+                }
             }
             finally
             {
