@@ -169,7 +169,7 @@
                     }
                 </div>
 
-                @if (Player.IsActive && !Player.Bid.HasValue)
+                @if (Player.IsActive && !Player.Bid.HasValue && Player.Dominos?.Any() == true)
                 {
                     <section class="bidding-section">
                         <SpinnerOverlay Visible="Bidding">
