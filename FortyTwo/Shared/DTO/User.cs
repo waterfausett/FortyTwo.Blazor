@@ -7,6 +7,7 @@ namespace FortyTwo.Shared.DTO
         [JsonPropertyName("user_id")]
         public string Id { get; set; }
         public string Email { get; set; }
+        public string Name { get; set; }
         [JsonPropertyName("given_name")]
         public string FirstName { get; set; }
 
@@ -15,10 +16,19 @@ namespace FortyTwo.Shared.DTO
         public string Nickname { get; set; }
         public string Picture { get; set; }
 
+        [JsonPropertyName("user_metadata")]
+        public UserMetadata UserMetadata { get; set; }
+
         public string DisplayName
-            => Nickname
-                ?? ($"{FirstName} {(!string.IsNullOrWhiteSpace(LastName) ? $"{LastName?.Substring(0, 1)}." : "")}")
+            => UserMetadata?.DisplayName
+                ?? Nickname
+                ?? Name
                 ?? Email
                 ?? $"Unknown User ({Id})";
+    }
+
+    public class UserMetadata
+    {
+        public string DisplayName { get; set; }
     }
 }
