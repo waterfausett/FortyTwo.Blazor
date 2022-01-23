@@ -1,6 +1,7 @@
 ﻿using CurrieTechnologies.Razor.SweetAlert2;
 using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
+using FortyTwo.Shared.Extensions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -26,7 +27,15 @@ namespace FortyTwo.Client.Pages
         public bool IsCreating { get; set; }
         public List<FortyTwo.Shared.DTO.Match> Matches
         {
-            get => Store.Matches?.OrderByDescending(x => x.CreatedOn).ToList();
+            get => Store.Matches?
+                .Where(x => _matchFilter switch
+                {
+                    FortyTwo.Shared.DTO.MatchFilter.Active => x.Players.Any(p => p.Id == _user.GetUserId()),
+                    FortyTwo.Shared.DTO.MatchFilter.Completed => x.WinningTeam.HasValue,
+                    FortyTwo.Shared.DTO.MatchFilter.Joinable => x.Players.Count < 4,
+                    _ => true
+                })
+                .OrderByDescending(x => x.CreatedOn).ToList();
         }
 
         private FortyTwo.Shared.DTO.MatchFilter _matchFilter = FortyTwo.Shared.DTO.MatchFilter.Active;
@@ -38,11 +47,18 @@ namespace FortyTwo.Client.Pages
 
             // TODO: maybe should page this one day?
             await FetchMatchesAsync();
+
+            await RegisterSignalRAsync();
+        }
+
+        private async Task RegisterSignalRAsync()
+        {
+            await HubConnection.SendAsync("JoinGroupAsync", "matches-list");
         }
 
         public async ValueTask DisposeAsync()
         {
-            await HubConnection?.SendAsync("LeaveGroupAsync", "find-a-match");
+            await HubConnection?.SendAsync("LeaveGroupAsync", "matches-list");
         }
 
         public async Task FetchMatchesAsync(FortyTwo.Shared.DTO.MatchFilter? matchFilter = null)
@@ -55,16 +71,6 @@ namespace FortyTwo.Client.Pages
             try
             {
                 await ApiClient.FetchMatchesAsync(matchFilter ?? _matchFilter);
-
-
-                if (matchFilter.HasValue)
-                {
-                    var hubAction = (matchFilter == FortyTwo.Shared.DTO.MatchFilter.Joinable)
-                        ? "JoinGroupAsync"
-                        : "LeaveGroupAsync";
-
-                    await HubConnection?.SendAsync(hubAction, "find-a-match");
-                }
             }
             finally
             {
