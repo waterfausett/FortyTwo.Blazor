@@ -75,7 +75,7 @@
                             DominoCount="CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer1?.Id)?.Dominos ?? 0"
                             Bid="!CurrentGame.Trump.HasValue || CurrentGame.BiddingPlayerId == adjustedPlayer1?.Id ? CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer1?.Id)?.Bid : null"
                             Trump="CurrentGame.BiddingPlayerId == adjustedPlayer1?.Id ? CurrentGame.Trump : null"
-                            Ready="CurrentGame.WinningTeam.HasValue && Model.Players.First(x => x.Id == adjustedPlayer1?.Id).Ready"></RemotePlayer>
+                            Ready="!Model.WinningTeam.HasValue && CurrentGame.WinningTeam.HasValue && Model.Players.First(x => x.Id == adjustedPlayer1?.Id).Ready"></RemotePlayer>
                     </div>
                     <div class="col-4">
                         <RemotePlayer Player="adjustedPlayer2" style="background-color: inherit;"
@@ -83,7 +83,7 @@
                             DominoCount="CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer2?.Id)?.Dominos ?? 0"
                             Bid="!CurrentGame.Trump.HasValue || CurrentGame.BiddingPlayerId == adjustedPlayer2?.Id ? CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer2?.Id)?.Bid : null"
                             Trump="CurrentGame.BiddingPlayerId == adjustedPlayer2?.Id ? CurrentGame.Trump : null"
-                            Ready="CurrentGame.WinningTeam.HasValue && Model.Players.First(x => x.Id == adjustedPlayer2?.Id).Ready"></RemotePlayer>
+                            Ready="!Model.WinningTeam.HasValue && CurrentGame.WinningTeam.HasValue && Model.Players.First(x => x.Id == adjustedPlayer2?.Id).Ready"></RemotePlayer>
                     </div>
                     <div class="col-4">
                         <RemotePlayer Player="adjustedPlayer3"
@@ -91,7 +91,7 @@
                             DominoCount="CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer3?.Id)?.Dominos ?? 0"
                             Bid="!CurrentGame.Trump.HasValue || CurrentGame.BiddingPlayerId == adjustedPlayer3?.Id? CurrentGame.Hands.FirstOrDefault(p => p.PlayerId == adjustedPlayer3?.Id)?.Bid : null"
                             Trump="CurrentGame.BiddingPlayerId == adjustedPlayer3?.Id ? CurrentGame.Trump : null"
-                            Ready="CurrentGame.WinningTeam.HasValue && Model.Players.First(x => x.Id == adjustedPlayer3?.Id).Ready"></RemotePlayer>
+                            Ready="!Model.WinningTeam.HasValue && CurrentGame.WinningTeam.HasValue && Model.Players.First(x => x.Id == adjustedPlayer3?.Id).Ready"></RemotePlayer>
                     </div>
                 </div>
             </div>
@@ -151,7 +151,7 @@
 
             <div class="player p-2 @(Player.IsActive ? "active" : "")">
                 <div>
-                    @if (CurrentGame.WinningTeam.HasValue)
+                    @if (CurrentGame.WinningTeam.HasValue && !Model.WinningTeam.HasValue)
                     {
                         if (!Player.Ready)
                         {
