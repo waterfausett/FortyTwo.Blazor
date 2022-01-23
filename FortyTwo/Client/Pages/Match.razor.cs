@@ -241,6 +241,7 @@ namespace FortyTwo.Client.Pages
             }
         }
 
+        private bool _matchOverNotificationAlreadyShown;
         protected async Task RegisterSignalRAsync()
         { 
             // TODO: handle signalr connection exceptions (possibly at the app level)
@@ -280,6 +281,8 @@ namespace FortyTwo.Client.Pages
                 }
                 else if (match.WinningTeam.HasValue)
                 {
+                    if (_matchOverNotificationAlreadyShown) return;
+
                     var alertOptions = new SweetAlertOptions
                     {
                         ShowConfirmButton = true,
@@ -307,6 +310,8 @@ namespace FortyTwo.Client.Pages
                     }
 
                     await Swal.FireAsync(alertOptions);
+
+                    _matchOverNotificationAlreadyShown = true;
                 }
             });
 
