@@ -186,7 +186,7 @@ button .spinner-border {
 
 @media (max-width: 767.98px) {
     .main .top-row:not(.auth) {
-        display: none;
+        /*display: none;*/
     }
 
     .main .top-row.auth {
