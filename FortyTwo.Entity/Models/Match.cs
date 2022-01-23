@@ -35,6 +35,16 @@ namespace FortyTwo.Entity.Models
 
             var nextPlayerPosition = match.Players.First(x => x.PlayerId == match.CurrentGame.CurrentPlayerId).Position.NextPosition();
 
+            if (match.CurrentGame.Trump == Suit.Low)
+            {
+                var biddingPlayerPosition = match.Players.First(x => x.PlayerId == match.CurrentGame.BiddingPlayerId).Position;
+
+                if (biddingPlayerPosition != nextPlayerPosition && (int)biddingPlayerPosition % 2 == (int)nextPlayerPosition % 2)
+                {
+                    nextPlayerPosition = nextPlayerPosition.NextPosition();
+                }
+            }
+
             match.CurrentGame.CurrentPlayerId = match.Players.First(x => x.Position == nextPlayerPosition).PlayerId;
         }
     }

@@ -213,6 +213,7 @@
                                     @foreach (Suit suit in Enum.GetValues(typeof(Suit)))
                                     {
                                         if (suit == Suit.None && CurrentGame.Bid < Bid.FourtyTwo && CurrentGame.Bid != Bid.Plunge) continue;
+                                        if ((suit == Suit.Low && CurrentGame.Bid < Bid.FourtyTwo)) continue;
                                         <Chip Context="ContextualClass.Info" Size="Size.Large" OnSelected="async () => await SelectTrumpAsync(suit)"><Label>@suit.ToPrettyString()</Label></Chip>
                                     }
                                 </div>

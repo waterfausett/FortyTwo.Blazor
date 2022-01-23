@@ -324,7 +324,7 @@ namespace FortyTwo.Server.Services
 
             var alreadyHadAWinner = match.CurrentGame.WinningTeam.HasValue;
 
-            if (match.CurrentGame.CurrentTrick.IsFull())
+            if (match.CurrentGame.CurrentTrick.IsFull(match.CurrentGame.Trump.Value))
             {
                 match.CurrentGame.Tricks.Add(match.CurrentGame.CurrentTrick);
                 match.CurrentGame.CurrentPlayerId = match.CurrentGame.CurrentTrick.PlayerId;

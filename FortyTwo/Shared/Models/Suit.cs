@@ -2,6 +2,7 @@
 {
     public enum Suit
     {
+        Low = -2,
         None = -1,
         Blanks = 0,
         Aces = 1,
