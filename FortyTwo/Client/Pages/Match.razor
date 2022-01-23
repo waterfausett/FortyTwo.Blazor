@@ -17,6 +17,11 @@
         left: -60px;
         opacity: 0.5;
     }
+
+        .team-scores .text-right .stamp {
+            left:initial;
+            right: 60px;
+        }
 </style>
 
 <SpinnerOverlay Visible="IsLoading">
@@ -28,17 +33,17 @@
     }
     else
     {
-        <div class="row justify-content-between border-bottom team-scores">
+        <div class="row justify-content-around border-bottom team-scores">
             @{ Model.Scores.TryGetValue(Teams.TeamA, out var teamAScore); }
             @{ Model.Scores.TryGetValue(Teams.TeamB, out var teamBScore); }
-            <div class="col-3 offset-1">
+            <div class="col-4">
                 <label><b>Us:</b> <span data-score="@(Player.Team == Teams.TeamA ? teamAScore : teamBScore)"></span></label>
                 @if (Model.WinningTeam.HasValue && Model.WinningTeam == Player.Team)
                 {
                     <span class="stamp is-approved">Winners!</span>
                 }
             </div>
-            <div class="col-3">
+            <div class="col-4 text-right">
                 <label><b>Them:</b> <span data-score="@(Player.Team == Teams.TeamA ? teamBScore : teamAScore)"></span></label>
                 @if (Model.WinningTeam.HasValue && Model.WinningTeam != Player.Team)
                 {
