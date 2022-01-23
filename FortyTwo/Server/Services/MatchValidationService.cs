@@ -71,7 +71,9 @@ namespace FortyTwo.Server.Services
 
         public IMatchValidationService IsActiveBidder(Game game, UserId userId)
         {
-            if (game.BiddingPlayerId != userId)
+            var biddingTeam = game.Hands.First(x => x.PlayerId == game.BiddingPlayerId)?.Team;
+            if ((game.Bid != Bid.Plunge && game.BiddingPlayerId != userId)
+                || (game.Bid == Bid.Plunge && (game.BiddingPlayerId == userId || game.Hands.First(x => x.PlayerId == userId).Team != biddingTeam)))
                 throw new CustomValidationException("It's not your turn!");
 
             return this;

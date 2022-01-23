@@ -199,7 +199,9 @@
                     </section>
                 }
 
-                @if (CurrentGame.BiddingPlayerId == Player.Id && CurrentGame.Hands.All(x => x.Bid.HasValue) && !CurrentGame.Trump.HasValue)
+                @if ((CurrentGame.Hands.All(x => x.Bid.HasValue) && !CurrentGame.Trump.HasValue)
+                    && ((CurrentGame.BiddingPlayerId == Player.Id && CurrentGame.Bid != Bid.Plunge)
+                        || (CurrentGame.Bid == Bid.Plunge && CurrentGame.BiddingPlayerId == adjustedPlayer2.Id)))
                 {
                     <section class="trump-select-section">
                         <SpinnerOverlay Visible="Bidding">
@@ -212,8 +214,8 @@
                                 <div class="col-12 text-center">
                                     @foreach (Suit suit in Enum.GetValues(typeof(Suit)))
                                     {
-                                        if (suit == Suit.None && CurrentGame.Bid < Bid.FourtyTwo && CurrentGame.Bid != Bid.Plunge) continue;
-                                        if ((suit == Suit.Low && CurrentGame.Bid < Bid.FourtyTwo)) continue;
+                                        if (suit == Suit.None && CurrentGame.Bid < Bid.FourtyTwo) continue;
+                                        if (suit == Suit.Low && CurrentGame.Bid < Bid.FourtyTwo && CurrentGame.Bid != Bid.Plunge) continue;
                                         <Chip Context="ContextualClass.Info" Size="Size.Large" OnSelected="async () => await SelectTrumpAsync(suit)"><Label>@suit.ToPrettyString()</Label></Chip>
                                     }
                                 </div>

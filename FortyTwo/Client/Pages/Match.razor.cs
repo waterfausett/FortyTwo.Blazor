@@ -44,18 +44,11 @@ namespace FortyTwo.Client.Pages
         {
             get
             {
-                var biddingOptions = Enum.GetValues(typeof(Bid)).OfType<Bid>().ToList();
-                if (Player.Dominos.Count(x => x.IsDouble) < 4)
-                {
-                    biddingOptions.Remove(Bid.Plunge);
-                }
-
-                // HACK: always remove this option until it's fully supported in the rest of the app
-                biddingOptions.Remove(Bid.Plunge);
+                var biddingOptions = Enum.GetValues(typeof(Bid)).OfType<Bid>().Where(x => x != Bid.Plunge).ToList();
 
                 if (CurrentGame.Bid.HasValue)
                 {
-                    biddingOptions.RemoveAll(x => (x != Bid.Pass && x != Bid.Plunge) && x <= CurrentGame.Bid.Value);
+                    biddingOptions.RemoveAll(x => x != Bid.Pass && x <= CurrentGame.Bid.Value);
                 }
 
                 if (CurrentGame.Hands.Count(x => x.Bid == Bid.Pass) == 3)
@@ -64,6 +57,11 @@ namespace FortyTwo.Client.Pages
                 }
 
                 biddingOptions.RemoveAll(x => x > Bid.EightyFour && (!CurrentGame.Bid.HasValue || (int)x > ((int)CurrentGame.Bid + (int)Bid.FourtyTwo)));
+
+                if (Player.Dominos.Count(x => x.IsDouble) >= 4 && (CurrentGame.Bid ?? 0) < Bid.FourMarks)
+                {
+                    biddingOptions.Add(Bid.Plunge);
+                }
 
                 return biddingOptions;
             }

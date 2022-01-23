@@ -3,7 +3,6 @@
     public enum Bid
     {
         Pass = 0,
-        Plunge = 1,
         Thirty = 30,
         ThirtyOne = 31,
         ThirtyTwo = 32,
@@ -20,6 +19,7 @@
         EightyFour = 84,
         ThreeMarks = 126,
         FourMarks = 168,
+        Plunge = 169,
         FiveMarks = 210,
         SixMarks = 252,
         SevenMarks = 294

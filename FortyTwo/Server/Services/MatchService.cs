@@ -242,7 +242,7 @@ namespace FortyTwo.Server.Services
 
             match.CurrentGame.Hands.First(x => x.PlayerId == _userId).Bid = bid;
 
-            if (bid != Bid.Pass)
+            if (bid != Bid.Pass && (!match.CurrentGame.Bid.HasValue || bid > match.CurrentGame.Bid))
             {
                 match.CurrentGame.Bid = bid;
                 match.CurrentGame.BiddingPlayerId = _userId;
@@ -253,6 +253,12 @@ namespace FortyTwo.Server.Services
             if (match.CurrentGame.Hands.Any(x => !x.Bid.HasValue))
             {
                 match.SelectNextPlayer();
+            }
+            else if (match.CurrentGame.Bid == Bid.Plunge)
+            {
+                var plungePlayerPosition = match.Players.First(x => x.PlayerId == match.CurrentGame.BiddingPlayerId).Position;
+                var plungePartnerPosition = plungePlayerPosition.NextPosition().NextPosition();
+                match.CurrentGame.CurrentPlayerId = match.Players.First(x => x.Position == plungePartnerPosition).PlayerId;
             }
             else
             {
