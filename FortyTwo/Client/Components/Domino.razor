@@ -4,6 +4,7 @@
 {
     <div class="domino @(Direction == DominoDirection.Horizontal ? "horizontal" : "") @(Selectable ? "clickable" : "") @(Preselected ? "preselected" : "")" 
         @onclick="@(async () => { if (Selectable) await OnSelected.InvokeAsync(Instance); })"
+        @ontouchstart="@(async () => { if (Selectable) await OnSelected.InvokeAsync(Instance); })"
         @ondblclick="@(async () => { if (!Selectable) await OnDblClick.InvokeAsync(Instance); })">
         @{ var topValue = (Instance.Orientation == FortyTwo.Shared.Models.Orientation.Left ? Instance.Top : Instance.Bottom); }
         <div data-value="@topValue">
