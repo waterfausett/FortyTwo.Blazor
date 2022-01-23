@@ -1,8 +1,10 @@
 @using CurrieTechnologies.Razor.SweetAlert2
+@using FortyTwo.Client.Services
 @using Microsoft.AspNetCore.SignalR.Client
 @inject SweetAlertService Swal
 @inject NavigationManager Navigation
 @inject IClientStore Store
+@inject IUserService UserService
 @inject HubConnection HubConnection
 @implements IDisposable
 
@@ -98,10 +100,12 @@
             });
         };
 
-        HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", (match) =>
+        HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", async (match) =>
         {
             Store.Matches.RemoveAll(x => x.Id == match.Id);
             Store.Matches.Add(match);
+            
+            await UserService.SyncUsersAsync(match.Players.Select(x => x.Id).ToList());
 
             StateHasChanged();
         });
