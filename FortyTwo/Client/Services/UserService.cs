@@ -46,7 +46,7 @@ namespace FortyTwo.Client.Services
 
                 return user;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 _ = _swal.FireAsync(new SweetAlertOptions
                 {
@@ -95,9 +95,14 @@ namespace FortyTwo.Client.Services
             return await usersResponse.Content.ReadFromJsonAsync<List<User>>();
         }
 
-        public async Task<bool> UpdateDisplayName(string displayName)
+        public async Task<bool> UpdateProfileAsync(ProfileModel model)
         {
-            var content = new StringContent(JsonSerializer.Serialize(new UserPatch { DisplayName = displayName }), Encoding.UTF8, "application/json");
+            var userPatch = new UserPatch
+            {
+                DisplayName = model.DisplayName,
+                UseDarkTheme = model.UseDarkTheme,
+            };
+            var content = new StringContent(JsonSerializer.Serialize(userPatch), Encoding.UTF8, "application/json");
 
             var response = await _http.PatchAsync("api/users", content);
 
@@ -111,7 +116,7 @@ namespace FortyTwo.Client.Services
                     _ = _swal.FireAsync(new SweetAlertOptions
                     {
                         Icon = SweetAlertIcon.Error,
-                        Title = "Failed update Display Name 😢",
+                        Title = "Failed update Profile 😢",
                         //Html = $"<b>{exceptionDetails.Title}</b>: {exceptionDetails.Detail.Truncate(250)}",
                         Toast = true,
                         ShowConfirmButton = false,

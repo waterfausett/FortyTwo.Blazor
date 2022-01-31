@@ -66,6 +66,10 @@
             border-color: var(--label-danger-border-color,#991700);
         }
 
+        .custom-chip.custom-chip-light, a.custom-chip.custom-chip-light {
+            background: var(--label-light-bg-color);
+        }
+
         .custom-chip .badge {
             display: inline-flex;
             vertical-align: middle;

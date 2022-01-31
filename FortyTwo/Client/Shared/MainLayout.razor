@@ -1,9 +1,10 @@
 ﻿@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
 
 <div class="main">
     <div class="top-row px-4 justify-content-between">
-        <a class="navbar-brand" href="/">FortyTwo</a>
-        <nav class="navbar navbar-expand-sm navbar-light p-0">
+        <a class="navbar-brand @(DarkThemeEnabled ? "navbar-dark" : "navbar-light")" href="/">FortyTwo</a>
+        <nav class="navbar navbar-expand-sm p-0">
             <div class="ml-md-auto">
                 <AccessControl />
             </div>
@@ -14,3 +15,14 @@
         @Body
     </div>
 </div>
+
+@code {
+    private bool DarkThemeEnabled { get; set; }
+
+    protected async override Task OnInitializedAsync()
+    {
+        DarkThemeEnabled = await JSRuntime.InvokeAsync<bool>("getUserPrefersDarkTheme");
+
+        await base.OnInitializedAsync();
+    }
+}

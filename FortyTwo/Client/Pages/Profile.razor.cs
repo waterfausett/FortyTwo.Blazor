@@ -1,9 +1,9 @@
 ﻿using CurrieTechnologies.Razor.SweetAlert2;
 using FortyTwo.Client.Services;
+using FortyTwo.Client.ViewModels;
 using FortyTwo.Shared.DTO;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
-using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 
 namespace FortyTwo.Client.Pages
@@ -32,7 +32,8 @@ namespace FortyTwo.Client.Pages
             try
             {
                 User = await UserService.FetchProfileAsync();
-                ProfileModel.DisplayName = User?.DisplayName;
+                User.UserMetadata.UseDarkTheme ??= await JSRuntime.InvokeAsync<bool>("getSystemPrefersDarkTheme");
+                ProfileModel = ProfileModel.FromUser(User);
             }
             finally
             {
@@ -45,10 +46,10 @@ namespace FortyTwo.Client.Pages
             IsSaving = true;
             try
             {
-                if (string.IsNullOrWhiteSpace(ProfileModel?.DisplayName)) return;
-
-                if (await UserService.UpdateDisplayName(ProfileModel.DisplayName))
+                if (await UserService.UpdateProfileAsync(ProfileModel))
                 {
+                    await JSRuntime.InvokeVoidAsync("setThemePreferences", ProfileModel.UseDarkTheme == true ? "dark-theme" : "light-theme");
+
                     _ = Swal.FireAsync(new SweetAlertOptions
                     {
                         Toast = true,
@@ -68,12 +69,5 @@ namespace FortyTwo.Client.Pages
                 IsSaving = false;
             }
         }
-    }
-
-    public class ProfileModel
-    {
-        [Required]
-        [StringLength(20, ErrorMessage = "Display name is too long")]
-        public string DisplayName { get; set; }
     }
 }

@@ -5,6 +5,7 @@ using FortyTwo.Shared.Extensions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.JSInterop;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,6 +20,7 @@ namespace FortyTwo.Client.Pages
         [Inject] public IClientStore Store { get; set; }
         [Inject] public IApiClient ApiClient { get; set; }
         [Inject] public IUserService UserService { get; set; }
+        [Inject] public IJSRuntime JSRuntime { get; set; }
 
         [CascadingParameter] private Task<AuthenticationState> authenticationStateTask { get; set; }
         private System.Security.Claims.ClaimsPrincipal _user;
@@ -40,6 +42,8 @@ namespace FortyTwo.Client.Pages
 
         private FortyTwo.Shared.DTO.MatchFilter _matchFilter = FortyTwo.Shared.DTO.MatchFilter.Active;
 
+        protected bool DarkThemeEnabled { get; set; }
+
         protected override async Task OnInitializedAsync()
         {
             var authState = await authenticationStateTask;
@@ -47,6 +51,8 @@ namespace FortyTwo.Client.Pages
 
             // TODO: maybe should page this one day?
             await FetchMatchesAsync();
+
+            DarkThemeEnabled = await JSRuntime.InvokeAsync<bool>("getUserPrefersDarkTheme");
 
             await RegisterSignalRAsync();
         }

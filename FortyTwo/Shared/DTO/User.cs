@@ -30,5 +30,6 @@ namespace FortyTwo.Shared.DTO
     public class UserMetadata
     {
         public string DisplayName { get; set; }
+        public bool? UseDarkTheme { get; set; }
     }
 }

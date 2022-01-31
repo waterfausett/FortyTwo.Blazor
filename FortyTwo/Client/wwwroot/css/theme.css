@@ -25,10 +25,22 @@
     --label-danger-border-color: #991700;
     --badge-danger-bg-color: 991700;
     --badge-danger-color: #fff;
-    --match-background-color: rgba(0, 0, 0, 0.01);
+    --theme-background-color: rgba(0, 0, 0, 0.01);
+    --player-remote-bg-color: ghostwhite;
+    --player-remote-shadow-color: rgba(0,0,0,.3);
+    --stamp-mix-blend-mode: multiply;
+    --stamp-is-approved-color: #0A9928;
 }
 
     :root .dark-theme {
-        --match-background-color: rgb(33, 36, 37);
+        --theme-background-color: rgb(33, 36, 37);
+        --top-row-bg-color: rgba(0,0,0,0.4);
+        --top-row-color: white;
+        --swal-logout-bg-color: rgb(24,26,27);
+        --player-remote-bg-color: dimgrey;
+        --player-remote-shadow-color: white;
+        --stamp-mix-blend-mode: normal;
+        --label-light-bg-color: white;
+        --stamp-is-approved-color: lime;
         color: white;
     }

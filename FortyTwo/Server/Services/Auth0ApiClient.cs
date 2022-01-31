@@ -56,14 +56,19 @@ namespace FortyTwo.Server.Services
         {
             var url = $"api/v2/users/{userId}";
 
-            await PatchAsync(url, new { user_metadata = new { displayName = patch.DisplayName } });
+            await PatchAsync(url, new { user_metadata = patch });
         }
 
         private async Task PatchAsync(string url, object payload)
         {
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            var json = JsonSerializer.Serialize(payload);
+            var serializerOptions = new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var json = JsonSerializer.Serialize(payload, serializerOptions);
             using var request = new HttpRequestMessage(HttpMethod.Patch, url)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
