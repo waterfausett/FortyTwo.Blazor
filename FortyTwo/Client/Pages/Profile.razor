@@ -40,9 +40,12 @@
             <button type="submit" class="btn btn-primary" disabled="@(IsLoading || IsSaving)">
                 @if (IsSaving)
                 {
-                    <span class="spinner-border mr-1" role="status"></span>
+                    <span><span class="spinner-border mr-1" role="status"></span> Saving</span>
                 }
-                @(!IsSaving ? "Save" : "Saving")
+                else
+                {
+                    <span>Save</span>
+                }
             </button>
         </div>
     </EditForm>
