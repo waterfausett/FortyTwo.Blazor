@@ -32,8 +32,6 @@ function applyThemePreferences() {
 }
 
 function getSystemPrefersDarkTheme() {
-    return false; // TODO: remove this when the dark theme is ready
-
     const prefersDarkSystemScheme = window.matchMedia('(prefers-color-scheme: dark)');
     return prefersDarkSystemScheme.matches;
 }
