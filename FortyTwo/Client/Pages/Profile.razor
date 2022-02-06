@@ -26,10 +26,9 @@
         <div class="form-group">
             <label class="form-check-label" for="chkDarkMode">Theme</label>
             <div class="custom-control custom-switch">
-                @*<input id="chkDarkMode" type="checkbox" class="custom-control-input">*@
                 <InputCheckbox id="chkDarkMode" class="custom-control-input"
                     @bind-Value="ProfileModel.UseDarkTheme" />
-                <label class="custom-control-label noselect" for="chkDarkMode">Use Dark Theme</label>
+                <label class="custom-control-label noselect clickable" for="chkDarkMode">Use Dark Theme</label>
             </div>
         </div>
         <div class="form-group">
