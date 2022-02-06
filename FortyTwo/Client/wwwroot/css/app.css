@@ -148,6 +148,7 @@ button .spinner-border {
 
 .oi {
     z-index: -1;
+    z-index: 0;
 }
 
 .valid.modified:not([type=checkbox]) {
