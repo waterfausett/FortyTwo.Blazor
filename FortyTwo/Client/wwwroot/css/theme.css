@@ -30,17 +30,23 @@
     --player-remote-shadow-color: rgba(0,0,0,.3);
     --stamp-mix-blend-mode: multiply;
     --stamp-is-approved-color: #0A9928;
+    --domino-color: #fff;
+    --domino-border-color: gray;
+    --domino-hover-color: lightblue;
+    --domino-preselected-color: rgba(205, 92, 92, 0.5);
 }
 
     :root .dark-theme {
         --theme-background-color: rgb(33, 36, 37);
         --top-row-bg-color: rgba(0,0,0,0.4);
         --top-row-color: white;
-        --swal-logout-bg-color: rgb(24,26,27);
+        --swal-bg-color: rgb(24,26,27);
         --player-remote-bg-color: dimgrey;
         --player-remote-shadow-color: white;
         --stamp-mix-blend-mode: normal;
         --label-light-bg-color: white;
         --stamp-is-approved-color: lime;
+        --domino-color: whitesmoke;
+        --domino-preselected-color: lightcoral;
         color: white;
     }

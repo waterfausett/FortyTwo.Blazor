@@ -255,7 +255,10 @@ button .spinner-border {
 }
 
 .swal-logout-bg {
-    background-color: var(--swal-logout-bg-color, #ffffff);
+    background-color: var(--swal-bg-color, #ffffff);
+}
+.swal2-popup {
+    background-color: var(--swal-bg-color, #ffffff);
 }
 
 .hidden {
