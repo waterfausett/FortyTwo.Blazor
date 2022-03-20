@@ -248,8 +248,6 @@ namespace FortyTwo.Server.Services
                 match.CurrentGame.BiddingPlayerId = _userId;
             }
 
-            // TODO: might be able to say, "if the person bidding is the one that shuffled, then we're done"
-
             if (match.CurrentGame.Hands.Any(x => !x.Bid.HasValue))
             {
                 match.SelectNextPlayer();
