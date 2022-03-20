@@ -97,17 +97,30 @@ namespace FortyTwo.Server.Services
                 match.CurrentGame.FirstActionBy = firstActionBy;
                 match.CurrentGame.CurrentPlayerId = firstActionBy;
 
-                var dominos = _dominoService.InitDominos(DominoType.DoubleSix);
                 foreach (var player in match.Players)
                 {
                     match.CurrentGame.Hands.Add(new Hand() 
                     { 
                         PlayerId = player.PlayerId,
-                        Team = (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB,
-                        Dominos = dominos.GetRange((int)player.Position * 7, 7)
+                        Team = player.Team(),
                     });
                 }
+
+                Deal(match);
             }
+        }
+
+        private void Deal(Match match)
+        {
+            var dominos = _dominoService.InitDominos(DominoType.DoubleSix);
+
+            foreach (var hand in match.CurrentGame.Hands)
+            {
+                var player = match.Players.First(x => x.PlayerId == hand.PlayerId);
+                hand.Dominos = dominos.GetRange((int)player.Position * 7, 7);
+            }
+
+            match.Players.ForEach(x => x.Ready = false);
         }
 
         public async Task<Match> AddPlayerAsync(Guid id, Teams team)
@@ -141,22 +154,11 @@ namespace FortyTwo.Server.Services
                 Ready = true,
             });
 
-
-            // TODO: maybe split this last part out?
-
             match.CurrentGame.Hands.Add(new Hand() { PlayerId = _userId, Team = (int)position % 2 == 0 ? Teams.TeamA : Teams.TeamB });
 
-            // if we have a full roster, setup the first game
             if (match.CurrentGame.Hands.Count == 4)
             {
-                var dominos = _dominoService.InitDominos(DominoType.DoubleSix);
-
-                // TODO: maybe make this even more random
-
-                match.CurrentGame.Hands[0].Dominos = dominos.GetRange(0, 7);
-                match.CurrentGame.Hands[1].Dominos = dominos.GetRange(7, 7);
-                match.CurrentGame.Hands[2].Dominos = dominos.GetRange(14, 7);
-                match.CurrentGame.Hands[3].Dominos = dominos.GetRange(21, 7);
+                Deal(match);
             }
 
             match.UpdatedOn = DateTimeOffset.UtcNow;
@@ -219,7 +221,7 @@ namespace FortyTwo.Server.Services
             return new Shared.DTO.LoggedInPlayer()
             {
                 Id = matchPlayer.PlayerId,
-                Team = (int)matchPlayer.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB,
+                Team = matchPlayer.Team(),
                 IsActive = match.CurrentGame.CurrentPlayerId == _userId,
                 Ready = matchPlayer.Ready,
                 Dominos = match.CurrentGame.Hands.FirstOrDefault(x => x.PlayerId == _userId)?.Dominos,
@@ -305,14 +307,10 @@ namespace FortyTwo.Server.Services
                 .HasDomino(match.CurrentGame, _userId, domino)
                 .IsValidDomino(match.CurrentGame, _userId, domino);
 
-            // TODO: figure out how we'll handle supporting low hands
-            //  - possibly another enum entry for Low (-1)
-
             var player = match.Players.Single(x => x.PlayerId == _userId);
 
             match.CurrentGame.Hands.Single(x => x.PlayerId == _userId).Dominos.Remove(domino);
 
-            // TODO: play the domino
             match.CurrentGame.CurrentTrick ??= new Trick();
             match.CurrentGame.CurrentTrick.AddDomino(domino, match.CurrentGame.Trump.Value);
 
@@ -323,7 +321,7 @@ namespace FortyTwo.Server.Services
             if (currentlyWinningDomino.Equals(domino))
             {
                 match.CurrentGame.CurrentTrick.PlayerId = _userId;
-                match.CurrentGame.CurrentTrick.Team = (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB;
+                match.CurrentGame.CurrentTrick.Team = player.Team();
             }
 
             var alreadyHadAWinner = match.CurrentGame.WinningTeam.HasValue;
@@ -351,11 +349,6 @@ namespace FortyTwo.Server.Services
             match.WinningTeam = match.Scores.Any(x => x.Value >= Shared.Constants.WinningScore)
                 ? match.Scores.Aggregate((x, y) => x.Value > y.Value ? x : y).Key
                 : null;
-
-            if (!match.WinningTeam.HasValue && match.CurrentGame.WinningTeam.HasValue && !alreadyHadAWinner)
-            {
-                match.Players.ForEach(x => x.Ready = false);
-            }
 
             match.UpdatedOn = DateTimeOffset.UtcNow;
 
