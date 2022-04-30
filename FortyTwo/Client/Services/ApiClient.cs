@@ -69,7 +69,7 @@ namespace FortyTwo.Client.Services
         {
             try
             {
-                var user = await _http.GetFromJsonAsync<LoggedInPlayer>($"api/matches/{matchId}/player");
+                var user = await _http.GetFromJsonAsync<LoggedInPlayer>($"api/matches/{matchId}/players");
 
                 if (user?.Dominos != null)
                 {

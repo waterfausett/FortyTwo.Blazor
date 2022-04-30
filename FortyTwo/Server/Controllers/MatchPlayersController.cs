@@ -2,7 +2,6 @@
 using FortyTwo.Server.Hubs;
 using FortyTwo.Server.Services;
 using FortyTwo.Shared.DTO;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -29,9 +28,8 @@ namespace FortyTwo.Server.Controllers
             _gameHubContext = gameHubContext;
         }
 
-
-        [HttpPost("players")]
-        public async Task<IActionResult> AddPlayer([Required] Guid id, [Required, FromBody] AddPlayerRequest request)
+        [HttpPost]
+        public async Task<IActionResult> Post([Required] Guid id, [Required, FromBody] AddPlayerRequest request)
         {
             var match = await _matchService.AddPlayerAsync(id, request.Team);
 
@@ -41,16 +39,16 @@ namespace FortyTwo.Server.Controllers
             return Ok(matchDTO);
         }
 
-        [HttpGet("player")] // TODO: change this to /players (and maybe change the path?)
-        public async Task<IActionResult> GetPlayer([Required] Guid id)
+        [HttpGet]
+        public async Task<IActionResult> Get([Required] Guid id)
         {
             var player = await _matchService.GetPlayerForMatch(id);
 
             return Ok(player);
         }
 
-        [HttpPatch("players")]
-        public async Task<IActionResult> PatchPlayer([Required] Guid id, [Required, FromBody] PlayerPatchRequest request)
+        [HttpPatch]
+        public async Task<IActionResult> Patch([Required] Guid id, [Required, FromBody] PlayerPatchRequest request)
         {
             var match = await _matchService.PatchPlayerAsync(id, request);
 
