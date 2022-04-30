@@ -59,6 +59,8 @@
     public void AddLoggedInUserAsync(System.Security.Claims.ClaimsPrincipal principal)
     {
         var loggedInUserId = principal?.Claims.SingleOrDefault(c => c.Type == "sub")?.Value;
+        
+        // Q: should we update the store here if loggedInUser is already in the store?
         if (!string.IsNullOrWhiteSpace(loggedInUserId) && Store.Users.All(x => x.Id != loggedInUserId))
         {
             Store.Users.Add(new FortyTwo.Shared.DTO.User()
