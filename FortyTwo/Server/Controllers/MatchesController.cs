@@ -71,39 +71,6 @@ namespace FortyTwo.Server.Controllers
             return Ok();
         }
 
-        [HttpPost("{id}/players")]
-        public async Task<IActionResult> AddPlayer([Required] Guid id, [Required, FromBody] AddPlayerRequest request)
-        {
-            var match = await _matchService.AddPlayerAsync(id, request.Team);
-
-            var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
-            await _gameHubContext.Clients.Group("matches-list").SendAsync("OnMatchChanged", matchDTO);
-
-            return Ok(matchDTO);
-        }
-
-        [HttpGet("{id}/player")]
-        public async Task<IActionResult> GetPlayer([Required] Guid id)
-        {
-            var player = await _matchService.GetPlayerForMatch(id);
-
-            return Ok(player);
-        }
-
-        [HttpPatch("{id}/players")]
-        public async Task<IActionResult> PatchPlayer(Guid id, PlayerPatchRequest request)
-        {
-            var match = await _matchService.PatchPlayerAsync(id, request);
-
-            if (match != null)
-            {
-                var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
-                await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnMatchChanged", matchDTO);
-            }
-
-            return Ok();
-        }
-
         [HttpPost("{id}/bids")]
         public async Task<IActionResult> PostBid([Required] Guid id, [Required, FromBody] Bid bid)
         {
@@ -116,6 +83,7 @@ namespace FortyTwo.Server.Controllers
             return Ok();
         }
 
+        // TODO: should this be a PATCH on the game instead?
         [HttpPost("{id}/selectTrump")]
         public async Task<IActionResult> PostTrump([Required] Guid id, [Required, FromBody] Suit suit)
         {
