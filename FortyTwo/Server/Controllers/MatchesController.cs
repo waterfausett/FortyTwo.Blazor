@@ -30,6 +30,18 @@ namespace FortyTwo.Server.Controllers
             _gameHubContext = gameHubContext;
         }
 
+        [HttpPost]
+        public async Task<IActionResult> Post()
+        {
+            var match = await _matchService.CreateAsync();
+
+            var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
+
+            await _gameHubContext.Clients.Group("matches-list").SendAsync("OnMatchChanged", matchDTO);
+
+            return Created($"/match/{match.Id}", matchDTO);
+        }
+
         [HttpGet]
         public async Task<IActionResult> Get([FromQuery] MatchFilter filter)
         {
@@ -51,16 +63,16 @@ namespace FortyTwo.Server.Controllers
             return Ok(_mapper.Map<Shared.DTO.Match>(match));
         }
 
-        [HttpPost]
-        public async Task<IActionResult> Post()
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> Patch([Required] Guid id, [Required, FromBody] Suit suit)
         {
-            var match = await _matchService.CreateAsync();
+            var match = await _matchService.SetTrumpForCurrentGameAsync(id, suit);
 
-            var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
+            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 
-            await _gameHubContext.Clients.Group("matches-list").SendAsync("OnMatchChanged", matchDTO);
+            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
 
-            return Created($"/match/{match.Id}", matchDTO);
+            return Ok();
         }
 
         [HttpDelete("{id}")]
@@ -75,19 +87,6 @@ namespace FortyTwo.Server.Controllers
         public async Task<IActionResult> PostBid([Required] Guid id, [Required, FromBody] Bid bid)
         {
             var match = await _matchService.BidAsync(id, bid);
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
-
-            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
-
-            return Ok();
-        }
-
-        // TODO: should this be a PATCH on the game instead?
-        [HttpPost("{id}/selectTrump")]
-        public async Task<IActionResult> PostTrump([Required] Guid id, [Required, FromBody] Suit suit)
-        {
-            var match = await _matchService.SetTrumpForCurrentGameAsync(id, suit);
 
             var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
 

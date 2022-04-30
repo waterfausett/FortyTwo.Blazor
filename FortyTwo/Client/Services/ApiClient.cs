@@ -198,7 +198,8 @@ namespace FortyTwo.Client.Services
         {
             try
             {
-                var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/selectTrump", suit);
+                var content = new StringContent(JsonSerializer.Serialize(suit), Encoding.UTF8, "application/json");
+                var response = await _http.PatchAsync($"api/matches/{matchId}", content);
                 if (!response.IsSuccessStatusCode)
                 {
                     await HandleException(response);
