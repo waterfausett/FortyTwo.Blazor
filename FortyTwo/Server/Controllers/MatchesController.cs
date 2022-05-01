@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using AutoMapper;
 using FortyTwo.Server.Hubs;
 using FortyTwo.Server.Services;
-using FortyTwo.Shared.Models;
 using FortyTwo.Shared.DTO;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -63,52 +62,10 @@ namespace FortyTwo.Server.Controllers
             return Ok(_mapper.Map<Shared.DTO.Match>(match));
         }
 
-        [HttpPatch("{id}")]
-        public async Task<IActionResult> Patch([Required] Guid id, [Required, FromBody] Suit suit)
-        {
-            var match = await _matchService.SetTrumpForCurrentGameAsync(id, suit);
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
-
-            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
-
-            return Ok();
-        }
-
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {
             await _matchService.DeleteAsync(id);
-
-            return Ok();
-        }
-
-        [HttpPost("{id}/bids")]
-        public async Task<IActionResult> PostBid([Required] Guid id, [Required, FromBody] Bid bid)
-        {
-            var match = await _matchService.BidAsync(id, bid);
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
-
-            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
-
-            return Ok();
-        }
-
-        [HttpPost("{id}/moves")]
-        public async Task<IActionResult> PostMove([Required] Guid id, [Required, FromBody] Domino domino)
-        {
-            var match = await _matchService.PlayDominoAsync(id, domino);
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
-
-            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
-
-            if (match.CurrentGame.WinningTeam.HasValue)
-            {
-                var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
-                await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnMatchChanged", matchDTO);
-            }
 
             return Ok();
         }

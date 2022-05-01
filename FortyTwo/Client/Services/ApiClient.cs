@@ -178,7 +178,7 @@ namespace FortyTwo.Client.Services
         {
             try
             {
-                var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/bids", bid);
+                var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/games/current/bids", bid);
                 if (!response.IsSuccessStatusCode)
                 {
                     await HandleException(response);
@@ -199,7 +199,7 @@ namespace FortyTwo.Client.Services
             try
             {
                 var content = new StringContent(JsonSerializer.Serialize(suit), Encoding.UTF8, "application/json");
-                var response = await _http.PatchAsync($"api/matches/{matchId}", content);
+                var response = await _http.PatchAsync($"api/matches/{matchId}/games/current", content);
                 if (!response.IsSuccessStatusCode)
                 {
                     await HandleException(response);
@@ -219,7 +219,7 @@ namespace FortyTwo.Client.Services
         {
             try
             {
-                var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/moves", domino);
+                var response = await _http.PostAsJsonAsync($"api/matches/{matchId}/games/current/moves", domino);
                 if (!response.IsSuccessStatusCode)
                 {
                     await HandleException(response);
