@@ -2,9 +2,7 @@
 using FortyTwo.Server.Services;
 using FortyTwo.Shared.Models;
 using FortyTwo.Shared.Models.Security;
-using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Xunit;
 
 namespace FortyTwo.Tests.Server.Services
