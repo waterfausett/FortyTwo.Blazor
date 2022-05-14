@@ -110,6 +110,13 @@
                 @{
                     var teamTricks = CurrentGame.Tricks.Where(x => x.Team == Player.Team);
                     var opponentTricks = CurrentGame.Tricks.Where(x => x.Team != Player.Team);
+
+                    var shouldStack = CurrentGame.Bid > Bid.FourtyTwo && CurrentGame.Bid != Bid.Plunge && CurrentGame.Trump != Suit.Low;
+                    if (shouldStack)
+                    {
+                        teamTricks = teamTricks.Skip(Math.Max(0, teamTricks.Count() - 2));
+                        opponentTricks = opponentTricks.Skip(Math.Max(0, opponentTricks.Count() - 2));
+                    }
                 }
                 <div class="player-team-tricks ml-1">
                     @foreach (var trick in teamTricks.Reverse())
