@@ -190,7 +190,6 @@ namespace FortyTwo.Client.Pages
         }
 
         private Domino PreselectedMove; // TODO: rename
-        // TODO: try to play this when it's my turn
 
         public Task PreselectAsync(Domino domino)
         {
