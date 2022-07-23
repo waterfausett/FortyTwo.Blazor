@@ -3,6 +3,8 @@
 
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background-color: var(--theme-background-color);
+    min-height: 100vh;
 }
 
 a, .btn-link {
@@ -34,6 +36,7 @@ app {
 }
 
 .main {
+    position: relative;
     flex: 1;
     height: 100vh;
     display: flex;
@@ -42,7 +45,8 @@ app {
 }
 
     .main .top-row {
-        background-color: #f7f7f7;
+        background-color: var(--top-row-bg-color, #f7f7f7);
+        color: var(--top-row-color);
         border-bottom: 1px solid #d6d5d5;
         justify-content: flex-end;
     }
@@ -57,6 +61,30 @@ app {
     text-overflow: ellipsis;
 }
 
+.main .swal2-container {
+    position: absolute;
+}
+
+.navbar-brand {
+    font-size: 1.1rem;
+    color: inherit;
+}
+
+button .spinner-border {
+    width: 1rem;
+    height: 1rem;
+    border: 0.15em solid currentColor;
+    border-right-color: transparent;
+}
+
+.noselect {
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version, currently supported by Chrome, Edge, Opera and Firefox */
+}
 .sidebar {
     background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
 }
@@ -111,6 +139,7 @@ app {
 .content {
     padding-top: 1.1rem;
     flex-grow: 1;
+    overflow: auto;
 }
 
 .navbar-toggler {
@@ -119,6 +148,7 @@ app {
 
 .oi {
     z-index: -1;
+    z-index: 0;
 }
 
 .valid.modified:not([type=checkbox]) {
@@ -160,7 +190,7 @@ app {
 
 @media (max-width: 767.98px) {
     .main .top-row:not(.auth) {
-        display: none;
+        /*display: none;*/
     }
 
     .main .top-row.auth {
@@ -226,7 +256,10 @@ app {
 }
 
 .swal-logout-bg {
-    background-color: #ffffff;
+    background-color: var(--swal-bg-color, #ffffff);
+}
+.swal2-popup {
+    background-color: var(--swal-bg-color, #ffffff);
 }
 
 .hidden {
@@ -369,3 +402,206 @@ span[data-score="13"]::after {
         transform: rotate(-360deg);
     }
 }
+
+/* Ribbon */
+
+/* common */
+.ribbon {
+    width: 100px;
+    height: 100px;
+    overflow: hidden;
+    position: absolute;
+    z-index: 500;
+}
+
+    .ribbon::before,
+    .ribbon::after {
+        position: absolute;
+        z-index: -1;
+        content: '';
+        display: block;
+        border: 5px solid #2980b9;
+        border: 5px solid var(--success);
+    }
+
+    .ribbon span {
+        position: absolute;
+        display: block;
+        width: 150px;
+        padding: 5px 0;
+        background-color: #3498db;
+        background-color: var(--success);
+        box-shadow: 0 5px 10px rgba(0,0,0,.1);
+        color: #fff;
+        font: 700 18px/1 'Lato', sans-serif;
+        text-shadow: 0 1px 1px rgba(0,0,0,.2);
+        text-transform: uppercase;
+        text-align: center;
+    }
+
+/* top right*/
+.ribbon-top-right {
+    top: -10px;
+    right: -10px;
+}
+
+    .ribbon-top-right::before,
+    .ribbon-top-right::after {
+        border-top-color: transparent;
+        border-right-color: transparent;
+    }
+
+    .ribbon-top-right::before {
+        top: 0;
+        left: 0;
+    }
+
+    .ribbon-top-right::after {
+        bottom: 0;
+        right: 0;
+    }
+
+    .ribbon-top-right span {
+        left: -15px;
+        top: 25px;
+        transform: rotate(45deg);
+    }
+
+/* top left*/
+.ribbon-top-left {
+    top: -10px;
+    left: -10px;
+}
+
+    .ribbon-top-left::before,
+    .ribbon-top-left::after {
+        border-top-color: transparent;
+        border-left-color: transparent;
+    }
+
+    .ribbon-top-left::before {
+        top: 0;
+        right: 0;
+    }
+
+    .ribbon-top-left::after {
+        bottom: 0;
+        left: 0;
+    }
+
+    .ribbon-top-left span {
+        right: -25px;
+        top: 30px;
+        transform: rotate(-45deg);
+    }
+
+/* bottom left*/
+.ribbon-bottom-left {
+    bottom: -10px;
+    left: -10px;
+}
+
+    .ribbon-bottom-left::before,
+    .ribbon-bottom-left::after {
+        border-bottom-color: transparent;
+        border-left-color: transparent;
+    }
+
+    .ribbon-bottom-left::before {
+        bottom: 0;
+        right: 0;
+    }
+
+    .ribbon-bottom-left::after {
+        top: 0;
+        left: 0;
+    }
+
+    .ribbon-bottom-left span {
+        right: -25px;
+        bottom: 30px;
+        transform: rotate(225deg);
+    }
+
+/* bottom right*/
+.ribbon-bottom-right {
+    bottom: -10px;
+    right: -10px;
+}
+
+    .ribbon-bottom-right::before,
+    .ribbon-bottom-right::after {
+        border-bottom-color: transparent;
+        border-right-color: transparent;
+    }
+
+    .ribbon-bottom-right::before {
+        bottom: 0;
+        left: 0;
+    }
+
+    .ribbon-bottom-right::after {
+        top: 0;
+        right: 0;
+    }
+
+    .ribbon-bottom-right span {
+        left: -25px;
+        bottom: 30px;
+        transform: rotate(-225deg);
+    }
+
+/* Stamp */
+.stamp {
+    transform: rotate(12deg);
+    color: #555;
+    font-size: 1rem;
+    font-weight: 700;
+    border: 0.25rem solid #555;
+    display: inline-block;
+    padding: 0.25rem 1rem;
+    text-transform: uppercase;
+    border-radius: 1rem;
+    font-family: 'Courier';
+    -webkit-mask-image: url('../img/grunge.png');
+    -webkit-mask-size: 944px 604px;
+    mix-blend-mode: var(--stamp-mix-blend-mode);
+}
+
+.is-nope {
+    color: #D23;
+    border: 0.25rem double #D23;
+    transform: rotate(3deg);
+    -webkit-mask-position: 2rem 3rem;
+}
+
+.is-approved {
+    color: var(--stamp-is-approved-color);
+    border: 0.25rem solid var(--stamp-is-approved-color);
+    -webkit-mask-position: 13rem 6rem;
+    transform: rotate(-14deg);
+}
+
+/* Scrollbars */
+
+/* width */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+    box-shadow: inset 0 0 5px lightgrey;
+    border-radius: 10px;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+    background: darkgrey;
+    border-radius: 10px;
+}
+
+    /* Handle on hover */
+    ::-webkit-scrollbar-thumb:hover {
+        background: grey;
+    }

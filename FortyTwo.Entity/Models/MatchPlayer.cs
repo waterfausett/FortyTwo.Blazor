@@ -12,4 +12,10 @@ namespace FortyTwo.Entity.Models
 
         public Match Match { get; set; }
     }
+
+    public static class MatchPlayerExtensions
+    {
+        public static Teams Team(this MatchPlayer player)
+            => (int)player.Position % 2 == 0 ? Teams.TeamA : Teams.TeamB;
+    }
 }

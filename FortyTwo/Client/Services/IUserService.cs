@@ -1,4 +1,5 @@
-﻿using FortyTwo.Shared.DTO;
+﻿using FortyTwo.Client.ViewModels;
+using FortyTwo.Shared.DTO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -14,6 +15,8 @@ namespace FortyTwo.Client.Services
         /// <returns></returns>
         Task SyncUsersAsync(List<string> userIds);
         Task<List<User>> FetchUsersAsync(List<string> userIds);
+        Task<User> FetchProfileAsync();
+        Task<bool> UpdateProfileAsync(ProfileModel model);
         string GetUserName(string userId);
     }
 }

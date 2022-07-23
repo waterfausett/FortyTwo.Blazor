@@ -41,6 +41,9 @@ namespace FortyTwo.Shared.Models
 
         public bool IsDouble => this.Top == this.Bottom;
 
+        // TODO: support low - doubles low
+        // TODO: support low - doubles are they're own suit
+
         public Suit GetSuit(Suit trump)
             => IsOfSuit(trump)
                 ? trump
@@ -60,6 +63,7 @@ namespace FortyTwo.Shared.Models
 
         public bool Equals(Domino other)
         {
+            if (other == null) return false;
             return (this.Top == other.Top && this.Bottom == other.Bottom)
                 || (this.Top == other.Bottom && this.Bottom == other.Top);
         }

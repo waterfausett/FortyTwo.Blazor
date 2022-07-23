@@ -10,6 +10,7 @@ namespace FortyTwo.Server.Services
         IMatchValidationService IsActive(Match match);
         IMatchValidationService IsNotFull(Match match);
         IMatchValidationService IsActive(MatchPlayer match);
+        IMatchValidationService IsNotNull(Game game);
         IMatchValidationService IsActive(Game game);
         IMatchValidationService IsActiveTurn(Game game, UserId userId);
         IMatchValidationService IsActiveBidder(Game game, UserId userId);

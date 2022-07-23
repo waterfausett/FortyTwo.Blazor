@@ -48,11 +48,18 @@ namespace FortyTwo.Shared.Models
                 var teamPoints = Tricks.GroupBy(t => t.Team).ToDictionary(g => g.Key, g => g.Sum(t => t.Value));
 
                 var adjustedBid = (int)Bid % 42 == 0 ? 42 : (int)Bid;
-                return teamPoints.TryGetValue(biddingTeamId, out var biddingTeamPoints) && biddingTeamPoints >= adjustedBid
-                    ? biddingTeamId
-                    : teamPoints.TryGetValue(otherTeamId, out var otherTeamPoints) && otherTeamPoints > (42 - adjustedBid)
+
+                return Trump == Suit.Low
+                    ? teamPoints.Keys.Contains(biddingTeamId)
                         ? otherTeamId
-                        : null;
+                        : Tricks.Count == 7
+                            ? biddingTeamId
+                            : null
+                    : teamPoints.TryGetValue(biddingTeamId, out var biddingTeamPoints) && biddingTeamPoints >= adjustedBid
+                        ? biddingTeamId
+                        : teamPoints.TryGetValue(otherTeamId, out var otherTeamPoints) && otherTeamPoints > (42 - adjustedBid)
+                            ? otherTeamId
+                            : null;
             }
         }
     }

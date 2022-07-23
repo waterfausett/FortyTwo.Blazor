@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -21,6 +23,15 @@ namespace FortyTwo.Server.Services
             _httpClient = httpClientFactory.CreateClient();
             _httpClient.BaseAddress = new Uri(configuration["Auth0_ApiClient_PublicOrigin"]);
             _logger = logger;
+        }
+
+        public async Task<User> GetUserAsync(string userId)
+        {
+            string url = $"api/v2/users/{userId}";
+
+            var users = await FetchAsync<User>(url);
+
+            return users;
         }
 
         public async Task<List<User>> GetUsersAsync()
@@ -41,6 +52,43 @@ namespace FortyTwo.Server.Services
             return users;
         }
 
+        public async Task UpdateUserAsync(string userId, UserPatch patch)
+        {
+            var url = $"api/v2/users/{userId}";
+
+            await PatchAsync(url, new { user_metadata = patch });
+        }
+
+        private async Task PatchAsync(string url, object payload)
+        {
+            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            var serializerOptions = new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var json = JsonSerializer.Serialize(payload, serializerOptions);
+            using var request = new HttpRequestMessage(HttpMethod.Patch, url)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+            var accessToken = await _accessTokenProvider.FetchAsync();
+            request.Headers.Add("Authorization", $"{accessToken.TokenType} {accessToken.Token}");
+
+            try
+            {
+                using var response = await _httpClient.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error executing PATCH via Auth0 Api: {ex}");
+                throw;
+            }
+        }
+
         private async Task<T> FetchAsync<T>(string url) where T : new()
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -50,7 +98,7 @@ namespace FortyTwo.Server.Services
 
             try
             {
-                var response = await _httpClient.SendAsync(request);
+                using var response = await _httpClient.SendAsync(request);
                 response.EnsureSuccessStatusCode();
                 var json = await response.Content.ReadAsStringAsync();
                 return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });

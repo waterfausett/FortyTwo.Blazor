@@ -1,8 +1,10 @@
-﻿@using Microsoft.AspNetCore.Components.Authorization
+﻿@using FortyTwo.Shared.Extensions
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 
 @inject NavigationManager Navigation
 @inject SignOutSessionStateManager SignOutManager
+@inject IAccessTokenProvider TokenProvider
 
 <!-- TODO: perhaps build out a user obj to inject vs grepping context.User -->
 
@@ -14,10 +16,11 @@
                    aria-haspopup="true" aria-expanded="false">
                     <img src="@context.User.Claims.SingleOrDefault(c => c.Type == "picture")?.Value" class="img img-fluid rounded-circle" width="35" alt="default icon"
                          onerror="this.src='https://cdn.discordapp.com/embed/avatars/1.png';">
-                    @(context.User.Claims.SingleOrDefault(c => c.Type == "nickname")?.Value ?? context.User.Identity.Name)
+                    @(context.User.GetDisplayName() ?? context.User.Identity.Name)
                 </a>
                 <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
-                    <a class="dropdown-item" @onclick="BeginSignOut">Logout</a>
+                    <a class="dropdown-item" href="/profile">Profile</a>
+                    <a class="dropdown-item" @onclick="@(async () => await BeginSignOut())">Logout</a>
                 </div>
             </li>
         </Authorized>
@@ -42,6 +45,14 @@
             AddLoggedInUserAsync(authState.User);
         }
 
+        if (authState?.User?.Identity?.IsAuthenticated == true
+            && (!(await TokenProvider.RequestAccessToken()).TryGetToken(out var token)
+                || token.Expires <= DateTimeOffset.Now))
+        {
+            await BeginSignOut();
+            return;
+        }
+
         await base.OnInitializedAsync();
     }
 
@@ -55,14 +66,18 @@
                     Id = loggedInUserId,
                     Email = principal.Identity?.Name,
                     Nickname = principal.Claims.SingleOrDefault(c => c.Type == "nickname")?.Value,
-                    Picture = principal.Claims.SingleOrDefault(c => c.Type == "picture")?.Value
+                    Picture = principal.Claims.SingleOrDefault(c => c.Type == "picture")?.Value,
+                    UserMetadata = new FortyTwo.Shared.DTO.UserMetadata
+                    {
+                        DisplayName = principal.Claims.SingleOrDefault(c => c.Type == FortyTwo.Shared.Constants.Claims.DisplayName)?.Value
+                    }
                 };
 
             Store.Users.AddOrUpdate(loggedInUserId, loggedInUser, (_, __) => loggedInUser);
         }
     }
 
-    private async Task BeginSignOut(MouseEventArgs args)
+    private async Task BeginSignOut()
     {
         await SignOutManager.SetSignOutState();
         Navigation.NavigateTo("authentication/logout");

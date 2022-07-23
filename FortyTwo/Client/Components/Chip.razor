@@ -1,6 +1,6 @@
 ﻿@using FortyTwo.Client.Components.Models
 
-<span class="custom-chip custom-chip-@Context.ToLower() @(OnSelected.HasDelegate ? "clickable" : "no-hover") @(Size switch { Size.Large => "custom-chip-large", _ => "" }) valign-middle"
+<span class="custom-chip custom-chip-@Context.ToLower() @(OnSelected.HasDelegate ? "clickable" : "no-hover") @(Size switch { Size.Large => "custom-chip-large", _ => "" })"
     @onclick="@(async () => { await OnSelected.InvokeAsync(this); })"> @Label @if (Badge != null) { <span class="badge badge-@Context.ToLower()">@Badge</span> }</span>
 
 @code {

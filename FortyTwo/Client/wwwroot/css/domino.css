@@ -16,15 +16,16 @@
     height: 12em;
     margin: 0.5em;
     position: relative;
-    background-color: #fff;
+    background-color: var(--domino-color);
     -webkit-border-radius: .8em;
     -moz-border-radius: .8em;
     border-radius: .8em;
-    border-top: solid 1px grey;
-    border-left: solid 1px grey;
-    -moz-box-shadow: .3em .3em 0em .12em gray;
-    -webkit-box-shadow: .3em .3em 0em .12em gray;
-    box-shadow: .3em .3em 0em .12em gray;
+    border-top: solid 1px var(--domino-border-color);
+    border-left: solid 1px var(--domino-border-color);
+    -moz-box-shadow: .3em .3em 0em .12em var(--domino-border-color);
+    -webkit-box-shadow: .3em .3em 0em .12em var(--domino-border-color);
+    box-shadow: .3em .3em 0em .12em var(--domino-border-color);
+    z-index: 400;
 }
 
     .domino.horizontal {
@@ -42,22 +43,22 @@
     }
 
         .domino div[data-value="1"] span {
-            background-color: lightblue;
+            background-color: var(--domino-1-color, lightblue);
         }
         .domino div[data-value="2"] span {
-            background-color: green;
+            background-color: var(--domino-2-color, green);
         }
         .domino div[data-value="3"] span {
-            background-color: indianred;
+            background-color: var(--domino-3-color, indianred);
         }
         .domino div[data-value="4"] span {
-            background-color: sandybrown;
+            background-color: var(--domino-4-color, sandybrown);
         }
         .domino div[data-value="5"] span {
-            background-color: darkblue;
+            background-color: var(--domino-5-color, darkblue);
         }
         .domino div[data-value="6"] span {
-            background-color: gold;
+            background-color: var(--domino-6-color, gold);
         }
 
         .domino .line {
@@ -66,8 +67,7 @@
             position: absolute;
             top: 5.7em;
             left: .25em;
-            background-color: gray;
-
+            background-color: var(--domino-border-color);
         }
 
         .domino .TL6 {
@@ -142,8 +142,15 @@
 
     .sortable-chosen .domino,
     .domino.clickable:hover {
-        -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
-        -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
-        box-shadow: 0.1em 0.1em 0.1em 0.5em lightblue;
+        -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
+        -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
+        box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
+        border: none;
+    }
+
+    .domino.preselected {
+        -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
+        -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
+        box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
         border: none;
     }

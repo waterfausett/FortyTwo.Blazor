@@ -1,6 +1,9 @@
 ﻿using FortyTwo.Server.Services;
+using FortyTwo.Shared.DTO;
+using FortyTwo.Shared.Models.Security;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 
 namespace FortyTwo.Server.Controllers
@@ -10,10 +13,20 @@ namespace FortyTwo.Server.Controllers
     public class UsersController : ControllerBase
     {
         private readonly IAuth0ApiClient _apiClient;
+        private readonly UserId _userId;
 
-        public UsersController(IAuth0ApiClient apiClient)
+        public UsersController(IAuth0ApiClient apiClient, UserId userId)
         {
             _apiClient = apiClient;
+            _userId = userId;
+        }
+
+        [HttpGet("profile")]
+        public async Task<IActionResult> Profile()
+        {
+            var user = await _apiClient.GetUserAsync(_userId);
+
+            return Ok(user);
         }
 
         [HttpGet]
@@ -24,13 +37,20 @@ namespace FortyTwo.Server.Controllers
             return Ok(users);
         }
 
-        [HttpPost]
-        public async Task<IActionResult> Get(List<string> userIds)
+        [HttpPost("search")]
+        public async Task<IActionResult> Search(List<string> userIds)
         {
             var users = await _apiClient.GetUsersAsync(userIds);
 
             return Ok(users);
+        }
 
+        [HttpPatch]
+        public async Task<IActionResult> Patch([Required, FromBody] UserPatch patch)
+        {
+            await _apiClient.UpdateUserAsync(_userId, patch);
+
+            return Ok();
         }
     }
 }

@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using AutoMapper;
 using FortyTwo.Server.Hubs;
 using FortyTwo.Server.Services;
-using FortyTwo.Shared.Models;
 using FortyTwo.Shared.DTO;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -30,10 +29,22 @@ namespace FortyTwo.Server.Controllers
             _gameHubContext = gameHubContext;
         }
 
-        [HttpGet]
-        public async Task<IActionResult> Get([FromQuery] bool completed)
+        [HttpPost]
+        public async Task<IActionResult> Post()
         {
-            var matches = await _matchService.FetchForUserAsync(completed);
+            var match = await _matchService.CreateAsync();
+
+            var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
+
+            await _gameHubContext.Clients.Group("matches-list").SendAsync("OnMatchChanged", matchDTO);
+
+            return Created($"/match/{match.Id}", matchDTO);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Get([FromQuery] MatchFilter filter)
+        {
+            var matches = await _matchService.FetchForUserAsync(filter);
 
             return Ok(_mapper.Map<List<Shared.DTO.Match>>(matches));
         }
@@ -51,97 +62,10 @@ namespace FortyTwo.Server.Controllers
             return Ok(_mapper.Map<Shared.DTO.Match>(match));
         }
 
-        [HttpPost]
-        public async Task<IActionResult> Post()
-        {
-            var match = await _matchService.CreateAsync();
-
-            var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
-
-            await _gameHubContext.Clients.Group("matches-list").SendAsync("OnMatchChanged", matchDTO);
-
-            return Created($"/match/{match.Id}", matchDTO);
-        }
-
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {
             await _matchService.DeleteAsync(id);
-
-            return Ok();
-        }
-
-        [HttpPost("{id}/players")]
-        public async Task<IActionResult> AddPlayer([Required] Guid id, [Required, FromBody] AddPlayerRequest request)
-        {
-            var match = await _matchService.AddPlayerAsync(id, request.Team);
-
-            var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
-            await _gameHubContext.Clients.Group("matches-list").SendAsync("OnMatchChanged", matchDTO);
-
-            return Ok(matchDTO);
-        }
-
-        [HttpGet("{id}/player")]
-        public async Task<IActionResult> GetPlayer([Required] Guid id)
-        {
-            var player = await _matchService.GetPlayerForMatch(id);
-
-            return Ok(player);
-        }
-
-        [HttpPatch("{id}/players")]
-        public async Task<IActionResult> PatchPlayer(Guid id, PlayerPatchRequest request)
-        {
-            var match = await _matchService.PatchPlayerAsync(id, request);
-
-            if (match != null)
-            {
-                var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
-                await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnMatchChanged", matchDTO);
-            }
-
-            return Ok();
-        }
-
-        [HttpPost("{id}/bids")]
-        public async Task<IActionResult> PostBid([Required] Guid id, [Required, FromBody] Bid bid)
-        {
-            var match = await _matchService.BidAsync(id, bid);
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
-
-            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
-
-            return Ok();
-        }
-
-        [HttpPost("{id}/selectTrump")]
-        public async Task<IActionResult> PostTrump([Required] Guid id, [Required, FromBody] Suit suit)
-        {
-            var match = await _matchService.SetTrumpForCurrentGameAsync(id, suit);
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
-
-            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
-
-            return Ok();
-        }
-
-        [HttpPost("{id}/moves")]
-        public async Task<IActionResult> PostMove([Required] Guid id, [Required, FromBody] Domino domino)
-        {
-            var match = await _matchService.PlayDominoAsync(id, domino);
-
-            var gameDTO = _mapper.Map<Shared.DTO.Game>(match.CurrentGame);
-
-            await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnGameChanged", gameDTO);
-
-            if (match.CurrentGame.WinningTeam.HasValue)
-            {
-                var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
-                await _gameHubContext.Clients.Group(id.ToString()).SendAsync("OnMatchChanged", matchDTO);
-            }
 
             return Ok();
         }

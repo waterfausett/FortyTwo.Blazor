@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using CurrieTechnologies.Razor.SweetAlert2;
 using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
-using FortyTwo.Client.ViewModels;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -41,7 +41,12 @@ namespace FortyTwo.Client
             builder.Services.AddTransient(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("API"));
 
             builder.Services.AddOptions();
-            builder.Services.AddAuthorizationCore();
+            builder.Services.AddAuthorizationCore(options =>
+            {
+                options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
+            });
 
             builder.Services.AddSweetAlert2();
 

@@ -3,15 +3,44 @@
 }
 
 $(() => {
-    return;
+});
 
-    // TODO: support theme options in /profile
-    //  - use selected mode regardless of OS level setting
+applyThemePreferences();
 
-    const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
-    if (prefersDarkScheme.matches) {
+function setThemePreferences(themeClassName) {
+    localStorage.setItem('profile-theme-preference', themeClassName);
+
+    applyThemePreferences();
+}
+
+function applyThemePreferences() {
+    document.body.classList.remove('dark-theme');
+    document.body.classList.remove('light-theme');
+    const profile_themePreference = localStorage.getItem('profile-theme-preference');
+
+    if (profile_themePreference) {
+        document.body.classList.add(profile_themePreference);
+        return;
+    }
+
+    const prefersDarkSystemScheme = getSystemPrefersDarkTheme()
+    if (prefersDarkSystemScheme) {
         document.body.classList.add('dark-theme');
     } else {
         document.body.classList.remove('dark-theme');
     }
-});
+}
+
+function getSystemPrefersDarkTheme() {
+    const prefersDarkSystemScheme = window.matchMedia('(prefers-color-scheme: dark)');
+    return prefersDarkSystemScheme.matches;
+}
+
+function getUserPrefersDarkTheme() {
+    const profile_themePreference = localStorage.getItem('profile-theme-preference');
+    if (profile_themePreference) {
+        return profile_themePreference == 'dark-theme';
+    }
+
+    return getSystemPrefersDarkTheme();
+}

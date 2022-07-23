@@ -44,18 +44,11 @@ namespace FortyTwo.Client.Pages
         {
             get
             {
-                var biddingOptions = Enum.GetValues(typeof(Bid)).OfType<Bid>().ToList();
-                if (Player.Dominos.Count(x => x.IsDouble) < 4)
-                {
-                    biddingOptions.Remove(Bid.Plunge);
-                }
-
-                // HACK: always remove this option until it's fully supported in the rest of the app
-                biddingOptions.Remove(Bid.Plunge);
+                var biddingOptions = Enum.GetValues(typeof(Bid)).OfType<Bid>().Where(x => x != Bid.Plunge).ToList();
 
                 if (CurrentGame.Bid.HasValue)
                 {
-                    biddingOptions.RemoveAll(x => (x != Bid.Pass && x != Bid.Plunge) && x <= CurrentGame.Bid.Value);
+                    biddingOptions.RemoveAll(x => x != Bid.Pass && x <= CurrentGame.Bid.Value);
                 }
 
                 if (CurrentGame.Hands.Count(x => x.Bid == Bid.Pass) == 3)
@@ -64,6 +57,11 @@ namespace FortyTwo.Client.Pages
                 }
 
                 biddingOptions.RemoveAll(x => x > Bid.EightyFour && (!CurrentGame.Bid.HasValue || (int)x > ((int)CurrentGame.Bid + (int)Bid.FourtyTwo)));
+
+                if (Player.Dominos.Count(x => x.IsDouble) >= 4 && (CurrentGame.Bid ?? 0) < Bid.FourMarks)
+                {
+                    biddingOptions.Add(Bid.Plunge);
+                }
 
                 return biddingOptions;
             }
@@ -121,6 +119,12 @@ namespace FortyTwo.Client.Pages
 
             Player.Bid ??= game.Hands.First(x => x.PlayerId == Player.Id).Bid;
             Player.IsActive = game.CurrentPlayerId == Player.Id;
+
+            if (Player.IsActive && PreselectedMove != null)
+            {
+                await MakeMoveAsync(PreselectedMove);
+                PreselectedMove = null;
+            }
 
             if (game.WinningTeam.HasValue)
             {
@@ -185,6 +189,22 @@ namespace FortyTwo.Client.Pages
             }
         }
 
+        private Domino PreselectedMove; // TODO: rename
+
+        public Task PreselectAsync(Domino domino)
+        {
+            if (PreselectedMove?.Equals(domino) == true)
+            {
+                PreselectedMove = null;
+            }
+            else
+            {
+                PreselectedMove = domino;
+            }
+
+            return Task.CompletedTask;
+        }
+
         public async Task MakeMoveAsync(Domino domino)
         {
             MakingMove = true;
@@ -220,6 +240,7 @@ namespace FortyTwo.Client.Pages
             }
         }
 
+        private bool _matchOverNotificationAlreadyShown;
         protected async Task RegisterSignalRAsync()
         { 
             // TODO: handle signalr connection exceptions (possibly at the app level)
@@ -235,7 +256,7 @@ namespace FortyTwo.Client.Pages
 
                 StateHasChanged();
 
-                var newGameStarting = match.Players.All(x => x.Ready) && CurrentGame.Tricks.Count == 0 && CurrentGame.CurrentTrick.IsEmpty();
+                var newGameStarting = CurrentGame.Tricks.Count == 0 && CurrentGame.CurrentTrick.IsEmpty();
                 if (newGameStarting)
                 {
                     if (MyGroup != null)
@@ -252,10 +273,15 @@ namespace FortyTwo.Client.Pages
                         TimerProgressBar = true,
                         ShowCloseButton = false,
                         Title = "The next game has started",
+                        Target = ".main"
                     });
+
+                    _gameOverNotificationAlreadyShown = false;
                 }
                 else if (match.WinningTeam.HasValue)
                 {
+                    if (_matchOverNotificationAlreadyShown) return;
+
                     var alertOptions = new SweetAlertOptions
                     {
                         ShowConfirmButton = true,
@@ -283,6 +309,8 @@ namespace FortyTwo.Client.Pages
                     }
 
                     await Swal.FireAsync(alertOptions);
+
+                    _matchOverNotificationAlreadyShown = true;
                 }
             });
 
@@ -312,17 +340,20 @@ namespace FortyTwo.Client.Pages
             await HubConnection?.SendAsync("LeaveGameAsync", MatchId);
         }
 
-        public async Task ShowNotificationIfGameOverAsync(Game game)
+        private bool _gameOverNotificationAlreadyShown;
+        public Task ShowNotificationIfGameOverAsync(Game game)
         {
-            if (!game.WinningTeam.HasValue) return;
+            if (!game.WinningTeam.HasValue || _gameOverNotificationAlreadyShown) return Task.CompletedTask;
 
             var alertOptions = new SweetAlertOptions
             {
-                ShowConfirmButton = true,
-                ConfirmButtonText = "OK",
-                FocusConfirm = true,
-                ShowCancelButton = false,
+                Toast = true,
+                Timer = 1750,
+                TimerProgressBar = true,
                 ShowCloseButton = false,
+                ShowConfirmButton = false,
+                Position = SweetAlertPosition.BottomRight,
+                Width = "24rem"
             };
 
             var biddingTeam = (int)Model.Players.First(x => x.Id == Model.CurrentGame.BiddingPlayerId).Position % 2 == 0
@@ -346,7 +377,11 @@ namespace FortyTwo.Client.Pages
                     : "The other team made their bid 😒";
             }
 
-            await Swal.FireAsync(alertOptions);
+            _ = Swal.FireAsync(alertOptions);
+
+            _gameOverNotificationAlreadyShown = true;
+
+            return Task.CompletedTask;
         }
     }
 }

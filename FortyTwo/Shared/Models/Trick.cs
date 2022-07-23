@@ -15,8 +15,10 @@ namespace FortyTwo.Shared.Models
         public Domino[] Dominos { get; set; } = new Domino[4];
         public int Value => Dominos?.Sum(x => x?.Value) + 1 ?? 0;
 
-        public bool IsFull()
-            => Array.IndexOf(Dominos, null) == -1;
+        public bool IsFull(Suit trump)
+            => trump == Models.Suit.Low
+                ? Dominos.Count(x => x != null) == 3
+                : Array.IndexOf(Dominos, null) == -1;
 
         public bool IsEmpty()
             => Array.TrueForAll(Dominos, x => x == null);

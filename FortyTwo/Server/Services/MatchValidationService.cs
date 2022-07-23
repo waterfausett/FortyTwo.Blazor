@@ -43,10 +43,17 @@ namespace FortyTwo.Server.Services
             return this;
         }
 
-        public IMatchValidationService IsActive(Game game)
+        public IMatchValidationService IsNotNull(Game game)
         {
             if (game == null)
-                throw new CustomValidationException("No active game found");
+                throw new CustomValidationException("Game not found!");
+
+            return this;
+        }
+
+        public IMatchValidationService IsActive(Game game)
+        {
+            IsNotNull(game);
 
             if (game.WinningTeam != null)
                 throw new CustomValidationException("This game is over");
@@ -64,7 +71,9 @@ namespace FortyTwo.Server.Services
 
         public IMatchValidationService IsActiveBidder(Game game, UserId userId)
         {
-            if (game.BiddingPlayerId != userId)
+            var biddingTeam = game.Hands.First(x => x.PlayerId == game.BiddingPlayerId)?.Team;
+            if ((game.Bid != Bid.Plunge && game.BiddingPlayerId != userId)
+                || (game.Bid == Bid.Plunge && (game.BiddingPlayerId == userId || game.Hands.First(x => x.PlayerId == userId).Team != biddingTeam)))
                 throw new CustomValidationException("It's not your turn!");
 
             return this;
