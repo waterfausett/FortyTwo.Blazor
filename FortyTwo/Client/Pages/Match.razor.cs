@@ -256,7 +256,7 @@ namespace FortyTwo.Client.Pages
 
                 StateHasChanged();
 
-                var newGameStarting = match.Players.All(x => x.Ready) && CurrentGame.Tricks.Count == 0 && CurrentGame.CurrentTrick.IsEmpty();
+                var newGameStarting = CurrentGame.Tricks.Count == 0 && CurrentGame.CurrentTrick.IsEmpty();
                 if (newGameStarting)
                 {
                     if (MyGroup != null)

@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using CurrieTechnologies.Razor.SweetAlert2;
 using FortyTwo.Client.Services;
 using FortyTwo.Client.Store;
-using FortyTwo.Client.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
