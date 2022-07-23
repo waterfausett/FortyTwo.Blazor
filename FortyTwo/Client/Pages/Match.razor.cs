@@ -30,7 +30,7 @@ namespace FortyTwo.Client.Pages
         public bool MakingMove { get; set; }
         public FortyTwo.Shared.DTO.Match Model
         {
-            get => Store.Matches?.FirstOrDefault(x => x.Id == MatchId);
+            get => Store.Matches?.Values.FirstOrDefault(x => x.Id == MatchId);
         }
 
         public Game CurrentGame

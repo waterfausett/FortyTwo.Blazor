@@ -29,7 +29,7 @@ namespace FortyTwo.Client.Pages
         public bool IsCreating { get; set; }
         public List<FortyTwo.Shared.DTO.Match> Matches
         {
-            get => Store.Matches?
+            get => Store.Matches?.Values
                 .Where(x => _matchFilter switch
                 {
                     FortyTwo.Shared.DTO.MatchFilter.Active => x.Players.Any(p => p.Id == _user.GetUserId()),

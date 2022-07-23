@@ -80,5 +80,5 @@
     public IClientStore Store { get; set; }
 
     public string GetPlayerName(string playerId)
-        => Store.Users.FirstOrDefault(x => x.Id == playerId)?.DisplayName ?? $"Unknown Player ({playerId})";
+        => Store.Users.Values.FirstOrDefault(x => x.Id == playerId)?.DisplayName ?? $"Unknown Player ({playerId})";
 }

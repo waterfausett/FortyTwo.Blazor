@@ -30,12 +30,12 @@ namespace FortyTwo.Client.Services
         public async Task SyncUsersAsync(List<string> userIds)
         {
             var unknownUserIds = userIds
-                .Except(_store.Users.Select(x => x.Id))
+                .Except(_store.Users.Values.Select(x => x.Id))
                 .ToList();
 
             var users = await FetchUsersAsync(unknownUserIds);
 
-            _store.Users.AddRange(users);
+            users.ForEach(user => _store.Users.AddOrUpdate(user.Id, user, (_, __) => user));
         }
 
         public async Task<User> FetchProfileAsync()
@@ -132,6 +132,6 @@ namespace FortyTwo.Client.Services
         }
 
         public string GetUserName(string userId)
-            => _store.Users.FirstOrDefault(x => x.Id == userId)?.DisplayName ?? $"Unknown Player ({userId})";
+            => _store.Users.Values.FirstOrDefault(x => x.Id == userId)?.DisplayName ?? $"Unknown Player ({userId})";
     }
 }

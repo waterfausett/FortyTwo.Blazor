@@ -36,7 +36,8 @@ namespace FortyTwo.Client.Services
             {
                 var matches = await _http.GetFromJsonAsync<List<Match>>($"api/matches?filter={matchFilter}");
 
-                _store.Matches = matches;
+                _store.Matches.Clear();
+                matches.ForEach(match => _store.Matches.AddOrUpdate(match.Id, match, (_, __) => match));
 
                 await _userService.SyncUsersAsync(matches.SelectMany(x => x.Players)
                     .Select(x => x.Id)
@@ -54,8 +55,7 @@ namespace FortyTwo.Client.Services
             {
                 var match = await _http.GetFromJsonAsync<Match>($"api/matches/{matchId}");
 
-                _store.Matches.RemoveAll(x => x.Id == matchId);
-                _store.Matches.Add(match);
+                _store.Matches.AddOrUpdate(matchId, match, (_, __) => match);
 
                 await _userService.SyncUsersAsync(match.Players.Select(x => x.Id).ToList());
             }
@@ -103,10 +103,7 @@ namespace FortyTwo.Client.Services
 
                 var match = await response.Content.ReadFromJsonAsync<Match>();
 
-                if (_store.Matches.All(x => x.Id != match.Id))
-                {
-                    _store.Matches.Add(match);
-                }
+                _store.Matches.AddOrUpdate(match.Id, match, (_, __) => match);
             }
             catch (Exception ex)
             {
@@ -124,7 +121,7 @@ namespace FortyTwo.Client.Services
                     await HandleException(response);
                 }
 
-                _store.Matches.RemoveAll(match => match.Id == matchId);
+                _store.Matches.Remove(matchId, out _);
             }
             catch (Exception ex)
             {
@@ -144,8 +141,7 @@ namespace FortyTwo.Client.Services
 
                 var match = await response.Content.ReadFromJsonAsync<Match>();
 
-                _store.Matches.RemoveAll(x => x.Id == matchId);
-                _store.Matches.Add(match);
+                _store.Matches.AddOrUpdate(matchId, match, (_, __) => match);
             }
             catch (Exception ex)
             {

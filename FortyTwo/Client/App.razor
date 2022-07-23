@@ -102,8 +102,7 @@
 
         HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", async (match) =>
         {
-            Store.Matches.RemoveAll(x => x.Id == match.Id);
-            Store.Matches.Add(match);
+            Store.Matches.AddOrUpdate(match.Id, match, (_, __) => match);
             
             await UserService.SyncUsersAsync(match.Players.Select(x => x.Id).ToList());
 

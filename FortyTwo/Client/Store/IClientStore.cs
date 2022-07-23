@@ -1,11 +1,12 @@
 ﻿using FortyTwo.Shared.DTO;
-using System.Collections.Generic;
+using System;
+using System.Collections.Concurrent;
 
 namespace FortyTwo.Client.Store
 {
     public interface IClientStore
     {
-        public List<Match> Matches { get; set; }
-        public List<User> Users { get; set; }
+        public ConcurrentDictionary<Guid, Match> Matches { get; set; }
+        public ConcurrentDictionary<string, User> Users { get; set; }
     }
 }
