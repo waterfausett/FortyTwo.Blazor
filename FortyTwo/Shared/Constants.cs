@@ -8,6 +8,7 @@
         public static class Claims
         {
             public const string DisplayName = "http://fausettapps.com/claims/displayName";
+            public const string UseDarkTheme = "http://fausettapps.com/claims/darkTheme";
         }
     }
 }

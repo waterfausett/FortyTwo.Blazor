@@ -10,6 +10,7 @@ namespace FortyTwo.Client.ViewModels
             {
                 DisplayName = user?.DisplayName,
                 UseDarkTheme = user?.UserMetadata.UseDarkTheme ?? false,
+                Picture = user?.Picture,
             };
 
         [Required]
@@ -17,5 +18,6 @@ namespace FortyTwo.Client.ViewModels
         public string DisplayName { get; set; }
         [Required]
         public bool UseDarkTheme { get; set; }
+        public string Picture { get; set; }
     }
 }

@@ -29,9 +29,9 @@ namespace FortyTwo.Server.Services
         {
             string url = $"api/v2/users/{userId}";
 
-            var users = await FetchAsync<User>(url);
+            var user = await FetchAsync<User>(url);
 
-            return users;
+            return user;
         }
 
         public async Task<List<User>> GetUsersAsync()

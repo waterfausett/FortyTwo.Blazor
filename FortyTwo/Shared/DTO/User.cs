@@ -14,7 +14,13 @@ namespace FortyTwo.Shared.DTO
         [JsonPropertyName("family_name")]
         public string LastName { get; set; }
         public string Nickname { get; set; }
-        public string Picture { get; set; }
+
+        public string Picture
+        {
+            get => !string.IsNullOrWhiteSpace(UserMetadata?.Picture) ? UserMetadata.Picture : _picture;
+            set => _picture = value;
+        }
+        private string _picture;
 
         [JsonPropertyName("user_metadata")]
         public UserMetadata UserMetadata { get; set; }
@@ -31,5 +37,6 @@ namespace FortyTwo.Shared.DTO
     {
         public string DisplayName { get; set; }
         public bool? UseDarkTheme { get; set; }
+        public string Picture { get; set; }
     }
 }

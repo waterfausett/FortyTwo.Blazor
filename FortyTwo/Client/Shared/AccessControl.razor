@@ -69,7 +69,8 @@
                     Picture = principal.Claims.SingleOrDefault(c => c.Type == "picture")?.Value,
                     UserMetadata = new FortyTwo.Shared.DTO.UserMetadata
                     {
-                        DisplayName = principal.Claims.SingleOrDefault(c => c.Type == FortyTwo.Shared.Constants.Claims.DisplayName)?.Value
+                        DisplayName = principal.Claims.SingleOrDefault(c => c.Type == FortyTwo.Shared.Constants.Claims.DisplayName)?.Value,
+                        UseDarkTheme = principal.Claims.SingleOrDefault(c => c.Type == FortyTwo.Shared.Constants.Claims.DisplayName)?.Value == "true"
                     }
                 };
 

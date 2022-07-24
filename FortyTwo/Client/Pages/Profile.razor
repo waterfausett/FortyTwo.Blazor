@@ -2,6 +2,13 @@
 @attribute [Authorize]
 @layout MainLayout
 
+<style>
+    .profile-picture-preview {
+        width: 45vw;
+        max-width: 200px;
+    }
+</style>
+
 <h3>Profile</h3>
 <hr />
 
@@ -17,11 +24,10 @@
         </div>
         <div class="form-group">
             <label for="filePicture">Picture</label>
-            <input id="txtDisplayName" type="text" class="form-control" placeholder="Image Url" value="@User?.Picture" disabled />
-            @if (!string.IsNullOrWhiteSpace(User?.Picture))
-            {
-                <img src="@User?.Picture" class="img img-fluid" />
-            }
+            <InputText id="filePicture" type="text" class="form-control" placeholder="Image Url"
+                @bind-Value="@ProfileModel.Picture" />
+            <img class="img img-fluid img-thumbnail mx-auto d-block mt-1 profile-picture-preview"
+                src="@(!string.IsNullOrWhiteSpace(ProfileModel.Picture) ? ProfileModel.Picture : User?.Picture)" />
         </div>
         <div class="form-group">
             <label class="form-check-label" for="chkDarkMode">Theme</label>

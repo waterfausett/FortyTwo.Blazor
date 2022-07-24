@@ -101,6 +101,7 @@ namespace FortyTwo.Client.Services
             {
                 DisplayName = model.DisplayName,
                 UseDarkTheme = model.UseDarkTheme,
+                Picture = model.Picture,
             };
             var content = new StringContent(JsonSerializer.Serialize(userPatch), Encoding.UTF8, "application/json");
 
