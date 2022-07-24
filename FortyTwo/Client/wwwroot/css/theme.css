@@ -50,3 +50,9 @@
         --domino-preselected-color: lightcoral;
         color: white;
     }
+
+@media (max-width: 768px) {
+    :root {
+        --label-font-size: .70rem;
+    }
+}

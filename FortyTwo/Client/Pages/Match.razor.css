@@ -8,6 +8,7 @@
 
     .game-wrapper .player {
         min-height: 11rem;
+        min-height: 10vh;
         padding-bottom: 12px;
     }
 
@@ -61,4 +62,14 @@
 
 .sortable-domino {
     display: inline-block;
+}
+
+@media (max-width: 768px) {
+    .game-wrapper .gameboard .player-team-tricks {
+        font-size: 0.175rem;
+    }
+
+    .game-wrapper .gameboard .opponent-tricks {
+        font-size: 0.175rem;
+    }
 }
