@@ -32,8 +32,6 @@ namespace FortyTwo.Client.Pages
             get => Store.Matches?.Values
                 .Where(x => _matchFilter switch
                 {
-                    FortyTwo.Shared.DTO.MatchFilter.Active => x.Players.Any(p => p.Id == _user.GetUserId()),
-                    FortyTwo.Shared.DTO.MatchFilter.Completed => x.WinningTeam.HasValue,
                     FortyTwo.Shared.DTO.MatchFilter.Joinable => x.Players.Count < 4,
                     _ => true
                 })
@@ -60,11 +58,21 @@ namespace FortyTwo.Client.Pages
         private async Task RegisterSignalRAsync()
         {
             await HubConnection.SendAsync("JoinGroupAsync", "matches-list");
+
+            HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchCreated", async (match) =>
+            {
+                await UserService.SyncUsersAsync(match.Players.Select(x => x.Id).ToList());
+
+                Store.Matches.AddOrUpdate(match.Id, match, (_, __) => match);
+
+                StateHasChanged();
+            });
         }
 
         public async ValueTask DisposeAsync()
         {
             await HubConnection?.SendAsync("LeaveGroupAsync", "matches-list");
+            await HubConnection?.SendAsync("LeaveGroupAsync", "matchmaking");
         }
 
         public async Task FetchMatchesAsync(FortyTwo.Shared.DTO.MatchFilter? matchFilter = null)
@@ -76,6 +84,8 @@ namespace FortyTwo.Client.Pages
 
             try
             {
+                await HubConnection.SendAsync((_matchFilter == FortyTwo.Shared.DTO.MatchFilter.Joinable) ? "JoinGroupAsync" : "LeaveGroupAsync", "matchmaking");
+
                 await ApiClient.FetchMatchesAsync(matchFilter ?? _matchFilter);
             }
             finally

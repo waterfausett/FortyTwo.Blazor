@@ -23,6 +23,8 @@ namespace FortyTwo.Entity.Models
         public DateTimeOffset CreatedOn { get; set; }
         public DateTimeOffset UpdatedOn { get; set; }
 
+        // TODO: CompletedOn ??
+
         public List<MatchPlayer> Players { get; set; }
     }
 

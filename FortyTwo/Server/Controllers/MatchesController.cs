@@ -36,7 +36,7 @@ namespace FortyTwo.Server.Controllers
 
             var matchDTO = _mapper.Map<Shared.DTO.Match>(match);
 
-            await _gameHubContext.Clients.Group("matches-list").SendAsync("OnMatchChanged", matchDTO);
+            await _gameHubContext.Clients.Group("matchmaking").SendAsync("OnMatchCreated", matchDTO);
 
             return Created($"/match/{match.Id}", matchDTO);
         }

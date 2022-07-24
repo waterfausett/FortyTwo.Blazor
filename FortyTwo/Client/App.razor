@@ -102,11 +102,14 @@
 
         HubConnection.On<FortyTwo.Shared.DTO.Match>("OnMatchChanged", async (match) =>
         {
-            Store.Matches.AddOrUpdate(match.Id, match, (_, __) => match);
-            
-            await UserService.SyncUsersAsync(match.Players.Select(x => x.Id).ToList());
+            if (Store.Matches.ContainsKey(match.Id))
+            {
+                await UserService.SyncUsersAsync(match.Players.Select(x => x.Id).ToList());
 
-            StateHasChanged();
+                Store.Matches.AddOrUpdate(match.Id, match, (_, __) => match);
+
+                StateHasChanged();
+            }
         });
 
         await HubConnection.StartAsync();
