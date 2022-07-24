@@ -8,7 +8,11 @@
             {
                 <span class="active-dot mr-2"></span>
             }
-            @GetPlayerName(Player.Id)
+            @if (!string.IsNullOrWhiteSpace(_user?.Picture))
+            {
+                <img src="@_user.Picture" class="img img-fluid rounded-circle mr-2" width="35" />
+            }
+            @(_user?.DisplayName ?? $"Unknown Player ({_user.Id})")
         </h4>
 
         @if (Bid.HasValue)
@@ -79,6 +83,11 @@
     [Inject]
     public IClientStore Store { get; set; }
 
-    public string GetPlayerName(string playerId)
-        => Store.Users.Values.FirstOrDefault(x => x.Id == playerId)?.DisplayName ?? $"Unknown Player ({playerId})";
+    private FortyTwo.Shared.DTO.User _user;
+
+    protected override Task OnInitializedAsync()
+    {
+        _user = Store.Users.Values.FirstOrDefault(x => x.Id == Player?.Id);
+        return base.OnInitializedAsync();
+    }
 }

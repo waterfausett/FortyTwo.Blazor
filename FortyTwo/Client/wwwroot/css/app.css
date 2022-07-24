@@ -200,6 +200,10 @@ button .spinner-border {
     .main .top-row a, .main .top-row .btn-link {
         margin-left: 0;
     }
+
+    .active-dot {
+        display: none !important;
+    }
 }
 
 @media (min-width: 768px) {
