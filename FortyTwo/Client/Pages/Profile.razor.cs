@@ -62,6 +62,8 @@ namespace FortyTwo.Client.Pages
                         Title = "Profile updated 🎈",
                         Width = "18rem"
                     });
+
+                    // TODO: still need to refresh for top-right pic to refresh
                 }
             }
             finally
