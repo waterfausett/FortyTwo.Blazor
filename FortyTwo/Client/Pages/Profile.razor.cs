@@ -35,6 +35,7 @@ namespace FortyTwo.Client.Pages
                 User.UserMetadata.Theme ??= await JSRuntime.InvokeAsync<bool>("getSystemPrefersDarkTheme")
                     ? FortyTwo.Shared.Theme.Dark
                     : FortyTwo.Shared.Theme.Light;
+
                 ProfileModel = ProfileModel.FromUser(User);
             }
             finally

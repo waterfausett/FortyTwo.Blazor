@@ -24,8 +24,9 @@
         </div>
         <div class="form-group">
             <label for="filePicture">Picture</label>
-            <InputText id="filePicture" type="text" class="form-control" placeholder="Image Url"
+            <InputText id="filePicture" type="text" class="form-control" placeholder="Default account picture"
                 @bind-Value="@ProfileModel.Picture" />
+            <small id="imgHelp" class="form-text text-muted">You can update your profile picture w/ an image url.</small>
             <img class="img img-fluid img-thumbnail mx-auto d-block mt-1 profile-picture-preview"
                 src="@(!string.IsNullOrWhiteSpace(ProfileModel.Picture) ? ProfileModel.Picture : User?.Picture)" />
         </div>
