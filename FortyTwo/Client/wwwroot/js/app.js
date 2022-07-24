@@ -8,7 +8,12 @@ $(() => {
 applyThemePreferences();
 
 function setThemePreferences(themeClassName) {
-    localStorage.setItem('profile-theme-preference', themeClassName);
+    if (!themeClassName) {
+        localStorage.removeItem('profile-theme-preference');
+    }
+    else {
+        localStorage.setItem('profile-theme-preference', themeClassName);
+    }
 
     applyThemePreferences();
 }

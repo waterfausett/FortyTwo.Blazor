@@ -1,6 +1,7 @@
 ﻿@using FortyTwo.Shared.Extensions
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using System.Runtime.Serialization
 
 @inject NavigationManager Navigation
 @inject SignOutSessionStateManager SignOutManager
@@ -37,12 +38,15 @@
     [Inject]
     private IClientStore Store { get; set; }
 
+    [Inject]
+    public IJSRuntime JSRuntime { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         var authState = await authenticationStateTask;
         if (authState?.User?.Identity?.IsAuthenticated == true)
         {
-            AddLoggedInUserAsync(authState.User);
+            await AddLoggedInUserAsync(authState.User);
         }
 
         if (authState?.User?.Identity?.IsAuthenticated == true
@@ -56,23 +60,33 @@
         await base.OnInitializedAsync();
     }
 
-    public void AddLoggedInUserAsync(System.Security.Claims.ClaimsPrincipal principal)
+    public async Task AddLoggedInUserAsync(System.Security.Claims.ClaimsPrincipal principal)
     {
         var loggedInUserId = principal?.Claims.SingleOrDefault(c => c.Type == "sub")?.Value;
         if (!string.IsNullOrWhiteSpace(loggedInUserId) && Store.Users.Values.All(x => x.Id != loggedInUserId))
         {
+            Enum.TryParse(typeof(FortyTwo.Shared.Theme),
+                principal.Claims.SingleOrDefault(c => c.Type == FortyTwo.Shared.Constants.Claims.ThemePreference)?.Value,
+                out var themePreference);
+
             var loggedInUser = new FortyTwo.Shared.DTO.User()
+            {
+                Id = loggedInUserId,
+                Email = principal.Identity?.Name,
+                Nickname = principal.Claims.SingleOrDefault(c => c.Type == "nickname")?.Value,
+                Picture = principal.Claims.SingleOrDefault(c => c.Type == "picture")?.Value,
+                UserMetadata = new FortyTwo.Shared.DTO.UserMetadata
                 {
-                    Id = loggedInUserId,
-                    Email = principal.Identity?.Name,
-                    Nickname = principal.Claims.SingleOrDefault(c => c.Type == "nickname")?.Value,
-                    Picture = principal.Claims.SingleOrDefault(c => c.Type == "picture")?.Value,
-                    UserMetadata = new FortyTwo.Shared.DTO.UserMetadata
-                    {
-                        DisplayName = principal.Claims.SingleOrDefault(c => c.Type == FortyTwo.Shared.Constants.Claims.DisplayName)?.Value,
-                        UseDarkTheme = principal.Claims.SingleOrDefault(c => c.Type == FortyTwo.Shared.Constants.Claims.DisplayName)?.Value == "true"
-                    }
-                };
+                    DisplayName = principal.Claims.SingleOrDefault(c => c.Type == FortyTwo.Shared.Constants.Claims.DisplayName)?.Value,
+                    Theme = (FortyTwo.Shared.Theme?) themePreference,
+                }
+            };
+
+            // if useDarkTheme == true, set to dark-theme
+            // if useDarkTheme == false, set to light-theme
+            // if useDarkTheme == null, use systemPreference
+
+            await JSRuntime.InvokeVoidAsync("setThemePreferences", loggedInUser.UserMetadata.Theme.ToPreferenceValue());
 
             Store.Users.AddOrUpdate(loggedInUserId, loggedInUser, (_, __) => loggedInUser);
         }

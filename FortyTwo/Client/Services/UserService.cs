@@ -100,7 +100,9 @@ namespace FortyTwo.Client.Services
             var userPatch = new UserPatch
             {
                 DisplayName = model.DisplayName,
-                UseDarkTheme = model.UseDarkTheme,
+                Theme = model.UseDarkTheme
+                    ? FortyTwo.Shared.Theme.Dark
+                    : FortyTwo.Shared.Theme.Light,
                 Picture = model.Picture,
             };
             var content = new StringContent(JsonSerializer.Serialize(userPatch), Encoding.UTF8, "application/json");

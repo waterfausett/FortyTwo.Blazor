@@ -9,7 +9,7 @@ namespace FortyTwo.Client.ViewModels
             => new()
             {
                 DisplayName = user?.DisplayName,
-                UseDarkTheme = user?.UserMetadata.UseDarkTheme ?? false,
+                UseDarkTheme = user?.UserMetadata.Theme == FortyTwo.Shared.Theme.Dark,
                 Picture = user?.Picture,
             };
 
