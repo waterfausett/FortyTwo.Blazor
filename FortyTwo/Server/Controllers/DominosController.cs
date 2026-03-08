@@ -3,6 +3,7 @@ using FortyTwo.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 
 namespace FortyTwo.Server.Controllers
@@ -25,6 +26,14 @@ namespace FortyTwo.Server.Controllers
         public IEnumerable<Domino> Get()
         {
             return _dominoService.InitDominos(DominoType.DoubleSix);
+        }
+
+        [HttpGet("hand")]
+        public IEnumerable<Domino> GetHand()
+        {
+            var dominos = _dominoService.InitDominos(DominoType.DoubleSix);
+
+            return dominos.GetRange(Random.Shared.Next(4) * 7, 7);
         }
     }
 }

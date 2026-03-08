@@ -1,0 +1,147 @@
+﻿@page "/data/bid"
+@attribute [Authorize]
+@layout MainLayout
+@using BlazorSortableJS.Components
+@using Domino = FortyTwo.Shared.Models.Domino
+@using FortyTwo.Client.Services
+@using FortyTwo.Shared.Models
+@inject HttpClient Http
+@inject IApiClient ApiClient
+@inject IJSRuntime JS
+
+<button type="button" class="btn btn-link" disabled="@IsLoading" @onclick="@(async () => await ShuffleAsync())">Shuffle</button>
+
+<SpinnerOverlay Visible="IsLoading">
+    <section class="bidding-section">
+        <div class="row">
+            <div class="col-12">
+                <p>Select a bid:</p>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                @foreach (FortyTwo.Shared.Models.Bid bid in BiddingOptions)
+                {
+                    var context = bid switch
+                    {
+                        FortyTwo.Shared.Models.Bid.Pass => ContextualClass.Warning,
+                        _ => ContextualClass.Info
+                    };
+                    <Chip Context="context" Size="Size.Large" OnSelected="async () => await BidAsync(bid)">
+                        <Label>
+                            @bid.ToPrettyString()
+                        </Label>
+                    </Chip>
+                }
+            </div>
+        </div>
+    </section>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="domino-container">
+                @if (_dominos != null)
+                {
+                    <SortGroup Items="@_dominos" Class="sortable-horizontal d-flex flex-wrap justify-content-center m-0 p-0" IsDiv="true" TemplateClass="sortable-domino" @ref="MyGroup" TItem="FortyTwo.Shared.Models.Domino" OnSort="OnSort">
+                        <Template Context="domino">
+                            <Domino Instance="@domino.Data"></Domino>
+                            <!-- TODO: this ain't workin' right now -->
+                            @if (domino.Data.Order % 4 == 0)
+                            {
+                                <div class="domino-spacer d-none d-lg-block"></div>
+                            }
+                        </Template>
+                    </SortGroup>
+                }
+            </div>
+        </div>
+    </div>
+</SpinnerOverlay>
+
+
+
+@code {
+    private List<Domino> _dominos;
+
+    private bool IsLoading { get; set; }
+
+    private FortyTwo.Shared.Models.Bid? CurrentBid { get; set; }
+
+    public List<FortyTwo.Shared.Models.Bid> BiddingOptions
+    {
+        get
+        {
+            var biddingOptions = Enum.GetValues(typeof(FortyTwo.Shared.Models.Bid)).OfType<FortyTwo.Shared.Models.Bid>().Where(x => x != FortyTwo.Shared.Models.Bid.Plunge).ToList();
+
+            // only bids higher than the current bid are allowed (and passing)
+            if (CurrentBid.HasValue)
+            {
+                biddingOptions.RemoveAll(x => x != FortyTwo.Shared.Models.Bid.Pass && x <= CurrentBid.Value);
+            }
+
+            // remove bids greater than 2 marks unless previous bids allow it
+            biddingOptions.RemoveAll(x => x > FortyTwo.Shared.Models.Bid.EightyFour && (!CurrentBid.HasValue || (int)x > ((int)CurrentBid + (int)FortyTwo.Shared.Models.Bid.FourtyTwo)));
+
+            // allow "Plung" as a bid if player has at least 4 doubles and current bids allow it
+            if (_dominos?.Count(x => x.IsDouble) >= 4 && (CurrentBid ?? 0) < FortyTwo.Shared.Models.Bid.FourMarks)
+            {
+                biddingOptions.Add(FortyTwo.Shared.Models.Bid.Plunge);
+            }
+
+            return biddingOptions;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ShuffleAsync();
+    }
+
+    public async Task ShuffleAsync()
+    {
+        IsLoading = true;
+
+        try
+        {
+            _dominos = await Http.GetFromJsonAsync<List<Domino>>("api/dominos/hand");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            await Task.Delay(250);
+            IsLoading = false;
+        }
+    }
+
+    public async Task BidAsync(FortyTwo.Shared.Models.Bid bid)
+    {
+        IsLoading = true;
+
+        try
+        {
+            if (await ApiClient.BidSampleAsync(bid))
+            {
+                CurrentBid = null;
+                await ShuffleAsync();
+                StateHasChanged();
+                await MyGroup.UpdateAsync();
+            }
+            // else show an error message or something
+        }
+        finally
+        {
+            // IsLoading = false;
+        }
+    }
+
+    private SortGroup<Domino> MyGroup;
+
+    public async Task OnSort(SortableEvent<Domino> e)
+    {
+        await e.Sender.GetOrderListAsync("Order");
+        _dominos = _dominos.OrderBy(x => x.Order).ToList();
+    }
+}

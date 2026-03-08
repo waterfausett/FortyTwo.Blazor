@@ -46,18 +46,22 @@ namespace FortyTwo.Client.Pages
             {
                 var biddingOptions = Enum.GetValues(typeof(Bid)).OfType<Bid>().Where(x => x != Bid.Plunge).ToList();
 
+                // only bids higher than the current bid are allowed (and passing)
                 if (CurrentGame.Bid.HasValue)
                 {
                     biddingOptions.RemoveAll(x => x != Bid.Pass && x <= CurrentGame.Bid.Value);
                 }
 
+                // forced bid for last player
                 if (CurrentGame.Hands.Count(x => x.Bid == Bid.Pass) == 3)
                 {
                     biddingOptions.Remove(Bid.Pass);
                 }
 
+                // remove bids greater than 2 marks unless previous bids allow it
                 biddingOptions.RemoveAll(x => x > Bid.EightyFour && (!CurrentGame.Bid.HasValue || (int)x > ((int)CurrentGame.Bid + (int)Bid.FourtyTwo)));
 
+                // allow "Plung" as a bid if player has at least 4 doubles and current bids allow it
                 if (Player.Dominos.Count(x => x.IsDouble) >= 4 && (CurrentGame.Bid ?? 0) < Bid.FourMarks)
                 {
                     biddingOptions.Add(Bid.Plunge);

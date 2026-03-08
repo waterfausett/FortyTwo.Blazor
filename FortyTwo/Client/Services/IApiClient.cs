@@ -1,5 +1,4 @@
-﻿using FortyTwo.Client.ViewModels;
-using FortyTwo.Shared.DTO;
+﻿using FortyTwo.Shared.DTO;
 using FortyTwo.Shared.Models;
 using System;
 using System.Threading.Tasks;
@@ -16,6 +15,7 @@ namespace FortyTwo.Client.Services
         Task JoinMatchAsync(Guid matchId, Teams team);
         Task<bool> UpdateMatchPlayerAsync(Guid matchId, bool ready);
         Task<bool> BidAsync(Guid matchId, Bid bid);
+        Task<bool> BidSampleAsync(Bid bid);
         Task<bool> SelectTrumpAsync(Guid matchId, Suit suit);
         Task<bool> MakeMoveAsync(Guid matchId, Domino domino);
     }

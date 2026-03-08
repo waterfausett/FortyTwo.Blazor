@@ -190,6 +190,26 @@ namespace FortyTwo.Client.Services
             return true;
         }
 
+        public async Task<bool> BidSampleAsync(Bid bid)
+        {
+            try
+            {
+                var response = await _http.PostAsJsonAsync($"api/datamining/samples/bids", bid);
+                if (!response.IsSuccessStatusCode)
+                {
+                    await HandleException(response);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                await HandleException(new ExceptionDetails { Title = ex.Message });
+                return false;
+            }
+
+            return true;
+        }
+
         public async Task<bool> SelectTrumpAsync(Guid matchId, Suit suit)
         {
             try
