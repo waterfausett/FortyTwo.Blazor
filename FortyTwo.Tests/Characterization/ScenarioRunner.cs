@@ -68,9 +68,9 @@ namespace FortyTwo.Tests.Characterization
             await SnapshotAsync("setTrump", matchId);
         }
 
-        public async Task PlayDominoAsync(Guid matchId, string playerId, Domino domino)
+        public async Task PlayDominoAsync(Guid matchId, string playerId, int top, int bottom)
         {
-            await ServiceFor(playerId).PlayDominoAsync(matchId, domino);
+            await ServiceFor(playerId).PlayDominoAsync(matchId, new Domino(top, bottom));
             await SnapshotAsync("playDomino", matchId);
         }
 
