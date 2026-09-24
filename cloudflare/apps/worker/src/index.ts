@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { requireAuth, type AuthedUser } from './auth/verifyJwt';
 
 export interface Env {
   MATCH_DO: DurableObjectNamespace;
@@ -10,9 +11,11 @@ export interface Env {
   AUTH0_API_AUDIENCE: string;
 }
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: { user: AuthedUser } }>();
 
 app.get('/health', (c) => c.json({ ok: true }));
+
+app.use('/api/*', requireAuth());
 
 export default app;
 // Task 11 adds ./matchDO and restores this export.
