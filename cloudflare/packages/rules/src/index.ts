@@ -7,3 +7,29 @@ export { Trick, createTrick, trickValue, isTrickFull, isTrickEmpty, addDominoToT
 export { Hand } from './hand';
 export { Game, gameValue, gameWinningTeam } from './game';
 export { MatchPlayerRef, selectNextPlayer } from './match';
+export { ValidationError } from './errors';
+export {
+  MatchLike,
+  assertActive,
+  assertNotFull,
+  assertActiveTurn,
+  assertActiveBidder,
+  assertValidBid,
+  assertBiddingComplete,
+  assertReadyToPlay,
+  assertHasDomino,
+  assertValidDomino,
+  assertIsMatchPlayer,
+  assertIsNotMatchPlayer,
+} from './validation';
+export {
+  MatchPlayerState,
+  MatchState,
+  createMatch,
+  addPlayer,
+  patchPlayerReady,
+  placeBid,
+  setTrump,
+  playDomino,
+  matchScores,
+} from './matchEngine';
