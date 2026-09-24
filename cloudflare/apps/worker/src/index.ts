@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { requireAuth, type AuthedUser } from './auth/verifyJwt';
+import matchesRoutes from './routes/matches';
 
 export interface Env {
   MATCH_DO: DurableObjectNamespace;
@@ -16,6 +17,7 @@ const app = new Hono<{ Bindings: Env; Variables: { user: AuthedUser } }>();
 app.get('/health', (c) => c.json({ ok: true }));
 
 app.use('/api/*', requireAuth());
+app.route('/api/matches', matchesRoutes);
 
 export default app;
 export { MatchDO } from './matchDO';
