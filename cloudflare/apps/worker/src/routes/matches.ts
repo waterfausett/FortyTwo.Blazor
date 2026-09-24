@@ -17,19 +17,6 @@ async function callRpc(matchDO: DurableObjectStub, method: string, body: Record<
   return matchDO.fetch(`https://do/rpc/${method}`, { method: 'POST', body: JSON.stringify(body) });
 }
 
-// `matchEngine.ts`'s `createMatch()` mints its own internal `MatchState.id` via
-// `crypto.randomUUID()`, completely independent of the `matchId` this route generates to address
-// the MatchDO instance (`stub(c, matchId)` -> `idFromName(matchId)`) and key the D1 lobby-index
-// row. Left uncorrected, a client would receive a `MatchState.id` in the response body that names
-// no reachable Durable Object at all - any subsequent `GET /api/matches/:id` using that id would
-// hit a brand-new, never-created DO and 404. `matchId` (the route's own address key) is always
-// the authoritative identifier; every route that returns a MatchState normalizes `.id` to it
-// before responding, so the id a client sees always matches the id it must use to reach this
-// match again.
-function withId(match: MatchState, matchId: string): MatchState {
-  return { ...match, id: matchId };
-}
-
 async function syncLobby(c: any, matchId: string, match: MatchState): Promise<void> {
   await upsertMatchSummary(c.env.DB, {
     id: matchId,
@@ -58,8 +45,14 @@ function shuffledDominoOrder() {
 matches.post('/', async (c) => {
   const userId = c.get('user').sub;
   const matchId = crypto.randomUUID();
-  const res = await callRpc(stub(c, matchId), 'create', { firstPlayerId: userId });
-  const match: MatchState = withId(await res.json(), matchId);
+  // Passes this route's own DO-addressing `matchId` through to the `create` RPC so MatchDO can
+  // store the match under that same id from the moment it's created (matchDO.ts's `create` case
+  // overrides `createMatch()`'s own internally-minted id with it) - `matchEngine.ts`'s other
+  // functions all preserve an existing match's `.id` unchanged, so this single correction at
+  // creation time means every later REST response AND WebSocket broadcast naturally carries the
+  // correct id forever after, with no per-response patching needed.
+  const res = await callRpc(stub(c, matchId), 'create', { firstPlayerId: userId, matchId });
+  const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
   return c.json(match, 201);
 });
@@ -81,8 +74,7 @@ matches.get('/:id', async (c) => {
   const matchId = c.req.param('id');
   const res = await callRpc(stub(c, matchId), 'getMatch', {});
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
-  const match: MatchState = withId(await res.json(), matchId);
-  return c.json(match);
+  return c.json(await res.json());
 });
 
 // The narrow per-player DTO for the calling user - replaces `MatchPlayersController.Get` /
@@ -103,7 +95,7 @@ matches.post('/:id/players', async (c) => {
   // real app's behavior of dealing the instant the 4th player joins.
   const res = await callRpc(stub(c, matchId), 'addPlayer', { playerId: userId, team, dealOrder: shuffledDominoOrder() });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
-  const match: MatchState = withId(await res.json(), matchId);
+  const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
   return c.json(match);
 });
@@ -115,27 +107,23 @@ matches.patch('/:id/players', async (c) => {
   const dealOrder = ready ? shuffledDominoOrder() : undefined;
   const res = await callRpc(stub(c, matchId), 'readyUp', { playerId: userId, ready, dealOrder });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
-  const match: MatchState = withId(await res.json(), matchId);
+  const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
   return c.json(match);
 });
 
 matches.patch('/:id/games/current', async (c) => {
-  const matchId = c.req.param('id');
   const { suit } = await c.req.json();
-  const res = await callRpc(stub(c, matchId), 'setTrump', { playerId: c.get('user').sub, suit });
+  const res = await callRpc(stub(c, c.req.param('id')), 'setTrump', { playerId: c.get('user').sub, suit });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
-  const match: MatchState = withId(await res.json(), matchId);
-  return c.json(match);
+  return c.json(await res.json());
 });
 
 matches.post('/:id/games/current/bids', async (c) => {
-  const matchId = c.req.param('id');
   const { bid } = await c.req.json();
-  const res = await callRpc(stub(c, matchId), 'bid', { playerId: c.get('user').sub, bid });
+  const res = await callRpc(stub(c, c.req.param('id')), 'bid', { playerId: c.get('user').sub, bid });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
-  const match: MatchState = withId(await res.json(), matchId);
-  return c.json(match);
+  return c.json(await res.json());
 });
 
 matches.post('/:id/games/current/moves', async (c) => {
@@ -143,7 +131,7 @@ matches.post('/:id/games/current/moves', async (c) => {
   const { domino } = await c.req.json();
   const res = await callRpc(stub(c, matchId), 'playDomino', { playerId: c.get('user').sub, domino });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
-  const match: MatchState = withId(await res.json(), matchId);
+  const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
   return c.json(match);
 });

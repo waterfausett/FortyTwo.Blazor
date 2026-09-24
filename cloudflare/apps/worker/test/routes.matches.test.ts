@@ -237,4 +237,57 @@ describe('match routes', () => {
       expect(outsiderJoinBody.title).toBeTruthy();
     }
   );
+
+  it(
+    "the WebSocket broadcast payload carries the SAME id as the REST create response - " +
+      "regression guard for matchEngine.ts's createMatch() minting its own internal id " +
+      "independent of the route's DO-addressing matchId (fixed at the source in matchDO.ts's " +
+      "'create' RPC case, not patched per-response)",
+    async () => {
+      const p1 = await signToken('p1');
+      const p2 = await signToken('p2');
+
+      // Create via REST - this is the id a client would use to reach the match again.
+      const createRes = await api('/api/matches', p1, { method: 'POST' });
+      expect(createRes.status).toBe(201);
+      const created = (await createRes.json()) as { id: string };
+      const restId = created.id;
+
+      // Open a WebSocket DIRECTLY against the MatchDO stub for that same id - mirrors
+      // matchDOSocket.test.ts's approach, bypassing the (not-yet-built) Worker WS route since
+      // MatchDO's own `/ws` upgrade handler is what's under test here, not routing.
+      const stub = testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(restId));
+      const upgradeRes = await stub.fetch(`https://match-do/ws?token=${p1}`, {
+        headers: { Upgrade: 'websocket' },
+      });
+      expect(upgradeRes.status).toBe(101);
+      const ws = upgradeRes.webSocket;
+      if (!ws) throw new Error('expected a client WebSocket on the 101 response');
+      ws.accept();
+
+      try {
+        const messagePromise = new Promise<MessageEvent>((resolve, reject) => {
+          ws.addEventListener('message', (event) => resolve(event as MessageEvent), { once: true });
+          ws.addEventListener('error', (event) => reject(event), { once: true });
+        });
+
+        // Trigger a broadcast-causing mutation through the REST layer, using the REST-returned id.
+        const joinRes = await api(`/api/matches/${restId}/players`, p2, {
+          method: 'POST',
+          body: JSON.stringify({ team: 2 }),
+        });
+        expect(joinRes.status).toBe(200);
+
+        const event = await messagePromise;
+        const payload = JSON.parse(event.data as string) as { type: string; match: { id: string } };
+
+        expect(payload.type).toBe('match');
+        // The regression this guards against: before the fix, this would be the DIFFERENT,
+        // internally-minted id from matchEngine.ts's createMatch(), not restId.
+        expect(payload.match.id).toBe(restId);
+      } finally {
+        ws.close();
+      }
+    }
+  );
 });

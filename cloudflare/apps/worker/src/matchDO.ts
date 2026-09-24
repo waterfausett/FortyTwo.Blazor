@@ -67,7 +67,15 @@ export class MatchDO implements DurableObject {
     // `create` is the only method allowed to run against a MatchDO with no stored match yet -
     // every other method needs `existing` to be non-null below.
     if (method === 'create') {
-      const next = createMatch(body.firstPlayerId as string);
+      // `createMatch()` mints its own internal `id` via `crypto.randomUUID()`, independent of
+      // this DO instance's own address (the `matchId` the Worker route used to reach this stub
+      // via `idFromName`). When the caller supplies that same `matchId` here, override the
+      // stored match's id with it right at creation - `matchEngine.ts`'s other functions all
+      // take an existing `match` and preserve `.id` unchanged, so fixing it once here means
+      // every later read, RPC response, AND `broadcast()` payload naturally carries the correct
+      // id forever after, with no per-call patching needed anywhere else (REST or WebSocket).
+      const created = createMatch(body.firstPlayerId as string);
+      const next = typeof body.matchId === 'string' ? { ...created, id: body.matchId } : created;
       await this.save(next);
       this.broadcast(next);
       return next;
