@@ -1,0 +1,17 @@
+name = "fortytwo-worker"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "MATCH_DO"
+class_name = "MatchDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MatchDO"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fortytwo"
+database_id = "REPLACE_AFTER_WRANGLER_D1_CREATE"
