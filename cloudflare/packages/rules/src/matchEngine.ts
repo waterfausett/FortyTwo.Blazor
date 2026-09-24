@@ -9,7 +9,6 @@
 // nested structures are rebuilt more eagerly than strictly necessary for clarity.
 import { Bid } from './bid';
 import { Domino, dominoEquals, getSuitValue } from './domino';
-import { ValidationError } from './errors';
 import { Game, gameValue, gameWinningTeam } from './game';
 import { Hand } from './hand';
 import { MatchPlayerRef, selectNextPlayer } from './match';
@@ -141,11 +140,9 @@ export function addPlayer(match: MatchState, playerId: string, team: Teams, deal
   let players = [...match.players, newPlayer];
   let currentGame: Game = { ...match.currentGame, hands: [...match.currentGame.hands, newHand] };
 
-  if (currentGame.hands.length === 4) {
-    if (dealOrder) {
-      currentGame = { ...currentGame, hands: dealHands(currentGame.hands, players, dealOrder) };
-      players = players.map((p) => ({ ...p, ready: false }));
-    }
+  if (currentGame.hands.length === 4 && dealOrder) {
+    currentGame = { ...currentGame, hands: dealHands(currentGame.hands, players, dealOrder) };
+    players = players.map((p) => ({ ...p, ready: false }));
   }
 
   return { ...match, currentGame, players, updatedOn: now() };
@@ -316,6 +313,13 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
   const scores = matchScores({ ...match, games });
   const scoreEntries = Object.entries(scores) as [string, number][];
 
+  // Note: unlike `placeBid`/`setTrump`, `playDomino` doesn't guard on `assertActive(match)` -
+  // matching the real C# `PlayDominoAsync`, which has the same gap (it omits `.IsActive(match)`/
+  // `.IsActive(match.CurrentGame)`, unlike `BidAsync`/`SetTrumpForCurrentGameAsync`, both of which
+  // include them). A caller (the future Durable Object) is responsible for not routing further
+  // plays once `match.winningTeam` is set. The tie-break below (lower `Teams` enum value wins,
+  // via JS's guaranteed ascending-integer-key ordering on `Object.entries`) is a well-defined
+  // default regardless of whether that invariant holds.
   const matchWinningTeam: Teams | null = scoreEntries.some(([, value]) => value >= WINNING_SCORE)
     ? (Number(
         scoreEntries.reduce((best, current) => (current[1] > best[1] ? current : best))[0]
