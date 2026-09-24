@@ -74,6 +74,13 @@ namespace FortyTwo.Tests.Characterization
             await SnapshotAsync("playDomino", matchId);
         }
 
+        // Read-back accessor for tests that need to assert on match state
+        // (e.g. CurrentPlayerId) before calling WriteFixture(). Mirrors the
+        // exact query SnapshotAsync uses.
+        public async Task<FortyTwo.Entity.Models.Match> GetMatchAsync(Guid matchId)
+            => await _context.Matches.AsNoTracking().Include(x => x.Players)
+                .FirstAsync(x => x.Id == matchId);
+
         private async Task SnapshotAsync(string action, Guid matchId)
         {
             var match = await _context.Matches.AsNoTracking().Include(x => x.Players)
