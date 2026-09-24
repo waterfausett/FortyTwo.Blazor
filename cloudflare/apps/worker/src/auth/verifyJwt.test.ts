@@ -115,4 +115,42 @@ describe('requireAuth', () => {
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ title: 'Unauthorized' });
   });
+
+  it('returns 401 for a token with a tampered signature', async () => {
+    const app = buildApp();
+    const token = await signToken();
+    const [header, payload, signature] = token.split('.');
+    const tamperedSignature = signature.slice(0, -4) + (signature.slice(-4) === 'AAAA' ? 'BBBB' : 'AAAA');
+    const tamperedToken = `${header}.${payload}.${tamperedSignature}`;
+
+    const res = await app.request(
+      '/api/whoami',
+      { headers: { Authorization: `Bearer ${tamperedToken}` } },
+      testEnv,
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ title: 'Unauthorized' });
+  });
+
+  it('does not swallow a downstream route handler error as 401', async () => {
+    const app = new Hono<{ Bindings: Env; Variables: { user: AuthedUser } }>();
+    app.use('/api/*', requireAuth(jwks));
+    app.get('/api/boom', () => {
+      throw new Error('downstream failure unrelated to auth');
+    });
+    const token = await signToken();
+
+    const res = await app.request(
+      '/api/boom',
+      { headers: { Authorization: `Bearer ${token}` } },
+      testEnv,
+    );
+
+    // The error must propagate (Hono's default error handler -> 500),
+    // not be caught by requireAuth's try/catch and misreported as 401.
+    expect(res.status).not.toBe(401);
+    const body = await res.text();
+    expect(body).not.toContain('Unauthorized');
+  });
 });

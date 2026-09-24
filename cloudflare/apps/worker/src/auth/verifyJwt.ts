@@ -9,16 +9,16 @@ export interface AuthedUser {
 type AuthContext = Context<{ Bindings: Env; Variables: { user: AuthedUser } }>;
 
 // Cached per Worker isolate so we don't rebuild the remote JWKS resolver (and
-// its internal key cache) on every request. createRemoteJWKSet already
-// memoizes fetched keys internally; this just avoids reconstructing the
-// resolver object itself when the domain hasn't changed.
+// its internal key cache) on every request. AUTH0_DOMAIN is a static
+// per-deployment binding — it doesn't vary across requests within an
+// isolate — so a single cached resolver is sufficient. createRemoteJWKSet
+// already memoizes fetched keys internally; this just avoids reconstructing
+// the resolver object itself on every call.
 let cachedRemoteResolver: JWTVerifyGetKey | undefined;
-let cachedRemoteDomain: string | undefined;
 
 function getRemoteJwks(domain: string): JWTVerifyGetKey {
-  if (!cachedRemoteResolver || cachedRemoteDomain !== domain) {
+  if (!cachedRemoteResolver) {
     cachedRemoteResolver = createRemoteJWKSet(new URL(`https://${domain}/.well-known/jwks.json`));
-    cachedRemoteDomain = domain;
   }
   return cachedRemoteResolver;
 }
@@ -33,20 +33,25 @@ export function requireAuth(jwksResolver?: JWTVerifyGetKey) {
 
     const resolver = jwksResolver ?? getRemoteJwks(c.env.AUTH0_DOMAIN);
 
+    let sub: string | undefined;
     try {
       const { payload } = await jwtVerify(token, resolver, {
         audience: c.env.AUTH0_AUDIENCE,
         issuer: `https://${c.env.AUTH0_DOMAIN}/`,
       });
-
-      if (!payload.sub) {
-        return c.json({ title: 'Unauthorized' }, 401);
-      }
-
-      c.set('user', { sub: payload.sub });
-      await next();
+      sub = payload.sub;
     } catch {
       return c.json({ title: 'Unauthorized' }, 401);
     }
+
+    if (!sub) {
+      return c.json({ title: 'Unauthorized' }, 401);
+    }
+
+    // Outside the try/catch: a downstream route handler's own errors (e.g.
+    // validation, DB failures) must propagate as-is, not be swallowed and
+    // misreported as an auth failure.
+    c.set('user', { sub });
+    await next();
   };
 }
