@@ -23,6 +23,31 @@ function getRemoteJwks(domain: string): JWTVerifyGetKey {
   return cachedRemoteResolver;
 }
 
+// Verifies `token` against `env`'s Auth0 tenant (or `jwksResolver`, when supplied - used by
+// tests to inject a local JWKS instead of hitting the real remote one) and returns the resulting
+// `AuthedUser`. Does its own verification only - it doesn't catch/swallow anything, so a bad
+// token surfaces as a thrown error and it's up to the caller (Hono middleware, or MatchDO's raw
+// WebSocket upgrade handler, which has no Hono `Context` to pull a resolver from) to decide how
+// to respond to that failure.
+export async function verifyToken(
+  token: string,
+  env: Env,
+  jwksResolver?: JWTVerifyGetKey
+): Promise<AuthedUser> {
+  const resolver = jwksResolver ?? getRemoteJwks(env.AUTH0_DOMAIN);
+
+  const { payload } = await jwtVerify(token, resolver, {
+    audience: env.AUTH0_AUDIENCE,
+    issuer: `https://${env.AUTH0_DOMAIN}/`,
+  });
+
+  if (!payload.sub) {
+    throw new Error('Token has no sub claim');
+  }
+
+  return { sub: payload.sub };
+}
+
 export function requireAuth(jwksResolver?: JWTVerifyGetKey) {
   return async (c: AuthContext, next: Next): Promise<Response | void> => {
     const authHeader = c.req.header('Authorization');
@@ -31,27 +56,17 @@ export function requireAuth(jwksResolver?: JWTVerifyGetKey) {
     }
     const token = authHeader.slice('Bearer '.length).trim();
 
-    const resolver = jwksResolver ?? getRemoteJwks(c.env.AUTH0_DOMAIN);
-
-    let sub: string | undefined;
+    let user: AuthedUser;
     try {
-      const { payload } = await jwtVerify(token, resolver, {
-        audience: c.env.AUTH0_AUDIENCE,
-        issuer: `https://${c.env.AUTH0_DOMAIN}/`,
-      });
-      sub = payload.sub;
+      user = await verifyToken(token, c.env, jwksResolver);
     } catch {
-      return c.json({ title: 'Unauthorized' }, 401);
-    }
-
-    if (!sub) {
       return c.json({ title: 'Unauthorized' }, 401);
     }
 
     // Outside the try/catch: a downstream route handler's own errors (e.g.
     // validation, DB failures) must propagate as-is, not be swallowed and
     // misreported as an auth failure.
-    c.set('user', { sub });
+    c.set('user', user);
     await next();
   };
 }

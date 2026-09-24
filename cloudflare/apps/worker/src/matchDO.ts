@@ -1,6 +1,7 @@
 // Durable Object holding one match's authoritative state - a thin RPC wrapper over
 // `@fortytwo/rules`'s `matchEngine.ts` functions, with storage-backed persistence.
 import type { Env } from './index';
+import { verifyToken } from './auth/verifyJwt';
 import {
   createMatch,
   addPlayer,
@@ -41,7 +42,7 @@ export class MatchDO implements DurableObject {
     const url = new URL(request.url);
 
     if (url.pathname === '/ws') {
-      return this.handleWebSocketUpgrade(request); // Task 13
+      return this.handleWebSocketUpgrade(request);
     }
 
     const rpcMatch = url.pathname.match(/^\/rpc\/(\w+)$/);
@@ -123,11 +124,41 @@ export class MatchDO implements DurableObject {
     return next;
   }
 
-  private broadcast(_match: MatchState): void {
-    // no-op until Task 13 adds WebSocket connections
+  // Uses the Hibernation API (`this.state.acceptWebSocket`, not the plain `WebSocket` `accept()`)
+  // so connections survive this DO being evicted from memory between actions - an idle game
+  // table isn't billed for wall-clock duration just because a client is still connected.
+  private async handleWebSocketUpgrade(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const token = url.searchParams.get('token');
+    if (!token) return new Response('Missing token', { status: 401 });
+
+    let user;
+    try {
+      user = await verifyToken(token, this.env);
+    } catch {
+      return new Response('Invalid token', { status: 401 });
+    }
+
+    const pair = new WebSocketPair();
+    this.state.acceptWebSocket(pair[1]);
+    // Tag the hibernatable socket with the player id so it can be recovered (via
+    // `deserializeAttachment()`) after this DO is evicted and re-instantiated.
+    pair[1].serializeAttachment({ playerId: user.sub });
+    return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
-  private async handleWebSocketUpgrade(_request: Request): Promise<Response> {
-    return new Response('Not implemented', { status: 501 }); // Task 13
+  // Required by the Hibernation API even though clients don't send messages today - all match
+  // actions go through the `/rpc/*` routes above, not over the socket.
+  async webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {}
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
+    ws.close(code, reason);
+  }
+
+  private broadcast(match: MatchState): void {
+    const payload = JSON.stringify({ type: 'match', match });
+    for (const ws of this.state.getWebSockets()) {
+      ws.send(payload);
+    }
   }
 }
