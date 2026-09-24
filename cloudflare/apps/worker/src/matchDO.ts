@@ -152,6 +152,18 @@ export class MatchDO implements DurableObject {
     // Tag the hibernatable socket with the player id so it can be recovered (via
     // `deserializeAttachment()`) after this DO is evicted and re-instantiated.
     pair[1].serializeAttachment({ playerId: user.sub });
+
+    // Send the CURRENT match state to the newly-connected socket immediately, rather than making
+    // it wait for the next `broadcast()` from a future RPC mutation - otherwise a client that
+    // connects and then does nothing (e.g. the match creator waiting for others to join, or anyone
+    // reconnecting mid-game) never receives any state at all. `existing` may be null only if a
+    // client somehow opens a socket against a DO that was never `create`d - nothing to send yet in
+    // that case, so this is skipped rather than sending a `null` match.
+    const existing = await this.load();
+    if (existing !== null) {
+      pair[1].send(JSON.stringify({ type: 'match', match: existing }));
+    }
+
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 

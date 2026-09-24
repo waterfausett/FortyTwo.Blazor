@@ -126,6 +126,43 @@ describe('MatchDO WebSocket upgrade', () => {
     expect(ws).toBeFalsy();
   });
 
+  // Regression test for CRITICAL finding #2 (half 2) from the final whole-branch review: a client
+  // that connects and then does nothing used to receive NO state at all until the NEXT broadcast-
+  // causing RPC mutation - so the match creator waiting for others to join, or anyone reconnecting
+  // mid-game, saw an indefinite spinner. Asserts the very first message received after a successful
+  // upgrade (with no RPC call in between) already carries the current match state.
+  it('sends the current match state to a newly-connected socket immediately, with no RPC call needed', async () => {
+    const stub = stubFor('socket-initial-state');
+    await rpc(stub, 'create', { firstPlayerId: 'p1' });
+    const token = await signToken({ sub: 'p1' });
+
+    const res = await stub.fetch('https://match-do/ws?token=' + token, {
+      headers: { Upgrade: 'websocket' },
+    });
+    const ws = res.webSocket;
+    if (!ws) {
+      await res.text();
+      throw new Error('expected a client WebSocket on the 101 response');
+    }
+    ws.accept();
+
+    try {
+      const messagePromise = new Promise<MessageEvent>((resolve, reject) => {
+        ws.addEventListener('message', (event) => resolve(event as MessageEvent), { once: true });
+        ws.addEventListener('error', (event) => reject(event), { once: true });
+      });
+
+      const event = await messagePromise;
+      const payload = JSON.parse(event.data as string) as { type: string; match: { players: { playerId: string }[] } };
+
+      expect(payload.type).toBe('match');
+      expect(payload.match.players).toHaveLength(1);
+      expect(payload.match.players[0].playerId).toBe('p1');
+    } finally {
+      ws.close();
+    }
+  });
+
   it('broadcasts a match message to a connected socket when an RPC method runs', async () => {
     const stub = stubFor('socket-broadcast');
     await rpc(stub, 'create', { firstPlayerId: 'p1' });
@@ -135,11 +172,24 @@ describe('MatchDO WebSocket upgrade', () => {
     try {
       expect(status).toBe(101);
       if (!ws) throw new Error('expected a client WebSocket on the 101 response');
+      // TS's control-flow narrowing from the `if (!ws) throw` guard above doesn't persist into the
+      // nested `nextMessage` closure below - rebind to a non-optional local so it type-checks.
+      const socket: WebSocket = ws;
 
-      const messagePromise = new Promise<MessageEvent>((resolve, reject) => {
-        ws.addEventListener('message', (event) => resolve(event as MessageEvent), { once: true });
-        ws.addEventListener('error', (event) => reject(event), { once: true });
-      });
+      function nextMessage(): Promise<MessageEvent> {
+        return new Promise((resolve, reject) => {
+          socket.addEventListener('message', (event) => resolve(event as MessageEvent), { once: true });
+          socket.addEventListener('error', (event) => reject(event), { once: true });
+        });
+      }
+
+      // The connection's own initial-state send (matchDO.ts's post-upgrade `existing` push, added
+      // for CRITICAL finding #2) arrives first - drain it before waiting for the addPlayer-
+      // triggered broadcast below, or a `once` listener attached after it would consume THIS
+      // message instead of the one this test actually cares about.
+      await nextMessage();
+
+      const messagePromise = nextMessage();
 
       const addPlayerResult = await rpc(stub, 'addPlayer', { playerId: 'p2', team: Teams.TeamA });
       expect(addPlayerResult.status).toBe(200);

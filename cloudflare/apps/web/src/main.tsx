@@ -9,6 +9,7 @@ import './styles/chip.css'
 import './index.css'
 import { AppAuth0Provider } from './auth/Auth0Provider.tsx'
 import { ProtectedRoute } from './auth/ProtectedRoute.tsx'
+import { NavBar } from './components/NavBar.tsx'
 import { Lobby } from './pages/Lobby.tsx'
 import { Match } from './pages/Match.tsx'
 import { Profile } from './pages/Profile.tsx'
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root')!).render(
     <AppAuth0Provider>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
+          <NavBar />
           <Routes>
             <Route
               path="/"

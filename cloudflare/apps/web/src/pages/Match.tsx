@@ -7,15 +7,17 @@
 // CSS port missed entirely, since it only identified/copied the 4 global stylesheets) plus
 // Match.razor's own inline `<style>` block - see match.css's header comment for the full mapping.
 //
-// Scope note: this intentionally does NOT port the old page's "Ready Up!" between-games flow
-// (`ApiClient.UpdateMatchPlayerAsync` / `readyUp`) - Task 20's brief interfaces section lists only
-// `bid`/`setTrump`/`playDomino` as the mutations this page consumes, not `readyUp`, so that flow
-// is left for whichever task actually owns it. It also doesn't port the old app's SweetAlert2
-// toast/modal notifications for "next game started" / "match over" - the brief's own guidance is
-// that a plain inline banner is sufficient for surfacing errors, and no equivalent visual-fanfare
-// requirement is in scope here.
+// Scope note: this DOES port a "Ready Up" between-games flow (`readyUp`/`patchPlayerReady`) - it
+// was originally left out (Task 20's brief interfaces section only listed `bid`/`setTrump`/
+// `playDomino`), but that turned out to be load-bearing: `readyUp` is the ONLY mechanism that ever
+// deals a new hand once the current one has a winner (the very first hand deals automatically on
+// the 4th join), so without it a match could complete its first hand and then simply never
+// continue. See the "Ready up" section below, gated on `gameWinningTeam(currentGame) !== null`.
+// It still doesn't port the old app's SweetAlert2 toast/modal notifications for "next game
+// started" / "match over" - the brief's own guidance is that a plain inline banner is sufficient
+// for surfacing errors, and no equivalent visual-fanfare requirement is in scope here.
 import type { JSX } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
 import { useParams } from 'react-router-dom';
 import type { Domino as DominoType, Game } from '@fortytwo/rules';
@@ -28,6 +30,7 @@ import {
   getPlayerView,
   matchScores,
   trickValue,
+  gameWinningTeam,
 } from '@fortytwo/rules';
 import { apiClient } from '../api/client';
 import { useMatchSocket } from '../api/useMatchSocket';
@@ -88,8 +91,26 @@ export function Match(): JSX.Element {
     return token;
   };
 
-  const { match } = useMatchSocket(matchId ?? '', getToken);
+  const { match: socketMatch } = useMatchSocket(matchId ?? '', getToken);
   const client = apiClient(getToken);
+
+  // Initial load + reconnect-catchup: `useMatchSocket` starts at `null` and only fills once a
+  // WebSocket message arrives (now sent immediately on connect - see matchDO.ts's post-upgrade
+  // push - but a real network round-trip still takes a moment, and the very first render always
+  // has no socket state yet). This REST fetch seeds/refreshes that gap so the page never sits on
+  // an indefinite spinner: the match creator waiting for others to join, anyone reloading mid-game,
+  // or a player reloading on their own turn (where nobody else's action would ever "unstick" them)
+  // all get real state on first paint instead of waiting for a socket message that may never come.
+  const matchQuery = useQuery({
+    queryKey: ['match', matchId],
+    queryFn: () => client.getMatch(matchId!),
+    enabled: !!matchId,
+  });
+
+  // Prefer the socket's state once it has ANY value (it's the live source of truth once connected);
+  // fall back to the REST query's data before that (first paint, or while the socket is still
+  // (re)connecting).
+  const match = socketMatch ?? matchQuery.data ?? null;
 
   const bidMutation = useMutation({
     mutationFn: (bid: Bid) => client.bid(matchId!, bid),
@@ -100,8 +121,11 @@ export function Match(): JSX.Element {
   const playMutation = useMutation({
     mutationFn: (domino: DominoType) => client.playDomino(matchId!, { top: domino.top, bottom: domino.bottom }),
   });
+  const readyUpMutation = useMutation({
+    mutationFn: () => client.readyUp(matchId!, true),
+  });
 
-  const activeError = bidMutation.error ?? setTrumpMutation.error ?? playMutation.error;
+  const activeError = bidMutation.error ?? setTrumpMutation.error ?? playMutation.error ?? readyUpMutation.error;
 
   if (!matchId) {
     return (
@@ -128,13 +152,27 @@ export function Match(): JSX.Element {
   const scores = matchScores(match);
   const opponentTeam = otherTeam(me.team);
 
-  const isBiddingPhase = game.hands.some((h) => h.bid == null);
-  const isTrumpSelectPhase = !isBiddingPhase && game.trump == null;
-  const isPlayingPhase = !isBiddingPhase && game.trump != null;
+  // The table must actually be full AND dealt before bidding can be considered "in progress" -
+  // otherwise the creator's solo 1-hand view (joined, but alone) satisfies `hands.some(bid==null)`
+  // trivially, "completing" bidding for a game that never really started; when players 2-4 join
+  // later, their fresh (bid: null) hands never re-trigger bidding since currentPlayerId already
+  // moved on, permanently deadlocking the match. Requiring all 4 seats AND a real deal (dominoes
+  // actually dealt to at least one hand) closes that gap.
+  const isTableReady = match.players.length === 4 && game.hands.length === 4 && game.hands[0].dominoes.length > 0;
+  const isBiddingPhase = isTableReady && game.hands.some((h) => h.bid == null);
+  const isTrumpSelectPhase = isTableReady && !isBiddingPhase && game.trump == null;
+  const isPlayingPhase = isTableReady && !isBiddingPhase && game.trump != null;
 
   const canBid = isBiddingPhase && me.isActive;
   const canSelectTrump = isTrumpSelectPhase && me.isActive;
   const canPlay = isPlayingPhase && me.isActive && !playMutation.isPending;
+
+  // Once the current hand has a winner, the ONLY way to continue is for all 4 players to
+  // explicitly ready up again (patchPlayerReady deals the next hand once everyone has) - with no
+  // UI for this, a match could play its first hand to completion and then simply never continue.
+  const isHandOver = gameWinningTeam(game) !== null;
+  const myReadyState = match.players.find((p) => p.playerId === myPlayerId);
+  const iAmReady = myReadyState?.ready ?? false;
 
   const myTrickPoints = teamTrickPoints(game, me.team);
   const opponentTrickPoints = teamTrickPoints(game, opponentTeam);
@@ -188,6 +226,27 @@ export function Match(): JSX.Element {
             </span>
           </div>
         </div>
+
+        {isHandOver && (
+          <section className="ready-up-section" aria-label="Ready up">
+            <p>This hand is over. Ready up to start the next one:</p>
+            <button
+              type="button"
+              className="custom-chip custom-chip-info custom-chip-large"
+              disabled={iAmReady || readyUpMutation.isPending}
+              onClick={() => readyUpMutation.mutate()}
+            >
+              {iAmReady ? "You're ready" : 'Ready Up'}
+            </button>
+            <ul className="ready-up-status">
+              {match.players.map((p) => (
+                <li key={p.playerId} data-testid="ready-status-row">
+                  {p.playerId}: {p.ready ? 'Ready' : 'Not ready'}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <div className={`player p-2${me.isActive ? ' active' : ''}`}>
           {canBid && (

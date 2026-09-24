@@ -48,6 +48,25 @@ export function assertNotFull(match: MatchLike): void {
   }
 }
 
+// NEW guard, not a port of any C# method: the real C# `AddPlayerAsync` had no team-capacity check
+// either (only a total-player-count check via `IsNotFull`), but the OLD Blazor client's UI was the
+// only thing that ever kept a 3rd player from requesting an already-full team - it never sent an
+// invalid request in practice. The new React client has no equivalent client-side guard, so without
+// a server-side check here, `addPlayer`'s teammate-position lookup (matchEngine.ts) can place a 3rd
+// same-team player at the SAME position as the 2nd (both compute `teammatePosition + 2` from the
+// same first teammate), corrupting the players array and later crashing `selectNextPlayer` on a
+// non-null assertion for a position that was never actually assigned. A justified, necessary
+// deviation from a pure faithful port - see the final review's finding for the full corruption
+// trace.
+export function assertTeamNotFull(players: { position: number }[], team: Teams): void {
+  // Mirrors matchEngine.ts's private `teamForPosition` formula exactly (duplicated rather than
+  // imported, for the same anti-circular-import reason documented in this file's header comment).
+  const teamCount = players.filter((p) => (p.position % 2 === 0 ? Teams.TeamA : Teams.TeamB) === team).length;
+  if (teamCount >= 2) {
+    throw new ValidationError('Team is full', 'This team already has 2 players');
+  }
+}
+
 // Port of `IsActiveTurn`.
 export function assertActiveTurn(game: Game, userId: string): void {
   if (game.currentPlayerId !== userId) throw new ValidationError("It's not your turn!");

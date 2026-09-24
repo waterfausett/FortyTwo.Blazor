@@ -26,6 +26,7 @@ import {
   assertIsNotMatchPlayer,
   assertNotFull,
   assertReadyToPlay,
+  assertTeamNotFull,
   assertValidBid,
   assertValidDomino,
 } from './validation';
@@ -126,6 +127,7 @@ export function addPlayer(match: MatchState, playerId: string, team: Teams, deal
   assertActive(match);
   assertNotFull(match);
   assertIsNotMatchPlayer(match, playerId);
+  assertTeamNotFull(match.players, team);
 
   const teams = new Map<Teams, MatchPlayerState[]>();
   for (const p of match.players) {
@@ -280,15 +282,24 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
   const playerTeam = teamForPosition(player.position);
   const trump = game.trump!;
 
+  // `assertHasDomino` above only confirmed a VALUE-equal domino exists in the player's hand - it
+  // doesn't stop the caller's own `domino` argument (built straight from a client's request body)
+  // from being the object actually persisted/broadcast. Use the REAL domino object from the hand
+  // (with its genuine `.id` and no extra/malformed fields a client might have sent) for everything
+  // stored from here on, rather than the raw request-body object.
+  const actualDomino = match.currentGame.hands.find((h) => h.playerId === playerId)!.dominoes.find((d) =>
+    dominoEquals(d, domino)
+  )!;
+
   const hands = game.hands.map((h) => {
     if (h.playerId !== playerId) return h;
-    const index = h.dominoes.findIndex((d) => dominoEquals(d, domino));
+    const index = h.dominoes.findIndex((d) => dominoEquals(d, actualDomino));
     const dominoes = [...h.dominoes];
     dominoes.splice(index, 1);
     return { ...h, dominoes };
   });
 
-  let currentTrick = addDominoToTrick(game.currentTrick, domino, trump);
+  let currentTrick = addDominoToTrick(game.currentTrick, actualDomino, trump);
   const trickSuit = currentTrick.suit!;
 
   const playedDominoes = currentTrick.dominoes.filter((d): d is Domino => d !== null);
@@ -296,7 +307,7 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
     getSuitValue(d, trickSuit, trump) > getSuitValue(best, trickSuit, trump) ? d : best
   );
 
-  if (dominoEquals(currentlyWinningDomino, domino)) {
+  if (dominoEquals(currentlyWinningDomino, actualDomino)) {
     currentTrick = { ...currentTrick, playerId, team: playerTeam };
   }
 

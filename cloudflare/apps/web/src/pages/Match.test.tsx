@@ -8,7 +8,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Bid, createDomino, Positions, Suit, Teams, type Domino, type MatchState } from '@fortytwo/rules';
 import { Match } from './Match';
 
@@ -24,10 +24,12 @@ beforeAll(() => {
   }
 });
 
-const { bidMock, setTrumpMock, playDominoMock, useMatchSocketMock } = vi.hoisted(() => ({
+const { bidMock, setTrumpMock, playDominoMock, readyUpMock, getMatchMock, useMatchSocketMock } = vi.hoisted(() => ({
   bidMock: vi.fn(),
   setTrumpMock: vi.fn(),
   playDominoMock: vi.fn(),
+  readyUpMock: vi.fn(),
+  getMatchMock: vi.fn(),
   useMatchSocketMock: vi.fn(),
 }));
 
@@ -36,6 +38,8 @@ vi.mock('../api/client', () => ({
     bid: bidMock,
     setTrump: setTrumpMock,
     playDomino: playDominoMock,
+    readyUp: readyUpMock,
+    getMatch: getMatchMock,
   }),
 }));
 
@@ -53,6 +57,14 @@ vi.mock('@auth0/auth0-react', () => ({
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
   return { ...actual, useParams: () => ({ matchId: 'match-1' }) };
+});
+
+beforeEach(() => {
+  // The page always issues a `getMatch` REST query alongside `useMatchSocket` (CRITICAL finding
+  // #2's initial-load fix) - give it a harmless default resolution so tests that don't care about
+  // it (nearly all of them, since `useMatchSocketMock` already supplies the match state they
+  // assert on) don't hang on an unresolved query or an unhandled-rejection warning.
+  getMatchMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -252,6 +264,112 @@ describe('Match', () => {
 
     expect(container.querySelector('.player-team-tricks .badge')?.textContent).toBe('16');
     expect(container.querySelector('.opponent-tricks .badge')?.textContent).toBe('21');
+  });
+
+  // Regression test for IMPORTANT finding #6 from the final whole-branch review: the bidding UI
+  // used to show as soon as `game.hands.some(h => h.bid == null)`, which is trivially true for a
+  // solo creator's 1-hand match (a table that isn't full yet). The creator would bid immediately,
+  // "completing" bidding for that 1-hand view - so when players 2-4 joined later and their fresh
+  // (bid: null) hands were added, bidding never resumed (currentPlayerId had already moved on),
+  // permanently deadlocking the match. Asserts the panel is gated on a full, dealt table.
+  it('does NOT show the bidding panel before the table has 4 players and a real deal', () => {
+    const soloMatch = baseMatch(
+      { players: [{ playerId: 'p1', position: Positions.First, ready: true }] },
+      {
+        hands: [{ playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: null }],
+      }
+    );
+    useMatchSocketMock.mockReturnValue({ match: soloMatch, connected: true });
+
+    renderMatch();
+
+    expect(screen.queryByText(/select a bid/i)).toBeNull();
+  });
+
+  it('shows the bidding panel once the table has 4 players and hands are actually dealt', () => {
+    const match = baseMatch(); // baseMatch already has 4 players and p1's hand dealt.
+    useMatchSocketMock.mockReturnValue({ match, connected: true });
+
+    renderMatch();
+
+    expect(screen.getByText(/select a bid/i)).not.toBeNull();
+  });
+
+  // Regression test for CRITICAL finding #5 from the final whole-branch review: `readyUp` is the
+  // ONLY mechanism that deals a new hand once the current one has a winner, but Match.tsx had zero
+  // UI for it - so a match could play its first hand to completion and then simply never continue.
+  describe('Ready Up', () => {
+    function finishedHandMatch(): MatchState {
+      // A finished game: TeamA (p1/p3) bid Thirty and won a single trick worth 31 (>= 30) - matches
+      // matchEngine.test.ts's `finishedGame` fixture shape closely enough to trip `gameWinningTeam`.
+      return baseMatch(
+        {
+          players: [
+            { playerId: 'p1', position: Positions.First, ready: false },
+            { playerId: 'p2', position: Positions.Second, ready: true },
+            { playerId: 'p3', position: Positions.Third, ready: false },
+            { playerId: 'p4', position: Positions.Fourth, ready: false },
+          ],
+        },
+        {
+          bid: Bid.Thirty,
+          biddingPlayerId: 'p1',
+          trump: Suit.Sixes,
+          hands: [
+            { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: Bid.Thirty },
+            { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+            { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+            { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          ],
+          tricks: [
+            {
+              playerId: 'p1',
+              team: Teams.TeamA,
+              suit: Suit.Sixes,
+              dominoes: [createDomino(5, 0), createDomino(5, 5), createDomino(6, 4), createDomino(4, 1)],
+            },
+          ],
+        }
+      );
+    }
+
+    it('shows a Ready Up button once the current hand has a winner, and hides it once bidding is happening', () => {
+      const finished = finishedHandMatch();
+      useMatchSocketMock.mockReturnValue({ match: finished, connected: true });
+      renderMatch();
+      expect(screen.getByRole('button', { name: /ready up/i })).not.toBeNull();
+
+      cleanup();
+
+      const inProgress = baseMatch();
+      useMatchSocketMock.mockReturnValue({ match: inProgress, connected: true });
+      renderMatch();
+      expect(screen.queryByRole('button', { name: /ready up/i })).toBeNull();
+    });
+
+    it('calls readyUp(matchId, true) when the Ready Up button is clicked', async () => {
+      readyUpMock.mockResolvedValue({} as MatchState);
+      const finished = finishedHandMatch();
+      useMatchSocketMock.mockReturnValue({ match: finished, connected: true });
+
+      renderMatch();
+
+      fireEvent.click(screen.getByRole('button', { name: /ready up/i }));
+
+      await waitFor(() => expect(readyUpMock).toHaveBeenCalledWith('match-1', true));
+    });
+
+    it("shows each player's ready/not-ready status", () => {
+      const finished = finishedHandMatch();
+      useMatchSocketMock.mockReturnValue({ match: finished, connected: true });
+
+      renderMatch();
+
+      const rows = screen.getAllByTestId('ready-status-row');
+      expect(rows).toHaveLength(4);
+      expect(rows.find((r) => r.textContent?.includes('p2'))?.textContent).toMatch(/ready$/i);
+      expect(rows.find((r) => r.textContent?.includes('p1'))?.textContent).toMatch(/not ready/i);
+    });
   });
 
   it("renders the other 3 players' status: id, remaining domino count, and a turn indicator", () => {

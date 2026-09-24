@@ -105,7 +105,7 @@ describe('Lobby', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/new-match-id'));
   });
 
-  it('calls joinMatch with the row id when Join is clicked', async () => {
+  it('calls joinMatch with the row id when Join is clicked, then navigates to the joined match', async () => {
     joinMatchMock.mockResolvedValue({ id: 'joinable-1' } as MatchState);
     renderLobby();
 
@@ -115,5 +115,23 @@ describe('Lobby', () => {
     fireEvent.click(joinButton);
 
     await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('joinable-1', expect.any(Number)));
+    // Regression test for CRITICAL finding #4: joining used to only invalidate the list queries,
+    // leaving the player with no way back to the match they just joined except typing the URL.
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/joinable-1'));
+  });
+
+  // Regression test for CRITICAL finding #4 from the final whole-branch review: the Active/
+  // Joinable rows previously showed only id and player count, with no link to `/match/:id`
+  // anywhere - a player who left the match page (or the creator, before anyone else joined) had no
+  // way back in except manually typing a URL.
+  it('renders each match row as a link to its match page', async () => {
+    renderLobby();
+
+    const activeLink = (await screen.findByText('active-1')).closest('a');
+    expect(activeLink).not.toBeNull();
+    expect(activeLink?.getAttribute('href')).toBe('/match/active-1');
+
+    const joinableLink = (await screen.findByText('joinable-1')).closest('a');
+    expect(joinableLink?.getAttribute('href')).toBe('/match/joinable-1');
   });
 });

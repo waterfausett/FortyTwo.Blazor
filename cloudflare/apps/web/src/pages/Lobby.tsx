@@ -8,7 +8,7 @@
 // missed update would be a real problem).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { JSX } from 'react';
 import { apiClient, type MatchSummary } from '../api/client';
 
@@ -17,9 +17,10 @@ const POLL_INTERVAL_MS = 8000;
 // The lobby's list rows come from the lightweight D1 "MatchSummary" shape (`{ id, status,
 // playerCount, updatedOn }`) - it carries no team composition, unlike the full MatchState a match
 // page would have. Without per-team occupancy to drive a team picker, a single "Join" button with
-// a fixed default team is the simplest reasonable UX for this task; the server (matchEngine's
-// addPlayer) still validates team capacity and rejects a full team, which surfaces here as a
-// mutation error rather than a client-side team-select flow.
+// a fixed default team is the simplest reasonable UX for this task; the server
+// (`validation.ts`'s `assertTeamNotFull`, called from `matchEngine.ts`'s `addPlayer`) validates
+// team capacity and rejects a full team, which surfaces here as a mutation error rather than a
+// client-side team-select flow.
 const DEFAULT_JOIN_TEAM = 1; // Teams.TeamA in @fortytwo/rules
 
 function matchListQuery(client: ReturnType<typeof apiClient>, filter: 'Active' | 'Completed' | 'Joinable') {
@@ -64,7 +65,9 @@ function MatchListSection({
         <ul className="lobby-match-list">
           {matches.map((match) => (
             <li key={match.id} className="lobby-match-row">
-              <span className="lobby-match-id">{match.id}</span>
+              <Link to={`/match/${match.id}`} className="lobby-match-id">
+                {match.id}
+              </Link>
               <span className="lobby-match-players">{match.playerCount} players</span>
               {renderRowActions?.(match)}
             </li>
@@ -103,8 +106,9 @@ export function Lobby(): JSX.Element {
 
   const joinMatch = useMutation({
     mutationFn: ({ id, team }: { id: string; team: number }) => client.joinMatch(id, team),
-    onSuccess: () => {
+    onSuccess: (match) => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
+      navigate(`/match/${match.id}`);
     },
   });
 

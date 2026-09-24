@@ -46,6 +46,21 @@ describe('BiddingPanel', () => {
     expect(screen.getByRole('button', { name: /42/ })).not.toBeNull();
   });
 
+  // Regression test for IMPORTANT finding #9 from the final whole-branch review: Plunge used to be
+  // filtered out of the available-bids list alongside Pass, making it unreachable through the UI
+  // even though the engine (matchEngine.ts/validation.ts) fully supports it and the design spec's
+  // explicit goal is to preserve every game rule, including Plunge.
+  it('offers Plunge as a clickable option when it is a legal next bid', () => {
+    const onBid = vi.fn();
+    render(<BiddingPanel game={baseGame({ bid: Bid.FourMarks })} myPlayerId="p1" onBid={onBid} />);
+
+    const plungeButton = screen.getByRole('button', { name: /plunge/i }) as HTMLButtonElement;
+    expect(plungeButton.disabled).toBe(false);
+
+    fireEvent.click(plungeButton);
+    expect(onBid).toHaveBeenCalledWith(Bid.Plunge);
+  });
+
   it('calls onBid with the right Bid value when a bid button is clicked', () => {
     const onBid = vi.fn();
     render(<BiddingPanel game={baseGame({ bid: null })} myPlayerId="p1" onBid={onBid} />);

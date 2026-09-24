@@ -141,6 +141,33 @@ describe('addPlayer', () => {
     let match = createMatch('p1');
     expect(() => addPlayer(match, 'p1', Teams.TeamB)).toThrow(ValidationError);
   });
+
+  // Regression test for CRITICAL finding #3 from the final whole-branch review: without a
+  // team-capacity guard, a 3rd player requesting an already-full team collides with the 2nd
+  // player's position (both compute `teammatePosition + 2` from the same first teammate),
+  // corrupting the players array - this later crashes `selectNextPlayer`'s non-null assertion
+  // when turn order needs to reach the never-assigned position. Must throw ValidationError
+  // BEFORE any position math runs, not corrupt state.
+  it('rejects a 3rd player requesting a team that already has 2 players (prevents position collision)', () => {
+    let match = createMatch('p1'); // p1 @ First(0), TeamA
+    match = addPlayer(match, 'p2', Teams.TeamA); // p2 @ Third(2), TeamA - TeamA now full
+
+    expect(() => addPlayer(match, 'p3', Teams.TeamA)).toThrow(ValidationError);
+    try {
+      addPlayer(match, 'p3', Teams.TeamA);
+    } catch (e) {
+      expect((e as ValidationError).title).toBe('Team is full');
+    }
+
+    // Confirm no corruption: TeamA still has exactly the original 2 players/positions, and a 3rd
+    // (TeamB) player can still join cleanly at a distinct position.
+    expect(match.players).toHaveLength(2);
+    const p3 = addPlayer(match, 'p3', Teams.TeamB);
+    const p3Player = p3.players.find((p) => p.playerId === 'p3')!;
+    expect(new Set(p3.players.map((p) => p.position)).size).toBe(3); // all 3 positions distinct
+    expect(p3Player.position).not.toBe(Positions.First);
+    expect(p3Player.position).not.toBe(Positions.Third);
+  });
 });
 
 describe('patchPlayerReady', () => {
@@ -374,6 +401,24 @@ describe('playDomino', () => {
 
     match = playDomino(match, 'p2', createDomino(6, 3)); // suit value 3 (trump non-double) - doesn't beat 6/6
     expect(match.currentGame.currentTrick.playerId).toBe('p1');
+  });
+
+  // Regression test for IMPORTANT finding #7 from the final whole-branch review: playDomino used
+  // to persist/broadcast whatever domino object the CALLER passed (straight from a client request
+  // body), not the actual domino from the player's hand - so a client sending `{top, bottom}` with
+  // no `id`, or extra/malformed fields, would have that exact object written to storage and
+  // broadcast to every socket. Simulates that by passing a bare object missing `.id` and carrying
+  // a bogus extra field.
+  it('persists the ACTUAL domino from the hand (with its real id), not the raw request-body object', () => {
+    const match = readyToPlay();
+    const rawFromClient = { top: 6, bottom: 6, bogus: 'should not survive' } as unknown as Domino;
+
+    const result = playDomino(match, 'p1', rawFromClient);
+
+    const stored = result.currentGame.currentTrick.dominoes.find((d) => d !== null)!;
+    expect(stored.id).toBe(createDomino(6, 6).id);
+    expect(stored).not.toHaveProperty('bogus');
+    expect(stored).toEqual(createDomino(6, 6));
   });
 
   it('completes a trick, advances currentPlayerId to the winner, and starts a fresh trick', () => {
