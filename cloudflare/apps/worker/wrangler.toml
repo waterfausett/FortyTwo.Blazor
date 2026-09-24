@@ -3,6 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+routes = [
+  { pattern = "fortytwo.example.com/api/*", zone_name = "example.com" },
+  { pattern = "fortytwo.example.com/matches/*/ws", zone_name = "example.com" }
+]
+
 [[durable_objects.bindings]]
 name = "MATCH_DO"
 class_name = "MatchDO"
