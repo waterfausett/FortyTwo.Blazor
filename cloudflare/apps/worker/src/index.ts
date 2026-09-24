@@ -18,5 +18,4 @@ app.get('/health', (c) => c.json({ ok: true }));
 app.use('/api/*', requireAuth());
 
 export default app;
-// Task 11 adds ./matchDO and restores this export.
-// export { MatchDO } from './matchDO';
+export { MatchDO } from './matchDO';

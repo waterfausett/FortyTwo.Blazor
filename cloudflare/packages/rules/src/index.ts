@@ -25,11 +25,13 @@ export {
 export {
   MatchPlayerState,
   MatchState,
+  LoggedInPlayer,
   createMatch,
   addPlayer,
   patchPlayerReady,
   placeBid,
   setTrump,
   playDomino,
+  getPlayerView,
   matchScores,
 } from './matchEngine';

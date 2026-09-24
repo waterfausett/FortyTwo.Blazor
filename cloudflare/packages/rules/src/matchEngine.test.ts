@@ -6,6 +6,7 @@ import {
   placeBid,
   setTrump,
   playDomino,
+  getPlayerView,
   matchScores,
   MatchState,
 } from './matchEngine';
@@ -408,5 +409,41 @@ describe('matchScores', () => {
     });
 
     expect(matchScores(match)).toEqual({ [Teams.TeamA]: 1, [Teams.TeamB]: 2 });
+  });
+});
+
+describe('getPlayerView', () => {
+  it('projects a narrow, per-player DTO rather than the full MatchState', () => {
+    const match = baseMatch({
+      currentGame: baseGame({
+        currentPlayerId: 'p2',
+        hands: [
+          baseHand('p1', Teams.TeamA, { bid: Bid.Thirty }),
+          baseHand('p2', Teams.TeamB, { dominoes: [createDomino(1, 2)], bid: Bid.Pass }),
+          baseHand('p3', Teams.TeamA),
+          baseHand('p4', Teams.TeamB),
+        ],
+      }),
+      players: [
+        { playerId: 'p1', position: Positions.First, ready: true },
+        { playerId: 'p2', position: Positions.Second, ready: false },
+        { playerId: 'p3', position: Positions.Third, ready: true },
+        { playerId: 'p4', position: Positions.Fourth, ready: true },
+      ],
+    });
+
+    expect(getPlayerView(match, 'p2')).toEqual({
+      playerId: 'p2',
+      team: Teams.TeamB, // position 1 (Second) -> odd -> TeamB, per teamForPosition
+      isActive: true, // currentPlayerId === 'p2'
+      ready: false,
+      dominoes: [createDomino(1, 2)],
+      bid: Bid.Pass,
+    });
+  });
+
+  it('rejects a caller who is not a player in this match', () => {
+    const match = baseMatch();
+    expect(() => getPlayerView(match, 'not-a-player')).toThrow(ValidationError);
   });
 });

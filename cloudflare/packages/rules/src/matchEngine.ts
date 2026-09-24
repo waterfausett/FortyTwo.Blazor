@@ -37,6 +37,20 @@ export interface MatchPlayerState extends MatchPlayerRef {
   ready: boolean;
 }
 
+// Port of C# `LoggedInPlayer` (FortyTwo/Shared/Models) - the narrow, per-player DTO returned by
+// `MatchService.GetPlayerForMatch`. NOT the full `MatchState` - `getPlayerView` (Task 11's
+// `MatchDO`) is a separate operation from a full-match fetch. Field names follow this codebase's
+// established camelCase convention (`playerId`, `dominoes`) rather than the C# source's PascalCase
+// (`Id`, `Dominos`) - a faithful-in-shape, not faithful-in-spelling, port.
+export interface LoggedInPlayer {
+  playerId: string;
+  team: Teams;
+  isActive: boolean;
+  ready: boolean;
+  dominoes: Domino[] | undefined;
+  bid: Bid | null | undefined;
+}
+
 // The full aggregate the MatchDO (Task 11) will hold and mutate.
 export interface MatchState {
   id: string;
@@ -327,6 +341,25 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
     : null;
 
   return { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
+}
+
+// Port of `MatchService.GetPlayerForMatch`. Guards: `IsNotNull(match)` has no TS equivalent here
+// (see validation.ts's header comment) - the Task 11 `MatchDO` caller is responsible for the
+// analogous "match exists in storage" check before calling this. `IsMatchPlayer` is ported as-is.
+export function getPlayerView(match: MatchState, userId: string): LoggedInPlayer {
+  assertIsMatchPlayer(match, userId);
+
+  const matchPlayer = match.players.find((p) => p.playerId === userId)!;
+  const hand = match.currentGame.hands.find((h) => h.playerId === userId);
+
+  return {
+    playerId: matchPlayer.playerId,
+    team: teamForPosition(matchPlayer.position),
+    isActive: match.currentGame.currentPlayerId === userId,
+    ready: matchPlayer.ready,
+    dominoes: hand?.dominoes,
+    bid: hand?.bid,
+  };
 }
 
 // Port of the `Match.Scores` computed property:
