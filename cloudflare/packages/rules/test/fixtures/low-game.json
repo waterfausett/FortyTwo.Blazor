@@ -1,0 +1,5748 @@
+[
+  {
+    "action": "create",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": null,
+        "biddingPlayerId": null,
+        "trump": null,
+        "currentPlayerId": "p1",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [],
+            "bid": null
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": null,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": true,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "addPlayer",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": null,
+        "biddingPlayerId": null,
+        "trump": null,
+        "currentPlayerId": "p1",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [],
+            "bid": null
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [],
+            "bid": null
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": null,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.3362724\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": true,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": true,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "addPlayer",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": null,
+        "biddingPlayerId": null,
+        "trump": null,
+        "currentPlayerId": "p1",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [],
+            "bid": null
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [],
+            "bid": null
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [],
+            "bid": null
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": null,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.3567171\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": true,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": true,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": true,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "addPlayer",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": null,
+        "biddingPlayerId": null,
+        "trump": null,
+        "currentPlayerId": "p1",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": null
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": null
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": null
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": null
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": null,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.3655156\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "bid",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": null,
+        "currentPlayerId": "p2",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": null
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": null
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": null
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": 1,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.3973329\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "bid",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": null,
+        "currentPlayerId": "p3",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": null
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": null
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": 1,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.4089461\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "bid",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": null,
+        "currentPlayerId": "p4",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": null
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": 1,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.4198948\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "bid",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": null,
+        "currentPlayerId": "p1",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": 1,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.4267179\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "setTrump",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": -2,
+        "currentPlayerId": "p1",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": 1,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.4345903\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "playDomino",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": -2,
+        "currentPlayerId": "p2",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          }
+        ],
+        "currentTrick": {
+          "playerId": "p1",
+          "team": 1,
+          "suit": 6,
+          "dominos": [
+            {
+              "id": "9195936061582186128",
+              "top": 6,
+              "bottom": 6,
+              "orientation": 0,
+              "value": 0,
+              "order": 0,
+              "isDouble": true
+            },
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": 1,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.4484778\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "playDomino",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": -2,
+        "currentPlayerId": "p4",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          }
+        ],
+        "currentTrick": {
+          "playerId": "p1",
+          "team": 1,
+          "suit": 6,
+          "dominos": [
+            {
+              "id": "9195936061582186128",
+              "top": 6,
+              "bottom": 6,
+              "orientation": 0,
+              "value": 0,
+              "order": 0,
+              "isDouble": true
+            },
+            {
+              "id": "17275417231055931938",
+              "top": 1,
+              "bottom": 6,
+              "orientation": 0,
+              "value": 0,
+              "order": 0,
+              "isDouble": false
+            },
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [],
+        "value": 1,
+        "winningTeam": null
+      },
+      "games": {},
+      "scores": {},
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.4590055\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "playDomino",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": -2,
+        "currentPlayerId": "p1",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "suit": 6,
+            "dominos": [
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              null
+            ],
+            "value": 1
+          }
+        ],
+        "value": 1,
+        "winningTeam": 2
+      },
+      "games": {
+        "TeamB": [
+          {
+            "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+            "name": "Game 1",
+            "firstActionBy": "p1",
+            "bid": 30,
+            "biddingPlayerId": "p1",
+            "trump": -2,
+            "currentPlayerId": "p1",
+            "hands": [
+              {
+                "playerId": "p1",
+                "team": 1,
+                "dominos": [
+                  {
+                    "id": "8652954492539981906",
+                    "top": 0,
+                    "bottom": 0,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "6300169243255909413",
+                    "top": 1,
+                    "bottom": 1,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "11097657533044298714",
+                    "top": 2,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "8716300929232524744",
+                    "top": 3,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "845960160596936746",
+                    "top": 4,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "11367570933623221217",
+                    "top": 5,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 10,
+                    "order": 0,
+                    "isDouble": true
+                  }
+                ],
+                "bid": 30
+              },
+              {
+                "playerId": "p2",
+                "team": 2,
+                "dominos": [
+                  {
+                    "id": "7053131186001731265",
+                    "top": 0,
+                    "bottom": 1,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "18220036414171510815",
+                    "top": 0,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "9841464808631363819",
+                    "top": 0,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "8701925703455760569",
+                    "top": 0,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "1836676264847759724",
+                    "top": 0,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "7127199818008006771",
+                    "top": 1,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              },
+              {
+                "playerId": "p3",
+                "team": 1,
+                "dominos": [
+                  {
+                    "id": "15637946588047789903",
+                    "top": 0,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "4923941770545640634",
+                    "top": 2,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "5369872635284089533",
+                    "top": 3,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "12643027542014529102",
+                    "top": 3,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "4294295440084592777",
+                    "top": 4,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "3939226477093332789",
+                    "top": 4,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 10,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "3647083780475021134",
+                    "top": 5,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              },
+              {
+                "playerId": "p4",
+                "team": 2,
+                "dominos": [
+                  {
+                    "id": "5310001456807627839",
+                    "top": 1,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "7720480862864427953",
+                    "top": 1,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "9944597378633348948",
+                    "top": 1,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "8498416648167195323",
+                    "top": 2,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "17071624708635151549",
+                    "top": 2,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "437661566673858857",
+                    "top": 3,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              }
+            ],
+            "currentTrick": {
+              "playerId": null,
+              "team": null,
+              "suit": null,
+              "dominos": [
+                null,
+                null,
+                null,
+                null
+              ],
+              "value": 1
+            },
+            "tricks": [
+              {
+                "playerId": "p1",
+                "team": 1,
+                "suit": 6,
+                "dominos": [
+                  {
+                    "id": "9195936061582186128",
+                    "top": 6,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "17275417231055931938",
+                    "top": 1,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "12799397635637899923",
+                    "top": 2,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  null
+                ],
+                "value": 1
+              }
+            ],
+            "value": 1,
+            "winningTeam": 2
+          }
+        ]
+      },
+      "scores": {
+        "TeamB": 1
+      },
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.4705204\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "playDomino",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": -2,
+        "currentPlayerId": "p2",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          }
+        ],
+        "currentTrick": {
+          "playerId": "p1",
+          "team": 1,
+          "suit": 5,
+          "dominos": [
+            {
+              "id": "11367570933623221217",
+              "top": 5,
+              "bottom": 5,
+              "orientation": 0,
+              "value": 10,
+              "order": 0,
+              "isDouble": true
+            },
+            null,
+            null,
+            null
+          ],
+          "value": 11
+        },
+        "tricks": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "suit": 6,
+            "dominos": [
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              null
+            ],
+            "value": 1
+          }
+        ],
+        "value": 1,
+        "winningTeam": 2
+      },
+      "games": {
+        "TeamB": [
+          {
+            "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+            "name": "Game 1",
+            "firstActionBy": "p1",
+            "bid": 30,
+            "biddingPlayerId": "p1",
+            "trump": -2,
+            "currentPlayerId": "p2",
+            "hands": [
+              {
+                "playerId": "p1",
+                "team": 1,
+                "dominos": [
+                  {
+                    "id": "8652954492539981906",
+                    "top": 0,
+                    "bottom": 0,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "6300169243255909413",
+                    "top": 1,
+                    "bottom": 1,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "11097657533044298714",
+                    "top": 2,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "8716300929232524744",
+                    "top": 3,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "845960160596936746",
+                    "top": 4,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  }
+                ],
+                "bid": 30
+              },
+              {
+                "playerId": "p2",
+                "team": 2,
+                "dominos": [
+                  {
+                    "id": "7053131186001731265",
+                    "top": 0,
+                    "bottom": 1,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "18220036414171510815",
+                    "top": 0,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "9841464808631363819",
+                    "top": 0,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "8701925703455760569",
+                    "top": 0,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "1836676264847759724",
+                    "top": 0,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "7127199818008006771",
+                    "top": 1,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              },
+              {
+                "playerId": "p3",
+                "team": 1,
+                "dominos": [
+                  {
+                    "id": "15637946588047789903",
+                    "top": 0,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "4923941770545640634",
+                    "top": 2,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "5369872635284089533",
+                    "top": 3,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "12643027542014529102",
+                    "top": 3,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "4294295440084592777",
+                    "top": 4,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "3939226477093332789",
+                    "top": 4,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 10,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "3647083780475021134",
+                    "top": 5,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              },
+              {
+                "playerId": "p4",
+                "team": 2,
+                "dominos": [
+                  {
+                    "id": "5310001456807627839",
+                    "top": 1,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "7720480862864427953",
+                    "top": 1,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "9944597378633348948",
+                    "top": 1,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "8498416648167195323",
+                    "top": 2,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "17071624708635151549",
+                    "top": 2,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "437661566673858857",
+                    "top": 3,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              }
+            ],
+            "currentTrick": {
+              "playerId": "p1",
+              "team": 1,
+              "suit": 5,
+              "dominos": [
+                {
+                  "id": "11367570933623221217",
+                  "top": 5,
+                  "bottom": 5,
+                  "orientation": 0,
+                  "value": 10,
+                  "order": 0,
+                  "isDouble": true
+                },
+                null,
+                null,
+                null
+              ],
+              "value": 11
+            },
+            "tricks": [
+              {
+                "playerId": "p1",
+                "team": 1,
+                "suit": 6,
+                "dominos": [
+                  {
+                    "id": "9195936061582186128",
+                    "top": 6,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "17275417231055931938",
+                    "top": 1,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "12799397635637899923",
+                    "top": 2,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  null
+                ],
+                "value": 1
+              }
+            ],
+            "value": 1,
+            "winningTeam": 2
+          }
+        ]
+      },
+      "scores": {
+        "TeamB": 1
+      },
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.492281\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "playDomino",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": -2,
+        "currentPlayerId": "p4",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          }
+        ],
+        "currentTrick": {
+          "playerId": "p1",
+          "team": 1,
+          "suit": 5,
+          "dominos": [
+            {
+              "id": "11367570933623221217",
+              "top": 5,
+              "bottom": 5,
+              "orientation": 0,
+              "value": 10,
+              "order": 0,
+              "isDouble": true
+            },
+            {
+              "id": "1836676264847759724",
+              "top": 0,
+              "bottom": 5,
+              "orientation": 0,
+              "value": 5,
+              "order": 0,
+              "isDouble": false
+            },
+            null,
+            null
+          ],
+          "value": 16
+        },
+        "tricks": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "suit": 6,
+            "dominos": [
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              null
+            ],
+            "value": 1
+          }
+        ],
+        "value": 1,
+        "winningTeam": 2
+      },
+      "games": {
+        "TeamB": [
+          {
+            "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+            "name": "Game 1",
+            "firstActionBy": "p1",
+            "bid": 30,
+            "biddingPlayerId": "p1",
+            "trump": -2,
+            "currentPlayerId": "p4",
+            "hands": [
+              {
+                "playerId": "p1",
+                "team": 1,
+                "dominos": [
+                  {
+                    "id": "8652954492539981906",
+                    "top": 0,
+                    "bottom": 0,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "6300169243255909413",
+                    "top": 1,
+                    "bottom": 1,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "11097657533044298714",
+                    "top": 2,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "8716300929232524744",
+                    "top": 3,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "845960160596936746",
+                    "top": 4,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  }
+                ],
+                "bid": 30
+              },
+              {
+                "playerId": "p2",
+                "team": 2,
+                "dominos": [
+                  {
+                    "id": "7053131186001731265",
+                    "top": 0,
+                    "bottom": 1,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "18220036414171510815",
+                    "top": 0,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "9841464808631363819",
+                    "top": 0,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "8701925703455760569",
+                    "top": 0,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "7127199818008006771",
+                    "top": 1,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              },
+              {
+                "playerId": "p3",
+                "team": 1,
+                "dominos": [
+                  {
+                    "id": "15637946588047789903",
+                    "top": 0,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "4923941770545640634",
+                    "top": 2,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "5369872635284089533",
+                    "top": 3,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "12643027542014529102",
+                    "top": 3,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "4294295440084592777",
+                    "top": 4,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "3939226477093332789",
+                    "top": 4,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 10,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "3647083780475021134",
+                    "top": 5,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              },
+              {
+                "playerId": "p4",
+                "team": 2,
+                "dominos": [
+                  {
+                    "id": "5310001456807627839",
+                    "top": 1,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "7720480862864427953",
+                    "top": 1,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "9944597378633348948",
+                    "top": 1,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "8498416648167195323",
+                    "top": 2,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "17071624708635151549",
+                    "top": 2,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "437661566673858857",
+                    "top": 3,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              }
+            ],
+            "currentTrick": {
+              "playerId": "p1",
+              "team": 1,
+              "suit": 5,
+              "dominos": [
+                {
+                  "id": "11367570933623221217",
+                  "top": 5,
+                  "bottom": 5,
+                  "orientation": 0,
+                  "value": 10,
+                  "order": 0,
+                  "isDouble": true
+                },
+                {
+                  "id": "1836676264847759724",
+                  "top": 0,
+                  "bottom": 5,
+                  "orientation": 0,
+                  "value": 5,
+                  "order": 0,
+                  "isDouble": false
+                },
+                null,
+                null
+              ],
+              "value": 16
+            },
+            "tricks": [
+              {
+                "playerId": "p1",
+                "team": 1,
+                "suit": 6,
+                "dominos": [
+                  {
+                    "id": "9195936061582186128",
+                    "top": 6,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "17275417231055931938",
+                    "top": 1,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "12799397635637899923",
+                    "top": 2,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  null
+                ],
+                "value": 1
+              }
+            ],
+            "value": 1,
+            "winningTeam": 2
+          }
+        ]
+      },
+      "scores": {
+        "TeamB": 1
+      },
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.5009044\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  },
+  {
+    "action": "playDomino",
+    "state": {
+      "id": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+      "currentGame": {
+        "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+        "name": "Game 1",
+        "firstActionBy": "p1",
+        "bid": 30,
+        "biddingPlayerId": "p1",
+        "trump": -2,
+        "currentPlayerId": "p1",
+        "hands": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "8652954492539981906",
+                "top": 0,
+                "bottom": 0,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "6300169243255909413",
+                "top": 1,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "11097657533044298714",
+                "top": 2,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "8716300929232524744",
+                "top": 3,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "845960160596936746",
+                "top": 4,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              }
+            ],
+            "bid": 30
+          },
+          {
+            "playerId": "p2",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "7053131186001731265",
+                "top": 0,
+                "bottom": 1,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "18220036414171510815",
+                "top": 0,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9841464808631363819",
+                "top": 0,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8701925703455760569",
+                "top": 0,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7127199818008006771",
+                "top": 1,
+                "bottom": 2,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p3",
+            "team": 1,
+            "dominos": [
+              {
+                "id": "15637946588047789903",
+                "top": 0,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4923941770545640634",
+                "top": 2,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "5369872635284089533",
+                "top": 3,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12643027542014529102",
+                "top": 3,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "4294295440084592777",
+                "top": 4,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3939226477093332789",
+                "top": 4,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "3647083780475021134",
+                "top": 5,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          },
+          {
+            "playerId": "p4",
+            "team": 2,
+            "dominos": [
+              {
+                "id": "5310001456807627839",
+                "top": 1,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "7720480862864427953",
+                "top": 1,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "9944597378633348948",
+                "top": 1,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "8498416648167195323",
+                "top": 2,
+                "bottom": 3,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "17071624708635151549",
+                "top": 2,
+                "bottom": 4,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              }
+            ],
+            "bid": 0
+          }
+        ],
+        "currentTrick": {
+          "playerId": null,
+          "team": null,
+          "suit": null,
+          "dominos": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "value": 1
+        },
+        "tricks": [
+          {
+            "playerId": "p1",
+            "team": 1,
+            "suit": 6,
+            "dominos": [
+              {
+                "id": "9195936061582186128",
+                "top": 6,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "17275417231055931938",
+                "top": 1,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "12799397635637899923",
+                "top": 2,
+                "bottom": 6,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              null
+            ],
+            "value": 1
+          },
+          {
+            "playerId": "p1",
+            "team": 1,
+            "suit": 5,
+            "dominos": [
+              {
+                "id": "11367570933623221217",
+                "top": 5,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 10,
+                "order": 0,
+                "isDouble": true
+              },
+              {
+                "id": "1836676264847759724",
+                "top": 0,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 5,
+                "order": 0,
+                "isDouble": false
+              },
+              {
+                "id": "437661566673858857",
+                "top": 3,
+                "bottom": 5,
+                "orientation": 0,
+                "value": 0,
+                "order": 0,
+                "isDouble": false
+              },
+              null
+            ],
+            "value": 16
+          }
+        ],
+        "value": 1,
+        "winningTeam": 2
+      },
+      "games": {
+        "TeamB": [
+          {
+            "id": "55ec23b1-8eba-42b1-beeb-43f588474b11",
+            "name": "Game 1",
+            "firstActionBy": "p1",
+            "bid": 30,
+            "biddingPlayerId": "p1",
+            "trump": -2,
+            "currentPlayerId": "p1",
+            "hands": [
+              {
+                "playerId": "p1",
+                "team": 1,
+                "dominos": [
+                  {
+                    "id": "8652954492539981906",
+                    "top": 0,
+                    "bottom": 0,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "6300169243255909413",
+                    "top": 1,
+                    "bottom": 1,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "11097657533044298714",
+                    "top": 2,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "8716300929232524744",
+                    "top": 3,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "845960160596936746",
+                    "top": 4,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  }
+                ],
+                "bid": 30
+              },
+              {
+                "playerId": "p2",
+                "team": 2,
+                "dominos": [
+                  {
+                    "id": "7053131186001731265",
+                    "top": 0,
+                    "bottom": 1,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "18220036414171510815",
+                    "top": 0,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "9841464808631363819",
+                    "top": 0,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "8701925703455760569",
+                    "top": 0,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "7127199818008006771",
+                    "top": 1,
+                    "bottom": 2,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              },
+              {
+                "playerId": "p3",
+                "team": 1,
+                "dominos": [
+                  {
+                    "id": "15637946588047789903",
+                    "top": 0,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "4923941770545640634",
+                    "top": 2,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "5369872635284089533",
+                    "top": 3,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "12643027542014529102",
+                    "top": 3,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "4294295440084592777",
+                    "top": 4,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "3939226477093332789",
+                    "top": 4,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 10,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "3647083780475021134",
+                    "top": 5,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              },
+              {
+                "playerId": "p4",
+                "team": 2,
+                "dominos": [
+                  {
+                    "id": "5310001456807627839",
+                    "top": 1,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "7720480862864427953",
+                    "top": 1,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "9944597378633348948",
+                    "top": 1,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "8498416648167195323",
+                    "top": 2,
+                    "bottom": 3,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "17071624708635151549",
+                    "top": 2,
+                    "bottom": 4,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  }
+                ],
+                "bid": 0
+              }
+            ],
+            "currentTrick": {
+              "playerId": null,
+              "team": null,
+              "suit": null,
+              "dominos": [
+                null,
+                null,
+                null,
+                null
+              ],
+              "value": 1
+            },
+            "tricks": [
+              {
+                "playerId": "p1",
+                "team": 1,
+                "suit": 6,
+                "dominos": [
+                  {
+                    "id": "9195936061582186128",
+                    "top": 6,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "17275417231055931938",
+                    "top": 1,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "12799397635637899923",
+                    "top": 2,
+                    "bottom": 6,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  null
+                ],
+                "value": 1
+              },
+              {
+                "playerId": "p1",
+                "team": 1,
+                "suit": 5,
+                "dominos": [
+                  {
+                    "id": "11367570933623221217",
+                    "top": 5,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 10,
+                    "order": 0,
+                    "isDouble": true
+                  },
+                  {
+                    "id": "1836676264847759724",
+                    "top": 0,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 5,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  {
+                    "id": "437661566673858857",
+                    "top": 3,
+                    "bottom": 5,
+                    "orientation": 0,
+                    "value": 0,
+                    "order": 0,
+                    "isDouble": false
+                  },
+                  null
+                ],
+                "value": 16
+              }
+            ],
+            "value": 1,
+            "winningTeam": 2
+          }
+        ]
+      },
+      "scores": {
+        "TeamB": 1
+      },
+      "winningTeam": null,
+      "createdOn": "2026-09-24T03:45:23.365028\u002B00:00",
+      "updatedOn": "2026-09-24T03:45:24.5120567\u002B00:00",
+      "players": [
+        {
+          "id": 1,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p1",
+          "position": 0,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 2,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p2",
+          "position": 1,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 3,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p3",
+          "position": 2,
+          "ready": false,
+          "match": null
+        },
+        {
+          "id": 4,
+          "matchId": "fa2d568f-9a64-4c24-ae00-3324f92b9b13",
+          "playerId": "p4",
+          "position": 3,
+          "ready": false,
+          "match": null
+        }
+      ]
+    }
+  }
+]
