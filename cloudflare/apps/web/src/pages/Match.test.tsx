@@ -208,4 +208,83 @@ describe('Match', () => {
     // Not this player's turn to bid, so no BiddingPanel section should render at all.
     expect(screen.queryByText(/select a bid/i)).toBeNull();
   });
+
+  it("shows each team's cumulative COMPLETED-trick point value, not the in-progress trick's raw pips", () => {
+    // trickValue = dominoes' pip-value sum + 1 base point (trick.ts). Deliberately NOT a round
+    // number so a wrong formula (e.g. summing raw pips without the +1, or including the
+    // in-progress trick) would produce a different, distinguishable total.
+    const myTrick = {
+      playerId: 'p1',
+      team: Teams.TeamA,
+      suit: Suit.Sixes,
+      dominoes: [createDomino(5, 5), createDomino(2, 3), createDomino(0, 0), createDomino(1, 1)],
+    };
+    // dominoValue: (5,5)=10, (2,3)=5, (0,0)=0, (1,1)=0 -> sum 15, trickValue = 15 + 1 = 16.
+    const opponentTrick = {
+      playerId: 'p2',
+      team: Teams.TeamB,
+      suit: Suit.Sixes,
+      dominoes: [createDomino(4, 1), createDomino(6, 4), createDomino(3, 2), createDomino(0, 0)],
+    };
+    // dominoValue: (4,1)=5, (6,4)=10, (3,2)=5, (0,0)=0 -> sum 20, trickValue = 20 + 1 = 21.
+    const match = baseMatch(
+      {},
+      {
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        currentPlayerId: 'p1',
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [createDomino(1, 2)], bid: Bid.Thirty },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+        ],
+        tricks: [myTrick, opponentTrick],
+        // A 5-point domino sitting in the trick still being played - if the badge summed this
+        // in too (the pre-fix bug), "myTrickPoints" would read 21, not the correct 16.
+        currentTrick: { playerId: null, team: null, suit: null, dominoes: [createDomino(5, 0), null, null, null] },
+      }
+    );
+    useMatchSocketMock.mockReturnValue({ match, connected: true });
+
+    const { container } = renderMatch();
+
+    expect(container.querySelector('.player-team-tricks .badge')?.textContent).toBe('16');
+    expect(container.querySelector('.opponent-tricks .badge')?.textContent).toBe('21');
+  });
+
+  it("renders the other 3 players' status: id, remaining domino count, and a turn indicator", () => {
+    const match = baseMatch(
+      {},
+      {
+        currentPlayerId: 'p3',
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [createDomino(1, 2)], bid: null },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [createDomino(3, 4), createDomino(5, 6)], bid: null },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [createDomino(0, 1)], bid: null },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: null },
+        ],
+      }
+    );
+    useMatchSocketMock.mockReturnValue({ match, connected: true });
+
+    renderMatch();
+
+    const remotePlayers = screen.getAllByTestId('remote-player');
+    expect(remotePlayers).toHaveLength(3);
+
+    // Shows each OTHER player's id (never "p1", the logged-in user) and their remaining count.
+    expect(screen.getByText('p2')).not.toBeNull();
+    expect(screen.getByText('2 dominoes')).not.toBeNull();
+    expect(screen.getByText('p3')).not.toBeNull();
+    expect(screen.getByText('1 dominoes')).not.toBeNull();
+    expect(screen.queryByText('p1')).toBeNull();
+
+    // p3 is the current player - their status should carry the "their turn" indicator class.
+    const p3Row = remotePlayers.find((row) => row.textContent?.includes('p3'));
+    const p2Row = remotePlayers.find((row) => row.textContent?.includes('p2'));
+    expect(p3Row?.classList.contains('active')).toBe(true);
+    expect(p2Row?.classList.contains('active')).toBe(false);
+  });
 });
