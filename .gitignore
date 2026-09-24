@@ -192,6 +192,10 @@ PublishScripts/
 *.nuget.props
 *.nuget.targets
 
+# cloudflare/packages/* is npm workspace source, not NuGet restore output
+!cloudflare/packages/
+!cloudflare/packages/**
+
 # Microsoft Azure Build Output
 csx/
 *.build.csdef
