@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { env, fetchMock } from 'cloudflare:test';
+import { env, fetchMock, runInDurableObject } from 'cloudflare:test';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { Teams } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import type { MatchDO } from '../src/matchDO';
 
 const testEnv = env as unknown as Env;
 
@@ -205,5 +206,21 @@ describe('MatchDO WebSocket upgrade', () => {
       // with unread Response bodies.
       ws?.close();
     }
+  });
+
+  // Regression test: a client that disconnects without sending a close frame (e.g. a tab
+  // navigating away) reports close code 1005 ("No Status Received") to webSocketClose. 1005 is
+  // reserved by the WebSocket protocol and throws `InvalidAccessError` if forwarded as-is to
+  // `ws.close()` - this used to crash the DO's webSocketClose handler on every such disconnect.
+  it('does not throw when webSocketClose receives the reserved 1005 close code', async () => {
+    const stub = stubFor('socket-reserved-close-code');
+    await rpc(stub, 'create', { firstPlayerId: 'p1' });
+
+    await runInDurableObject(stub, async (instance, state) => {
+      const matchDO = instance as unknown as MatchDO;
+      const pair = new WebSocketPair();
+      state.acceptWebSocket(pair[1]);
+      await expect(matchDO.webSocketClose(pair[1], 1005, '', false)).resolves.toBeUndefined();
+    });
   });
 });

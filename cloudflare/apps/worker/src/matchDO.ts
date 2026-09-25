@@ -172,7 +172,15 @@ export class MatchDO implements DurableObject {
   async webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {}
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
-    ws.close(code, reason);
+    // Only 1000 and the custom 3000-4999 range may be passed explicitly to `close()` - the rest
+    // (1001-1015) are reserved by the WebSocket protocol. A client that disconnects without
+    // sending a close frame (e.g. a tab navigating away) reports 1005 ("No Status Received"),
+    // which throws `InvalidAccessError` if forwarded as-is.
+    if (code === 1000 || (code >= 3000 && code <= 4999)) {
+      ws.close(code, reason);
+    } else {
+      ws.close();
+    }
   }
 
   private broadcast(match: MatchState): void {
