@@ -1,0 +1,128 @@
+/* Lobby.tsx page layout. Like match.css for Match.tsx, this page got className hooks
+   (lobby/lobby-section/lobby-match-*) with no rules ever written for them - it rendered with
+   plain browser defaults (a huge <h1>, the "Create Match" button crammed against the heading
+   text, bare bulleted <li> rows). Buttons reuse the app's existing .custom-chip look (chip.css -
+   the same one Match.tsx/BiddingPanel.tsx use) rather than inventing a second button style. */
+
+.lobby {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.lobby-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 1.75rem;
+  margin: 0 0 1.5rem;
+}
+
+/* Tab bar - mirrors the old app's nav-tabs (Find a Game / Active Games / Game History), plus the
+   manual refresh button pinned to the end (replaces the old app's own oi-loop-circular button,
+   which lived in the <h3> instead - moved here since it now refreshes whichever tab is active,
+   not a fixed list). */
+.lobby-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--label-default-border-color, #8c8c8c);
+  margin-bottom: 1rem;
+}
+
+.lobby-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: -1px;
+  font-size: 0.9rem;
+  color: var(--label-font-color-light, #000);
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+  .lobby-tab:hover {
+    opacity: 0.85;
+  }
+
+  .lobby-tab-active {
+    opacity: 1;
+    font-weight: 600;
+    color: var(--label-info-font-color, #00567a);
+    border-bottom-color: var(--label-info-font-color, #00567a);
+  }
+
+.lobby-refresh {
+  appearance: none;
+  background: none;
+  border: none;
+  margin-left: auto;
+  padding: 0.4rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--label-info-font-color, #00567a);
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+  .lobby-refresh:hover:not(:disabled) {
+    background: var(--label-info-bg-color, #e3f5fc);
+  }
+
+  .lobby-refresh:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+.lobby-section {
+  margin-bottom: 2rem;
+}
+
+.lobby-error {
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  background: var(--label-danger-bg-color, #feddd7);
+  color: var(--label-danger-font-color, #991700);
+  border: 1px solid var(--label-danger-border-color, #991700);
+}
+
+.lobby-match-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lobby-match-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: var(--label-info-bg-color, #e3f5fc);
+}
+
+.lobby-match-id {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--label-info-font-color, #00567a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-match-players {
+  font-size: 0.8rem;
+  color: var(--label-font-color-light, #000);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.lobby-match-row-actions {
+  margin-left: auto;
+}

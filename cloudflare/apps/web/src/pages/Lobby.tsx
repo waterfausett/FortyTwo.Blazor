@@ -1,18 +1,40 @@
-// The lobby: three polling match lists (Active/Joinable/Completed) plus create/join actions.
-// Replaces the old FortyTwo/Client/Pages/Index.razor + Index.razor.cs, which drove its lists via a
-// SignalR push (`OnMatchCreated`) into a client-side store. Per the design spec's polling decision
-// (no live lobby push in v1 - only in-match state gets a WebSocket, via useMatchSocket), each list
-// here is a TanStack Query `useQuery` with `refetchInterval: 8000` and `refetchOnWindowFocus: true`
-// instead: a new/updated match becomes visible to other players within one 8s poll (or immediately
-// on window focus), which is an accepted tradeoff for the lobby (unlike in-match play, where a
-// missed update would be a real problem).
+// The lobby: a tabbed match list (Find a Game / Active / Game History, defaulting to Active,
+// mirroring the old FortyTwo/Client/Pages/Index.razor's nav-tabs layout) plus create/join
+// actions. Replaces Index.razor + Index.razor.cs, which drove its lists via a SignalR push
+// (`OnMatchCreated`) into a client-side store.
+//
+// Only the selected tab's list is ever fetched - the single `useQuery` below is keyed on
+// `activeTab`, so switching tabs just mounts a new query instance instead of eagerly fetching all
+// three lists up front. There's no `refetchInterval` cadence either: Active games are expected to
+// stay fairly static now that in-match play has its own WebSocket (useMatchSocket) carrying
+// real-time updates once you're actually in a match - the lobby just needs a reasonably fresh
+// snapshot, not a live feed. A manual refresh icon button (the old app's oi-loop-circular, from
+// the open-iconic set already loaded via app.css) refetches whichever tab is currently selected.
+// Find a Game may want its own polling/push back later (matches can appear from other players at
+// any time) - left as-is for now per explicit product direction.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import type { JSX } from 'react';
-import { apiClient, type MatchSummary } from '../api/client';
+import { apiClient } from '../api/client';
+import './Lobby.css';
 
-const POLL_INTERVAL_MS = 8000;
+type MatchFilter = 'Active' | 'Joinable' | 'Completed';
+
+// Order and labels match the old app's tab bar (Index.razor's nav-tabs: Find a Game, Active
+// Games, Game History).
+const TABS: { filter: MatchFilter; label: string }[] = [
+  { filter: 'Joinable', label: 'Find a Game' },
+  { filter: 'Active', label: 'Active Games' },
+  { filter: 'Completed', label: 'Game History' },
+];
+
+const EMPTY_LABELS: Record<MatchFilter, string> = {
+  Active: 'No active games.',
+  Joinable: 'No games to join right now.',
+  Completed: 'No completed games yet.',
+};
 
 // The lobby's list rows come from the lightweight D1 "MatchSummary" shape (`{ id, status,
 // playerCount, updatedOn }`) - it carries no team composition, unlike the full MatchState a match
@@ -35,59 +57,8 @@ function joinTeamFor(playerCount: number): number {
   return playerCount % 2 === 1 ? TEAM_B : TEAM_A;
 }
 
-function matchListQuery(client: ReturnType<typeof apiClient>, filter: 'Active' | 'Completed' | 'Joinable') {
-  return {
-    queryKey: ['matches', filter] as const,
-    queryFn: () => client.listMatches(filter),
-    refetchInterval: POLL_INTERVAL_MS,
-    refetchOnWindowFocus: true,
-  };
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.';
-}
-
-function MatchListSection({
-  title,
-  matches,
-  isLoading,
-  error,
-  emptyLabel,
-  renderRowActions,
-}: {
-  title: string;
-  matches: MatchSummary[] | undefined;
-  isLoading: boolean;
-  error: unknown;
-  emptyLabel: string;
-  renderRowActions?: (match: MatchSummary) => JSX.Element | null;
-}): JSX.Element {
-  return (
-    <section className="lobby-section" aria-label={title}>
-      <h2>{title}</h2>
-      {isLoading && <p>Loading…</p>}
-      {error != null && (
-        <p role="alert" className="lobby-error">
-          {errorMessage(error)}
-        </p>
-      )}
-      {!isLoading && error == null && (matches == null || matches.length === 0) && <p>{emptyLabel}</p>}
-      {matches != null && matches.length > 0 && (
-        <ul className="lobby-match-list">
-          {matches.map((match) => (
-            <li key={match.id} className="lobby-match-row">
-              <Link to={`/match/${match.id}`} className="lobby-match-id">
-                {match.id}
-              </Link>
-              <span className="lobby-match-players">{match.playerCount} players</span>
-              {renderRowActions?.(match)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
 }
 
 export function Lobby(): JSX.Element {
@@ -104,9 +75,14 @@ export function Lobby(): JSX.Element {
     return token;
   });
 
-  const activeQuery = useQuery(matchListQuery(client, 'Active'));
-  const joinableQuery = useQuery(matchListQuery(client, 'Joinable'));
-  const completedQuery = useQuery(matchListQuery(client, 'Completed'));
+  const [activeTab, setActiveTab] = useState<MatchFilter>('Active');
+  const activeTabLabel = TABS.find((tab) => tab.filter === activeTab)?.label ?? activeTab;
+
+  const matchesQuery = useQuery({
+    queryKey: ['matches', activeTab] as const,
+    queryFn: () => client.listMatches(activeTab),
+  });
+  const matches = matchesQuery.data;
 
   const createMatch = useMutation({
     mutationFn: () => client.createMatch(),
@@ -126,10 +102,15 @@ export function Lobby(): JSX.Element {
 
   return (
     <div className="lobby">
-      <h1>
+      <h1 className="lobby-heading">
         Matches
-        <button type="button" onClick={() => createMatch.mutate()} disabled={createMatch.isPending}>
-          Create Match
+        <button
+          type="button"
+          className="custom-chip custom-chip-info custom-chip-large"
+          onClick={() => createMatch.mutate()}
+          disabled={createMatch.isPending}
+        >
+          {createMatch.isPending ? 'Creating…' : 'Create Match'}
         </button>
       </h1>
       {createMatch.isError && (
@@ -143,38 +124,69 @@ export function Lobby(): JSX.Element {
         </p>
       )}
 
-      <MatchListSection
-        title="Active"
-        matches={activeQuery.data}
-        isLoading={activeQuery.isLoading}
-        error={activeQuery.error}
-        emptyLabel="No active games."
-      />
-
-      <MatchListSection
-        title="Find a Game"
-        matches={joinableQuery.data}
-        isLoading={joinableQuery.isLoading}
-        error={joinableQuery.error}
-        emptyLabel="No games to join right now."
-        renderRowActions={(match) => (
+      <div className="lobby-tabs" role="tablist" aria-label="Match lists">
+        {TABS.map((tab) => (
           <button
+            key={tab.filter}
             type="button"
-            onClick={() => joinMatch.mutate({ id: match.id, team: joinTeamFor(match.playerCount) })}
-            disabled={joinMatch.isPending}
+            role="tab"
+            aria-selected={activeTab === tab.filter}
+            className={`lobby-tab${activeTab === tab.filter ? ' lobby-tab-active' : ''}`}
+            onClick={() => setActiveTab(tab.filter)}
           >
-            Join
+            {tab.label}
           </button>
-        )}
-      />
+        ))}
+        <button
+          type="button"
+          className="lobby-refresh"
+          title="Refresh list"
+          aria-label={`Refresh ${activeTabLabel}`}
+          disabled={matchesQuery.isFetching}
+          onClick={() => matchesQuery.refetch()}
+        >
+          <span
+            className={`oi oi-loop-circular${matchesQuery.isFetching ? ' spinner-reverse' : ''}`}
+            aria-hidden="true"
+          ></span>
+        </button>
+      </div>
 
-      <MatchListSection
-        title="Game History"
-        matches={completedQuery.data}
-        isLoading={completedQuery.isLoading}
-        error={completedQuery.error}
-        emptyLabel="No completed games yet."
-      />
+      <section className="lobby-section" aria-label={activeTabLabel}>
+        {matchesQuery.isLoading && <p>Loading…</p>}
+        {matchesQuery.error != null && (
+          <p role="alert" className="lobby-error">
+            {errorMessage(matchesQuery.error)}
+          </p>
+        )}
+        {!matchesQuery.isLoading && matchesQuery.error == null && (matches == null || matches.length === 0) && (
+          <p>{EMPTY_LABELS[activeTab]}</p>
+        )}
+        {matches != null && matches.length > 0 && (
+          <ul className="lobby-match-list">
+            {matches.map((match) => (
+              <li key={match.id} className="lobby-match-row">
+                <Link to={`/match/${match.id}`} className="lobby-match-id">
+                  {match.id}
+                </Link>
+                <span className="lobby-match-players">{match.playerCount} players</span>
+                {activeTab === 'Joinable' && (
+                  <span className="lobby-match-row-actions">
+                    <button
+                      type="button"
+                      className="custom-chip custom-chip-success"
+                      onClick={() => joinMatch.mutate({ id: match.id, team: joinTeamFor(match.playerCount) })}
+                      disabled={joinMatch.isPending}
+                    >
+                      Join
+                    </button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
