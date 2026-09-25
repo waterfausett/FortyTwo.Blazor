@@ -5,6 +5,7 @@
 // this plan's established "port as-is, no redesign" approach elsewhere in the app.
 import type { JSX } from 'react';
 import { Link } from 'react-router-dom';
+import './NavBar.css';
 
 export function NavBar(): JSX.Element {
   return (

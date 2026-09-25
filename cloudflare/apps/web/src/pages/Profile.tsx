@@ -18,6 +18,7 @@ import type { FormEvent, JSX } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
 import { apiClient } from '../api/client';
+import './Profile.css';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.';
@@ -144,7 +145,11 @@ export function Profile(): JSX.Element {
         </div>
 
         <div className="profile-actions">
-          <button type="submit" disabled={saveMutation.isPending}>
+          <button
+            type="submit"
+            className="custom-chip custom-chip-info custom-chip-large"
+            disabled={saveMutation.isPending}
+          >
             {saveMutation.isPending ? 'Saving' : 'Save'}
           </button>
           {justSaved && <span className="profile-saved">Saved</span>}

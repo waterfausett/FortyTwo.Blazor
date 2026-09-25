@@ -1,0 +1,66 @@
+/* Profile.tsx page layout - same gap as Lobby.tsx: className hooks with no rules ever written. */
+
+.profile {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+  .profile h3 {
+    margin: 0 0 0.75rem;
+  }
+
+.profile-error {
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  background: var(--label-danger-bg-color, #feddd7);
+  color: var(--label-danger-font-color, #991700);
+  border: 1px solid var(--label-danger-border-color, #991700);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 1rem;
+}
+
+  .form-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .form-group input[type='text'],
+  .form-group input[type='email'] {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--label-default-border-color, #8c8c8c);
+    border-radius: 6px;
+    font-size: 0.95rem;
+  }
+
+  .form-group input[type='checkbox'] {
+    align-self: flex-start;
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+.profile-picture-preview {
+  margin-top: 0.5rem;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--label-default-border-color, #8c8c8c);
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.profile-saved {
+  font-size: 0.85rem;
+  color: var(--label-success-font-color, #306b00);
+}

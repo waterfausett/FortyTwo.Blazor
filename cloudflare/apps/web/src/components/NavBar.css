@@ -1,0 +1,22 @@
+/* NavBar.tsx got a class name (`.app-navbar`) but no rules - it rendered as two bare underlined
+   links. Styled as a simple top bar, matching the rest of the app's palette (theme.css's
+   --theme-background-color / label-info colors) rather than the old Blazor app's sidebar (that
+   layout - .sidebar/.top-row in app.css - has no equivalent markup here). */
+.app-navbar {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--label-default-border-color, #8c8c8c);
+}
+
+  .app-navbar a {
+    color: var(--label-info-font-color, #00567a);
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+  }
+
+    .app-navbar a:hover {
+      text-decoration: underline;
+    }
