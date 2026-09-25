@@ -1,0 +1,29 @@
+name = "fortytwo-worker"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# The `/matches/*` pattern covers both `/matches/:id/ws` (the WebSocket upgrade route) and any
+# future path under it - a MID-PATH wildcard (`/matches/*/ws`) is avoided here since Cloudflare's
+# route-pattern matching has historically only supported a wildcard at the start of the hostname or
+# the end of the path, not in the middle. Hono's own routing (index.ts's `app.get('/matches/:id/ws'
+# , ...)`) does the more specific internal dispatch instead, so this outer pattern only needs to get
+# the request to the Worker at all. `/match/:id` (singular) is the SPA route served by Pages, so
+# there's no collision with this Worker-only `/matches/*` (plural) path.
+routes = [
+  { pattern = "fortytwo.example.com/api/*", zone_name = "example.com" },
+  { pattern = "fortytwo.example.com/matches/*", zone_name = "example.com" }
+]
+
+[[durable_objects.bindings]]
+name = "MATCH_DO"
+class_name = "MatchDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MatchDO"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fortytwo"
+database_id = "REPLACE_AFTER_WRANGLER_D1_CREATE"

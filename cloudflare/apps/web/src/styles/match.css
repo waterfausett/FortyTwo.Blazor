@@ -1,0 +1,205 @@
+/* Match page layout. Ported from two sources that Task 17's CSS port missed (it only copied the
+   4 GLOBAL stylesheets - theme/app/domino/chip.css - never identifying this page-scoped one):
+     - FortyTwo/Client/Pages/Match.razor.css (a Blazor CSS-isolation scoped stylesheet:
+       .game-wrapper, .gameboard + its 3 children, .domino-container, .player.active,
+       .sortable-domino, and the 768px media query)
+     - FortyTwo/Client/Pages/Match.razor's own inline <style> block (.team-scores .stamp)
+   Selectors are adapted to this component tree's actual class names (assigned directly in
+   Match.tsx/TrickDisplay.tsx/Hand.tsx/BiddingPanel.tsx) rather than reproducing Blazor's
+   scoped-attribute selectors, but the layout BEHAVIOR (flex structure, sizing, the "active
+   player" glow) is preserved. The old markup also leaned on inline Bootstrap utility classes
+   (d-flex, justify-content-center, p-4, etc.) that this app has no Bootstrap for - those are
+   folded directly into the relevant rule below instead of staying separate utility classes.
+   Imported directly by Match.tsx (page-specific - unlike the 4 global files, this doesn't need
+   to go through main.tsx's global imports). */
+
+.match {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Match.tsx's player area keeps the old markup's Bootstrap `p-2` utility class name (this app
+   has no Bootstrap) - defined here with Bootstrap's own p-2 = 0.5rem spacing value so it isn't
+   dead weight. */
+.p-2 {
+  padding: 0.5rem;
+}
+
+.match-error {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  background: var(--label-danger-bg-color, #feddd7);
+  color: var(--label-danger-font-color, #991700);
+  border: 1px solid var(--label-danger-border-color, #991700);
+}
+
+/* Ported from Match.razor's inline <style> block. */
+.team-scores {
+  position: relative;
+  display: flex;
+  justify-content: space-around;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--domino-border-color, #ccc);
+}
+
+  .team-scores .stamp {
+    margin-left: 0.5rem;
+    opacity: 0.5;
+  }
+
+/* New: the other 3 players' status row - Task 20's brief lists RemotePlayer.razor as replaced by
+   this page; no scoped CSS existed for it (RemotePlayer.razor.css was never a thing in this
+   port), so this is a minimal new layout, not a port. */
+.players-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.player-remote {
+  padding: 0.5rem;
+  border-radius: 8px;
+  min-width: 8rem;
+  text-align: center;
+}
+
+  .player-remote.active {
+    -moz-box-shadow: 0px 0px 30px 3px lightgreen;
+    -webkit-box-shadow: 0px 0px 30px 3px lightgreen;
+    box-shadow: 0px 0px 30px 3px lightgreen;
+  }
+
+/* Ported from Match.razor.css's .game-wrapper. */
+.game-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+  .game-wrapper .player {
+    min-height: 10vh;
+    padding-bottom: 12px;
+  }
+
+  /* Ported from Match.razor.css's .player.active. */
+  .game-wrapper .player.active {
+    -moz-box-shadow: 0px 0px 50px 5px lightgreen;
+    -webkit-box-shadow: 0px 0px 50px 5px lightgreen;
+    box-shadow: 0px 0px 50px 5px lightgreen;
+    border-radius: 8px;
+  }
+
+/* Ported from Match.razor.css's .gameboard + its 3 children (.player-team-tricks,
+   .current-trick, .opponent-tricks) - the real "table" layout: a flex row with my team's tricks
+   pile on the left, the active trick centered and flexible, the opponent's tricks pile on the
+   right. */
+.gameboard {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+  .gameboard .player-team-tricks,
+  .gameboard .opponent-tricks {
+    font-size: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .gameboard .player-team-tricks {
+    justify-content: flex-end;
+  }
+
+  .gameboard .opponent-tricks {
+    justify-content: flex-start;
+  }
+
+  .gameboard .current-trick {
+    flex: 1;
+    font-size: min(1rem, 1.42vw);
+    /* Folded in from Match.razor's inline `d-flex justify-content-center align-items-center p-4`
+       (no Bootstrap here). */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+  }
+
+    .gameboard .current-trick .trick-slots {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+    }
+
+/* Ported from Match.razor.css's .domino-container - used both by the hand's tile list
+   (Hand.tsx) and would apply to any other domino-container-classed list. */
+.domino-container {
+  font-size: min(0.75rem, 1.42vw);
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+}
+
+  .domino-container .domino-spacer {
+    flex-basis: 100%;
+  }
+
+/* New: Hand.tsx's play zone/tiles - no old-app equivalent (BlazorSortableJS handled dragging
+   entirely via JS interop with no bespoke CSS of its own beyond .sortable-domino below). */
+.hand-play-zone {
+  min-height: 2rem;
+  margin-bottom: 0.5rem;
+  border: 2px dashed transparent;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--label-font-color-light, #666);
+}
+
+  .hand-play-zone-over {
+    border-color: var(--domino-hover-color, #7ec8e3);
+  }
+
+/* Ported from Match.razor.css's .sortable-domino (the equivalent hand-tile wrapper here). */
+.hand-tile {
+  display: inline-block;
+  cursor: grab;
+}
+
+  .hand-tile-over {
+    outline: 2px dashed var(--domino-hover-color, #7ec8e3);
+  }
+
+/* New: BiddingPanel/trump-select layout - the old app used bare Bootstrap `.row`/`.col-12` for
+   this, which this app doesn't have; a simple centered flex-wrap row covers the same ground. */
+.bidding-panel,
+.trump-select-section {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+  .bidding-options,
+  .trump-options {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+/* Ported from Match.razor.css's 768px media query. */
+@media (max-width: 768px) {
+  .gameboard .player-team-tricks,
+  .gameboard .opponent-tricks {
+    font-size: 0.175rem;
+  }
+}
