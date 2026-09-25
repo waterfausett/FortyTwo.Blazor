@@ -78,11 +78,26 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 0.5rem;
+  /* Reserve room at the bottom of the flow so the fixed `.player` bar below never overlaps the
+     gameboard/ready-up content that would otherwise render underneath it. */
+  padding-bottom: 9rem;
 }
 
+  /* Anchored low on screen (fixed to the viewport, not just flex order) so the player's hand -
+     and what's happening at the table above it - stays visible without scrolling, however tall
+     the rest of the board gets. */
   .game-wrapper .player {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
     min-height: 10vh;
+    margin: 0;
     padding-bottom: 12px;
+    background: var(--theme-background-color, #fff);
+    border-top: 1px solid var(--domino-border-color, #ccc);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
   }
 
   /* Ported from Match.razor.css's .player.active. */
@@ -115,11 +130,29 @@
 
   .gameboard .player-team-tricks {
     justify-content: flex-end;
+    /* Anchor the "us" pile to the bottom of the gameboard instead of floating vertically
+       centered like the opponent's pile (.gameboard's own align-items: center). */
+    align-self: flex-end;
   }
 
   .gameboard .opponent-tricks {
     justify-content: flex-start;
   }
+
+  /* New: TrickHistory.tsx's per-team pile of completed tricks - ported from Match.razor's
+     `<div class="row">` per trick (each a row of vertical Dominoes) inside `.player-team-tricks`/
+     `.opponent-tricks`. */
+  .gameboard .trick-history {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+    .gameboard .trick-history-row {
+      display: flex;
+      flex-direction: row;
+    }
 
   .gameboard .current-trick {
     flex: 1;

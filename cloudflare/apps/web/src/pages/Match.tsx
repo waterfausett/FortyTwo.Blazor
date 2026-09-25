@@ -17,10 +17,11 @@
 // started" / "match over" - the brief's own guidance is that a plain inline banner is sufficient
 // for surfacing errors, and no equivalent visual-fanfare requirement is in scope here.
 import type { JSX } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
 import { useParams } from 'react-router-dom';
-import type { Domino as DominoType, Game } from '@fortytwo/rules';
+import type { Domino as DominoType, Game, Trick } from '@fortytwo/rules';
 import {
   Bid,
   Suit,
@@ -37,7 +38,13 @@ import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
 import { Hand } from '../components/Hand';
 import { TrickDisplay } from '../components/TrickDisplay';
+import { TrickHistory } from '../components/TrickHistory';
 import '../styles/match.css';
+
+// How long a just-completed trick stays put in the center of the board (as if still "in
+// progress") before it's swept off to its team's side pile - long enough to actually see what
+// was played, instead of the trick vanishing the instant the last domino lands.
+const TRICK_HOLD_MS = 1500;
 
 // Every non-Low, non-None suit, in enum declaration order - the ordinary trump choices.
 const NAMED_SUITS = [Suit.Blanks, Suit.Aces, Suit.Deuces, Suit.Threes, Suit.Fours, Suit.Fives, Suit.Sixes];
@@ -55,13 +62,31 @@ function otherTeam(team: Teams): Teams {
   return team === Teams.TeamA ? Teams.TeamB : Teams.TeamA;
 }
 
-// The CURRENT GAME's cumulative point value of a team's already-COMPLETED tricks (i.e. NOT the
-// trick still being played - that's TrickDisplay's job, and is a different, separate metric).
-// Port of Match.razor:132/143's `teamTricks.Sum(x => x.Value)` where
+// A team's cumulative point value across a set of already-COMPLETED tricks (i.e. NOT the trick
+// still being played - that's TrickDisplay's job, and is a different, separate metric). Port of
+// Match.razor:132/143's `teamTricks.Sum(x => x.Value)` where
 // `teamTricks = CurrentGame.Tricks.Where(x => x.Team == team)`. `trickValue()` already includes
 // the +1 base point per trick (trick.ts), so it isn't added again here.
-function teamTrickPoints(game: Game, team: Teams): number {
-  return game.tricks.filter((t) => t.team === team).reduce((sum, t) => sum + trickValue(t), 0);
+//
+// Takes the tricks list rather than `Game` directly so callers can pass either the true
+// `game.tricks` or the hold-delayed "revealed" subset (see `Match()`'s `revealedTrickCount`) -
+// the two diverge for ~`TRICK_HOLD_MS` right after a trick completes, while it's still being
+// shown center-board instead of having moved to the side pile.
+function teamTrickPoints(tricks: Trick[], team: Teams): number {
+  return tricks.filter((t) => t.team === team).reduce((sum, t) => sum + trickValue(t), 0);
+}
+
+// Port of Match.razor:114's `shouldStack` - once a hand's bid gets big enough (and isn't Plunge or
+// a Low-trump hand, both of which keep every trick meaningful to look back on), each side's trick
+// pile is trimmed to just the last 2 so it doesn't grow into an unbounded scroll of tiny dominoes.
+function shouldStackTricks(game: Game): boolean {
+  return game.bid != null && game.bid > Bid.FortyTwo && game.bid !== Bid.Plunge && game.trump !== Suit.Low;
+}
+
+// Port of Match.razor:117-118's `teamTricks.Skip(Math.Max(0, teamTricks.Count() - 2))`.
+function teamTricksForDisplay(tricks: Trick[], team: Teams, stack: boolean): Trick[] {
+  const teamTricks = tricks.filter((t) => t.team === team);
+  return stack ? teamTricks.slice(Math.max(0, teamTricks.length - 2)) : teamTricks;
 }
 
 // Minimal status for one of the other 3 seated players: their id (MatchState carries no Auth0
@@ -125,6 +150,51 @@ export function Match(): JSX.Element {
     mutationFn: () => client.readyUp(matchId!, true),
   });
 
+  // Trick-hold state: `heldTrick` is the just-completed trick while it's still being shown
+  // center-board (see TRICK_HOLD_MS above); `revealedTrickCount` is how many of `game.tricks` have
+  // finished their hold and are allowed to appear in the side piles/point totals. Both are derived
+  // from `match?.currentGame` rather than the `game` constant below since hooks must run
+  // unconditionally, ahead of this function's early-return guards.
+  const holdGame = match?.currentGame ?? null;
+  const [heldTrick, setHeldTrick] = useState<Trick | null>(null);
+  const [revealedTrickCount, setRevealedTrickCount] = useState(holdGame?.tricks.length ?? 0);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastGameIdRef = useRef(holdGame?.id ?? null);
+
+  useEffect(() => {
+    if (!holdGame) return;
+
+    // A new hand was just dealt - drop any hold left over from the previous hand's last trick so
+    // it can't fire against this hand's (unrelated) trick count.
+    if (lastGameIdRef.current !== holdGame.id) {
+      lastGameIdRef.current = holdGame.id;
+      if (holdTimerRef.current != null) clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+      setHeldTrick(null);
+      setRevealedTrickCount(holdGame.tricks.length);
+      return;
+    }
+
+    if (holdGame.tricks.length > revealedTrickCount && holdTimerRef.current == null) {
+      const justCompleted = holdGame.tricks[holdGame.tricks.length - 1];
+      const revealAt = holdGame.tricks.length;
+      setHeldTrick(justCompleted);
+      holdTimerRef.current = setTimeout(() => {
+        holdTimerRef.current = null;
+        setHeldTrick(null);
+        setRevealedTrickCount(revealAt);
+      }, TRICK_HOLD_MS);
+    }
+  }, [holdGame, revealedTrickCount]);
+
+  // Clear any in-flight hold timer on unmount (e.g. navigating away mid-hold) so it doesn't fire
+  // a state update against an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current != null) clearTimeout(holdTimerRef.current);
+    };
+  }, []);
+
   const activeError = bidMutation.error ?? setTrumpMutation.error ?? playMutation.error ?? readyUpMutation.error;
 
   if (!matchId) {
@@ -186,8 +256,17 @@ export function Match(): JSX.Element {
   const myReadyState = match.players.find((p) => p.playerId === myPlayerId);
   const iAmReady = myReadyState?.ready ?? false;
 
-  const myTrickPoints = teamTrickPoints(game, me.team);
-  const opponentTrickPoints = teamTrickPoints(game, opponentTeam);
+  // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
+  // itself always reflects the true, immediate server state (used above for e.g. `isHandOver`,
+  // which must never lag behind the real rules), but the side piles/point badges intentionally
+  // lag by up to TRICK_HOLD_MS while the just-completed trick is still shown center-board.
+  const revealedTricks = game.tricks.slice(0, revealedTrickCount);
+  const stackTricks = shouldStackTricks(game);
+  const myTricks = teamTricksForDisplay(revealedTricks, me.team, stackTricks);
+  const opponentTricks = teamTricksForDisplay(revealedTricks, opponentTeam, stackTricks);
+  const myTrickPoints = teamTrickPoints(revealedTricks, me.team);
+  const opponentTrickPoints = teamTrickPoints(revealedTricks, opponentTeam);
+  const displayedTrick = heldTrick ?? game.currentTrick;
 
   const otherPlayers = match.players.filter((p) => p.playerId !== myPlayerId);
 
@@ -222,21 +301,11 @@ export function Match(): JSX.Element {
         </div>
 
         <div className="gameboard">
-          <div className="player-team-tricks">
-            <span className="custom-chip custom-chip-info">
-              Points
-              <span className="badge badge-info">{myTrickPoints}</span>
-            </span>
-          </div>
+          <TrickHistory tricks={myTricks} points={myTrickPoints} align="mine" />
 
-          <TrickDisplay trick={game.currentTrick} trump={game.trump} />
+          <TrickDisplay trick={displayedTrick} trump={game.trump} />
 
-          <div className="opponent-tricks">
-            <span className="custom-chip custom-chip-info">
-              Points
-              <span className="badge badge-info">{opponentTrickPoints}</span>
-            </span>
-          </div>
+          <TrickHistory tricks={opponentTricks} points={opponentTrickPoints} align="opponent" />
         </div>
 
         {isHandOver && (

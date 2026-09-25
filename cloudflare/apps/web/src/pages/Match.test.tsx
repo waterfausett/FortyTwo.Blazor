@@ -5,11 +5,11 @@
 // call. `react-router-dom`'s `useParams` is overridden to supply a fixed `matchId`, and
 // `@auth0/auth0-react`'s `useAuth0` is mocked to identify "me" as player `p1` (mirroring how the
 // real Worker derives `playerId` from Auth0's `user.sub` - see apps/worker/src/routes/matches.ts).
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Bid, createDomino, Positions, Suit, Teams, type Domino, type MatchState } from '@fortytwo/rules';
+import { Bid, createDomino, Positions, Suit, Teams, type Domino, type MatchState, type Trick } from '@fortytwo/rules';
 import { Match } from './Match';
 
 beforeAll(() => {
@@ -465,5 +465,104 @@ describe('Match', () => {
 
     fireEvent.click(tile);
     await waitFor(() => expect(playDominoMock).toHaveBeenCalledWith('match-1', { top: 6, bottom: 6 }));
+  });
+
+  // Regression coverage for the "trick vanishes instantly" complaint: a just-completed trick
+  // should keep showing center-board for a beat, and its dominoes/points shouldn't jump into the
+  // winning team's side pile until that hold expires.
+  describe('Trick hold + side history', () => {
+    function renderLiveMatch() {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      const ui = (
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      const utils = render(ui);
+      return { ...utils, rerenderUi: () => utils.rerender(ui) };
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('holds a just-completed trick center-board, then reveals it in the winning side pile after the hold', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+
+      // Distinct dominoes (not 4x the same one) - React keys each rendered tile by `domino.id`,
+      // and duplicate ids across a trick's 4 slots (unrealistic for a real deal, where every
+      // domino is unique) confuse reconciliation across the held -> revealed re-render.
+      const completedTrick: Trick = {
+        playerId: 'p1',
+        team: Teams.TeamA, // p1's team - "mine" from p1's point of view.
+        suit: Suit.Sixes,
+        dominoes: [createDomino(0, 0), createDomino(1, 1), createDomino(2, 2), createDomino(3, 3)],
+      };
+      const gameOverrides = { bid: Bid.Thirty, biddingPlayerId: 'p1', trump: Suit.Sixes, currentPlayerId: 'p1' };
+
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { ...gameOverrides, tricks: [] }),
+        connected: true,
+      });
+      const { rerenderUi, container } = renderLiveMatch();
+
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { ...gameOverrides, tricks: [completedTrick] }),
+        connected: true,
+      });
+      act(() => rerenderUi());
+
+      // Still held center-board: all 4 dominoes show in the current-trick area...
+      await waitFor(() => {
+        expect(within(screen.getByLabelText(/current trick/i)).getAllByTestId('domino')).toHaveLength(4);
+      });
+      // ...and haven't moved to the side pile / point total yet.
+      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(0);
+      expect(container.querySelector('.player-team-tricks .badge')?.textContent).toBe('0');
+
+      await act(() => vi.advanceTimersByTimeAsync(1500));
+
+      // Hold expired: the center trick area is empty again...
+      await waitFor(() => {
+        expect(within(screen.getByLabelText(/current trick/i)).queryAllByTestId('domino')).toHaveLength(0);
+      });
+      // ...and the completed trick (worth trickValue 0+0+0+0+1=1) is now in TeamA's side pile.
+      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(1);
+      expect(container.querySelector('.player-team-tricks .badge')?.textContent).toBe('1');
+    });
+
+    it('trims each side to its last 2 tricks once the bid is big enough (matching the old Blazor shouldStack rule)', () => {
+      const tricksFor = (team: Teams, count: number): Trick[] =>
+        Array.from({ length: count }, () => ({
+          playerId: 'p1',
+          team,
+          suit: Suit.Sixes,
+          dominoes: [createDomino(0, 0), createDomino(0, 0), createDomino(0, 0), createDomino(0, 0)],
+        }));
+
+      const match = baseMatch(
+        {},
+        {
+          bid: Bid.EightyFour, // > FortyTwo (42), not Plunge -> stacking kicks in.
+          biddingPlayerId: 'p1',
+          trump: Suit.Sixes,
+          tricks: [...tricksFor(Teams.TeamA, 3), ...tricksFor(Teams.TeamB, 3)],
+        }
+      );
+      useMatchSocketMock.mockReturnValue({ match, connected: true });
+
+      const { container } = render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+
+      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(2);
+      expect(container.querySelectorAll('.opponent-tricks .trick-history-row')).toHaveLength(2);
+    });
   });
 });
