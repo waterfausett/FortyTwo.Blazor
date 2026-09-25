@@ -156,9 +156,21 @@ export function Match(): JSX.Element {
   // otherwise the creator's solo 1-hand view (joined, but alone) satisfies `hands.some(bid==null)`
   // trivially, "completing" bidding for a game that never really started; when players 2-4 join
   // later, their fresh (bid: null) hands never re-trigger bidding since currentPlayerId already
-  // moved on, permanently deadlocking the match. Requiring all 4 seats AND a real deal (dominoes
-  // actually dealt to at least one hand) closes that gap.
-  const isTableReady = match.players.length === 4 && game.hands.length === 4 && game.hands[0].dominoes.length > 0;
+  // moved on, permanently deadlocking the match. Requiring all 4 seats AND a real deal closes that
+  // gap.
+  //
+  // "Dealt" must NOT be judged by any single hand (`hands[0].dominoes.length > 0`, a prior bug
+  // here): within the final trick, players play one at a time, so whichever player acts first
+  // empties their hand while the other 3 still hold one domino each - if that first-to-act player
+  // happens to be `hands[0]` (the match creator), a single-hand check flips false mid-trick and
+  // deadlocks a match that's still very much in progress. Checking across every hand, plus the
+  // trick history/in-progress trick, stays true for as long as ANY play could still legally happen.
+  const isTableReady =
+    match.players.length === 4 &&
+    game.hands.length === 4 &&
+    (game.hands.some((h) => h.dominoes.length > 0) ||
+      game.tricks.length > 0 ||
+      game.currentTrick.dominoes.some((d) => d !== null));
   const isBiddingPhase = isTableReady && game.hands.some((h) => h.bid == null);
   const isTrumpSelectPhase = isTableReady && !isBiddingPhase && game.trump == null;
   const isPlayingPhase = isTableReady && !isBiddingPhase && game.trump != null;

@@ -16,12 +16,24 @@ const POLL_INTERVAL_MS = 8000;
 
 // The lobby's list rows come from the lightweight D1 "MatchSummary" shape (`{ id, status,
 // playerCount, updatedOn }`) - it carries no team composition, unlike the full MatchState a match
-// page would have. Without per-team occupancy to drive a team picker, a single "Join" button with
-// a fixed default team is the simplest reasonable UX for this task; the server
-// (`validation.ts`'s `assertTeamNotFull`, called from `matchEngine.ts`'s `addPlayer`) validates
-// team capacity and rejects a full team, which surfaces here as a mutation error rather than a
-// client-side team-select flow.
-const DEFAULT_JOIN_TEAM = 1; // Teams.TeamA in @fortytwo/rules
+// page would have. Without per-team occupancy to drive a team picker, a single "Join" button is
+// the simplest reasonable UX for this task; the server (`validation.ts`'s `assertTeamNotFull`,
+// called from `matchEngine.ts`'s `addPlayer`) validates team capacity and rejects a full team,
+// which surfaces here as a mutation error rather than a client-side team-select flow.
+//
+// Which team the button requests, though, can't be a fixed constant: `createMatch` always seats
+// the creator on TeamA (position First - matchEngine.ts's `createMatch`), and every join since has
+// gone through this same alternating pattern, so a match's `playerCount` alone tells us which team
+// still has room - 1 seated (TeamA) -> join TeamB; 2 seated (1 per team) -> join TeamA; 3 seated (2
+// TeamA, 1 TeamB) -> join TeamB. A fixed TeamA here was the scoped re-review's CRITICAL 3 finding:
+// once the server's team-capacity guard is real, every 3rd join permanently fails "Team is full",
+// so no match could ever reach 4 players through the UI.
+const TEAM_A = 1; // Teams.TeamA in @fortytwo/rules
+const TEAM_B = 2; // Teams.TeamB in @fortytwo/rules
+
+function joinTeamFor(playerCount: number): number {
+  return playerCount % 2 === 1 ? TEAM_B : TEAM_A;
+}
 
 function matchListQuery(client: ReturnType<typeof apiClient>, filter: 'Active' | 'Completed' | 'Joinable') {
   return {
@@ -148,7 +160,7 @@ export function Lobby(): JSX.Element {
         renderRowActions={(match) => (
           <button
             type="button"
-            onClick={() => joinMatch.mutate({ id: match.id, team: DEFAULT_JOIN_TEAM })}
+            onClick={() => joinMatch.mutate({ id: match.id, team: joinTeamFor(match.playerCount) })}
             disabled={joinMatch.isPending}
           >
             Join

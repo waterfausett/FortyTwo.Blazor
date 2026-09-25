@@ -120,6 +120,55 @@ describe('Lobby', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/joinable-1'));
   });
 
+  // Regression tests for the scoped re-review's CRITICAL 3 follow-up: Lobby used to always join
+  // `DEFAULT_JOIN_TEAM` (TeamA) regardless of who was already seated. Since createMatch always
+  // seats the creator on TeamA (position First), and the server now genuinely rejects a full team
+  // (`assertTeamNotFull`), a fixed TeamA meant the 3rd join into ANY match always failed with
+  // "Team is full" - no match could ever reach 4 players through the UI. The fix must pick
+  // whichever team still has room, inferred from `MatchSummary.playerCount` (the only team-shaped
+  // signal the lobby list exposes) under the assumption that every prior join alternated teams the
+  // same way (each match starts with exactly 1 player, always on TeamA).
+  describe('join team selection', () => {
+    function renderWithJoinable(match: MatchSummary) {
+      listMatchesMock.mockImplementation((filter: 'Active' | 'Completed' | 'Joinable') => {
+        switch (filter) {
+          case 'Active':
+            return Promise.resolve(ACTIVE_FIXTURE);
+          case 'Joinable':
+            return Promise.resolve([match]);
+          case 'Completed':
+            return Promise.resolve(COMPLETED_FIXTURE);
+        }
+      });
+      joinMatchMock.mockResolvedValue({ id: match.id } as MatchState);
+      renderLobby();
+    }
+
+    it('requests TeamB when only the creator (1 player, on TeamA) is seated', async () => {
+      renderWithJoinable({ id: 'j1', status: 'active', playerCount: 1, updatedOn: '2026-01-01T00:00:00.000Z' });
+
+      fireEvent.click(await screen.findByRole('button', { name: /join/i }));
+
+      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('j1', 2 /* Teams.TeamB */));
+    });
+
+    it('requests TeamA when 2 players (1 per team) are seated', async () => {
+      renderWithJoinable({ id: 'j2', status: 'active', playerCount: 2, updatedOn: '2026-01-01T00:00:00.000Z' });
+
+      fireEvent.click(await screen.findByRole('button', { name: /join/i }));
+
+      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('j2', 1 /* Teams.TeamA */));
+    });
+
+    it('requests TeamB when 3 players (2 on TeamA, 1 on TeamB) are seated', async () => {
+      renderWithJoinable({ id: 'j3', status: 'active', playerCount: 3, updatedOn: '2026-01-01T00:00:00.000Z' });
+
+      fireEvent.click(await screen.findByRole('button', { name: /join/i }));
+
+      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('j3', 2 /* Teams.TeamB */));
+    });
+  });
+
   // Regression test for CRITICAL finding #4 from the final whole-branch review: the Active/
   // Joinable rows previously showed only id and player count, with no link to `/match/:id`
   // anywhere - a player who left the match page (or the creator, before anyone else joined) had no

@@ -5,7 +5,7 @@
 // call. `react-router-dom`'s `useParams` is overridden to supply a fixed `matchId`, and
 // `@auth0/auth0-react`'s `useAuth0` is mocked to identify "me" as player `p1` (mirroring how the
 // real Worker derives `playerId` from Auth0's `user.sub` - see apps/worker/src/routes/matches.ts).
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,14 +24,19 @@ beforeAll(() => {
   }
 });
 
-const { bidMock, setTrumpMock, playDominoMock, readyUpMock, getMatchMock, useMatchSocketMock } = vi.hoisted(() => ({
-  bidMock: vi.fn(),
-  setTrumpMock: vi.fn(),
-  playDominoMock: vi.fn(),
-  readyUpMock: vi.fn(),
-  getMatchMock: vi.fn(),
-  useMatchSocketMock: vi.fn(),
-}));
+const { bidMock, setTrumpMock, playDominoMock, readyUpMock, getMatchMock, useMatchSocketMock, currentUserId } =
+  vi.hoisted(() => ({
+    bidMock: vi.fn(),
+    setTrumpMock: vi.fn(),
+    playDominoMock: vi.fn(),
+    readyUpMock: vi.fn(),
+    getMatchMock: vi.fn(),
+    useMatchSocketMock: vi.fn(),
+    // Mutable so individual tests can play as someone other than 'p1' (needed for the
+    // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
+    // ISN'T the one that triggers the bug).
+    currentUserId: { value: 'p1' },
+  }));
 
 vi.mock('../api/client', () => ({
   apiClient: () => ({
@@ -49,7 +54,7 @@ vi.mock('../api/useMatchSocket', () => ({
 
 vi.mock('@auth0/auth0-react', () => ({
   useAuth0: () => ({
-    user: { sub: 'p1' },
+    user: { sub: currentUserId.value },
     getAccessTokenSilently: vi.fn(async () => 'test-token'),
   }),
 }));
@@ -70,6 +75,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  currentUserId.value = 'p1';
 });
 
 function renderMatch() {
@@ -404,5 +410,60 @@ describe('Match', () => {
     const p2Row = remotePlayers.find((row) => row.textContent?.includes('p2'));
     expect(p3Row?.classList.contains('active')).toBe(true);
     expect(p2Row?.classList.contains('active')).toBe(false);
+  });
+
+  // Regression test for the scoped re-review's finding: `isTableReady` gated on
+  // `game.hands[0].dominoes.length > 0` - `hands[0]` is always the match creator's (first-dealt
+  // player's) hand. Within the final (7th) trick, players play one at a time in turn order - so
+  // whichever player happens to act FIRST in that trick empties their hand before the other 3
+  // (who still have 1 domino each, not yet played). If that first-to-act player is the creator,
+  // `hands[0].dominoes.length` hits 0 mid-trick, `isTableReady` (and everything gated on it) flips
+  // false for EVERYONE, and the match deadlocks permanently - even though 3 players still have a
+  // domino left to play and the hand isn't decided (no `gameWinningTeam` yet).
+  it("does not deadlock the playing phase when the first-dealt player's hand empties mid-final-trick", async () => {
+    playDominoMock.mockResolvedValue({} as MatchState);
+    currentUserId.value = 'p2'; // play as someone whose hand still has a domino left.
+    const sixCompletedTricksToTeamA = Array.from({ length: 6 }, () => ({
+      playerId: 'p1',
+      team: Teams.TeamA,
+      suit: Suit.Sixes,
+      dominoes: [createDomino(0, 0), createDomino(0, 0), createDomino(0, 0), createDomino(0, 0)],
+    })); // trickValue = 0 pips + 1 base = 1 each -> 6 total for TeamA, well under the Bid.Thirty
+    // (30) threshold, and TeamB never appears in teamPoints - `gameWinningTeam` stays null, so
+    // this is genuinely mid-hand, not a finished game that should show Ready Up instead.
+    const match = baseMatch(
+      {},
+      {
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        currentPlayerId: 'p2', // p1 already played their last domino this trick; p2 is next.
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: Bid.Thirty }, // hands[0] - empty.
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [createDomino(6, 6)], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [createDomino(5, 5)], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [createDomino(4, 4)], bid: Bid.Pass },
+        ],
+        tricks: sixCompletedTricksToTeamA,
+        // The final trick, in progress: p1 has already played, p2/p3/p4 haven't.
+        currentTrick: {
+          playerId: 'p1',
+          team: Teams.TeamA,
+          suit: Suit.Sixes,
+          dominoes: [createDomino(6, 1), null, null, null],
+        },
+      }
+    );
+    useMatchSocketMock.mockReturnValue({ match, connected: true });
+
+    renderMatch();
+
+    // p2 is active and still holds a domino - the playing phase must still be live for them.
+    // Scoped to the "hand" region since the in-progress trick also renders a `domino` tile.
+    const tile = within(screen.getByTestId('hand')).getByTestId('domino');
+    expect(tile.classList.contains('clickable')).toBe(true);
+
+    fireEvent.click(tile);
+    await waitFor(() => expect(playDominoMock).toHaveBeenCalledWith('match-1', { top: 6, bottom: 6 }));
   });
 });
