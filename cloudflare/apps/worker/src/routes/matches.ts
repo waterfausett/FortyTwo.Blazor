@@ -4,7 +4,8 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { upsertMatchSummary, syncMatchPlayers, listActive, listCompleted, listJoinable } from '../lobby';
-import { createDomino, type MatchState } from '@fortytwo/rules';
+import { shuffledDominoOrder } from '../bots';
+import type { MatchState } from '@fortytwo/rules';
 
 type AppEnv = { Bindings: Env; Variables: { user: { sub: string } } };
 const matches = new Hono<AppEnv>();
@@ -25,21 +26,6 @@ async function syncLobby(c: any, matchId: string, match: MatchState): Promise<vo
     updatedOn: match.updatedOn,
   });
   await syncMatchPlayers(c.env.DB, matchId, match.players.map((p) => p.playerId));
-}
-
-// Builds a genuinely shuffled 28-domino deck using `createDomino()` (not hand-rolled
-// `{ top, bottom }` objects) so every dealt Domino carries a real `.id` field - the
-// `@fortytwo/rules` `Domino` type requires it, and MatchDO's RPC boundary does an unchecked
-// `body.dealOrder as Domino[]` cast that would otherwise silently pass malformed objects straight
-// into player hands. Shared by both the join route (below) and the ready-up route.
-function shuffledDominoOrder() {
-  const dominoes = [];
-  for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dominoes.push(createDomino(i, j));
-  for (let i = dominoes.length - 1; i > 0; i--) {
-    const j = Math.floor((crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32) * (i + 1));
-    [dominoes[i], dominoes[j]] = [dominoes[j], dominoes[i]];
-  }
-  return dominoes;
 }
 
 matches.post('/', async (c) => {

@@ -13,6 +13,12 @@ export interface Env {
   AUTH0_API_CLIENT_SECRET: string;
   AUTH0_API_AUDIENCE: string;
   ALLOWED_ORIGIN?: string;
+  // Dev-only testing aid (set via .dev.vars, gitignored - never present in a deployed environment):
+  // when === 'true', MatchDO (matchDO.ts) fills the other 3 seats with bots on create and drives
+  // their bids/trump/plays automatically, so a single account can exercise a full match. Read as a
+  // string, not boolean: .dev.vars is dotenv-style, so there's no real boolean type to declare here
+  // - see bots.ts.
+  AUTO_PLAY_BOTS?: string;
 }
 
 const app = new Hono<{ Bindings: Env; Variables: { user: AuthedUser } }>();

@@ -11,10 +11,23 @@ import {
   playDomino,
   getPlayerView,
   ValidationError,
+  Teams,
   type MatchState,
   type LoggedInPlayer,
   type Domino,
 } from '@fortytwo/rules';
+import { upsertMatchSummary, syncMatchPlayers } from './lobby';
+import { BOT_IDS, shuffledDominoOrder, decideBid, decideTrump, decideDomino, findNextBotAction, type BotAction } from './bots';
+
+// One tick's worth of "thinking time" before a bot acts, via the DO alarm API - so a client sees
+// each bot bid/play arrive as its own WebSocket broadcast instead of the whole rest of the hand
+// resolving instantly the moment the human acts.
+const BOT_MOVE_DELAY_MS = 600;
+
+// TeamA/TeamB alternation that, combined with addPlayer's (matchEngine.ts) own position-assignment
+// rules, seats the 3 bots evenly opposite and alongside the human: bot-1 joins the human's
+// opponents (TeamB), bot-2 joins the human's own team (TeamA), bot-3 fills the last TeamB seat.
+const BOT_TEAMS: Teams[] = [Teams.TeamB, Teams.TeamA, Teams.TeamB];
 
 // Thrown when an RPC method (other than `create`) is called against a `MatchDO` instance that
 // has never had `create` called on it - i.e. `load()` returns `null` from storage. Kept distinct
@@ -75,9 +88,15 @@ export class MatchDO implements DurableObject {
       // every later read, RPC response, AND `broadcast()` payload naturally carries the correct
       // id forever after, with no per-call patching needed anywhere else (REST or WebSocket).
       const created = createMatch(body.firstPlayerId as string);
-      const next = typeof body.matchId === 'string' ? { ...created, id: body.matchId } : created;
+      let next = typeof body.matchId === 'string' ? { ...created, id: body.matchId } : created;
+
+      if (this.env.AUTO_PLAY_BOTS === 'true') {
+        next = this.seedBots(next);
+      }
+
       await this.save(next);
       this.broadcast(next);
+      await this.scheduleBotsIfNeeded(next);
       return next;
     }
 
@@ -129,7 +148,69 @@ export class MatchDO implements DurableObject {
 
     await this.save(next);
     this.broadcast(next);
+    await this.scheduleBotsIfNeeded(next);
     return next;
+  }
+
+  // Adds the 3 reserved bot ids right after the human creates a match, so AUTO_PLAY_BOTS goes
+  // straight from "create" to a full table with no lobby wait. Mirrors what a real 4th join does
+  // (matches.ts's shuffledDominoOrder()) - the dealOrder only matters on the last add, exactly as
+  // addPlayer (matchEngine.ts) itself only deals once the 4th hand joins.
+  private seedBots(match: MatchState): MatchState {
+    let next = match;
+    for (let i = 0; i < BOT_IDS.length; i++) {
+      const isLastSeat = i === BOT_IDS.length - 1;
+      next = addPlayer(next, BOT_IDS[i], BOT_TEAMS[i], isLastSeat ? shuffledDominoOrder() : undefined);
+    }
+    return next;
+  }
+
+  // Performs exactly one bot action - whichever `findNextBotAction` (bots.ts) says is next - via
+  // the same matchEngine functions `handleRpc` uses for real players.
+  private applyBotAction(match: MatchState, action: BotAction): MatchState {
+    const hand = match.currentGame.hands.find((h) => h.playerId === action.playerId)!;
+    switch (action.kind) {
+      case 'ready':
+        return patchPlayerReady(match, action.playerId, true, shuffledDominoOrder());
+      case 'bid':
+        return placeBid(match, action.playerId, decideBid(match.currentGame, hand));
+      case 'setTrump':
+        return setTrump(match, action.playerId, decideTrump(hand));
+      case 'play':
+        return playDomino(match, action.playerId, decideDomino(match.currentGame, hand));
+    }
+  }
+
+  // Schedules the next bot action a beat in the future (via the alarm API) if one is pending,
+  // rather than resolving it inline - each bot move then arrives as its own broadcast, matching
+  // the pacing a real remote player's move would have.
+  private async scheduleBotsIfNeeded(match: MatchState): Promise<void> {
+    if (findNextBotAction(match) !== null) {
+      await this.state.storage.setAlarm(Date.now() + BOT_MOVE_DELAY_MS);
+    }
+  }
+
+  // Runs one bot action per firing, syncing the D1 lobby index (lobby.ts) the same way
+  // routes/matches.ts does for human-driven REST calls - alarm-driven mutations never pass through
+  // those routes, so MatchDO must keep that index in sync itself here.
+  async alarm(): Promise<void> {
+    const match = await this.load();
+    if (match === null) return;
+
+    const action = findNextBotAction(match);
+    if (action === null) return;
+
+    const next = this.applyBotAction(match, action);
+    await this.save(next);
+    this.broadcast(next);
+    await upsertMatchSummary(this.env.DB, {
+      id: next.id,
+      status: next.winningTeam ? 'completed' : 'active',
+      playerCount: next.players.length,
+      updatedOn: next.updatedOn,
+    });
+    await syncMatchPlayers(this.env.DB, next.id, next.players.map((p) => p.playerId));
+    await this.scheduleBotsIfNeeded(next);
   }
 
   // Uses the Hibernation API (`this.state.acceptWebSocket`, not the plain `WebSocket` `accept()`)
