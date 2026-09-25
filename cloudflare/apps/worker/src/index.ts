@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { requireAuth, type AuthedUser } from './auth/verifyJwt';
 import matchesRoutes from './routes/matches';
 import usersRoutes from './routes/users';
@@ -11,6 +12,7 @@ export interface Env {
   AUTH0_API_CLIENT_ID: string;
   AUTH0_API_CLIENT_SECRET: string;
   AUTH0_API_AUDIENCE: string;
+  ALLOWED_ORIGIN?: string;
 }
 
 const app = new Hono<{ Bindings: Env; Variables: { user: AuthedUser } }>();
@@ -38,6 +40,18 @@ app.get('/matches/:id/ws', async (c) => {
   return stub.fetch(new Request(target.toString(), c.req.raw));
 });
 
+// Must run before requireAuth() so the preflight OPTIONS request - which carries no Authorization
+// header - gets a CORS response instead of a 401. Falls back to the local Vite dev origin when
+// ALLOWED_ORIGIN isn't set (e.g. `wrangler dev` without a .dev.vars entry); set ALLOWED_ORIGIN to
+// the real Pages domain for staging/production.
+app.use(
+  '/api/*',
+  cors({
+    origin: (origin, c) => c.env.ALLOWED_ORIGIN ?? 'http://localhost:5173',
+    allowHeaders: ['Authorization', 'Content-Type'],
+    allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  }),
+);
 app.use('/api/*', requireAuth());
 app.route('/api/matches', matchesRoutes);
 app.route('/api/users', usersRoutes);
