@@ -49,15 +49,16 @@ import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
 import { toastError } from '../ui/toast';
 import { dealerId, isTrickStarted, seatFor, trickLeaderId, trickPlayOrder } from '../match/table';
+import type { Point } from '../match/sweep';
+import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
 import '../styles/match.css';
 
 // How long a just-completed trick stays put in the center of the board (as if still "in
 // progress") before it's swept off to its team's side pile - long enough to actually see what
 // was played, instead of the trick vanishing the instant the last domino lands.
 const TRICK_HOLD_MS = 1500;
-// The tail end of that hold, during which the trick slides off toward the winning team's pile
-// (match.css's `.sweep-us`/`.sweep-them`) rather than just blinking out.
-const TRICK_SWEEP_MS = 450;
+// The tail end of that hold is the sweep (match/sweep.ts's `sweepDurationMs`), during which the
+// trick leaves for the winning side rather than just blinking out.
 
 // A match is won at 7 marks (matchEngine.ts's WINNING_SCORE) - drawn as a 7-notch tally.
 const MARKS_TO_WIN = 7;
@@ -197,6 +198,8 @@ export function Match(): JSX.Element {
   // unconditionally, ahead of this function's early-return guards.
   const holdGame = match?.currentGame ?? null;
   const [isSweeping, setIsSweeping] = useState(false);
+  const [sweepMode] = useState(() => readSweepMode());
+  const matchRootRef = useRef<HTMLDivElement>(null);
   const [revealedTrickCount, setRevealedTrickCount] = useState(holdGame?.tricks.length ?? 0);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sweepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -223,14 +226,14 @@ export function Match(): JSX.Element {
       sweepTimerRef.current = setTimeout(() => {
         sweepTimerRef.current = null;
         setIsSweeping(true);
-      }, TRICK_HOLD_MS - TRICK_SWEEP_MS);
+      }, TRICK_HOLD_MS - sweepDurationMs(sweepMode));
       holdTimerRef.current = setTimeout(() => {
         holdTimerRef.current = null;
         setIsSweeping(false);
         setRevealedTrickCount(revealAt);
       }, TRICK_HOLD_MS);
     }
-  }, [holdGame, revealedTrickCount]);
+  }, [holdGame, revealedTrickCount, sweepMode]);
 
   // The just-completed trick, while its hold runs. Worked out during render rather than stored by
   // the effect above: the broadcast that completes a trick also empties `currentTrick`, so waiting
@@ -353,6 +356,13 @@ export function Match(): JSX.Element {
   const trickSlotSeats = trickOrder.map((id) => (id == null ? null : seatFor(match.players, myPlayerId, id)));
   const winningSlot = displayedTrick.playerId == null ? null : trickOrder.indexOf(displayedTrick.playerId);
   const sweepTo = heldTrick && isSweeping ? (heldTrick.team === me.team ? 'us' : 'them') : null;
+  const winnerSeat = winningSlot == null ? null : (trickSlotSeats[winningSlot] ?? null);
+  const sweepTarget = (): Point | null => {
+    const root = matchRootRef.current;
+    if (!root || !sweepTo) return null;
+    if (sweepMode === 'seat') return winnerSeat ? seatPoint(root, winnerSeat) : null;
+    return pileLandingPoint(root, sweepTo);
+  };
 
   const dealer = isTableReady ? dealerId(match.players, game) : null;
   const bidderTeam = game.hands.find((h) => h.playerId === game.biddingPlayerId)?.team ?? null;
@@ -438,7 +448,7 @@ export function Match(): JSX.Element {
   }
 
   return (
-    <div className="match">
+    <div ref={matchRootRef} className="match">
       <header className="scoreboard" aria-label="Scores">
         <div className="score score-us">
           <span className="score-label">Us</span>
@@ -509,6 +519,8 @@ export function Match(): JSX.Element {
                   slotSeats={trickSlotSeats}
                   winningSlot={winningSlot}
                   sweepTo={sweepTo}
+                  sweepMode={sweepMode}
+                  sweepTarget={sweepTarget}
                 />
               )}
             </div>

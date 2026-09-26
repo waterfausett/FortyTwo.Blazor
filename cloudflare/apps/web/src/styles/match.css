@@ -598,18 +598,62 @@
     0 0 2.2em rgba(201, 164, 92, 0.7);
 }
 
-/* The finished trick slides off toward the winning team's pile. */
+/* The finished trick leaves the table - how depends on the sweep mode (match/sweep.ts). The
+   measured modes get per-tile offsets from TrickDisplay: --gx/--gy onto the winning tile,
+   --dx/--dy to the destination. */
 .current-trick.sweep-us .trick-slot,
 .current-trick.sweep-them .trick-slot {
-  animation: 450ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
+  z-index: 1;
+  animation: var(--sweep-ms, 450ms) cubic-bezier(0.5, 0, 0.75, 0) forwards;
 }
 
-.current-trick.sweep-us .trick-slot {
+/* Everything else slides in under the winning tile. */
+.current-trick.sweep-us .trick-slot-winner,
+.current-trick.sweep-them .trick-slot-winner {
+  z-index: 2;
+}
+
+.current-trick.sweep-mode-side.sweep-us .trick-slot {
   animation-name: sweep-us;
 }
 
-.current-trick.sweep-them .trick-slot {
+.current-trick.sweep-mode-side.sweep-them .trick-slot {
   animation-name: sweep-them;
+}
+
+.current-trick.sweep-mode-seat .trick-slot,
+.current-trick.sweep-mode-pile .trick-slot {
+  animation-name: sweep-fly;
+  animation-timing-function: cubic-bezier(0.55, 0, 0.35, 1);
+}
+
+.current-trick.sweep-mode-gather .trick-slot {
+  animation-name: sweep-gather;
+  animation-timing-function: ease-in-out;
+}
+
+@keyframes sweep-fly {
+  80% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.35);
+  }
+}
+
+@keyframes sweep-gather {
+  40%,
+  55% {
+    transform: translate(var(--gx, 0), var(--gy, 0));
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.35);
+  }
 }
 
 @keyframes sweep-us {
