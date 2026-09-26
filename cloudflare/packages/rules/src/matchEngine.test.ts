@@ -285,7 +285,17 @@ describe('placeBid', () => {
   });
 
   it('sets the Plunge bidder\'s partner as currentPlayerId once bidding completes', () => {
-    let match = baseMatch();
+    const doubles = [0, 1, 2, 3].map((i) => createDomino(i, i));
+    let match = baseMatch({
+      currentGame: baseGame({
+        hands: [
+          baseHand('p1', Teams.TeamA),
+          baseHand('p2', Teams.TeamB),
+          baseHand('p3', Teams.TeamA, { dominoes: doubles }),
+          baseHand('p4', Teams.TeamB),
+        ],
+      }),
+    });
     match = placeBid(match, 'p1', Bid.Pass);
     match = placeBid(match, 'p2', Bid.Pass);
     match = placeBid(match, 'p3', Bid.Plunge);

@@ -193,10 +193,14 @@ describe('characterization: low-game fixture', () => {
 
 describe('characterization: plunge-game fixture', () => {
   const steps = loadFixture('plunge-game.json');
+  // DEVIATION from the C# scenario's deal: there p1 plunged holding no doubles (the C# server never
+  // checked), which `assertValidBid` now rejects. p1's [0,1]..[0,4] are swapped with p3's
+  // [0,0]..[3,3] so p1 holds four doubles. Every domino played below stays in the same hand and
+  // every trick plays out identically, so none of the compared fields change.
   const dealOrder = dealOrderFrom([
-    [0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [0, 6], [1, 2],
+    [0, 0], [1, 1], [2, 2], [3, 3], [0, 5], [0, 6], [1, 2],
     [1, 3], [1, 4], [1, 5], [1, 6], [2, 3], [2, 4], [2, 5],
-    [0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6],
+    [0, 1], [0, 2], [0, 3], [0, 4], [4, 4], [5, 5], [6, 6],
     [2, 6], [3, 4], [3, 5], [3, 6], [4, 5], [4, 6], [5, 6],
   ]);
 

@@ -35,6 +35,7 @@ export {
   assertValidDomino,
   assertIsMatchPlayer,
   assertIsNotMatchPlayer,
+  availableBids,
 } from './validation';
 export type { MatchPlayerState, MatchState, LoggedInPlayer } from './matchEngine';
 export {

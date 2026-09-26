@@ -9,7 +9,7 @@
 // dead code. `assertActive` still calls through to the "is this thing over" check exactly as
 // the C# `IsActive` does after its `IsNotNull` call.
 import { Bid, bidToPrettyString } from './bid';
-import { Domino, dominoEquals, isOfSuit } from './domino';
+import { Domino, dominoEquals, isDouble, isOfSuit } from './domino';
 import { ValidationError } from './errors';
 import { Game, gameWinningTeam } from './game';
 import { Suit } from './suit';
@@ -102,6 +102,43 @@ export function assertValidBid(game: Game, userId: string, bid: Bid): void {
   if (game.hands.filter((h) => h.bid === Bid.Pass).length === 3 && bid === Bid.Pass) {
     throw new ValidationError('Invalid Bid', "Everyone can't pass! You have to bid \u{1F605}");
   }
+
+  // NEW (beyond the C# ValidateBid, which left these rules to the client's BiddingOptions getter):
+  // the marks ladder and the Plunge doubles requirement are enforced here too, so a hand-made
+  // request can't get around what the UI offers.
+  if (!availableBids(game, userId).includes(bid)) {
+    throw new ValidationError('Invalid Bid', `<code>${bidToPrettyString(bid)}</code> isn't an available bid right now`);
+  }
+}
+
+const RANKED_BIDS = (Object.values(Bid).filter((value): value is number => typeof value === 'number') as Bid[])
+  .filter((value) => value !== Bid.Pass && value !== Bid.Plunge)
+  .sort((a, b) => a - b);
+
+// Port of `Match.razor.cs`'s `BiddingOptions` getter - every bid `userId` may legally make right
+// now, in ascending order. The UI renders exactly this list and `assertValidBid` enforces it.
+// - Pass, unless the other three already passed (the last bidder is forced to bid).
+// - Only bids strictly above the current high bid.
+// - Marks climb one rung at a time: 3 Marks needs a standing 84, 4 Marks a standing 3 Marks, etc.
+//   (no marks bid at all over a points bid or an empty table).
+// - Plunge needs at least four doubles in hand, and only while the high bid is under 4 Marks.
+export function availableBids(game: Game, userId: string): Bid[] {
+  const current = game.bid;
+  const hand = game.hands.find((h) => h.playerId === userId);
+  const bids: Bid[] = [];
+
+  if (game.hands.filter((h) => h.bid === Bid.Pass).length < 3) bids.push(Bid.Pass);
+
+  for (const bid of RANKED_BIDS) {
+    if (current !== null && bid <= current) continue;
+    if (bid > Bid.EightyFour && (current === null || bid > current + Bid.FortyTwo)) continue;
+    bids.push(bid);
+  }
+
+  const doubles = hand?.dominoes.filter(isDouble).length ?? 0;
+  if (doubles >= 4 && (current ?? Bid.Pass) < Bid.FourMarks) bids.push(Bid.Plunge);
+
+  return bids.sort((a, b) => a - b);
 }
 
 // Port of `BiddingComplete`.
