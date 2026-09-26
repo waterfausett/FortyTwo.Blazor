@@ -209,7 +209,7 @@ export class MatchDO implements DurableObject {
       playerCount: next.players.length,
       updatedOn: next.updatedOn,
     });
-    await syncMatchPlayers(this.env.DB, next.id, next.players.map((p) => p.playerId));
+    await syncMatchPlayers(this.env.DB, next.id, next.players);
     await this.scheduleBotsIfNeeded(next);
   }
 

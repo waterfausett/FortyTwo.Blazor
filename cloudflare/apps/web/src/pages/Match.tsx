@@ -154,6 +154,20 @@ export function Match(): JSX.Element {
   // (re)connecting).
   const match = socketMatch ?? matchQuery.data ?? null;
 
+  // Display names for everyone seated. Keyed on the sorted id list so it refetches only when
+  // someone joins, not on every broadcast. Until it resolves (or if it fails), and for bots, which
+  // have no Auth0 account, `nameFor` below falls back to the raw player id.
+  const seatedIds = (match?.players.map((p) => p.playerId) ?? []).sort();
+  const namesQuery = useQuery({
+    queryKey: ['playerNames', seatedIds],
+    queryFn: async () => {
+      const users = await client.searchUsers(seatedIds);
+      return new Map(users.map((u) => [u.user_id, u.displayName]));
+    },
+    enabled: seatedIds.length > 0,
+    staleTime: Infinity,
+  });
+
   const bidMutation = useMutation({
     mutationFn: (bid: Bid) => client.bid(matchId!, bid),
   });
@@ -347,7 +361,8 @@ export function Match(): JSX.Element {
   const handWinner = gameWinningTeam(game);
   const isMatchOver = match.winningTeam != null;
 
-  const nameFor = (playerId: string | null): string => (playerId === myPlayerId ? 'You' : (playerId ?? ''));
+  const nameFor = (playerId: string | null): string =>
+    playerId === myPlayerId ? 'You' : playerId == null ? '' : (namesQuery.data?.get(playerId) ?? playerId);
   const activeName = nameFor(game.currentPlayerId);
 
   // The markers every seat plate (mine included) shows, keyed off a player id.

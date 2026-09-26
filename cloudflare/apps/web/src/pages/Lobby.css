@@ -147,7 +147,7 @@
   line-height: 1.3;
 }
 
-.lobby-match-id {
+.lobby-match-players {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

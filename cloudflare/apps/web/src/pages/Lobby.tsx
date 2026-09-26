@@ -17,7 +17,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { JSX } from 'react';
-import { apiClient } from '../api/client';
+import { apiClient, type MatchSummary } from '../api/client';
 import './Lobby.css';
 
 type MatchFilter = 'Active' | 'Joinable' | 'Completed';
@@ -70,6 +70,13 @@ function SeatGlyph({ seated }: { seated: number }): JSX.Element {
       ))}
     </span>
   );
+}
+
+// "Alice & Cara vs Bob & bot-3". A team nobody has joined yet reads as "?"; a row with no players
+// at all falls back to the match id so it still has a label.
+function formatMatchup({ id, teams }: MatchSummary): string {
+  if (teams.every((team) => team.length === 0)) return id;
+  return teams.map((team) => (team.length > 0 ? team.join(' & ') : '?')).join(' vs ');
 }
 
 function formatUpdated(iso: string): string {
@@ -190,7 +197,7 @@ export function Lobby(): JSX.Element {
                 <Link to={`/match/${match.id}`} className="lobby-match-link">
                   <SeatGlyph seated={match.playerCount} />
                   <span className="lobby-match-text">
-                    <span className="lobby-match-id">{match.id}</span>
+                    <span className="lobby-match-players">{formatMatchup(match)}</span>
                     <span className="lobby-match-meta">
                       {match.playerCount} of 4 seated, updated {formatUpdated(match.updatedOn)}
                     </span>

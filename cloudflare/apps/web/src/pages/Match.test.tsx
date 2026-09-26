@@ -24,13 +24,23 @@ beforeAll(() => {
   }
 });
 
-const { bidMock, setTrumpMock, playDominoMock, readyUpMock, getMatchMock, useMatchSocketMock, currentUserId } =
+const {
+  bidMock,
+  setTrumpMock,
+  playDominoMock,
+  readyUpMock,
+  getMatchMock,
+  searchUsersMock,
+  useMatchSocketMock,
+  currentUserId,
+} =
   vi.hoisted(() => ({
     bidMock: vi.fn(),
     setTrumpMock: vi.fn(),
     playDominoMock: vi.fn(),
     readyUpMock: vi.fn(),
     getMatchMock: vi.fn(),
+    searchUsersMock: vi.fn(),
     useMatchSocketMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
@@ -45,6 +55,7 @@ vi.mock('../api/client', () => ({
     playDomino: playDominoMock,
     readyUp: readyUpMock,
     getMatch: getMatchMock,
+    searchUsers: searchUsersMock,
   }),
 }));
 
@@ -70,6 +81,8 @@ beforeEach(() => {
   // it (nearly all of them, since `useMatchSocketMock` already supplies the match state they
   // assert on) don't hang on an unresolved query or an unhandled-rejection warning.
   getMatchMock.mockResolvedValue(null);
+  // No display names by default, so seats show raw player ids ('p2', ...) as most tests expect.
+  searchUsersMock.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -584,6 +597,23 @@ describe('Match', () => {
     function seatOf(name: string): HTMLElement {
       return screen.getAllByTestId('remote-player').find((el) => el.querySelector('.seat-name')?.textContent === name)!;
     }
+
+    it("labels seats with players' display names, keeping the raw id for anyone without one", async () => {
+      searchUsersMock.mockResolvedValue([
+        { user_id: 'p2', displayName: 'Bob' },
+        { user_id: 'p3', displayName: 'Cara' },
+      ]);
+      useMatchSocketMock.mockReturnValue({ match: playingMatch(), connected: true });
+      renderMatch();
+
+      await waitFor(() => expect(seatOf('Bob')).toBeDefined());
+      expect(seatOf('Cara')).toBeDefined();
+      // p4 has no Auth0 record (e.g. a bot), so it keeps its id.
+      expect(seatOf('p4')).toBeDefined();
+      // The bid is credited by name too (p2 won it).
+      expect(screen.getByText('Bob', { selector: '.contract-by' })).not.toBeNull();
+      expect(searchUsersMock).toHaveBeenCalledWith(['p1', 'p2', 'p3', 'p4']);
+    });
 
     it('marks the dealer', () => {
       useMatchSocketMock.mockReturnValue({ match: playingMatch(), connected: true });

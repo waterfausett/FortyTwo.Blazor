@@ -3,9 +3,18 @@
 // first, then syncs D1 - keeping D1-sync logic in one place per the spec, not inside the DO.
 import { Hono } from 'hono';
 import type { Env } from '../index';
-import { upsertMatchSummary, syncMatchPlayers, listActive, listCompleted, listJoinable } from '../lobby';
-import { shuffledDominoOrder } from '../bots';
-import type { MatchState } from '@fortytwo/rules';
+import {
+  upsertMatchSummary,
+  syncMatchPlayers,
+  listActive,
+  listCompleted,
+  listJoinable,
+  listMatchPlayers,
+} from '../lobby';
+import { isBot, shuffledDominoOrder } from '../bots';
+import { getUsers } from '../auth0Management';
+import { toUserResponse } from './users';
+import { Teams, type MatchState } from '@fortytwo/rules';
 
 type AppEnv = { Bindings: Env; Variables: { user: { sub: string } } };
 const matches = new Hono<AppEnv>();
@@ -25,7 +34,7 @@ async function syncLobby(c: any, matchId: string, match: MatchState): Promise<vo
     playerCount: match.players.length,
     updatedOn: match.updatedOn,
   });
-  await syncMatchPlayers(c.env.DB, matchId, match.players.map((p) => p.playerId));
+  await syncMatchPlayers(c.env.DB, matchId, match.players);
 }
 
 matches.post('/', async (c) => {
@@ -50,8 +59,39 @@ matches.get('/', async (c) => {
     filter === 'Completed' ? await listCompleted(c.env.DB, userId) :
     filter === 'Joinable' ? await listJoinable(c.env.DB, userId) :
     await listActive(c.env.DB, userId);
-  return c.json(rows);
+  const playersByMatch = await listMatchPlayers(c.env.DB, rows.map((row) => row.id));
+  const allPlayerIds = [...playersByMatch.values()].flat().map((p) => p.playerId);
+  const names = await displayNames(c, [...new Set(allPlayerIds)]);
+  // `teams` is [TeamA names, TeamB names], each in join order, for a "A & B vs C & D" matchup.
+  return c.json(
+    rows.map((row) => {
+      const seated = playersByMatch.get(row.id) ?? [];
+      const namesOn = (team: Teams) =>
+        seated.filter((p) => p.team === team).map((p) => names.get(p.playerId) ?? p.playerId);
+      return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)] };
+    })
+  );
 });
+
+// Auth0 caps a user search at 50 results per page, so look ids up in pages of that size.
+const AUTH0_PAGE_SIZE = 50;
+
+// Maps player ids to display names for the lobby list. Bots have no Auth0 account and keep their
+// id ("bot-1"). A failed Auth0 lookup just leaves ids unnamed - the list is still usable showing
+// raw ids, which beats failing the whole lobby over a cosmetic field.
+async function displayNames(c: any, playerIds: string[]): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  const humans = playerIds.filter((id) => !isBot(id));
+  try {
+    for (let i = 0; i < humans.length; i += AUTH0_PAGE_SIZE) {
+      const users = await getUsers(c.env, humans.slice(i, i + AUTH0_PAGE_SIZE));
+      for (const user of users) names.set(user.user_id, toUserResponse(user).displayName);
+    }
+  } catch (error) {
+    console.error('Failed to resolve player display names', error);
+  }
+  return names;
+}
 
 // Full MatchState (all players, full game info) - backs the Match page's initial load and
 // reconnect-catchup flow. Calls the unguarded `getMatch` RPC, NOT `getPlayerView` (which returns

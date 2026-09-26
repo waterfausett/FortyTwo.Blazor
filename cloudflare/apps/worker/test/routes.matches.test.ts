@@ -101,8 +101,11 @@ describe('match routes', () => {
       // --- GET /api/matches?filter=Joinable from a second user's token ---
       const joinableRes = await api('/api/matches?filter=Joinable', p2);
       expect(joinableRes.status).toBe(200);
-      const joinable = (await joinableRes.json()) as { id: string }[];
+      const joinable = (await joinableRes.json()) as { id: string; teams: string[][] }[];
       expect(joinable.some((m) => m.id === matchId)).toBe(true);
+      // No Auth0 mock here, so name lookup fails and players fall back to their raw ids rather
+      // than failing the whole list.
+      expect(joinable.find((m) => m.id === matchId)?.teams).toEqual([['p1'], []]);
 
       // --- POST /api/matches/:id/players: p2 joins (team 2 / TeamB) ---
       const join2 = await api(`/api/matches/${matchId}/players`, p2, {
@@ -237,6 +240,41 @@ describe('match routes', () => {
       expect(outsiderJoinBody.title).toBeTruthy();
     }
   );
+
+  it('lists each match with its teams by display name, falling back to the raw id', async () => {
+    const p1 = await signToken('p1');
+    const p2 = await signToken('p2');
+    const p3 = await signToken('p3');
+    const p4 = await signToken('p4');
+
+    // p1 creates (TeamA), p2 joins TeamB, p3 joins TeamA.
+    const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+    await api(`/api/matches/${created.id}/players`, p2, { method: 'POST', body: JSON.stringify({ team: 2 }) });
+    await api(`/api/matches/${created.id}/players`, p3, { method: 'POST', body: JSON.stringify({ team: 1 }) });
+
+    // Auth0 knows p1 (with a user_metadata display name) but returns nothing for p2.
+    const auth0 = fetchMock.get(`https://${AUTH0_DOMAIN}`);
+    auth0
+      .intercept({ path: '/oauth/token', method: 'POST' })
+      .reply(200, JSON.stringify({ access_token: 'mgmt-token', expires_in: 3600, token_type: 'Bearer' }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    auth0
+      .intercept({ path: (path: string) => path.startsWith('/api/v2/users?'), method: 'GET' })
+      .reply(
+        200,
+        JSON.stringify([
+          { user_id: 'p1', user_metadata: { displayName: 'Player One' } },
+          { user_id: 'p3', nickname: 'three' },
+        ]),
+        { headers: { 'content-type': 'application/json' } }
+      );
+
+    const res = await api('/api/matches?filter=Joinable', p4);
+    expect(res.status).toBe(200);
+    const rows = (await res.json()) as { id: string; teams: string[][] }[];
+    expect(rows.find((row) => row.id === created.id)?.teams).toEqual([['Player One', 'three'], ['p2']]);
+  });
 
   it(
     "the WebSocket broadcast payload carries the SAME id as the REST create response - " +

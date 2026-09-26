@@ -12,12 +12,15 @@ import type { MatchState } from '@fortytwo/rules';
 // MatchSummary is the D1 "lobby index" row shape (apps/worker/src/lobby.ts) - a Worker-internal
 // module, not part of @fortytwo/rules (which only models in-DO match/game state, never the lobby
 // index) and not something apps/web should reach across the app boundary to import. Mirrored
-// locally to match exactly what GET /api/matches returns.
+// locally to match exactly what GET /api/matches returns - plus `teams`, which the route attaches
+// to each row: [TeamA, TeamB] display names, each in join order (bots, and anyone Auth0 couldn't
+// resolve, appear by raw id).
 export interface MatchSummary {
   id: string;
   status: 'active' | 'completed';
   playerCount: number;
   updatedOn: string;
+  teams: [string[], string[]];
 }
 
 // Mirrors the real /api/users/* response shape (Task 15's `toUserResponse` in
@@ -120,6 +123,13 @@ export function apiClient(getToken: () => Promise<string>) {
       }),
 
     getProfile: (): Promise<Auth0User> => request<Auth0User>(getToken, '/api/users/profile'),
+
+    // Ids with no Auth0 account (bots) are simply absent from the result.
+    searchUsers: (userIds: string[]): Promise<Auth0User[]> =>
+      request<Auth0User[]>(getToken, '/api/users/search', {
+        method: 'POST',
+        body: JSON.stringify(userIds),
+      }),
 
     patchProfile: (patch: { displayName?: string; picture?: string }): Promise<void> =>
       request<void>(

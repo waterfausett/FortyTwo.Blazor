@@ -40,14 +40,37 @@ vi.mock('react-router-dom', async (importOriginal) => {
 });
 
 const ACTIVE_FIXTURE: MatchSummary[] = [
-  { id: 'active-1', status: 'active', playerCount: 4, updatedOn: '2026-01-01T00:00:00.000Z' },
+  {
+    id: 'active-1',
+    status: 'active',
+    playerCount: 4,
+    updatedOn: '2026-01-01T00:00:00.000Z',
+    teams: [
+      ['Alice', 'bot-2'],
+      ['bot-1', 'bot-3'],
+    ],
+  },
 ];
+// Only the creator's team has anyone on it yet.
 const JOINABLE_FIXTURE: MatchSummary[] = [
-  { id: 'joinable-1', status: 'active', playerCount: 2, updatedOn: '2026-01-01T00:00:00.000Z' },
+  { id: 'joinable-1', status: 'active', playerCount: 1, updatedOn: '2026-01-01T00:00:00.000Z', teams: [['Bob'], []] },
 ];
 const COMPLETED_FIXTURE: MatchSummary[] = [
-  { id: 'completed-1', status: 'completed', playerCount: 4, updatedOn: '2026-01-01T00:00:00.000Z' },
+  {
+    id: 'completed-1',
+    status: 'completed',
+    playerCount: 4,
+    updatedOn: '2026-01-01T00:00:00.000Z',
+    teams: [
+      ['Alice', 'Cara'],
+      ['Bob', 'Dan'],
+    ],
+  },
 ];
+// Each row is labelled by its matchup, not the match id.
+const ACTIVE_ROW = 'Alice & bot-2 vs bot-1 & bot-3';
+const JOINABLE_ROW = 'Bob vs ?';
+const COMPLETED_ROW = 'Alice & Cara vs Bob & Dan';
 
 function mockLists() {
   listMatchesMock.mockImplementation((filter: 'Active' | 'Completed' | 'Joinable') => {
@@ -94,7 +117,7 @@ describe('Lobby', () => {
   it('defaults to the Active tab and fetches only that list', async () => {
     renderLobby();
 
-    await screen.findByText('active-1');
+    await screen.findByText(ACTIVE_ROW);
 
     expect(screen.getByRole('tab', { name: /active games/i }).getAttribute('aria-selected')).toBe('true');
     expect(listMatchesMock).toHaveBeenCalledWith('Active');
@@ -104,16 +127,16 @@ describe('Lobby', () => {
 
   it('fetches a tab only once it is selected', async () => {
     renderLobby();
-    await screen.findByText('active-1');
+    await screen.findByText(ACTIVE_ROW);
     listMatchesMock.mockClear();
 
     switchTab(/find a game/i);
-    await screen.findByText('joinable-1');
+    await screen.findByText(JOINABLE_ROW);
     expect(listMatchesMock).toHaveBeenCalledWith('Joinable');
     expect(listMatchesMock).not.toHaveBeenCalledWith('Completed');
 
     switchTab(/game history/i);
-    await screen.findByText('completed-1');
+    await screen.findByText(COMPLETED_ROW);
     expect(listMatchesMock).toHaveBeenCalledWith('Completed');
   });
 
@@ -133,7 +156,7 @@ describe('Lobby', () => {
 
   it('refetches the currently selected tab when the refresh button is clicked', async () => {
     renderLobby();
-    await screen.findByText('active-1');
+    await screen.findByText(ACTIVE_ROW);
     expect(listMatchesMock).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
@@ -144,7 +167,7 @@ describe('Lobby', () => {
 
   it('spins the refresh icon only while a refetch is in flight', async () => {
     renderLobby();
-    await screen.findByText('active-1');
+    await screen.findByText(ACTIVE_ROW);
 
     const icon = document.querySelector('.lobby-refresh .oi') as HTMLElement;
     expect(icon.className).not.toMatch(/spinner-reverse/);
@@ -165,7 +188,7 @@ describe('Lobby', () => {
     createMatchMock.mockResolvedValue({ id: 'new-match-id' } as MatchState);
     renderLobby();
 
-    await screen.findByText('active-1');
+    await screen.findByText(ACTIVE_ROW);
     fireEvent.click(screen.getByRole('button', { name: /create match/i }));
 
     await waitFor(() => expect(createMatchMock).toHaveBeenCalled());
@@ -177,7 +200,7 @@ describe('Lobby', () => {
     renderLobby();
     switchTab(/find a game/i);
 
-    const row = (await screen.findByText('joinable-1')).closest('li');
+    const row = (await screen.findByText(JOINABLE_ROW)).closest('li');
     expect(row).not.toBeNull();
     const joinButton = within(row as HTMLElement).getByRole('button', { name: /join/i });
     fireEvent.click(joinButton);
@@ -214,7 +237,7 @@ describe('Lobby', () => {
     }
 
     it('requests TeamB when only the creator (1 player, on TeamA) is seated', async () => {
-      renderJoinable({ id: 'j1', status: 'active', playerCount: 1, updatedOn: '2026-01-01T00:00:00.000Z' });
+      renderJoinable({ id: 'j1', status: 'active', playerCount: 1, updatedOn: '2026-01-01T00:00:00.000Z', teams: [[], []] });
 
       fireEvent.click(await screen.findByRole('button', { name: /join/i }));
 
@@ -222,7 +245,7 @@ describe('Lobby', () => {
     });
 
     it('requests TeamA when 2 players (1 per team) are seated', async () => {
-      renderJoinable({ id: 'j2', status: 'active', playerCount: 2, updatedOn: '2026-01-01T00:00:00.000Z' });
+      renderJoinable({ id: 'j2', status: 'active', playerCount: 2, updatedOn: '2026-01-01T00:00:00.000Z', teams: [[], []] });
 
       fireEvent.click(await screen.findByRole('button', { name: /join/i }));
 
@@ -230,7 +253,7 @@ describe('Lobby', () => {
     });
 
     it('requests TeamB when 3 players (2 on TeamA, 1 on TeamB) are seated', async () => {
-      renderJoinable({ id: 'j3', status: 'active', playerCount: 3, updatedOn: '2026-01-01T00:00:00.000Z' });
+      renderJoinable({ id: 'j3', status: 'active', playerCount: 3, updatedOn: '2026-01-01T00:00:00.000Z', teams: [[], []] });
 
       fireEvent.click(await screen.findByRole('button', { name: /join/i }));
 
@@ -245,12 +268,21 @@ describe('Lobby', () => {
   it('renders each match row as a link to its match page', async () => {
     renderLobby();
 
-    const activeLink = (await screen.findByText('active-1')).closest('a');
+    const activeLink = (await screen.findByText(ACTIVE_ROW)).closest('a');
     expect(activeLink).not.toBeNull();
     expect(activeLink?.getAttribute('href')).toBe('/match/active-1');
 
     switchTab(/find a game/i);
-    const joinableLink = (await screen.findByText('joinable-1')).closest('a');
+    const joinableLink = (await screen.findByText(JOINABLE_ROW)).closest('a');
     expect(joinableLink?.getAttribute('href')).toBe('/match/joinable-1');
+  });
+
+  it('falls back to the match id for a row with no players listed', async () => {
+    listMatchesMock.mockResolvedValue([
+      { id: 'no-players', status: 'active', playerCount: 0, updatedOn: '2026-01-01T00:00:00.000Z', teams: [[], []] },
+    ]);
+    renderLobby();
+
+    await screen.findByText('no-players');
   });
 });
