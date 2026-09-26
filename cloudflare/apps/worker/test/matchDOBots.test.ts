@@ -25,9 +25,11 @@ async function rpcWithBots(
   body: Record<string, unknown>
 ): Promise<{ status: number; body: unknown }> {
   return runInDurableObject(stub, async (instance) => {
-    const withEnv = instance as unknown as { env: Env } & MatchDO;
+    // Two views of the same instance: `MatchDO.env` is private, so intersecting it with a public
+    // `{ env }` would collapse to `never`.
+    const withEnv = instance as unknown as { env: Env };
     withEnv.env = { ...withEnv.env, AUTO_PLAY_BOTS: 'true' };
-    const res = await withEnv.fetch(
+    const res = await (instance as MatchDO).fetch(
       new Request(`https://do/rpc/${method}`, {
         method: 'POST',
         body: JSON.stringify(body),
