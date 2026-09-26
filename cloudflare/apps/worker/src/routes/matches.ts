@@ -137,6 +137,23 @@ matches.post('/:id/players', async (c) => {
   return c.json(match);
 });
 
+// Dev-only (AUTO_PLAY_BOTS): seats a bot at `{ position }`, or at every open seat when no position
+// is given, so a few people can test together and let bots make up the numbers. Only a player
+// already at the table can add bots (checked by MatchDO's `addBots`).
+matches.post('/:id/bots', async (c) => {
+  if (c.env.AUTO_PLAY_BOTS !== 'true') return c.json({ title: 'Not found' }, 404);
+  const matchId = c.req.param('id');
+  const { position } = await c.req.json();
+  const res = await callRpc(stub(c, matchId), 'addBots', {
+    requesterId: c.get('user').sub,
+    positions: position !== undefined ? [position] : undefined,
+  });
+  if (res.status !== 200) return c.json(await res.json(), res.status as 400);
+  const match: MatchState = await res.json();
+  await syncLobby(c, matchId, match);
+  return c.json(match);
+});
+
 matches.patch('/:id/players', async (c) => {
   const matchId = c.req.param('id');
   const userId = c.get('user').sub;

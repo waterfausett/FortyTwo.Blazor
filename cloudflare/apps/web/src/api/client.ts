@@ -138,6 +138,17 @@ export function apiClient(getToken: () => Promise<string>) {
         body: JSON.stringify({ domino }),
       }),
 
+    // Dev-only (the Worker's AUTO_PLAY_BOTS): seats a bot at `position`, or at every open seat
+    // when no position is given.
+    addBots: (id: string, position?: number): Promise<MatchState> =>
+      request<MatchState>(getToken, `/api/matches/${id}/bots`, {
+        method: 'POST',
+        body: JSON.stringify({ position }),
+      }),
+
+    // Feature switches the Worker turns on per environment.
+    getConfig: (): Promise<{ bots: boolean }> => request<{ bots: boolean }>(getToken, '/api/config'),
+
     getProfile: (): Promise<Auth0User> => request<Auth0User>(getToken, '/api/users/profile'),
 
     // Ids with no Auth0 account (bots) are simply absent from the result.

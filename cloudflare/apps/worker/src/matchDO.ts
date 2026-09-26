@@ -11,8 +11,8 @@ import {
   setTrump,
   playDomino,
   getPlayerView,
+  assertIsMatchPlayer,
   ValidationError,
-  Teams,
   type MatchState,
   type LoggedInPlayer,
   type Domino,
@@ -24,11 +24,6 @@ import { BOT_IDS, shuffledDominoOrder, decideBid, decideTrump, decideDomino, fin
 // each bot bid/play arrive as its own WebSocket broadcast instead of the whole rest of the hand
 // resolving instantly the moment the human acts.
 const BOT_MOVE_DELAY_MS = 600;
-
-// TeamA/TeamB alternation that, combined with addPlayer's (matchEngine.ts) own position-assignment
-// rules, seats the 3 bots evenly opposite and alongside the human: bot-1 joins the human's
-// opponents (TeamB), bot-2 joins the human's own team (TeamA), bot-3 fills the last TeamB seat.
-const BOT_TEAMS: Teams[] = [Teams.TeamB, Teams.TeamA, Teams.TeamB];
 
 // Thrown when an RPC method (other than `create`) is called against a `MatchDO` instance that
 // has never had `create` called on it - i.e. `load()` returns `null` from storage. Kept distinct
@@ -89,15 +84,10 @@ export class MatchDO implements DurableObject {
       // every later read, RPC response, AND `broadcast()` payload naturally carries the correct
       // id forever after, with no per-call patching needed anywhere else (REST or WebSocket).
       const created = createMatch(body.firstPlayerId as string);
-      let next = typeof body.matchId === 'string' ? { ...created, id: body.matchId } : created;
-
-      if (this.env.AUTO_PLAY_BOTS === 'true') {
-        next = this.seedBots(next);
-      }
+      const next = typeof body.matchId === 'string' ? { ...created, id: body.matchId } : created;
 
       await this.save(next);
       this.broadcast(next);
-      await this.scheduleBotsIfNeeded(next);
       return next;
     }
 
@@ -136,6 +126,9 @@ export class MatchDO implements DurableObject {
         // a team.
         next = takeSeat(existing, body.playerId as string, body.position as number, body.dealOrder as Domino[] | undefined);
         break;
+      case 'addBots':
+        next = this.addBots(existing, body.requesterId as string, body.positions as number[] | undefined);
+        break;
       case 'readyUp':
         next = patchPlayerReady(existing, body.playerId as string, body.ready as boolean, body.dealOrder as Domino[]);
         break;
@@ -158,15 +151,19 @@ export class MatchDO implements DurableObject {
     return next;
   }
 
-  // Adds the 3 reserved bot ids right after the human creates a match, so AUTO_PLAY_BOTS goes
-  // straight from "create" to a full table with no lobby wait. Mirrors what a real 4th join does
-  // (matches.ts's shuffledDominoOrder()) - the dealOrder only matters on the last add, exactly as
-  // addPlayer (matchEngine.ts) itself only deals once the 4th hand joins.
-  private seedBots(match: MatchState): MatchState {
+  // Seats a bot at each of `positions`, or at every open seat when none are given, so people
+  // testing together can fill out the table once everyone who's coming has sat down. Only someone
+  // already at the table may do this. Each bot takes the first reserved id not yet seated; a
+  // shuffled dealOrder goes with every seat, but takeSeat (matchEngine.ts) only deals on the 4th.
+  private addBots(match: MatchState, requesterId: string, positions?: number[]): MatchState {
+    assertIsMatchPlayer(match, requesterId);
+    const seats =
+      positions ?? [0, 1, 2, 3].filter((position) => match.players.every((p) => p.position !== position));
+
     let next = match;
-    for (let i = 0; i < BOT_IDS.length; i++) {
-      const isLastSeat = i === BOT_IDS.length - 1;
-      next = addPlayer(next, BOT_IDS[i], BOT_TEAMS[i], isLastSeat ? shuffledDominoOrder() : undefined);
+    for (const position of seats) {
+      const botId = BOT_IDS.find((id) => next.players.every((p) => p.playerId !== id))!;
+      next = takeSeat(next, botId, position, shuffledDominoOrder());
     }
     return next;
   }

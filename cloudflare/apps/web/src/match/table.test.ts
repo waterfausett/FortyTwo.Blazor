@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Bid, createTrick, Positions, Suit, Teams, type Game, type MatchPlayerState } from '@fortytwo/rules';
-import { dealerId, seatFor, trickLeaderId, trickPlayOrder, trickSeats } from './table';
+import { dealerId, openSeats, seatFor, trickLeaderId, trickPlayOrder, trickSeats } from './table';
 
 const PLAYERS: MatchPlayerState[] = [
   { playerId: 'p1', position: Positions.First, ready: true },
@@ -35,6 +35,21 @@ describe('seatFor', () => {
 
   it('returns null for someone not at the table', () => {
     expect(seatFor(PLAYERS, 'p1', 'nobody')).toBeNull();
+  });
+});
+
+describe('openSeats', () => {
+  it('lists each empty position with where it sits relative to me', () => {
+    // I'm at position 1; p3 sits across from me at 3. Positions 0 and 2 are open.
+    const players = [PLAYERS[1], PLAYERS[3]];
+    expect(openSeats(players, 'p2')).toEqual([
+      { position: 0, seat: 'right' },
+      { position: 2, seat: 'left' },
+    ]);
+  });
+
+  it('is empty once the table is full', () => {
+    expect(openSeats(PLAYERS, 'p1')).toEqual([]);
   });
 });
 

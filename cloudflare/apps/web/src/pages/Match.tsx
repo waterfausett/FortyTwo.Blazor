@@ -48,7 +48,7 @@ import { Seat } from '../components/Seat';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
 import { toastError } from '../ui/toast';
-import { dealerId, isTrickStarted, seatFor, trickLeaderId, trickPlayOrder } from '../match/table';
+import { dealerId, isTrickStarted, openSeats, seatFor, trickLeaderId, trickPlayOrder } from '../match/table';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
 import '../styles/match.css';
@@ -188,6 +188,15 @@ export function Match(): JSX.Element {
   });
   const readyUpMutation = useMutation({
     mutationFn: () => client.readyUp(matchId!, true),
+    onError: toastError,
+  });
+  // Bots are a dev-only testing aid (the Worker's AUTO_PLAY_BOTS), so the controls for them only
+  // show when the Worker says they're available.
+  const configQuery = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig(), staleTime: Infinity });
+  const botsEnabled = configQuery.data?.bots ?? false;
+  // No position fills every open seat.
+  const addBotsMutation = useMutation({
+    mutationFn: (position?: number) => client.addBots(matchId!, position),
     onError: toastError,
   });
 
@@ -401,6 +410,7 @@ export function Match(): JSX.Element {
   const seatedOthers = match.players
     .filter((p) => p.playerId !== myPlayerId)
     .map((p) => ({ player: p, seat: seatFor(match.players, myPlayerId, p.playerId)! }));
+  const emptySeats = openSeats(match.players, myPlayerId);
 
   // On a Low hand the bidder plays alone, so their partner never gets a turn (selectNextPlayer
   // skips them) - tell them why rather than leaving them watching "X to play" all hand.
@@ -509,9 +519,39 @@ export function Match(): JSX.Element {
               );
             })}
 
+            {emptySeats.map(({ position, seat }) => (
+              <div key={position} className={`seat seat-${seat} seat-open`} data-testid="open-seat">
+                <div className="seat-plate">
+                  <span className="seat-name">Open seat</span>
+                  {botsEnabled && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary seat-add-bot"
+                      disabled={addBotsMutation.isPending}
+                      onClick={() => addBotsMutation.mutate(position)}
+                    >
+                      Add bot
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+
             <div className="table-center">
               {!isTableReady ? (
-                <p className="table-waiting">{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
+                <div className="table-waiting">
+                  <p>{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
+                  {botsEnabled && emptySeats.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary"
+                      disabled={addBotsMutation.isPending}
+                      onClick={() => addBotsMutation.mutate(undefined)}
+                    >
+                      Fill with bots
+                    </button>
+                  )}
+                </div>
               ) : (
                 <TrickDisplay
                   trick={displayedTrick}

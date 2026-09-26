@@ -18,6 +18,15 @@ export function seatFor(players: MatchPlayerState[], myPlayerId: string, playerI
   return SEATS_CLOCKWISE[(them.position - me.position + 4) % 4];
 }
 
+// The positions nobody has taken yet, with where each would sit on screen relative to me.
+export function openSeats(players: MatchPlayerState[], myPlayerId: string): { position: number; seat: Seat }[] {
+  const me = players.find((p) => p.playerId === myPlayerId);
+  if (!me) return [];
+  return [0, 1, 2, 3]
+    .filter((position) => players.every((p) => p.position !== position))
+    .map((position) => ({ position, seat: SEATS_CLOCKWISE[(position - me.position + 4) % 4] }));
+}
+
 // The dealer sits immediately before whoever acts first (the player to the dealer's left opens
 // the bidding) - the inverse of patchPlayerReady's `nextPosition(lastGame.firstActionBy)` rotation.
 export function dealerId(players: MatchPlayerState[], game: Game): string | null {

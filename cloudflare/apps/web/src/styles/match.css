@@ -290,9 +290,27 @@
 }
 
 .table-waiting {
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
   color: var(--ink-muted);
   font-size: 1.1rem;
+}
+
+.table-waiting p {
+  margin: 0;
+}
+
+/* A seat nobody has taken yet: a dashed, dimmed plate in the seat's usual spot. */
+.seat-open .seat-plate {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed var(--ink-muted);
+}
+
+.seat-open .seat-name {
+  color: var(--ink-muted);
 }
 
 /* ---------- Seats ---------- */

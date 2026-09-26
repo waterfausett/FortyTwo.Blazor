@@ -25,10 +25,9 @@ export default defineWorkersConfig({
             AUTH0_AUDIENCE: 'https://api.test.local',
             TEST_MIGRATIONS: migrations,
             // Pinned off regardless of a developer's local .dev.vars (which vitest-pool-workers
-            // also loads into this pool) - most tests manually addPlayer() with their own ids and
-            // would break if MatchDO auto-seeded 3 bots on every create. matchDOBots.test.ts
-            // exercises AUTO_PLAY_BOTS=true directly via runInDurableObject's per-call env
-            // override instead of relying on this pool-wide binding.
+            // also loads into this pool), so the bot routes stay off unless a test asks for them.
+            // matchDOBots.test.ts and routes.matches.test.ts turn AUTO_PLAY_BOTS on per call
+            // (runInDurableObject's env override / app.request's env argument) instead.
             AUTO_PLAY_BOTS: 'false',
           },
         },

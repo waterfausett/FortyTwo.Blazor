@@ -1,11 +1,9 @@
-// Exercises AUTO_PLAY_BOTS end to end against the real MatchDO: seat-filling on create, then the
-// alarm-paced bot loop carrying bidding/trump/play forward up to the human's next turn. The
-// AUTO_PLAY_BOTS binding isn't set globally (vitest.config.ts's bindings apply to every test file
-// in this pool, and other tests - matchDO.test.ts, matchLifecycle.test.ts - manually addPlayer with
-// their own ids and would break if bots auto-filled the match out from under them). Instead, each
-// call here reaches into the live DO instance via `runInDurableObject` and overrides its `env`
-// just for that call - `handleRpc`'s AUTO_PLAY_BOTS check only ever runs synchronously inside that
-// same call, so it doesn't matter whether the runtime re-constructs the instance between calls.
+// Exercises AUTO_PLAY_BOTS end to end against the real MatchDO: seating bots on demand (one seat,
+// or every open seat), then the alarm-paced bot loop carrying bidding/trump/play forward up to a
+// human's next turn. The AUTO_PLAY_BOTS binding isn't set globally (vitest.config.ts's bindings
+// apply to every test file in this pool, and other tests - matchDO.test.ts,
+// matchLifecycle.test.ts - manually addPlayer with their own ids). Instead, each call here reaches
+// into the live DO instance via `runInDurableObject` and overrides its `env` just for that call.
 import { describe, it, expect } from 'vitest';
 import { env, runInDurableObject, runDurableObjectAlarm } from 'cloudflare:test';
 import { Bid, Suit, type MatchState } from '@fortytwo/rules';
@@ -49,23 +47,76 @@ async function runAllPendingAlarms(stub: ReturnType<typeof stubFor>, maxTicks = 
   throw new Error('too many bot alarm ticks - possible infinite loop');
 }
 
+function seatOf(match: MatchState, playerId: string): number | undefined {
+  return match.players.find((p) => p.playerId === playerId)?.position;
+}
+
 describe('MatchDO bot auto-play', () => {
-  it('fills the other 3 seats with bots on create, dealing a full hand to everyone', async () => {
-    const stub = stubFor('bots-create');
+  it('leaves the table open on create, so other people can still join', async () => {
+    const stub = stubFor('bots-create-open');
 
     const created = await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
 
     expect(created.status).toBe(200);
-    const match = created.body as MatchState;
-    expect(match.players.map((p) => p.playerId).sort()).toEqual(['bot-1', 'bot-2', 'bot-3', 'human-1']);
+    expect((created.body as MatchState).players.map((p) => p.playerId)).toEqual(['human-1']);
+  });
+
+  it('seats a bot at a picked seat', async () => {
+    const stub = stubFor('bots-one-seat');
+    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
+
+    const res = await rpcWithBots(stub, 'addBots', { requesterId: 'human-1', positions: [2] });
+
+    expect(res.status).toBe(200);
+    const match = res.body as MatchState;
+    expect(match.players).toHaveLength(2);
+    expect(seatOf(match, 'bot-1')).toBe(2);
+  });
+
+  it('fills every open seat around the humans when no seat is given, dealing the hand', async () => {
+    const stub = stubFor('bots-fill');
+    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
+    await rpcWithBots(stub, 'takeSeat', { playerId: 'human-2', position: 2 });
+    await rpcWithBots(stub, 'addBots', { requesterId: 'human-1', positions: [1] });
+
+    const res = await rpcWithBots(stub, 'addBots', { requesterId: 'human-2' });
+
+    expect(res.status).toBe(200);
+    const match = res.body as MatchState;
+    expect(match.players.map((p) => [p.playerId, p.position]).sort()).toEqual([
+      ['bot-1', 1],
+      ['bot-2', 3],
+      ['human-1', 0],
+      ['human-2', 2],
+    ]);
     expect(match.currentGame.hands.every((h) => h.dominoes.length === 7)).toBe(true);
+  });
+
+  it("won't let someone outside the match add bots", async () => {
+    const stub = stubFor('bots-outsider');
+    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
+
+    const res = await rpcWithBots(stub, 'addBots', { requesterId: 'stranger' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a bot at a taken seat', async () => {
+    const stub = stubFor('bots-taken-seat');
+    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
+
+    const res = await rpcWithBots(stub, 'addBots', { requesterId: 'human-1', positions: [0] });
+
+    expect(res.status).toBe(400);
+    expect((res.body as { title: string }).title).toBe('Seat is taken');
   });
 
   it("bots auto-bid, auto-set-trump, and auto-play up to the human's next turn", async () => {
     const stub = stubFor('bots-bid-and-play');
 
-    const created = await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
-    let match = created.body as MatchState;
+    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
+    const filled = await rpcWithBots(stub, 'addBots', { requesterId: 'human-1' });
+    let match = filled.body as MatchState;
     expect(match.currentGame.currentPlayerId).toBe('human-1');
 
     // Human bids the minimum; bots always pass, so human wins the bid outright.

@@ -14,8 +14,9 @@ export interface Env {
   AUTH0_API_AUDIENCE: string;
   ALLOWED_ORIGIN?: string;
   // Dev-only testing aid (set via .dev.vars, gitignored - never present in a deployed environment):
-  // when === 'true', MatchDO (matchDO.ts) fills the other 3 seats with bots on create and drives
-  // their bids/trump/plays automatically, so a single account can exercise a full match. Read as a
+  // when === 'true', players can seat bots in a match's open seats (POST /api/matches/:id/bots) and
+  // MatchDO (matchDO.ts) drives their bids/trump/plays automatically, so one account - or a few
+  // people testing together - can play a full match. Read as a
   // string, not boolean: .dev.vars is dotenv-style, so there's no real boolean type to declare here
   // - see bots.ts.
   AUTO_PLAY_BOTS?: string;
@@ -59,6 +60,8 @@ app.use(
   }),
 );
 app.use('/api/*', requireAuth());
+// Feature switches the web app needs to know about - one worker flag drives both sides.
+app.get('/api/config', (c) => c.json({ bots: c.env.AUTO_PLAY_BOTS === 'true' }));
 app.route('/api/matches', matchesRoutes);
 app.route('/api/users', usersRoutes);
 

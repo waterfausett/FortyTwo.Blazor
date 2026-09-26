@@ -31,6 +31,8 @@ const {
   readyUpMock,
   getMatchMock,
   searchUsersMock,
+  getConfigMock,
+  addBotsMock,
   useMatchSocketMock,
   toastErrorMock,
   currentUserId,
@@ -42,6 +44,8 @@ const {
     readyUpMock: vi.fn(),
     getMatchMock: vi.fn(),
     searchUsersMock: vi.fn(),
+    getConfigMock: vi.fn(),
+    addBotsMock: vi.fn(),
     useMatchSocketMock: vi.fn(),
     toastErrorMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
@@ -58,6 +62,8 @@ vi.mock('../api/client', () => ({
     readyUp: readyUpMock,
     getMatch: getMatchMock,
     searchUsers: searchUsersMock,
+    getConfig: getConfigMock,
+    addBots: addBotsMock,
   }),
 }));
 
@@ -89,6 +95,8 @@ beforeEach(() => {
   getMatchMock.mockResolvedValue(null);
   // No display names by default, so seats show raw player ids ('p2', ...) as most tests expect.
   searchUsersMock.mockResolvedValue([]);
+  // Bots are a dev-only aid, so off unless a test turns them on.
+  getConfigMock.mockResolvedValue({ bots: false });
 });
 
 afterEach(() => {
@@ -146,6 +154,63 @@ function baseMatch(overrides: Partial<MatchState> = {}, gameOverrides: Partial<M
 }
 
 describe('Match', () => {
+  describe('open seats', () => {
+    // Just me and my partner so far - seats 1 and 3 (my left and right) are open.
+    const waitingMatch = () =>
+      baseMatch(
+        { players: [PLAYERS[0], PLAYERS[2]] },
+        {
+          hands: [
+            { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: null },
+            { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: null },
+          ],
+        }
+      );
+
+    it('shows each open seat, without bot controls when bots are off', async () => {
+      useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+      renderMatch();
+
+      expect(screen.getAllByTestId('open-seat')).toHaveLength(2);
+      await waitFor(() => expect(getConfigMock).toHaveBeenCalled());
+      expect(screen.queryByRole('button', { name: /add bot/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
+    });
+
+    it('seats a bot at the open seat I pick', async () => {
+      getConfigMock.mockResolvedValue({ bots: true });
+      addBotsMock.mockResolvedValue(waitingMatch());
+      useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+      renderMatch();
+
+      const leftSeat = (await screen.findAllByTestId('open-seat')).find((el) => el.classList.contains('seat-left'))!;
+      fireEvent.click(await within(leftSeat).findByRole('button', { name: /add bot/i }));
+
+      await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', 1));
+    });
+
+    it('fills every open seat with bots at once', async () => {
+      getConfigMock.mockResolvedValue({ bots: true });
+      addBotsMock.mockResolvedValue(waitingMatch());
+      useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+      renderMatch();
+
+      fireEvent.click(await screen.findByRole('button', { name: /fill with bots/i }));
+
+      await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
+    });
+
+    it('has no open seats or bot controls once the table is full', async () => {
+      getConfigMock.mockResolvedValue({ bots: true });
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+
+      await waitFor(() => expect(getConfigMock).toHaveBeenCalled());
+      expect(screen.queryAllByTestId('open-seat')).toHaveLength(0);
+      expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
+    });
+  });
+
   it('shows BiddingPanel and hides Hand play interaction during the bidding phase', () => {
     const match = baseMatch();
     useMatchSocketMock.mockReturnValue({ match, connected: true });

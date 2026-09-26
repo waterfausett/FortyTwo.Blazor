@@ -1,5 +1,6 @@
-// Dumb, deterministic "auto-play" opponents used when AUTO_PLAY_BOTS is set (index.ts's Env),
-// so a single real player can exercise a full match locally without three other accounts. Bots
+// Dumb, deterministic "auto-play" players used when AUTO_PLAY_BOTS is set (index.ts's Env), seated
+// on demand in whichever seats real players leave open, so a match can be exercised locally without
+// four real accounts. Bots
 // aren't smart: they pass unless forced to bid, set trump to their most-held suit, and play the
 // first legal domino they hold - just enough to keep a match moving for UI/flow testing.
 import {

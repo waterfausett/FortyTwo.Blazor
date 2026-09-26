@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env, fetchMock, SELF } from 'cloudflare:test';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
-import type { Env } from '../src/index';
+import app, { type Env } from '../src/index';
 
 const testEnv = env as unknown as Env;
 
@@ -296,6 +296,72 @@ describe('match routes', () => {
     const res = await api('/api/matches?filter=Joinable', p3);
     const rows = (await res.json()) as { id: string; seats: (string | null)[] }[];
     expect(rows.find((row) => row.id === created.id)?.seats).toEqual(['p1', null, null, 'p2']);
+  });
+
+  describe('bots', () => {
+    // SELF always runs with the pool's global bindings (AUTO_PLAY_BOTS: 'false'), so these call
+    // the Hono app directly to switch the flag on for one request at a time.
+    async function apiWithBots(path: string, token: string, init: RequestInit = {}, autoPlayBots = 'true') {
+      return app.request(
+        path,
+        {
+          ...init,
+          headers: {
+            ...(init.body ? { 'content-type': 'application/json' } : {}),
+            Authorization: `Bearer ${token}`,
+          },
+        },
+        { ...testEnv, AUTO_PLAY_BOTS: autoPlayBots }
+      );
+    }
+
+    it('tells the client whether bots are available', async () => {
+      const p1 = await signToken('p1');
+
+      expect(await (await apiWithBots('/api/config', p1)).json()).toEqual({ bots: true });
+      expect(await (await apiWithBots('/api/config', p1, {}, 'false')).json()).toEqual({ bots: false });
+    });
+
+    it('seats a bot at a picked seat, then fills the rest and syncs the lobby', async () => {
+      const p1 = await signToken('p1');
+      const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const one = await apiWithBots(`/api/matches/${created.id}/bots`, p1, {
+        method: 'POST',
+        body: JSON.stringify({ position: 2 }),
+      });
+      expect(one.status).toBe(200);
+      const afterOne = (await one.json()) as { players: { playerId: string; position: number }[] };
+      expect(afterOne.players.find((p) => p.playerId === 'bot-1')?.position).toBe(2);
+
+      const fill = await apiWithBots(`/api/matches/${created.id}/bots`, p1, { method: 'POST', body: '{}' });
+      expect(fill.status).toBe(200);
+      expect(((await fill.json()) as { players: unknown[] }).players).toHaveLength(4);
+
+      const row = await testEnv.DB.prepare('SELECT player_count FROM matches WHERE id = ?')
+        .bind(created.id)
+        .first<{ player_count: number }>();
+      expect(row?.player_count).toBe(4);
+    });
+
+    it('404s when bots are turned off', async () => {
+      const p1 = await signToken('p1');
+      const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await apiWithBots(`/api/matches/${created.id}/bots`, p1, { method: 'POST', body: '{}' }, 'false');
+
+      expect(res.status).toBe(404);
+    });
+
+    it("won't let someone outside the match add bots", async () => {
+      const p1 = await signToken('p1');
+      const outsider = await signToken('p5');
+      const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await apiWithBots(`/api/matches/${created.id}/bots`, outsider, { method: 'POST', body: '{}' });
+
+      expect(res.status).toBe(400);
+    });
   });
 
   it(
