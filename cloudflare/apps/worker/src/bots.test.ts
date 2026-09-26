@@ -138,6 +138,45 @@ describe('findNextBotAction', () => {
     expect(findNextBotAction(match)).toEqual({ kind: 'ready', playerId: 'bot-1' });
   });
 
+  it('keeps playing out a decided hand once every bot is ready', () => {
+    const match = baseMatch({
+      currentGame: baseGame({
+        currentPlayerId: 'bot-1',
+        biddingPlayerId: 'p1',
+        bid: Bid.Thirty,
+        trump: Suit.Low,
+        hands: [
+          emptyHand('p1', [createDomino(1, 2)], Bid.Thirty),
+          { ...emptyHand('bot-1', [createDomino(3, 4)], Bid.Pass), team: Teams.TeamB },
+        ],
+        tricks: [{ playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [] }],
+      }),
+      players: [
+        { playerId: 'p1', position: 0, ready: false },
+        { playerId: 'bot-1', position: 1, ready: true },
+      ],
+    });
+    expect(findNextBotAction(match)).toEqual({ kind: 'play', playerId: 'bot-1' });
+  });
+
+  it('stops once a decided hand has been played to the last domino', () => {
+    const match = baseMatch({
+      currentGame: baseGame({
+        currentPlayerId: 'bot-1',
+        biddingPlayerId: 'p1',
+        bid: Bid.Thirty,
+        trump: Suit.Low,
+        hands: [emptyHand('p1', [], Bid.Thirty), { ...emptyHand('bot-1', [], Bid.Pass), team: Teams.TeamB }],
+        tricks: [{ playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [] }],
+      }),
+      players: [
+        { playerId: 'p1', position: 0, ready: false },
+        { playerId: 'bot-1', position: 1, ready: true },
+      ],
+    });
+    expect(findNextBotAction(match)).toBeNull();
+  });
+
   it('returns a bid action when it is a bot\'s turn during bidding', () => {
     const match = baseMatch({
       currentGame: baseGame({

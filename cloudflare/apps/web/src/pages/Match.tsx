@@ -12,7 +12,9 @@
 // `playDomino`), but that turned out to be load-bearing: `readyUp` is the ONLY mechanism that ever
 // deals a new hand once the current one has a winner (the very first hand deals automatically on
 // the 4th join), so without it a match could complete its first hand and then simply never
-// continue. See the "Ready up" section below, gated on `gameWinningTeam(currentGame) !== null`.
+// continue. See the "Hand over" section below, gated on `gameWinningTeam(currentGame) !== null`.
+// A decided hand can still be played out: play stays open until all 7 tricks are down, and the
+// next hand deals as soon as all four players ready up, whether or not they finished playing.
 // Rejected actions (an illegal play, a stale bid) pop a SweetAlert2 toast (ui/toast.ts), as the
 // old app did; its "next game started" / "match over" modals are still not ported.
 import type { JSX } from 'react';
@@ -64,6 +66,8 @@ const MARKS_TO_WIN = 7;
 // players) - used to detect whether a player has already played into the current, still-in-
 // progress trick (see `haveIPlayedInCurrentTrick` below).
 const HAND_SIZE_DEALT = 7;
+// Every hand runs exactly 7 tricks, Low included (the bidder's partner just never plays theirs).
+const TRICKS_PER_HAND = 7;
 
 function otherTeam(team: Teams): Teams {
   return team === Teams.TeamA ? Teams.TeamB : Teams.TeamA;
@@ -319,9 +323,12 @@ export function Match(): JSX.Element {
   // Once the current hand has a winner, the ONLY way to continue is for all 4 players to
   // explicitly ready up again (patchPlayerReady deals the next hand once everyone has) - with no
   // UI for this, a match could play its first hand to completion and then simply never continue.
+  // Until then the hand can still be played out, up to its last trick.
   const isHandOver = gameWinningTeam(game) !== null;
+  const isHandPlayedOut = game.tricks.length === TRICKS_PER_HAND;
   const myReadyState = match.players.find((p) => p.playerId === myPlayerId);
   const iAmReady = myReadyState?.ready ?? false;
+  const readyCount = match.players.filter((p) => p.ready).length;
 
   // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
   // itself always reflects the true, immediate server state (used above for e.g. `isHandOver`,
@@ -334,6 +341,9 @@ export function Match(): JSX.Element {
   const myTrickPoints = teamTrickPoints(revealedTricks, me.team);
   const opponentTrickPoints = teamTrickPoints(revealedTricks, opponentTeam);
   const displayedTrick = heldTrick ?? game.currentTrick;
+  // The hand-over panel waits for the deciding trick to finish its hold, like the side piles do,
+  // so the result isn't announced while that trick is still on the table.
+  const showHandOver = isHandOver && gameWinningTeam({ ...game, tricks: revealedTricks }) !== null;
 
   // Table geometry for the trick in the middle: who led it and which seat played each slot (so
   // every domino lands in front of whoever played it). A held trick is the last completed one.
@@ -365,15 +375,15 @@ export function Match(): JSX.Element {
     return {
       name: nameFor(playerId),
       side: player && player.position % 2 === myPosition % 2 ? ('us' as const) : ('them' as const),
-      isActive: isTableReady && !isHandOver && game.currentPlayerId === playerId,
+      isActive: isTableReady && !isHandPlayedOut && game.currentPlayerId === playerId,
       isDealer: dealer === playerId,
       // Once the lead domino is down it carries its own "Lead" tag on the table, so the seat only
       // flags who is about to lead.
-      isLeader: trickLeader === playerId && !isHandOver && !isTrickStarted(displayedTrick),
+      isLeader: trickLeader === playerId && !isHandPlayedOut && !isTrickStarted(displayedTrick),
       bid: isTableReady ? bid : null,
       isHighBidder,
       trump: game.trump,
-      ready: isHandOver && !isMatchOver ? (player?.ready ?? false) : null,
+      ready: showHandOver && !isMatchOver ? (player?.ready ?? false) : null,
     };
   }
 
@@ -386,17 +396,17 @@ export function Match(): JSX.Element {
   // skips them) - tell them why rather than leaving them watching "X to play" all hand.
   const isSittingOut =
     isPlayingPhase &&
-    !isHandOver &&
+    !isHandPlayedOut &&
     isLow(game.trump) &&
     game.biddingPlayerId !== myPlayerId &&
     bidderTeam === me.team;
 
-  // One line on the rail saying what the table is waiting on.
-  let status: string;
-  if (isMatchOver) status = match.winningTeam === me.team ? 'You won the match' : 'They won the match';
-  else if (!isTableReady)
+  // One line on the rail saying what the table is waiting on. Once the last trick of a decided
+  // hand is down there's no play left to describe - the hand-over panel says what comes next.
+  let status: string | null;
+  if (!isTableReady)
     status = match.players.length < 4 ? `Waiting for players: ${match.players.length} of 4 seated` : 'Dealing';
-  else if (isHandOver) status = iAmReady ? 'Waiting for everyone to ready up' : 'Hand over. Ready up for the next one';
+  else if (isHandPlayedOut) status = null;
   else if (isBiddingPhase) status = `${activeName} is bidding`;
   else if (isTrumpSelectPhase) status = `${activeName} is naming trump`;
   else if (isSittingOut)
@@ -490,31 +500,7 @@ export function Match(): JSX.Element {
             })}
 
             <div className="table-center">
-              {isHandOver && !heldTrick ? (
-                <section className="hand-result" aria-label="Ready up">
-                  <p className="hand-result-title">
-                    {isMatchOver
-                      ? match.winningTeam === me.team
-                        ? 'You won the match'
-                        : 'They won the match'
-                      : handWinner === me.team
-                        ? 'We took the hand'
-                        : 'They took the hand'}
-                  </p>
-                  {!isMatchOver && (
-                    <>
-                      <button
-                        type="button"
-                        className="action-button"
-                        disabled={iAmReady || readyUpMutation.isPending}
-                        onClick={() => readyUpMutation.mutate()}
-                      >
-                        {iAmReady ? "You're ready" : 'Ready up'}
-                      </button>
-                    </>
-                  )}
-                </section>
-              ) : !isTableReady ? (
+              {!isTableReady ? (
                 <p className="table-waiting">{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
               ) : (
                 <TrickDisplay
@@ -539,9 +525,42 @@ export function Match(): JSX.Element {
           />
         </div>
 
-        <div className={`player${me.isActive && !isHandOver && isTableReady ? ' active' : ''}`}>
+        <div className={`player${me.isActive && !isHandPlayedOut && isTableReady ? ' active' : ''}`}>
+          {showHandOver && (
+            <section className="hand-result" aria-label="Hand over">
+              <p className="hand-result-title">
+                {isMatchOver
+                  ? match.winningTeam === me.team
+                    ? 'You won the match'
+                    : 'They won the match'
+                  : handWinner === me.team
+                    ? 'We took the hand'
+                    : 'They took the hand'}
+              </p>
+              {!isMatchOver && (
+                <>
+                  <p className="hand-result-note">
+                    {iAmReady
+                      ? `Waiting for everyone to ready up (${readyCount} of 4)`
+                      : isHandPlayedOut
+                        ? 'Ready up for the next hand'
+                        : 'Play it out, or ready up for the next hand'}
+                  </p>
+                  <button
+                    type="button"
+                    className="action-button"
+                    disabled={iAmReady || readyUpMutation.isPending}
+                    onClick={() => readyUpMutation.mutate()}
+                  >
+                    {iAmReady ? "You're ready" : 'Ready up'}
+                  </button>
+                </>
+              )}
+            </section>
+          )}
+
           {/* The bid/trump pickers carry their own prompt, so the status line steps aside. */}
-          {!canBid && !canSelectTrump && (
+          {!canBid && !canSelectTrump && status != null && (
             <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
               {status}
             </p>

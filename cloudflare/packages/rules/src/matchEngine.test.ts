@@ -471,6 +471,28 @@ describe('playDomino', () => {
     expect(match.currentGame.currentPlayerId).toBe('p1'); // winner leads next
     expect(match.currentGame.currentTrick.dominoes).toEqual([null, null, null, null]);
   });
+
+  // Players may "play it out" after the bid is made or set - play keeps going on a decided game,
+  // and the game is still filed (and scored) only once.
+  it('keeps accepting plays after the hand is decided, without re-filing the game', () => {
+    const decidingTrick: Trick = {
+      playerId: 'p1',
+      team: Teams.TeamA,
+      suit: Suit.Fives,
+      dominoes: [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)],
+    };
+    let match = readyToPlay({ tricks: [decidingTrick] });
+    match = { ...match, games: { [Teams.TeamA]: [match.currentGame] } };
+
+    match = playDomino(match, 'p1', createDomino(6, 6));
+    match = playDomino(match, 'p2', createDomino(6, 3));
+    match = playDomino(match, 'p3', createDomino(6, 1));
+    match = playDomino(match, 'p4', createDomino(6, 0));
+
+    expect(match.currentGame.tricks).toHaveLength(2);
+    expect(match.games[Teams.TeamA]).toHaveLength(1);
+    expect(matchScores(match)[Teams.TeamA]).toBe(1);
+  });
 });
 
 describe('matchScores', () => {

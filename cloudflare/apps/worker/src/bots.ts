@@ -78,12 +78,21 @@ export type BotAction =
 // Inspects match state to find the single next bot action to take, or null if it's a human's
 // turn, we're waiting on a human to ready up, or the match is over. Callers act on exactly one
 // returned action, then call this again - see matchDO.ts's alarm-per-action pacing.
+//
+// Once a hand is decided, bots ready up straight away, then keep playing their turns so a human
+// who wants to play the hand out can - until the last domino is down or everyone's ready.
 export function findNextBotAction(match: MatchState): BotAction | null {
   if (match.winningTeam !== null) return null;
 
   if (gameWinningTeam(match.currentGame) !== null) {
     const waitingBot = match.players.find((p) => isBot(p.playerId) && !p.ready);
-    return waitingBot ? { kind: 'ready', playerId: waitingBot.playerId } : null;
+    if (waitingBot) return { kind: 'ready', playerId: waitingBot.playerId };
+
+    const currentPlayerId = match.currentGame.currentPlayerId;
+    const hand = match.currentGame.hands.find((h) => h.playerId === currentPlayerId);
+    return currentPlayerId !== null && isBot(currentPlayerId) && (hand?.dominoes.length ?? 0) > 0
+      ? { kind: 'play', playerId: currentPlayerId }
+      : null;
   }
 
   const currentPlayerId = match.currentGame.currentPlayerId;

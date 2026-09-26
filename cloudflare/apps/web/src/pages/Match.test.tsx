@@ -679,6 +679,27 @@ describe('Match', () => {
       await waitFor(() => expect(readyUpMock).toHaveBeenCalledWith('match-1', true));
     });
 
+    it('lets players keep playing a decided hand alongside the Ready Up option', () => {
+      const base = finishedHandMatch();
+      const decided = {
+        ...base,
+        currentGame: {
+          ...base.currentGame,
+          currentPlayerId: 'p1',
+          hands: base.currentGame.hands.map((h) =>
+            h.playerId === 'p1' ? { ...h, dominoes: [createDomino(1, 2)] } : h
+          ),
+        },
+      };
+      useMatchSocketMock.mockReturnValue({ match: decided, connected: true });
+      renderMatch();
+
+      expect(screen.getByRole('region', { name: /hand over/i })).not.toBeNull();
+      expect(screen.getByRole('button', { name: /ready up/i })).not.toBeNull();
+      const playable = screen.getAllByTestId('domino').filter((tile) => tile.classList.contains('clickable'));
+      expect(playable).toHaveLength(1);
+    });
+
     it("shows each player's ready/not-ready status on their seat", () => {
       const finished = finishedHandMatch();
       useMatchSocketMock.mockReturnValue({ match: finished, connected: true });
