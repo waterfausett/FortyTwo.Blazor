@@ -32,6 +32,7 @@ const {
   getMatchMock,
   searchUsersMock,
   useMatchSocketMock,
+  toastErrorMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -42,6 +43,7 @@ const {
     getMatchMock: vi.fn(),
     searchUsersMock: vi.fn(),
     useMatchSocketMock: vi.fn(),
+    toastErrorMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -57,6 +59,10 @@ vi.mock('../api/client', () => ({
     getMatch: getMatchMock,
     searchUsers: searchUsersMock,
   }),
+}));
+
+vi.mock('../ui/toast', () => ({
+  toastError: toastErrorMock,
 }));
 
 vi.mock('../api/useMatchSocket', () => ({
@@ -495,8 +501,9 @@ describe('Match', () => {
     await waitFor(() => expect(bidMock).toHaveBeenCalledWith('match-1', Bid.Thirty));
   });
 
-  it('surfaces a ValidationError-shaped API error as a visible inline banner', async () => {
-    playDominoMock.mockRejectedValue(new Error('You must follow suit!: If you have a Six, you must play it'));
+  it('surfaces a ValidationError-shaped API error as a toast', async () => {
+    const error = new Error('You must follow suit!: If you have a Six, you must play it');
+    playDominoMock.mockRejectedValue(error);
     const domino: Domino = createDomino(1, 2);
     const match = baseMatch(
       {},
@@ -519,8 +526,9 @@ describe('Match', () => {
 
     fireEvent.click(screen.getByTestId('domino'));
 
-    const banner = await screen.findByRole('alert');
-    expect(banner.textContent).toMatch(/you must follow suit/i);
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    expect(toastErrorMock.mock.calls[0][0]).toBe(error);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it("disables bidding when it is not this player's turn", () => {

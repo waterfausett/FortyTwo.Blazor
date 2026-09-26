@@ -47,6 +47,20 @@ interface ApiErrorBody {
   detail?: string;
 }
 
+// Keeps the Worker's title and detail apart so a toast can show them as heading and body;
+// `message` still joins them for callers that just print it.
+export class ApiError extends Error {
+  readonly title: string;
+  readonly detail?: string;
+
+  constructor(title: string, detail?: string) {
+    super(detail ? `${title}: ${detail}` : title);
+    this.name = 'ApiError';
+    this.title = title;
+    this.detail = detail;
+  }
+}
+
 // `parseJson: false` is for routes that respond with an empty body (patchProfile's underlying
 // route does `c.body(null, 200)`) - calling `res.json()` on an empty body throws, so those callers
 // opt out entirely rather than relying on a content-length/204 heuristic that may not hold across
@@ -76,7 +90,7 @@ async function request<T>(
       // so the title/detail fallback below still produces a useful message.
     }
     const title = body.title?.trim() || res.statusText || `Request failed (${res.status})`;
-    throw new Error(body.detail ? `${title}: ${body.detail}` : title);
+    throw new ApiError(title, body.detail || undefined);
   }
 
   if (!parseJson) return undefined as T;

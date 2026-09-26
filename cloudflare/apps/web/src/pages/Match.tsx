@@ -13,9 +13,8 @@
 // deals a new hand once the current one has a winner (the very first hand deals automatically on
 // the 4th join), so without it a match could complete its first hand and then simply never
 // continue. See the "Ready up" section below, gated on `gameWinningTeam(currentGame) !== null`.
-// It still doesn't port the old app's SweetAlert2 toast/modal notifications for "next game
-// started" / "match over" - the brief's own guidance is that a plain inline banner is sufficient
-// for surfacing errors, and no equivalent visual-fanfare requirement is in scope here.
+// Rejected actions (an illegal play, a stale bid) pop a SweetAlert2 toast (ui/toast.ts), as the
+// old app did; its "next game started" / "match over" modals are still not ported.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -45,6 +44,7 @@ import { TrumpPicker } from '../components/TrumpPicker';
 import { Seat } from '../components/Seat';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
+import { toastError } from '../ui/toast';
 import { dealerId, isTrickStarted, seatFor, trickLeaderId, trickPlayOrder } from '../match/table';
 import '../styles/match.css';
 
@@ -63,10 +63,6 @@ const MARKS_TO_WIN = 7;
 // players) - used to detect whether a player has already played into the current, still-in-
 // progress trick (see `haveIPlayedInCurrentTrick` below).
 const HAND_SIZE_DEALT = 7;
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Something went wrong.';
-}
 
 function otherTeam(team: Teams): Teams {
   return team === Teams.TeamA ? Teams.TeamB : Teams.TeamA;
@@ -165,9 +161,11 @@ export function Match(): JSX.Element {
 
   const bidMutation = useMutation({
     mutationFn: (bid: Bid) => client.bid(matchId!, bid),
+    onError: toastError,
   });
   const setTrumpMutation = useMutation({
     mutationFn: (suit: Suit) => client.setTrump(matchId!, suit),
+    onError: toastError,
   });
   // `client.playDomino` resolves with the fresh MatchState too, but Match.tsx never reads
   // `playMutation.data` - the live `match` below only ever updates from `useMatchSocket`'s
@@ -185,9 +183,11 @@ export function Match(): JSX.Element {
       lastPlayedDominoIdRef.current = domino.id;
       setAwaitingTurnAdvance(true);
     },
+    onError: toastError,
   });
   const readyUpMutation = useMutation({
     mutationFn: () => client.readyUp(matchId!, true),
+    onError: toastError,
   });
 
   // Trick-hold state: `revealedTrickCount` is how many of `game.tricks` have finished their hold
@@ -267,8 +267,6 @@ export function Match(): JSX.Element {
       setAwaitingTurnAdvance(false);
     }
   }, [awaitingTurnAdvance, holdGame, myPlayerId]);
-
-  const activeError = bidMutation.error ?? setTrumpMutation.error ?? playMutation.error ?? readyUpMutation.error;
 
   if (!matchId) {
     return (
@@ -435,12 +433,6 @@ export function Match(): JSX.Element {
 
   return (
     <div className="match">
-      {activeError != null && (
-        <p role="alert" className="match-error">
-          {errorMessage(activeError)}
-        </p>
-      )}
-
       <header className="scoreboard" aria-label="Scores">
         <div className="score score-us">
           <span className="score-label">Us</span>
