@@ -11,8 +11,90 @@
       href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Zilla+Slab:wght@500;700&display=swap"
     />
     <title>Forty-Two</title>
+    <!-- The splash lives here, outside #root, so React never re-creates it: it stays up untouched
+         while the bundle loads and Auth0 checks for a session, until AuthGate.tsx removes it. It
+         fades in only after 400ms, so a quick load (a refresh with a live session) goes straight
+         from bare wood to the app with no flash. Styled inline so it works before the bundle's
+         stylesheets arrive; colors are hall.css's, spelled out because its custom properties
+         don't exist yet. AuthGate's sign-in error screen reuses the .app-splash layout. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background-color: #241913;
+      }
+
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        opacity: 0;
+        animation: app-splash-reveal 200ms ease-out 400ms forwards;
+      }
+
+      .app-splash {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.75rem;
+        min-height: 100vh;
+        background: radial-gradient(ellipse at 50% 40%, #4b3627, #241913 70%);
+        color: #f2eadb;
+      }
+
+      .app-splash-tile {
+        width: 1.6rem;
+        height: 3.2rem;
+        border-radius: 0.35rem;
+        background: linear-gradient(135deg, #fbf6ec, #ddd0b8);
+        box-shadow:
+          inset 0 -1.6rem 0 -1.55rem #b8a78a,
+          2px 2px 0 #b8a78a,
+          0 4px 10px rgba(0, 0, 0, 0.4);
+        animation: app-splash-turn 1.1s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+      }
+
+      .app-splash-name {
+        margin: 0;
+        font: 700 2rem 'Zilla Slab', Georgia, serif;
+        letter-spacing: 0.02em;
+        text-align: center;
+      }
+
+      /* The sign-in error screen's message (rendered by AuthGate.tsx). */
+      .app-splash-message {
+        max-width: 32rem;
+        margin: -0.75rem 16px 0;
+        color: #b9a58c;
+        font: 400 1rem 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+        text-align: center;
+      }
+
+      @keyframes app-splash-reveal {
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes app-splash-turn {
+        to {
+          transform: rotate(180deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .app-splash-tile {
+          animation-duration: 3s;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="app-splash" class="app-splash" role="status" aria-label="Loading">
+      <div class="app-splash-tile" aria-hidden="true"></div>
+      <p class="app-splash-name">Forty-Two</p>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -9,48 +9,31 @@ import './styles/chip.css'
 import './index.css'
 import './styles/hall.css'
 import { AppAuth0Provider } from './auth/Auth0Provider.tsx'
-import { ProtectedRoute } from './auth/ProtectedRoute.tsx'
+import { AuthGate } from './auth/AuthGate.tsx'
 import { NavBar } from './components/NavBar.tsx'
 import { Lobby } from './pages/Lobby.tsx'
 import { Match } from './pages/Match.tsx'
+import { NotFound } from './pages/NotFound.tsx'
 import { Profile } from './pages/Profile.tsx'
 
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AppAuth0Provider>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <NavBar />
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Lobby />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/match/:matchId"
-              element={
-                <ProtectedRoute>
-                  <Match />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </BrowserRouter>
-      </QueryClientProvider>
-    </AppAuth0Provider>
+    <BrowserRouter>
+      <AppAuth0Provider>
+        <QueryClientProvider client={queryClient}>
+          <AuthGate>
+            <NavBar />
+            <Routes>
+              <Route path="/" element={<Lobby />} />
+              <Route path="/match/:matchId" element={<Match />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthGate>
+        </QueryClientProvider>
+      </AppAuth0Provider>
+    </BrowserRouter>
   </StrictMode>,
 )

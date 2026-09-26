@@ -1,7 +1,20 @@
 import { Auth0Provider } from '@auth0/auth0-react';
+import type { AppState } from '@auth0/auth0-react';
 import type { JSX, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { safeReturnTo } from './returnTo';
 
+// Must sit inside <BrowserRouter>: returning from Auth0 navigates through the router, so the
+// app lands on the page the visitor was sent to log in from (AuthGate's `appState.returnTo`),
+// not the bare redirect_uri. A plain history.replaceState (the SDK's default) would change the
+// URL without the router noticing.
 export function AppAuth0Provider({ children }: { children: ReactNode }): JSX.Element {
+  const navigate = useNavigate();
+
+  const onRedirectCallback = (appState?: AppState): void => {
+    navigate(safeReturnTo(appState?.returnTo), { replace: true });
+  };
+
   return (
     <Auth0Provider
       domain={import.meta.env.VITE_AUTH0_DOMAIN}
@@ -15,6 +28,7 @@ export function AppAuth0Provider({ children }: { children: ReactNode }): JSX.Ele
         redirect_uri: window.location.origin,
         audience: import.meta.env.VITE_AUTH0_AUDIENCE,
       }}
+      onRedirectCallback={onRedirectCallback}
     >
       {children}
     </Auth0Provider>

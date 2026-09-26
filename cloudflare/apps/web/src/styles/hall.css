@@ -159,7 +159,7 @@ a:hover {
 
 /* ---------- Loading ---------- */
 
-/* Every loading state is a bare `.spinner` div (ProtectedRoute, Profile, Match). Give the empty
+/* Every in-page loading state is a bare `.spinner` div (Profile, Match). Give the empty
    ones something to show: a single bone tile turning end over end, centered on the wood. */
 div.spinner:empty {
   width: 1.4rem;
