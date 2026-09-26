@@ -17,3 +17,13 @@ body {
   font-size: 16px;
   line-height: 1.5;
 }
+
+/* Lets a page's own root element (e.g. Match.tsx's `.match` - see match.css) opt into filling
+   the rest of the viewport below NavBar by giving itself `flex: 1`. Pages that don't (Lobby,
+   Profile) are unaffected - a flex column's non-stretched items just take their natural content
+   height, identical to normal block layout. */
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}

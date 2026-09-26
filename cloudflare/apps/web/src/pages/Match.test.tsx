@@ -177,6 +177,85 @@ describe('Match', () => {
     await waitFor(() => expect(playDominoMock).toHaveBeenCalledWith('match-1', { top: domino.top, bottom: domino.bottom }));
   });
 
+  // Regression test: after MY OWN play mutation resolves successfully, there's a real gap before
+  // the WebSocket broadcast confirming the new turn actually arrives - `useMatchSocket` only ever
+  // updates `match` from a broadcast, never from the mutation's own REST response (client.ts's
+  // playDomino DOES return the fresh MatchState, but Match.tsx never reads `playMutation.data`).
+  // Without accounting for that gap, `canPlay` briefly reads true again the instant
+  // `playMutation.isPending` flips back to false but the (stale) `match` still shows ME as
+  // `currentPlayerId` - letting a second play/preselect attempt fire immediately and get rejected
+  // server-side with "It's not your turn!".
+  it("keeps a player's hand non-clickable after their own play resolves, even before the match broadcast confirms the turn moved on", async () => {
+    playDominoMock.mockResolvedValue({} as MatchState);
+    const domino: Domino = createDomino(1, 2);
+    const match = baseMatch(
+      {},
+      {
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        currentPlayerId: 'p1',
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [domino, createDomino(3, 4)], bid: Bid.Thirty },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+        ],
+      }
+    );
+    // Deliberately never updated after the play below - simulates the broadcast not having
+    // arrived yet, with `match` still showing the pre-play state (currentPlayerId still 'p1').
+    useMatchSocketMock.mockReturnValue({ match, connected: true });
+
+    renderMatch();
+    const tiles = screen.getAllByTestId('domino');
+
+    fireEvent.click(tiles[0]);
+    await waitFor(() => expect(playDominoMock).toHaveBeenCalled());
+
+    // The mutation has resolved, but `match` (from the still-unmoved mock above) hasn't - the
+    // remaining tile must NOT be clickable/playable again yet.
+    await waitFor(() => {
+      expect(screen.getAllByTestId('domino')[0].classList.contains('clickable')).toBe(false);
+    });
+  });
+
+  // Regression test: a player who has already played into the CURRENT (still in-progress) trick
+  // can never play again until the NEXT trick - so any preselection they make in the meantime is
+  // unambiguously for that next, not-yet-started trick. Validating it against the current trick's
+  // (already-decided) suit is simply the wrong question to ask.
+  it('lets a player preselect for the next trick without being bound by the trick they already played into', () => {
+    const match = baseMatch(
+      {},
+      {
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        currentPlayerId: 'p2', // not my turn - the trick I led is still awaiting p2/p3/p4.
+        tricks: [], // this is still the FIRST trick of the hand - 0 completed so far.
+        hands: [
+          // p1's hand is already short of the fixture's dominoes.length - down to 2, signalling
+          // (relative to a full 7-domino hand and 0 completed tricks) that p1 already played into
+          // the current trick. (6,6) is trump/suit-Sixes; (4,0) is not - if isValidPlay wrongly
+          // applied the current trick's suit (Sixes, since p1 led with a six), it would refuse to
+          // preselect (4,0) since p1 "still holds" a Sixes-suit domino.
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [createDomino(4, 0), createDomino(6, 6)], bid: Bid.Thirty },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [createDomino(1, 1)], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+        ],
+        currentTrick: { playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [createDomino(6, 5), null, null, null] },
+      }
+    );
+    useMatchSocketMock.mockReturnValue({ match, connected: true });
+    renderMatch();
+    const handTiles = within(screen.getByTestId('hand')).getAllByTestId('domino');
+
+    fireEvent.doubleClick(handTiles[0]); // (4,0)
+
+    expect(handTiles[0].classList.contains('preselected')).toBe(true);
+  });
+
   it('calls bid with the right Bid value when a bid button is clicked', async () => {
     bidMock.mockResolvedValue({} as MatchState);
     const match = baseMatch();
@@ -465,6 +544,67 @@ describe('Match', () => {
 
     fireEvent.click(tile);
     await waitFor(() => expect(playDominoMock).toHaveBeenCalledWith('match-1', { top: 6, bottom: 6 }));
+  });
+
+  // Match.tsx wires Hand's `isValidPlay` to the same `@fortytwo/rules` `assertValidDomino`
+  // follow-suit check the server enforces, so a player can only preselect (double-click before
+  // their turn) a domino that would actually be legal to play once the trick's suit is set.
+  describe('Preselecting a domino before your turn (Hand isValidPlay wiring)', () => {
+    function followSuitMatch(): MatchState {
+      return baseMatch(
+        {},
+        {
+          bid: Bid.Thirty,
+          biddingPlayerId: 'p1',
+          trump: Suit.Sixes,
+          currentPlayerId: 'p2', // NOT p1's turn - p1 can only preselect, not play directly.
+          hands: [
+            // (4,0) is suit Fours (a legal follow); (2,3) is neither Fours nor trump (illegal
+            // while a Fours-suit domino is still in hand) - see domino.ts's isOfSuit. Padded out to
+            // a realistic full 7-domino hand (with 0 completed tricks) so `haveIPlayedInCurrentTrick`
+            // (Match.tsx) correctly reads p1 as NOT having played into the current trick yet.
+            {
+              playerId: 'p1',
+              team: Teams.TeamA,
+              dominoes: [
+                createDomino(4, 0),
+                createDomino(2, 3),
+                createDomino(0, 0),
+                createDomino(0, 1),
+                createDomino(0, 2),
+                createDomino(1, 2),
+                createDomino(2, 2),
+              ],
+              bid: Bid.Thirty,
+            },
+            { playerId: 'p2', team: Teams.TeamB, dominoes: [createDomino(1, 1)], bid: Bid.Pass },
+            { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+            { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          ],
+          currentTrick: { playerId: 'p2', team: Teams.TeamB, suit: Suit.Fours, dominoes: [createDomino(4, 1), null, null, null] },
+        }
+      );
+    }
+
+    it('preselects a domino that would legally follow suit', () => {
+      useMatchSocketMock.mockReturnValue({ match: followSuitMatch(), connected: true });
+      renderMatch();
+      const handTiles = within(screen.getByTestId('hand')).getAllByTestId('domino');
+
+      fireEvent.doubleClick(handTiles[0]); // (4,0)
+
+      expect(handTiles[0].classList.contains('preselected')).toBe(true);
+    });
+
+    it('refuses to preselect a domino that would break the follow-suit rule', () => {
+      useMatchSocketMock.mockReturnValue({ match: followSuitMatch(), connected: true });
+      renderMatch();
+      const handTiles = within(screen.getByTestId('hand')).getAllByTestId('domino');
+
+      fireEvent.doubleClick(handTiles[1]); // (2,3)
+
+      expect(handTiles[1].classList.contains('preselected')).toBe(false);
+    });
   });
 
   // Regression coverage for the "trick vanishes instantly" complaint: a just-completed trick

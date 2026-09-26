@@ -32,6 +32,7 @@ import {
   matchScores,
   trickValue,
   gameWinningTeam,
+  assertValidDomino,
 } from '@fortytwo/rules';
 import { apiClient } from '../api/client';
 import { useMatchSocket } from '../api/useMatchSocket';
@@ -45,6 +46,11 @@ import '../styles/match.css';
 // progress") before it's swept off to its team's side pile - long enough to actually see what
 // was played, instead of the trick vanishing the instant the last domino lands.
 const TRICK_HOLD_MS = 1500;
+
+// Every hand is always dealt exactly 7 dominoes (matchEngine.ts's dealHands: 28 dominoes / 4
+// players) - used to detect whether a player has already played into the current, still-in-
+// progress trick (see `haveIPlayedInCurrentTrick` below).
+const HAND_SIZE_DEALT = 7;
 
 // Every non-Low, non-None suit, in enum declaration order - the ordinary trump choices.
 const NAMED_SUITS = [Suit.Blanks, Suit.Aces, Suit.Deuces, Suit.Threes, Suit.Fours, Suit.Fives, Suit.Sixes];
@@ -143,8 +149,16 @@ export function Match(): JSX.Element {
   const setTrumpMutation = useMutation({
     mutationFn: (suit: Suit) => client.setTrump(matchId!, suit),
   });
+  // `client.playDomino` resolves with the fresh MatchState too, but Match.tsx never reads
+  // `playMutation.data` - the live `match` below only ever updates from `useMatchSocket`'s
+  // broadcast. That leaves a real gap between MY OWN play resolving (isPending flips back to
+  // false) and the broadcast confirming the turn actually moved on - during which the still-stale
+  // `match` would otherwise let `canPlay` read true again. `awaitingTurnAdvance` (set here, cleared
+  // by the effect below once a fresh `currentPlayerId` arrives) closes that gap.
+  const [awaitingTurnAdvance, setAwaitingTurnAdvance] = useState(false);
   const playMutation = useMutation({
     mutationFn: (domino: DominoType) => client.playDomino(matchId!, { top: domino.top, bottom: domino.bottom }),
+    onSuccess: () => setAwaitingTurnAdvance(true),
   });
   const readyUpMutation = useMutation({
     mutationFn: () => client.readyUp(matchId!, true),
@@ -194,6 +208,15 @@ export function Match(): JSX.Element {
       if (holdTimerRef.current != null) clearTimeout(holdTimerRef.current);
     };
   }, []);
+
+  // Closes `awaitingTurnAdvance`'s gap: a play always moves the turn away from whoever made it, so
+  // once a `match` update actually shows someone else as `currentPlayerId`, the broadcast has
+  // genuinely caught up and it's safe to let `canPlay` matter again.
+  useEffect(() => {
+    if (awaitingTurnAdvance && holdGame?.currentPlayerId !== myPlayerId) {
+      setAwaitingTurnAdvance(false);
+    }
+  }, [awaitingTurnAdvance, holdGame, myPlayerId]);
 
   const activeError = bidMutation.error ?? setTrumpMutation.error ?? playMutation.error ?? readyUpMutation.error;
 
@@ -247,7 +270,7 @@ export function Match(): JSX.Element {
 
   const canBid = isBiddingPhase && me.isActive;
   const canSelectTrump = isTrumpSelectPhase && me.isActive;
-  const canPlay = isPlayingPhase && me.isActive && !playMutation.isPending;
+  const canPlay = isPlayingPhase && me.isActive && !playMutation.isPending && !awaitingTurnAdvance;
 
   // Once the current hand has a winner, the ONLY way to continue is for all 4 players to
   // explicitly ready up again (patchPlayerReady deals the next hand once everyone has) - with no
@@ -269,6 +292,29 @@ export function Match(): JSX.Element {
   const displayedTrick = heldTrick ?? game.currentTrick;
 
   const otherPlayers = match.players.filter((p) => p.playerId !== myPlayerId);
+
+  // A player plays exactly once per trick (dealHands deals HAND_SIZE_DEALT each) - so if this
+  // hand already holds fewer dominoes than "HAND_SIZE_DEALT minus completed tricks", they've
+  // already played into the CURRENT (still in-progress) trick and can't play again until the NEXT
+  // one starts. Any preselection made right now is therefore for that next, not-yet-started trick -
+  // `game.currentTrick.suit` (the trick they already played into) has no bearing on it.
+  const haveIPlayedInCurrentTrick = (me.dominoes?.length ?? 0) < HAND_SIZE_DEALT - game.tricks.length;
+
+  // Gates which dominoes Hand will let a player preselect (double-click before their turn) -
+  // reuses the same follow-suit rule the server enforces (`assertValidDomino`), so a preselection
+  // can only ever be queued for a move that's actually legal right now. When the trick hasn't
+  // started yet (`currentTrick.suit === null`) - or isn't even the trick this preselection is
+  // really for, per `haveIPlayedInCurrentTrick` above - anything can be preselected, since there's
+  // no known suit yet to violate.
+  function isValidPlay(domino: DominoType): boolean {
+    if (haveIPlayedInCurrentTrick) return true;
+    try {
+      assertValidDomino(game, myPlayerId, domino);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   return (
     <div className="match">
@@ -375,7 +421,12 @@ export function Match(): JSX.Element {
             </div>
           )}
 
-          <Hand dominoes={me.dominoes ?? []} selectable={canPlay} onPlay={(domino) => playMutation.mutate(domino)} />
+          <Hand
+            dominoes={me.dominoes ?? []}
+            selectable={canPlay}
+            onPlay={(domino) => playMutation.mutate(domino)}
+            isValidPlay={isValidPlay}
+          />
         </div>
       </div>
     </div>

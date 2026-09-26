@@ -16,7 +16,14 @@ export interface DominoProps {
   top: number;
   bottom: number;
   onClick?: () => void;
+  onDoubleClick?: () => void;
   selectable?: boolean;
+  // Port of Domino.razor's `Preselected` param - adds domino.css's existing `.preselected` class
+  // (a theme-aware glow, see theme.css's `--domino-preselected-color`) directly to this element,
+  // same as Domino.razor did. Deliberately NOT a wrapper class: `.horizontal`'s rotate+negative-
+  // margin hack means a wrapper div's own layout box doesn't line up with where the domino
+  // actually renders, so styling has to live on the domino element itself to be visible at all.
+  preselected?: boolean;
   direction?: 'horizontal' | 'vertical';
 }
 
@@ -54,13 +61,32 @@ function DominoHalf({ prefix, value }: { prefix: 'T' | 'B'; value: number }): JS
 // from its natural tall/vertical shape, so the default rendering is the wide hand-tile look;
 // TrickDisplay passes direction="vertical" (omitting the class) for the tall trick-pile look,
 // matching Match.razor's explicit `Direction="DominoDirection.Vertical"` there.
-export function Domino({ top, bottom, onClick, selectable = false, direction = 'horizontal' }: DominoProps): JSX.Element {
-  const classNames = ['domino', direction === 'horizontal' ? 'horizontal' : null, selectable ? 'clickable' : null]
+export function Domino({
+  top,
+  bottom,
+  onClick,
+  onDoubleClick,
+  selectable = false,
+  preselected = false,
+  direction = 'horizontal',
+}: DominoProps): JSX.Element {
+  const classNames = [
+    'domino',
+    direction === 'horizontal' ? 'horizontal' : null,
+    selectable ? 'clickable' : null,
+    preselected ? 'preselected' : null,
+  ]
     .filter((c): c is string => Boolean(c))
     .join(' ');
 
   return (
-    <div className={classNames} data-testid="domino" onClick={onClick} role={onClick ? 'button' : undefined}>
+    <div
+      className={classNames}
+      data-testid="domino"
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      role={onClick ? 'button' : undefined}
+    >
       <DominoHalf prefix="T" value={top} />
       <span className="line" />
       <DominoHalf prefix="B" value={bottom} />

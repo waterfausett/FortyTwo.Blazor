@@ -17,6 +17,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  /* Fills the rest of the viewport below NavBar (index.css's `#root` flex column) so
+     `.game-wrapper`/`.gameboard` below have real extra height to flex-grow into, instead of each
+     collapsing to its own content size. */
+  flex: 1;
+  min-height: 0;
 }
 
 /* Match.tsx's player area keeps the old markup's Bootstrap `p-2` utility class name (this app
@@ -81,6 +86,10 @@
   /* Reserve room at the bottom of the flow so the fixed `.player` bar below never overlaps the
      gameboard/ready-up content that would otherwise render underneath it. */
   padding-bottom: 9rem;
+  /* Fills the rest of `.match` (below the scores/name/players-row) so `.gameboard`'s own
+     flex-grow: 1 (below) has real space to expand into instead of collapsing to content size. */
+  flex: 1;
+  min-height: 0;
 }
 
   /* Anchored low on screen (fixed to the viewport, not just flex order) so the player's hand -
@@ -118,6 +127,7 @@
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: 7rem;
 }
 
   .gameboard .player-team-tricks,
@@ -213,6 +223,10 @@
   .hand-tile-over {
     outline: 2px dashed var(--domino-hover-color, #7ec8e3);
   }
+
+  /* Hand.tsx's double-click "preselect to auto-play on my turn" queue reuses domino.css's
+     existing `.domino.preselected` glow (a straight port of Domino.razor's `Preselected` param) -
+     no new rule needed here. */
 
 /* New: BiddingPanel/trump-select layout - the old app used bare Bootstrap `.row`/`.col-12` for
    this, which this app doesn't have; a simple centered flex-wrap row covers the same ground. */
