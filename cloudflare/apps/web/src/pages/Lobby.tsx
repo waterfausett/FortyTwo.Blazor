@@ -31,9 +31,9 @@ const TABS: { filter: MatchFilter; label: string }[] = [
 ];
 
 const EMPTY_LABELS: Record<MatchFilter, string> = {
-  Active: 'No active games.',
-  Joinable: 'No games to join right now.',
-  Completed: 'No completed games yet.',
+  Active: "You're not in any games. Create a match, or find one to join.",
+  Joinable: 'No open seats right now. Create a match and others can join it.',
+  Completed: 'Finished games will show up here.',
 };
 
 // The lobby's list rows come from the lightweight D1 "MatchSummary" shape (`{ id, status,
@@ -55,6 +55,27 @@ const TEAM_B = 2; // Teams.TeamB in @fortytwo/rules
 
 function joinTeamFor(playerCount: number): number {
   return playerCount % 2 === 1 ? TEAM_B : TEAM_A;
+}
+
+// A table seen from above: four seats around a square of mat, filled in the order players sit
+// down (the creator nearest you, then around the table). Says "how full is this game" at a glance.
+const SEAT_ORDER = ['bottom', 'left', 'top', 'right'] as const;
+
+function SeatGlyph({ seated }: { seated: number }): JSX.Element {
+  return (
+    <span className="seat-glyph" aria-hidden="true">
+      <span className="seat-glyph-table" />
+      {SEAT_ORDER.map((seat, i) => (
+        <span key={seat} className={`seat-glyph-seat seat-glyph-${seat}${i < seated ? ' is-seated' : ''}`} />
+      ))}
+    </span>
+  );
+}
+
+function formatUpdated(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'recently';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function errorMessage(error: unknown): string {
@@ -102,24 +123,24 @@ export function Lobby(): JSX.Element {
 
   return (
     <div className="lobby">
-      <h1 className="lobby-heading">
-        Matches
+      <header className="lobby-header">
+        <h1 className="page-title">Matches</h1>
         <button
           type="button"
-          className="custom-chip custom-chip-info custom-chip-large"
+          className="action-button"
           onClick={() => createMatch.mutate()}
           disabled={createMatch.isPending}
         >
-          {createMatch.isPending ? 'Creating…' : 'Create Match'}
+          {createMatch.isPending ? 'Creating…' : 'Create match'}
         </button>
-      </h1>
+      </header>
       {createMatch.isError && (
-        <p role="alert" className="lobby-error">
+        <p role="alert" className="page-error">
           {errorMessage(createMatch.error)}
         </p>
       )}
       {joinMatch.isError && (
-        <p role="alert" className="lobby-error">
+        <p role="alert" className="page-error">
           {errorMessage(joinMatch.error)}
         </p>
       )}
@@ -152,35 +173,38 @@ export function Lobby(): JSX.Element {
         </button>
       </div>
 
-      <section className="lobby-section" aria-label={activeTabLabel}>
-        {matchesQuery.isLoading && <p>Loading…</p>}
+      <section className="lobby-section mat-panel" aria-label={activeTabLabel}>
+        {matchesQuery.isLoading && <p className="lobby-note">Loading…</p>}
         {matchesQuery.error != null && (
-          <p role="alert" className="lobby-error">
+          <p role="alert" className="page-error">
             {errorMessage(matchesQuery.error)}
           </p>
         )}
         {!matchesQuery.isLoading && matchesQuery.error == null && (matches == null || matches.length === 0) && (
-          <p>{EMPTY_LABELS[activeTab]}</p>
+          <p className="lobby-note">{EMPTY_LABELS[activeTab]}</p>
         )}
         {matches != null && matches.length > 0 && (
           <ul className="lobby-match-list">
             {matches.map((match) => (
               <li key={match.id} className="lobby-match-row">
-                <Link to={`/match/${match.id}`} className="lobby-match-id">
-                  {match.id}
-                </Link>
-                <span className="lobby-match-players">{match.playerCount} players</span>
-                {activeTab === 'Joinable' && (
-                  <span className="lobby-match-row-actions">
-                    <button
-                      type="button"
-                      className="custom-chip custom-chip-success"
-                      onClick={() => joinMatch.mutate({ id: match.id, team: joinTeamFor(match.playerCount) })}
-                      disabled={joinMatch.isPending}
-                    >
-                      Join
-                    </button>
+                <Link to={`/match/${match.id}`} className="lobby-match-link">
+                  <SeatGlyph seated={match.playerCount} />
+                  <span className="lobby-match-text">
+                    <span className="lobby-match-id">{match.id}</span>
+                    <span className="lobby-match-meta">
+                      {match.playerCount} of 4 seated, updated {formatUpdated(match.updatedOn)}
+                    </span>
                   </span>
+                </Link>
+                {activeTab === 'Joinable' && (
+                  <button
+                    type="button"
+                    className="action-button action-button-small"
+                    onClick={() => joinMatch.mutate({ id: match.id, team: joinTeamFor(match.playerCount) })}
+                    disabled={joinMatch.isPending}
+                  >
+                    Join
+                  </button>
                 )}
               </li>
             ))}

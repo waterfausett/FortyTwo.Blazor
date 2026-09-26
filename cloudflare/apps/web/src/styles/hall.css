@@ -1,0 +1,241 @@
+/* The domino hall: the site-wide look the match table set (match.css). Walnut underfoot, bone
+   for anything you pick up or read closely, brass for the one thing asking for your attention,
+   and each team in its own color - turquoise for us, ochre for them. Every page sits on the same
+   walnut; the lobby and profile lay their content out on the felt-less "mat" the table uses.
+
+   Loaded after the ported Blazor stylesheets (theme.css/app.css/chip.css), so it wins over their
+   light-theme page defaults. */
+
+:root {
+  --walnut: #3a2a20;
+  --walnut-deep: #241913;
+  --mat: #4b3627;
+  --bone: #f2eadb;
+  --bone-edge: #b8a78a;
+  --ink-muted: #b9a58c;
+  --us: #3db5a6;
+  --them: #e2a747;
+  --brass: #c9a45c;
+  --danger: #e07a5f;
+
+  --font-ui: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Zilla Slab', Georgia, serif;
+
+  /* Domino tiles (domino.css) read their colors from these. */
+  --domino-color: var(--bone);
+  --domino-border-color: var(--bone-edge);
+  --domino-hover-color: var(--brass);
+  --domino-preselected-color: var(--danger);
+
+  color-scheme: dark;
+}
+
+html,
+body {
+  color: var(--bone);
+  font-family: var(--font-ui);
+  background-color: var(--walnut-deep);
+}
+
+/* The grain runs the full page, not just the match: the lobby and profile sit on the same wood. */
+#root {
+  background-color: var(--walnut);
+  background-image:
+    radial-gradient(ellipse at 50% 30%, rgba(255, 220, 170, 0.06), transparent 60%),
+    repeating-linear-gradient(
+      93deg,
+      rgba(0, 0, 0, 0.05) 0 2px,
+      transparent 2px 9px,
+      rgba(255, 255, 255, 0.015) 9px 11px,
+      transparent 11px 23px
+    );
+}
+
+a {
+  color: var(--brass);
+}
+
+a:hover {
+  color: #dcbd7c;
+}
+
+:focus-visible {
+  outline: 2px solid var(--bone);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* app.css's scrollbars were drawn for a white page - redraw them for the wood. */
+::-webkit-scrollbar-track {
+  box-shadow: none;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(242, 234, 219, 0.25);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(242, 234, 219, 0.4);
+}
+
+/* ---------- Buttons ---------- */
+
+/* The one brass button: the action a page is waiting on (Create match, Join, Save, Ready up). */
+.action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brass);
+  color: var(--walnut-deep);
+  font: 600 1rem var(--font-ui);
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 0 #8d6f35;
+}
+
+.action-button:hover:not(:disabled) {
+  background: #d8b46b;
+}
+
+.action-button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 #8d6f35;
+}
+
+.action-button:disabled {
+  background: transparent;
+  color: var(--brass);
+  box-shadow: inset 0 0 0 1px var(--brass);
+  cursor: default;
+}
+
+.action-button-small {
+  padding: 0.35rem 1rem;
+  font-size: 0.9rem;
+}
+
+/* ---------- Surfaces ---------- */
+
+/* A panel of the table's mat, sunk into the walnut. */
+.mat-panel {
+  border-radius: 1.25rem;
+  background: radial-gradient(ellipse at 50% 30%, #5a4130, var(--mat) 75%);
+  box-shadow:
+    inset 0 2px 18px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(242, 234, 219, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.page-error {
+  margin: 0 0 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  background: #5a2419;
+  color: #ffd9cf;
+  border: 1px solid var(--danger);
+}
+
+.page-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.25rem;
+  line-height: 1.1;
+}
+
+/* ---------- Loading ---------- */
+
+/* Every loading state is a bare `.spinner` div (ProtectedRoute, Profile, Match). Give the empty
+   ones something to show: a single bone tile turning end over end, centered on the wood. */
+div.spinner:empty {
+  width: 1.4rem;
+  height: 2.8rem;
+  margin: 6rem auto;
+  border-radius: 0.3rem;
+  background: linear-gradient(135deg, #fbf6ec, #ddd0b8);
+  box-shadow:
+    inset 0 -1.4rem 0 -1.35rem var(--bone-edge),
+    2px 2px 0 var(--bone-edge),
+    0 4px 10px rgba(0, 0, 0, 0.4);
+  animation: tile-turn 1.1s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+
+@keyframes tile-turn {
+  to {
+    transform: rotate(180deg);
+  }
+}
+
+/* ---------- Pip faces (PipFace.tsx) ---------- */
+
+/* A single domino half standing in for a suit. */
+.pip-face {
+  display: inline-grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0.2rem;
+  border-radius: 0.3rem;
+  background: var(--bone);
+  box-shadow: inset 0 0 0 1px var(--bone-edge);
+  vertical-align: middle;
+}
+
+.pip-face .pip {
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  background: #000;
+}
+
+.pip-face[data-value='1'] .pip { background: var(--domino-1-color, lightblue); }
+.pip-face[data-value='2'] .pip { background: var(--domino-2-color, green); }
+.pip-face[data-value='3'] .pip { background: var(--domino-3-color, indianred); }
+.pip-face[data-value='4'] .pip { background: var(--domino-4-color, sandybrown); }
+.pip-face[data-value='5'] .pip { background: var(--domino-5-color, darkblue); }
+.pip-face[data-value='6'] .pip { background: var(--domino-6-color, gold); }
+
+.pip-face-word {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--walnut-deep);
+  font: 700 0.8rem var(--font-display);
+}
+
+.pip-face-xs {
+  width: 1rem;
+  height: 1rem;
+  padding: 0.1rem;
+  border-radius: 0.2rem;
+}
+
+.pip-face-xs.pip-face-word {
+  font-size: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  div.spinner:empty {
+    animation-duration: 3s;
+  }
+
+  .spinner,
+  .spinner-reverse {
+    animation-duration: 3s;
+  }
+}

@@ -1,5 +1,5 @@
 // Tests the Profile page: loads a profile via `getProfile()` on mount, populates the
-// email (read-only)/picture/theme/displayName fields, and submits edited values via
+// email (read-only)/picture/displayName fields, and submits edited values via
 // `patchProfile()`. `apiClient` is mocked at the module level, matching Lobby.test.tsx's/
 // Match.test.tsx's established pattern (Profile.tsx calls `apiClient(getToken)` internally, so
 // tests control `getProfile`/`patchProfile`'s mocked return/behavior directly). `vitest.config.ts`
@@ -66,8 +66,7 @@ describe('Profile', () => {
     const displayNameInput = screen.getByLabelText(/display name/i) as HTMLInputElement;
     expect(displayNameInput.value).toBe('Old Name');
 
-    const themeToggle = screen.getByLabelText(/dark theme/i) as HTMLInputElement;
-    expect(themeToggle.checked).toBe(false);
+    expect(screen.queryByLabelText(/dark theme/i)).toBeNull();
 
     const preview = screen.getByAltText(/profile picture preview/i) as HTMLImageElement;
     expect(preview.src).toBe('https://example.com/old-picture.png');
@@ -95,15 +94,11 @@ describe('Profile', () => {
     const pictureInput = screen.getByLabelText(/picture/i) as HTMLInputElement;
     fireEvent.change(pictureInput, { target: { value: 'https://example.com/new-picture.png' } });
 
-    const themeToggle = screen.getByLabelText(/dark theme/i) as HTMLInputElement;
-    fireEvent.click(themeToggle);
-
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
 
     await waitFor(() =>
       expect(patchProfileMock).toHaveBeenCalledWith({
         displayName: 'New Name',
-        theme: 'Dark',
         picture: 'https://example.com/new-picture.png',
       })
     );

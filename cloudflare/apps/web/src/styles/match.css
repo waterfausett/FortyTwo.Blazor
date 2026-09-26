@@ -6,29 +6,11 @@
 
    Motion is reserved for what just happened: a played domino slides in from its player's seat,
    and a finished trick sweeps off to the winning team's pile. The active seat breathes slowly.
-   All of it is switched off under prefers-reduced-motion. */
+   All of it is switched off under prefers-reduced-motion.
+
+   The palette, fonts, .action-button and PipFace's .pip-face live in hall.css, shared site-wide. */
 
 .match {
-  --walnut: #3a2a20;
-  --walnut-deep: #241913;
-  --mat: #4b3627;
-  --bone: #f2eadb;
-  --bone-edge: #b8a78a;
-  --ink-muted: #b9a58c;
-  --us: #3db5a6;
-  --them: #e2a747;
-  --brass: #c9a45c;
-  --danger: #e07a5f;
-
-  --font-ui: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
-  --font-display: 'Zilla Slab', Georgia, serif;
-
-  /* Domino tiles (domino.css) read their colors from these. */
-  --domino-color: var(--bone);
-  --domino-border-color: var(--bone-edge);
-  --domino-hover-color: var(--brass);
-  --domino-preselected-color: var(--danger);
-
   flex: 1;
   min-height: 0;
   display: flex;
@@ -37,32 +19,6 @@
      clip it rather than flash a horizontal scrollbar. `clip` (not `hidden`) keeps this from
      becoming a scroll container, so vertical page scrolling is unaffected. */
   overflow-x: clip;
-  color: var(--bone);
-  font-family: var(--font-ui);
-  background-color: var(--walnut);
-  background-image:
-    radial-gradient(ellipse at 50% 40%, rgba(255, 220, 170, 0.07), transparent 65%),
-    repeating-linear-gradient(
-      93deg,
-      rgba(0, 0, 0, 0.05) 0 2px,
-      transparent 2px 9px,
-      rgba(255, 255, 255, 0.015) 9px 11px,
-      transparent 11px 23px
-    );
-}
-
-.match .visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-.match button:focus-visible {
-  outline: 2px solid var(--bone);
-  outline-offset: 2px;
 }
 
 .match-error {
@@ -680,28 +636,6 @@
   font-size: 1.7rem;
 }
 
-.action-button {
-  padding: 0.55rem 1.4rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--brass);
-  color: var(--walnut-deep);
-  font: 600 1rem var(--font-ui);
-  cursor: pointer;
-  box-shadow: 0 2px 0 #8d6f35;
-}
-
-.action-button:hover:not(:disabled) {
-  background: #d8b46b;
-}
-
-.action-button:disabled {
-  background: transparent;
-  color: var(--brass);
-  box-shadow: inset 0 0 0 1px var(--brass);
-  cursor: default;
-}
-
 /* ---------- The rail: status, actions, my hand ---------- */
 
 .game-wrapper .player {
@@ -796,53 +730,6 @@
 .trump-tile:disabled {
   opacity: 0.4;
   cursor: default;
-}
-
-/* A single domino half standing in for a suit. */
-.pip-face {
-  display: inline-grid;
-  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
-  place-items: center;
-  width: 1.9rem;
-  height: 1.9rem;
-  padding: 0.2rem;
-  border-radius: 0.3rem;
-  background: var(--bone);
-  box-shadow: inset 0 0 0 1px var(--bone-edge);
-  vertical-align: middle;
-}
-
-.pip-face .pip {
-  width: 70%;
-  height: 70%;
-  border-radius: 50%;
-  background: #000;
-}
-
-.pip-face[data-value='1'] .pip { background: var(--domino-1-color, lightblue); }
-.pip-face[data-value='2'] .pip { background: var(--domino-2-color, green); }
-.pip-face[data-value='3'] .pip { background: var(--domino-3-color, indianred); }
-.pip-face[data-value='4'] .pip { background: var(--domino-4-color, sandybrown); }
-.pip-face[data-value='5'] .pip { background: var(--domino-5-color, darkblue); }
-.pip-face[data-value='6'] .pip { background: var(--domino-6-color, gold); }
-
-.pip-face-word {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--walnut-deep);
-  font: 700 0.8rem var(--font-display);
-}
-
-.pip-face-xs {
-  width: 1rem;
-  height: 1rem;
-  padding: 0.1rem;
-  border-radius: 0.2rem;
-}
-
-.pip-face-xs.pip-face-word {
-  font-size: 0.5rem;
 }
 
 /* Hand tiles (Hand.tsx) */

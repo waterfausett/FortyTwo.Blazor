@@ -1,92 +1,97 @@
-/* Lobby.tsx page layout. Like match.css for Match.tsx, this page got className hooks
-   (lobby/lobby-section/lobby-match-*) with no rules ever written for them - it rendered with
-   plain browser defaults (a huge <h1>, the "Create Match" button crammed against the heading
-   text, bare bulleted <li> rows). Buttons reuse the app's existing .custom-chip look (chip.css -
-   the same one Match.tsx/BiddingPanel.tsx use) rather than inventing a second button style. */
+/* Lobby.tsx: the hall's front room. The match list sits on a panel of the table's mat
+   (.mat-panel, hall.css), each game a name plate like the ones at the match table's seats, led
+   by a little top-down table showing how many of its four seats are taken. */
 
 .lobby {
-  max-width: 40rem;
+  width: 100%;
+  max-width: 44rem;
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 2rem 16px 3rem;
 }
 
-.lobby-heading {
+.lobby-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  font-size: 1.75rem;
-  margin: 0 0 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
-/* Tab bar - mirrors the old app's nav-tabs (Find a Game / Active Games / Game History), plus the
-   manual refresh button pinned to the end (replaces the old app's own oi-loop-circular button,
-   which lived in the <h3> instead - moved here since it now refreshes whichever tab is active,
-   not a fixed list). */
+/* Tabs: Find a Game / Active Games / Game History, plus the manual refresh pinned to the end. The
+   selected tab gets the same brass underline as the nav's current page. */
 .lobby-tabs {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.25rem;
-  border-bottom: 1px solid var(--label-default-border-color, #8c8c8c);
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(242, 234, 219, 0.1);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
 
 .lobby-tab {
   appearance: none;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
+  flex: none;
   padding: 0.5rem 0.75rem;
   margin-bottom: -1px;
-  font-size: 0.9rem;
-  color: var(--label-font-color-light, #000);
-  opacity: 0.6;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ink-muted);
+  font: 600 0.95rem var(--font-ui);
   cursor: pointer;
 }
 
-  .lobby-tab:hover {
-    opacity: 0.85;
-  }
+.lobby-tab:hover {
+  color: var(--bone);
+}
 
-  .lobby-tab-active {
-    opacity: 1;
-    font-weight: 600;
-    color: var(--label-info-font-color, #00567a);
-    border-bottom-color: var(--label-info-font-color, #00567a);
-  }
+.lobby-tab-active {
+  color: var(--bone);
+  border-bottom-color: var(--brass);
+}
 
 .lobby-refresh {
   appearance: none;
-  background: none;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0 0 0.25rem auto;
   border: none;
-  margin-left: auto;
-  padding: 0.4rem;
-  font-size: 1.1rem;
-  line-height: 1;
-  color: var(--label-info-font-color, #00567a);
-  cursor: pointer;
   border-radius: 50%;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
-  .lobby-refresh:hover:not(:disabled) {
-    background: var(--label-info-bg-color, #e3f5fc);
-  }
+.lobby-refresh:hover:not(:disabled) {
+  color: var(--bone);
+  background: rgba(242, 234, 219, 0.08);
+}
 
-  .lobby-refresh:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
+.lobby-refresh:disabled {
+  cursor: default;
+}
 
 .lobby-section {
-  margin-bottom: 2rem;
+  padding: 0.75rem;
 }
 
-.lobby-error {
-  padding: 0.5rem 0.75rem;
-  border-radius: 4px;
-  background: var(--label-danger-bg-color, #feddd7);
-  color: var(--label-danger-font-color, #991700);
-  border: 1px solid var(--label-danger-border-color, #991700);
+.lobby-note {
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 1.05rem;
+}
+
+.lobby-section > .page-error {
+  margin: 0.25rem;
 }
 
 .lobby-match-list {
@@ -95,34 +100,141 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .lobby-match-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  background: var(--label-info-bg-color, #e3f5fc);
+  padding-right: 0.75rem;
+  border-radius: 0.9rem;
+  background: rgba(20, 13, 9, 0.55);
+  box-shadow: 0 0 0 1px rgba(242, 234, 219, 0.08);
+  transition: background-color 150ms ease;
+}
+
+.lobby-match-row:hover {
+  background: rgba(20, 13, 9, 0.75);
+}
+
+.lobby-match-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.65rem 0 0.65rem 0.75rem;
+  border-radius: 0.9rem;
+  color: var(--bone);
+  text-decoration: none;
+}
+
+.lobby-match-link:hover {
+  color: var(--bone);
+}
+
+/* A row with no Join button is all link - let it reach the row's right edge. */
+.lobby-match-link:last-child {
+  margin-right: -0.75rem;
+  padding-right: 0.75rem;
+}
+
+.lobby-match-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
 }
 
 .lobby-match-id {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 0.8rem;
-  color: var(--label-info-font-color, #00567a);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
 
-.lobby-match-players {
-  font-size: 0.8rem;
-  color: var(--label-font-color-light, #000);
-  opacity: 0.7;
-  white-space: nowrap;
+.lobby-match-meta {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
 }
 
-.lobby-match-row-actions {
-  margin-left: auto;
+/* ---------- Seat glyph: the table from above ---------- */
+
+.seat-glyph {
+  flex: none;
+  position: relative;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.seat-glyph-table {
+  position: absolute;
+  inset: 0.6rem;
+  border-radius: 0.3rem;
+  background: var(--mat);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.seat-glyph-seat {
+  position: absolute;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(242, 234, 219, 0.28);
+}
+
+.seat-glyph-seat.is-seated {
+  background: linear-gradient(135deg, #fbf6ec, #ddd0b8);
+  box-shadow: 1px 1px 0 var(--bone-edge);
+}
+
+.seat-glyph-top,
+.seat-glyph-bottom {
+  left: 50%;
+  width: 0.9rem;
+  height: 0.45rem;
+  margin-left: -0.45rem;
+}
+
+.seat-glyph-top {
+  top: 0;
+}
+
+.seat-glyph-bottom {
+  bottom: 0;
+}
+
+.seat-glyph-left,
+.seat-glyph-right {
+  top: 50%;
+  width: 0.45rem;
+  height: 0.9rem;
+  margin-top: -0.45rem;
+}
+
+.seat-glyph-left {
+  left: 0;
+}
+
+.seat-glyph-right {
+  right: 0;
+}
+
+@media (max-width: 520px) {
+  .lobby {
+    padding-top: 1.25rem;
+  }
+
+  .page-title {
+    font-size: 1.75rem;
+  }
+
+  .lobby-section {
+    padding: 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-match-row {
+    transition: none;
+  }
 }

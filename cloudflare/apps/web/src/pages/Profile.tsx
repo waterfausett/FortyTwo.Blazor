@@ -1,14 +1,10 @@
-// The profile page: display name, picture URL, and a light/dark theme toggle. Replaces
+// The profile page: display name and picture URL. Replaces
 // FortyTwo/Client/Pages/Profile.razor(.cs). Email is read-only, sourced straight from
 // `getProfile()`'s response (never sent back via `patchProfile`). Picture is a plain URL text
 // field (despite the old app's <label for="filePicture">Picture</label>, it was never a file
 // upload - `ProfileModel.Picture` is a string, and `InputText` posts a URL) with a live preview
-// that falls back to the profile's existing picture until edited. Theme is a checkbox
-// (`UseDarkTheme: bool?` in the old `ProfileModel`), mapped to/from `client.ts`'s
-// `theme: 'Light' | 'Dark'` string: checked -> 'Dark', unchecked -> 'Light'. On first load, if the
-// profile has no theme set yet, this defaults the toggle to the OS preference (the React
-// equivalent of the old app's `getSystemPrefersDarkTheme` JS interop call), matching
-// Profile.razor.cs:35-37's `User.UserMetadata.Theme ??= ...`.
+// that falls back to the profile's existing picture until edited. The old app's light/dark theme
+// toggle is gone: the whole site is the one dark domino-hall look (styles/hall.css).
 //
 // The old app used a SweetAlert2 toast on save; per this plan's established pattern (Task 20 used
 // a plain inline banner for errors instead of a toast library), a brief inline "Saved" message
@@ -22,12 +18,6 @@ import './Profile.css';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.';
-}
-
-function systemPrefersDarkTheme(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-    ? window.matchMedia('(prefers-color-scheme: dark)').matches
-    : false;
 }
 
 export function Profile(): JSX.Element {
@@ -45,7 +35,6 @@ export function Profile(): JSX.Element {
 
   const [displayName, setDisplayName] = useState('');
   const [picture, setPicture] = useState('');
-  const [useDarkTheme, setUseDarkTheme] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
@@ -54,8 +43,6 @@ export function Profile(): JSX.Element {
     const profile = profileQuery.data;
     setDisplayName(profile.displayName ?? '');
     setPicture(profile.picture ?? '');
-    const theme = profile.user_metadata?.theme ?? (systemPrefersDarkTheme() ? 'Dark' : 'Light');
-    setUseDarkTheme(theme === 'Dark');
     setInitialized(true);
   }, [profileQuery.data, initialized]);
 
@@ -63,7 +50,6 @@ export function Profile(): JSX.Element {
     mutationFn: () =>
       client.patchProfile({
         displayName,
-        theme: useDarkTheme ? 'Dark' : 'Light',
         picture,
       }),
     onSuccess: () => {
@@ -84,9 +70,11 @@ export function Profile(): JSX.Element {
 
   if (profileQuery.error != null) {
     return (
-      <p role="alert" className="profile-error">
-        {errorMessage(profileQuery.error)}
-      </p>
+      <div className="profile">
+        <p role="alert" className="page-error">
+          {errorMessage(profileQuery.error)}
+        </p>
+      </div>
     );
   }
 
@@ -94,23 +82,40 @@ export function Profile(): JSX.Element {
 
   return (
     <div className="profile">
-      <h3>Profile</h3>
-      <hr />
+      <h1 className="page-title">Profile</h1>
 
       {saveMutation.isError && (
-        <p role="alert" className="profile-error">
+        <p role="alert" className="page-error">
           {errorMessage(saveMutation.error)}
         </p>
       )}
 
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="txtEmail">Email address</label>
-          <input type="email" id="txtEmail" value={profileQuery.data?.email ?? ''} disabled />
+      <form className="profile-card mat-panel" onSubmit={handleSubmit}>
+        <div className="profile-plate">
+          {previewSrc !== '' ? (
+            <img className="profile-picture-preview" src={previewSrc} alt="Profile picture preview" />
+          ) : (
+            <span className="profile-picture-preview profile-picture-empty" aria-hidden="true" />
+          )}
+          <div className="profile-plate-text">
+            <span className="profile-plate-name">{displayName.trim() || 'No display name'}</span>
+            <span className="profile-plate-email">{profileQuery.data?.email}</span>
+          </div>
         </div>
 
         <div className="form-group">
-          <label htmlFor="txtPicture">Picture</label>
+          <label htmlFor="txtDisplayName">Display name</label>
+          <input
+            type="text"
+            id="txtDisplayName"
+            placeholder="What the table calls you"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="txtPicture">Picture URL</label>
           <input
             type="text"
             id="txtPicture"
@@ -118,41 +123,23 @@ export function Profile(): JSX.Element {
             value={picture}
             onChange={(e) => setPicture(e.target.value)}
           />
-          {previewSrc !== '' && (
-            <img className="profile-picture-preview" src={previewSrc} alt="Profile picture preview" />
-          )}
         </div>
 
         <div className="form-group">
-          <label htmlFor="chkDarkMode">Use Dark Theme</label>
-          <input
-            type="checkbox"
-            id="chkDarkMode"
-            checked={useDarkTheme}
-            onChange={(e) => setUseDarkTheme(e.target.checked)}
-          />
+          <label htmlFor="txtEmail">Email address</label>
+          <input type="email" id="txtEmail" value={profileQuery.data?.email ?? ''} disabled />
         </div>
 
-        <div className="form-group">
-          <label htmlFor="txtDisplayName">Display Name</label>
-          <input
-            type="text"
-            id="txtDisplayName"
-            placeholder="Display name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-        </div>
 
         <div className="profile-actions">
-          <button
-            type="submit"
-            className="custom-chip custom-chip-info custom-chip-large"
-            disabled={saveMutation.isPending}
-          >
-            {saveMutation.isPending ? 'Saving' : 'Save'}
+          <button type="submit" className="action-button" disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? 'Saving…' : 'Save changes'}
           </button>
-          {justSaved && <span className="profile-saved">Saved</span>}
+          {justSaved && (
+            <span className="profile-saved" role="status">
+              Saved
+            </span>
+          )}
         </div>
       </form>
     </div>

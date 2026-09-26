@@ -121,7 +121,7 @@ export function apiClient(getToken: () => Promise<string>) {
 
     getProfile: (): Promise<Auth0User> => request<Auth0User>(getToken, '/api/users/profile'),
 
-    patchProfile: (patch: { displayName?: string; theme?: string; picture?: string }): Promise<void> =>
+    patchProfile: (patch: { displayName?: string; picture?: string }): Promise<void> =>
       request<void>(
         getToken,
         '/api/users',
