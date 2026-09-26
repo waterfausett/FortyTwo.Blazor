@@ -159,6 +159,45 @@ describe('Match', () => {
     expect(playDominoMock).not.toHaveBeenCalled();
   });
 
+  describe('trump picker', () => {
+    function trumpSelectMatch(bid: Bid): MatchState {
+      const hand = (playerId: string, team: Teams, handBid: Bid) => ({ playerId, team, dominoes: [], bid: handBid });
+      return baseMatch(
+        {},
+        {
+          bid,
+          biddingPlayerId: 'p1',
+          currentPlayerId: 'p1',
+          hands: [
+            { ...hand('p1', Teams.TeamA, bid), dominoes: [createDomino(1, 2), createDomino(3, 4)] },
+            hand('p2', Teams.TeamB, Bid.Pass),
+            hand('p3', Teams.TeamA, Bid.Pass),
+            hand('p4', Teams.TeamB, Bid.Pass),
+          ],
+        }
+      );
+    }
+
+    it('hides Follow Me and Low under a one-mark bid', () => {
+      useMatchSocketMock.mockReturnValue({ match: trumpSelectMatch(Bid.FortyOne), connected: true });
+      renderMatch();
+
+      const picker = screen.getByRole('region', { name: /select trump/i });
+      expect(within(picker).getByRole('button', { name: /sixes/i })).not.toBeNull();
+      expect(within(picker).queryByRole('button', { name: /follow me/i })).toBeNull();
+      expect(within(picker).queryByRole('button', { name: /^low$/i })).toBeNull();
+    });
+
+    it('offers Follow Me and Low at 42 or more', () => {
+      useMatchSocketMock.mockReturnValue({ match: trumpSelectMatch(Bid.FortyTwo), connected: true });
+      renderMatch();
+
+      const picker = screen.getByRole('region', { name: /select trump/i });
+      expect(within(picker).getByRole('button', { name: /follow me/i })).not.toBeNull();
+      expect(within(picker).getByRole('button', { name: /^low$/i })).not.toBeNull();
+    });
+  });
+
   it('shows Hand + TrickDisplay during the playing phase and plays a domino on click', async () => {
     playDominoMock.mockResolvedValue({} as MatchState);
     const domino: Domino = createDomino(1, 2);

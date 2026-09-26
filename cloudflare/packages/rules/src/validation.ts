@@ -12,7 +12,7 @@ import { Bid, bidToPrettyString } from './bid';
 import { Domino, dominoEquals, isDouble, isOfSuit } from './domino';
 import { ValidationError } from './errors';
 import { Game, gameWinningTeam } from './game';
-import { Suit } from './suit';
+import { Suit, suitToPrettyString } from './suit';
 import { Teams } from './teams';
 
 // Minimal structural shape validation needs from a Match/MatchState. Defined here (rather than
@@ -139,6 +139,22 @@ export function availableBids(game: Game, userId: string): Bid[] {
   if (doubles >= 4 && (current ?? Bid.Pass) < Bid.FourMarks) bids.push(Bid.Plunge);
 
   return bids.sort((a, b) => a - b);
+}
+
+const NAMED_SUITS = [Suit.Blanks, Suit.Aces, Suit.Deuces, Suit.Threes, Suit.Fours, Suit.Fives, Suit.Sixes];
+
+// Port of `Match.razor`'s trump-picker filter - the trumps the bidder may call, in picker order:
+// every named suit, plus Follow Me (Suit.None) and Low once the winning bid is at least one mark
+// (42).
+export function availableTrumps(game: Game): Suit[] {
+  return game.bid !== null && game.bid >= Bid.FortyTwo ? [...NAMED_SUITS, Suit.None, Suit.Low] : [...NAMED_SUITS];
+}
+
+// NEW (the C# SelectTrumpAsync accepted any suit): enforces `availableTrumps` on the server.
+export function assertValidTrump(game: Game, suit: Suit): void {
+  if (!availableTrumps(game).includes(suit)) {
+    throw new ValidationError('Invalid Trump', `<code>${suitToPrettyString(suit)}</code> needs a bid of at least 42`);
+  }
 }
 
 // Port of `BiddingComplete`.

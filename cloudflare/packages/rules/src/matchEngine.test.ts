@@ -361,6 +361,12 @@ describe('setTrump', () => {
     const match = readyToSetTrump();
     expect(() => setTrump(match, 'p2', Suit.Sixes)).toThrow(ValidationError);
   });
+
+  it('rejects Follow Me and Low on a bid under 42', () => {
+    const match = readyToSetTrump();
+    expect(() => setTrump(match, 'p1', Suit.None)).toThrow(ValidationError);
+    expect(() => setTrump(match, 'p1', Suit.Low)).toThrow(ValidationError);
+  });
 });
 
 describe('playDomino', () => {

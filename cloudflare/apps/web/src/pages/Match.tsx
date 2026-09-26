@@ -33,6 +33,7 @@ import {
   trickValue,
   gameWinningTeam,
   assertValidDomino,
+  availableTrumps,
 } from '@fortytwo/rules';
 import { apiClient } from '../api/client';
 import { useMatchSocket } from '../api/useMatchSocket';
@@ -60,14 +61,6 @@ const MARKS_TO_WIN = 7;
 // players) - used to detect whether a player has already played into the current, still-in-
 // progress trick (see `haveIPlayedInCurrentTrick` below).
 const HAND_SIZE_DEALT = 7;
-
-// Every non-Low, non-None suit, in enum declaration order - the ordinary trump choices.
-const NAMED_SUITS = [Suit.Blanks, Suit.Aces, Suit.Deuces, Suit.Threes, Suit.Fours, Suit.Fives, Suit.Sixes];
-// "Follow Me" (no trump) and "Low" (lowest-domino-wins) are special trump choices the old app
-// only offered for a big-enough bid (>= 42) - simplified here to always being offered, since
-// Task 20's brief doesn't ask for that gating and the server (setTrump's validation) is the real
-// authority regardless of what the client offers.
-const ALL_TRUMP_CHOICES = [...NAMED_SUITS, Suit.None, Suit.Low];
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.';
@@ -563,7 +556,7 @@ export function Match(): JSX.Element {
             <section className="trump-select-section" aria-label="Select trump">
               <p className="action-prompt">Select a trump</p>
               <div className="trump-options">
-                {ALL_TRUMP_CHOICES.map((suit) => (
+                {availableTrumps(game).map((suit) => (
                   <button
                     key={suit}
                     type="button"

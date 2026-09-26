@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { availableBids, assertValidBid } from './validation';
+import { availableBids, availableTrumps, assertValidBid, assertValidTrump } from './validation';
+import { Suit } from './suit';
 import { ValidationError } from './errors';
 import { Bid } from './bid';
 import { createDomino } from './domino';
@@ -67,6 +68,32 @@ describe('availableBids', () => {
 
   it('forces a bid when the other three passed', () => {
     expect(availableBids(game(null, 0, [Bid.Pass, Bid.Pass, Bid.Pass]), 'p1')).not.toContain(Bid.Pass);
+  });
+});
+
+describe('availableTrumps', () => {
+  it('offers only the named suits under a one-mark bid', () => {
+    const trumps = availableTrumps(game(Bid.FortyOne));
+    expect(trumps).toHaveLength(7);
+    expect(trumps).not.toContain(Suit.None);
+    expect(trumps).not.toContain(Suit.Low);
+  });
+
+  it('adds Follow Me and Low at 42 and above, including Plunge', () => {
+    for (const bid of [Bid.FortyTwo, Bid.EightyFour, Bid.Plunge]) {
+      expect(availableTrumps(game(bid))).toEqual(expect.arrayContaining([Suit.None, Suit.Low]));
+    }
+  });
+});
+
+describe('assertValidTrump', () => {
+  it('rejects Follow Me and Low under 42', () => {
+    expect(() => assertValidTrump(game(Bid.Thirty), Suit.None)).toThrow(ValidationError);
+    expect(() => assertValidTrump(game(Bid.Thirty), Suit.Low)).toThrow(ValidationError);
+  });
+
+  it('accepts a named suit at any bid', () => {
+    expect(() => assertValidTrump(game(Bid.Thirty), Suit.Sixes)).not.toThrow();
   });
 });
 

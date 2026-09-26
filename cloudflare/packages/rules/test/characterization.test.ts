@@ -130,7 +130,15 @@ describe('characterization: standard-game fixture', () => {
 });
 
 describe('characterization: low-game fixture', () => {
-  const steps = loadFixture('low-game.json');
+  // DEVIATION from the C# scenario: there p1 won the bid at 30 and called Low (the C# server never
+  // checked), which `assertValidTrump` now rejects - Low needs a bid of at least 42. The replay
+  // bids 42 instead, so the recorded bid is patched to match. A Low hand is won on tricks, not
+  // points, so nothing else the fixture records depends on the bid.
+  const steps = loadFixture('low-game.json').map((step) =>
+    step.state.currentGame.bid === Bid.Thirty
+      ? { ...step, state: { ...step.state, currentGame: { ...step.state.currentGame, bid: Bid.FortyTwo } } }
+      : step
+  );
   const dealOrder = dealOrderFrom([
     [0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6],
     [0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [1, 2], [1, 6],
@@ -154,8 +162,8 @@ describe('characterization: low-game fixture', () => {
     match = addPlayer(match, 'p4', Teams.TeamB, dealOrder);
     expectMatchesFixtureStep(match, steps[i++], 'addPlayer p4 (deal)');
 
-    match = placeBid(match, 'p1', Bid.Thirty);
-    expectMatchesFixtureStep(match, steps[i++], 'bid p1 Thirty');
+    match = placeBid(match, 'p1', Bid.FortyTwo);
+    expectMatchesFixtureStep(match, steps[i++], 'bid p1 FortyTwo');
     match = placeBid(match, 'p2', Bid.Pass);
     expectMatchesFixtureStep(match, steps[i++], 'bid p2 Pass');
     match = placeBid(match, 'p3', Bid.Pass);

@@ -29,6 +29,7 @@ import {
   assertTeamNotFull,
   assertValidBid,
   assertValidDomino,
+  assertValidTrump,
 } from './validation';
 
 // Port of `FortyTwo/Shared/Constants.cs`'s `WinningScore`.
@@ -260,6 +261,7 @@ export function setTrump(match: MatchState, playerId: string, suit: Suit): Match
   assertActiveTurn(match.currentGame, playerId);
   assertBiddingComplete(match.currentGame);
   assertActiveBidder(match.currentGame, playerId);
+  assertValidTrump(match.currentGame, suit);
 
   // `match.CurrentGame.Trump ??= suit;` - first call wins.
   const currentGame: Game = { ...match.currentGame, trump: match.currentGame.trump ?? suit };

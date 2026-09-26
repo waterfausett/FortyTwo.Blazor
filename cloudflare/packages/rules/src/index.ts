@@ -36,6 +36,8 @@ export {
   assertIsMatchPlayer,
   assertIsNotMatchPlayer,
   availableBids,
+  availableTrumps,
+  assertValidTrump,
 } from './validation';
 export type { MatchPlayerState, MatchState, LoggedInPlayer } from './matchEngine';
 export {
