@@ -343,12 +343,23 @@
   grid-area: top;
 }
 
+/* The side seats hug their own rail rather than floating mid-column: name plate against the
+   edge, face-down tiles laid out in front of it toward the trick - the same plate-then-tiles
+   order the top seat reads in, turned to face the center. */
+.seat-left,
+.seat-right {
+  flex-direction: row;
+}
+
 .seat-left {
   grid-area: left;
+  justify-self: start;
 }
 
 .seat-right {
   grid-area: right;
+  justify-self: end;
+  flex-direction: row-reverse;
 }
 
 .seat-bottom {
@@ -1002,6 +1013,21 @@
 
   .seat-name {
     max-width: 5.5rem;
+  }
+
+  /* No room beside the plate for the tiles - stack them again, still against the rail. */
+  .seat-left,
+  .seat-right {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .seat-left {
+    align-items: flex-start;
+  }
+
+  .seat-right {
+    align-items: flex-end;
   }
 
   .marker-bid .pip-face {
