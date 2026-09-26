@@ -362,15 +362,18 @@
   box-shadow:
     inset 3px 0 0 var(--team),
     0 0 0 2px var(--brass),
-    0 0 26px rgba(201, 164, 92, 0.7);
+    /*0 0 26px rgba(201, 164, 92, 0.7);*/
+    0 0 26px var(--team);
   animation: seat-breathe 2.4s ease-in-out infinite;
 }
+
 
 @keyframes seat-breathe {
   50% {
     box-shadow:
       inset 3px 0 0 var(--team),
-      0 0 0 2px var(--brass),
+      /*0 0 0 2px var(--brass),*/
+      0 0 0 2px var(--team),
       0 0 12px rgba(201, 164, 92, 0.35);
   }
 }
