@@ -220,6 +220,105 @@ describe('Match', () => {
     });
   });
 
+  // Regression test: `awaitingTurnAdvance`'s clearing condition used to be
+  // `holdGame?.currentPlayerId !== myPlayerId` - sound for normal turn rotation, but false
+  // whenever the mover ALSO wins the trick they just completed: the engine then sets
+  // `currentPlayerId` right back to that same player as leader of the next trick
+  // (matchEngine.ts's `playDomino`: `currentPlayerId = currentTrick.playerId` on a full trick),
+  // so `currentPlayerId` never actually changes across the broadcast. That stuck
+  // `awaitingTurnAdvance` at `true` forever, permanently disabling `canPlay` until a full page
+  // refresh reset the component's state from scratch.
+  it("lets a player who wins a trick they completed play again once the broadcast confirms it, even though currentPlayerId never changes", async () => {
+    playDominoMock.mockResolvedValue({} as MatchState);
+    const winningDomino: Domino = createDomino(6, 6); // highest trump - guaranteed trick winner.
+    const remainingDomino: Domino = createDomino(3, 4);
+    const gameOverrides = { bid: Bid.Thirty, biddingPlayerId: 'p1', trump: Suit.Sixes };
+
+    // p1 is last to act in this trick and about to win it with the domino they're playing.
+    const beforePlay = baseMatch(
+      {},
+      {
+        ...gameOverrides,
+        currentPlayerId: 'p1',
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [winningDomino, remainingDomino], bid: Bid.Thirty },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+        ],
+        currentTrick: {
+          playerId: 'p2',
+          team: Teams.TeamB,
+          suit: Suit.Sixes,
+          dominoes: [createDomino(6, 1), createDomino(6, 2), createDomino(6, 3), null],
+        },
+        tricks: [],
+      }
+    );
+
+    // After the broadcast: the played domino is gone from p1's hand, the trick is completed and
+    // now credited to p1, and - the crux of the bug - p1 is STILL currentPlayerId, as leader of
+    // the next trick, not someone else.
+    const afterPlay = baseMatch(
+      {},
+      {
+        ...gameOverrides,
+        currentPlayerId: 'p1',
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [remainingDomino], bid: Bid.Thirty },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+        ],
+        currentTrick: { playerId: null, team: null, suit: null, dominoes: [null, null, null, null] },
+        tricks: [
+          {
+            playerId: 'p1',
+            team: Teams.TeamA,
+            suit: Suit.Sixes,
+            dominoes: [createDomino(6, 1), createDomino(6, 2), createDomino(6, 3), winningDomino],
+          },
+        ],
+      }
+    );
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const ui = (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <Match />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    useMatchSocketMock.mockReturnValue({ match: beforePlay, connected: true });
+    const { rerender } = render(ui);
+
+    const tilesBefore = within(screen.getByTestId('hand')).getAllByTestId('domino');
+    expect(tilesBefore).toHaveLength(2);
+    fireEvent.click(tilesBefore[0]); // (6,6), the winning domino - listed first in the hand.
+    await waitFor(() => expect(playDominoMock).toHaveBeenCalledWith('match-1', { top: 6, bottom: 6 }));
+
+    useMatchSocketMock.mockReturnValue({ match: afterPlay, connected: true });
+    act(() =>
+      rerender(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+    );
+
+    // p1 leads the next trick - the one remaining domino must be playable again, not stuck
+    // disabled because `currentPlayerId` (still 'p1') never satisfied the old "changed away from
+    // me" check.
+    await waitFor(() => {
+      const tilesAfter = within(screen.getByTestId('hand')).getAllByTestId('domino');
+      expect(tilesAfter).toHaveLength(1);
+      expect(tilesAfter[0].classList.contains('clickable')).toBe(true);
+    });
+  });
+
   // Regression test: a player who has already played into the CURRENT (still in-progress) trick
   // can never play again until the NEXT trick - so any preselection they make in the meantime is
   // unambiguously for that next, not-yet-started trick. Validating it against the current trick's

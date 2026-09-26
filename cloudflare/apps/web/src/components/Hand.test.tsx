@@ -67,6 +67,38 @@ describe('Hand', () => {
     }
   });
 
+  // Reads a rendered tile's (top, bottom) pips back out, to identify which domino ended up in
+  // which position after a reorder-preserving re-render (dominoes carry no visible id in the DOM).
+  function pipsOf(tile: HTMLElement): [number, number] {
+    const [topEl, bottomEl] = tile.querySelectorAll('[data-value]');
+    return [Number(topEl.getAttribute('data-value')), Number(bottomEl.getAttribute('data-value'))];
+  }
+
+  // Regression test: `dominoes` gets a new array on every server broadcast (see the module
+  // header), including the one right after THIS player's own play, which is a genuine hand change
+  // (a domino actually leaves the hand) and so must legitimately update `order` - but the server's
+  // own hand array keeps its ORIGINAL (dealt) relative order when removing a played domino
+  // (matchEngine.ts's `playDomino` splices the dealt-order array, with no idea the player had
+  // locally dragged their remaining tiles into a different arrangement). Naively resetting local
+  // `order` to that server array on every such change snapped the whole hand back to dealt order
+  // after every single play, discarding a rearrangement the player was actively relying on.
+  it('keeps the local order of remaining dominoes after one is removed (a play), rather than reverting to server order', () => {
+    const [d1, d2, d3] = DOMINOES;
+    // Initial `dominoes` stands in for the player's current (already-rearranged) view - e.g. they
+    // swapped d1 and d2 from a dealt order of [d1, d2, d3].
+    const { rerender } = render(<Hand dominoes={[d2, d1, d3]} selectable={false} onPlay={() => {}} />);
+
+    // Broadcast after d3 is played: the remaining hand keeps ITS OWN dealt order, [d1, d2] - not
+    // the player's locally-swapped view.
+    rerender(<Hand dominoes={[d1, d2]} selectable={false} onPlay={() => {}} />);
+
+    const tiles = screen.getAllByTestId('domino');
+    expect(tiles).toHaveLength(2);
+    // Must still show d2 before d1 (the player's swap survives), not reset to the server's [d1, d2].
+    expect(pipsOf(tiles[0])).toEqual([d2.top, d2.bottom]);
+    expect(pipsOf(tiles[1])).toEqual([d1.top, d1.bottom]);
+  });
+
   // A player should be able to reorder their hand for their own reference at any time, not just
   // on their turn - `useDraggable`'s `disabled` flag (mirrored onto the DOM as `aria-disabled` -
   // see @dnd-kit/core's core.cjs.development.js:3432) used to be wired straight to `!selectable`,
@@ -133,6 +165,27 @@ describe('Hand', () => {
 
       expect(tiles[0].classList.contains('preselected')).toBe(false);
       expect(tiles[1].classList.contains('preselected')).toBe(true);
+    });
+
+    // Every socket message from useMatchSocket is a fresh `JSON.parse`, so `dominoes` gets a new
+    // array (and new element objects) on EVERY broadcast to the match - another player's bid,
+    // this player's own trump selection, etc. - even when this player's hand didn't change at
+    // all. Hand.tsx must not treat "new object reference" as "genuine hand change", or it wipes
+    // out local-only state (reorder, preselection) on any unrelated broadcast.
+    it('keeps a preselection across a re-render with a content-equal but reference-different dominoes array', () => {
+      const onPlay = vi.fn();
+      const { rerender } = render(
+        <Hand dominoes={DOMINOES} selectable={false} onPlay={onPlay} isValidPlay={() => true} />
+      );
+
+      fireEvent.doubleClick(screen.getAllByTestId('domino')[0]);
+      expect(screen.getAllByTestId('domino')[0].classList.contains('preselected')).toBe(true);
+
+      // Same ids/values, but brand-new array and element objects - simulating a JSON round-trip.
+      const freshDominoes = DOMINOES.map((d) => ({ ...d }));
+      rerender(<Hand dominoes={freshDominoes} selectable={false} onPlay={onPlay} isValidPlay={() => true} />);
+
+      expect(screen.getAllByTestId('domino')[0].classList.contains('preselected')).toBe(true);
     });
 
     it('auto-plays a preselected domino shortly after it becomes this player\'s turn', () => {

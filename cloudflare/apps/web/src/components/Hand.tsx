@@ -97,9 +97,35 @@ function PlayZone({ children }: { children: ReactNode }): JSX.Element {
   );
 }
 
+// Identifies which actual dominoes are in the hand, ignoring array/object identity - every
+// message from useMatchSocket is a fresh `JSON.parse`, so `dominoes` gets a brand-new array (and
+// brand-new element objects) on EVERY broadcast to the match, not just ones where this player's
+// hand changed. Comparing this signature (rather than `dominoes` itself) is what lets Hand tell
+// "an unrelated broadcast arrived" apart from "a domino was actually dealt or played".
+function handSignature(dominoes: DominoType[]): string {
+  return dominoes.map((d) => d.id).join(',');
+}
+
+// Reconciles a possibly-manually-reordered `previousOrder` against a fresh `dominoes` list from
+// the server on a genuine hand change. The server's own array order is NOT authoritative for
+// display: `matchEngine.ts`'s `playDomino` removes a played domino via `splice` on the hand's
+// ORIGINAL (dealt) order, with no idea a player dragged their remaining tiles into a different
+// arrangement - so naively resetting to `dominoes` on every change (the previous approach) snapped
+// the whole hand back to dealt order after every single play. Instead: dominoes still present keep
+// their existing relative position from `previousOrder` (preserving the player's arrangement
+// across the one domino that just left their hand), and any domino NOT in `previousOrder` (a fresh
+// deal, where `previousOrder` is empty) is appended in the server-supplied order.
+function reconcileHandOrder(previousOrder: DominoType[], dominoes: DominoType[]): DominoType[] {
+  const nextIds = new Set(dominoes.map((d) => d.id));
+  const kept = previousOrder.filter((d) => nextIds.has(d.id));
+  const keptIds = new Set(kept.map((d) => d.id));
+  const added = dominoes.filter((d) => !keptIds.has(d.id));
+  return [...kept, ...added];
+}
+
 export function Hand({ dominoes, selectable, onPlay, isValidPlay = () => true }: HandProps): JSX.Element {
   const [order, setOrder] = useState<DominoType[]>(dominoes);
-  const [syncedDominoes, setSyncedDominoes] = useState<DominoType[]>(dominoes);
+  const [syncedSignature, setSyncedSignature] = useState<string>(() => handSignature(dominoes));
   // The single domino (by id) queued to auto-play once it becomes this player's turn - set by
   // double-clicking a tile before `selectable` is true. Only one at a time: double-clicking a
   // different tile replaces it, matching a player only ever getting to make one move per turn.
@@ -116,15 +142,18 @@ export function Hand({ dominoes, selectable, onPlay, isValidPlay = () => true }:
 
   // React's recommended "adjusting state when a prop changes" pattern (a render-phase state
   // update) rather than a useEffect - avoids an extra commit+re-render cycle for what's really a
-  // derived reset. `dominoes` is reference-stable across unrelated re-renders (Match.tsx's
-  // `getPlayerView(match, myPlayerId)` reads `hand.dominoes` straight through from the current
-  // `match` object, so the array reference only changes when `useMatchSocket` actually delivers a
-  // new MatchState) - so this only resyncs local reorder state on a genuine hand change: a new
-  // deal, a domino removed after a play, etc. The local order is a display-only convenience,
-  // never the source of truth.
-  if (dominoes !== syncedDominoes) {
-    setSyncedDominoes(dominoes);
-    setOrder(dominoes);
+  // derived reset. Compared by content signature, not object identity: `dominoes` gets a new
+  // array reference on every `useMatchSocket` broadcast (each is a fresh `JSON.parse`), including
+  // broadcasts unrelated to this player's hand (another player's bid, this player's own trump
+  // selection, etc.) - reference equality would treat every one of those as a "genuine hand
+  // change" and wipe out local-only state below. The signature only changes on an actual deal or
+  // a domino leaving the hand after a play - and even then, `reconcileHandOrder` preserves the
+  // player's own arrangement of whatever dominoes remain rather than snapping back to server
+  // order. The local order is a display-only convenience, never the source of truth.
+  const signature = handSignature(dominoes);
+  if (signature !== syncedSignature) {
+    setSyncedSignature(signature);
+    setOrder(reconcileHandOrder(order, dominoes));
     setPreselectedId(null);
   }
 

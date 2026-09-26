@@ -154,11 +154,17 @@ export function Match(): JSX.Element {
   // broadcast. That leaves a real gap between MY OWN play resolving (isPending flips back to
   // false) and the broadcast confirming the turn actually moved on - during which the still-stale
   // `match` would otherwise let `canPlay` read true again. `awaitingTurnAdvance` (set here, cleared
-  // by the effect below once a fresh `currentPlayerId` arrives) closes that gap.
+  // by the effect below once the broadcast shows the played domino actually gone from my hand)
+  // closes that gap. `lastPlayedDominoIdRef` records WHICH domino to watch for, since the clearing
+  // condition can't key off `currentPlayerId` changing (see that effect's comment for why).
   const [awaitingTurnAdvance, setAwaitingTurnAdvance] = useState(false);
+  const lastPlayedDominoIdRef = useRef<string | null>(null);
   const playMutation = useMutation({
     mutationFn: (domino: DominoType) => client.playDomino(matchId!, { top: domino.top, bottom: domino.bottom }),
-    onSuccess: () => setAwaitingTurnAdvance(true),
+    onSuccess: (_data, domino) => {
+      lastPlayedDominoIdRef.current = domino.id;
+      setAwaitingTurnAdvance(true);
+    },
   });
   const readyUpMutation = useMutation({
     mutationFn: () => client.readyUp(matchId!, true),
@@ -209,11 +215,21 @@ export function Match(): JSX.Element {
     };
   }, []);
 
-  // Closes `awaitingTurnAdvance`'s gap: a play always moves the turn away from whoever made it, so
-  // once a `match` update actually shows someone else as `currentPlayerId`, the broadcast has
-  // genuinely caught up and it's safe to let `canPlay` matter again.
+  // Closes `awaitingTurnAdvance`'s gap. This does NOT key off `currentPlayerId` changing -
+  // whoever wins the trick they just completed leads the NEXT trick too (matchEngine.ts's
+  // `playDomino`: `currentPlayerId = currentTrick.playerId` when the trick is full), so a player
+  // who plays the trick-winning domino keeps `currentPlayerId === myPlayerId` straight through the
+  // broadcast. A "wait for it to change" check would then never clear, permanently disabling
+  // `canPlay` until a full page reload reset this component's state (the actual bug reported: a
+  // player unable to play - even their last domino - right after winning the trick that emptied
+  // their hand). Instead, wait for the concrete, unambiguous fact that MY play landed: the domino
+  // I just submitted is no longer in my hand per the latest broadcast.
   useEffect(() => {
-    if (awaitingTurnAdvance && holdGame?.currentPlayerId !== myPlayerId) {
+    if (!awaitingTurnAdvance || !holdGame) return;
+    const myHand = holdGame.hands.find((h) => h.playerId === myPlayerId);
+    const playedDominoStillInHand =
+      myHand?.dominoes.some((d) => d.id === lastPlayedDominoIdRef.current) ?? false;
+    if (!playedDominoStillInHand) {
       setAwaitingTurnAdvance(false);
     }
   }, [awaitingTurnAdvance, holdGame, myPlayerId]);
