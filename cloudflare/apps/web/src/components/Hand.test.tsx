@@ -123,7 +123,7 @@ describe('Hand', () => {
       fireEvent.keyDown(tile, { code: 'Space' });
     }
 
-    it('lifts a ghost copy of the dragged domino and leaves the original in place, faded', () => {
+    it('lifts a ghost copy of the dragged domino and leaves the original in place, faded', async () => {
       render(<Hand dominoes={DOMINOES} selectable={false} onPlay={() => {}} />);
       const handTile = screen.getAllByTestId('domino')[1].closest<HTMLElement>('.hand-tile')!;
 
@@ -135,6 +135,10 @@ describe('Hand', () => {
       expect(handTile.classList.contains('hand-tile-dragging')).toBe(true);
       // The original never moves - only the ghost does.
       expect(handTile.style.transform).toBe('');
+
+      // Let dnd-kit's post-pickup setTimeout (see 'removes the ghost once the drag ends') run inside
+      // act, rather than after the test ends and outside it.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
     });
 
     it("doesn't start a drag (or show a ghost) on a plain click", () => {
