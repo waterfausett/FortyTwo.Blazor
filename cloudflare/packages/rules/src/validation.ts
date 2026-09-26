@@ -1,8 +1,7 @@
 // Port of `FortyTwo/Server/Services/MatchValidationService.cs`.
 //
 // Every guard throws `ValidationError` (never returns an error value), mirroring the C#
-// `CustomValidationException`. Title/detail text is preserved verbatim from the C# source,
-// including its "hight" typo in `assertValidBid` — this is a faithful port, not a copy-edit.
+// `CustomValidationException`. Title/detail text follows the C# source.
 //
 // `IsNotNull(match)` / `IsNotNull(game)` have no TS equivalent: `MatchLike`/`Game` parameters
 // here are non-null by type (unlike C#'s nullable-by-runtime-lookup), so those checks would be
@@ -92,10 +91,9 @@ export function assertValidBid(game: Game, userId: string, bid: Bid): void {
   }
 
   if (bid !== Bid.Pass && game.bid !== null && game.bid >= bid) {
-    // NOTE: "hight" (not "higher") is a typo in the real C# source — preserved verbatim.
     throw new ValidationError(
       'Insufficient bid!',
-      `A new bid must be hight than the current bid of <code>${bidToPrettyString(game.bid)}</code>`
+      `A new bid must be higher than the current bid of <code>${bidToPrettyString(game.bid)}</code>`
     );
   }
 
