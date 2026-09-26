@@ -437,6 +437,28 @@ describe('playDomino', () => {
     expect(stored).toEqual(createDomino(6, 6));
   });
 
+  it('Low with doubles low: a six beats the led double-six', () => {
+    let match = readyToPlay({ trump: Suit.LowDoublesLow });
+    match = playDomino(match, 'p1', createDomino(6, 6));
+    expect(match.currentGame.currentTrick.suit).toBe(Suit.Sixes);
+
+    match = playDomino(match, 'p2', createDomino(6, 3));
+    expect(match.currentGame.currentTrick.playerId).toBe('p2');
+  });
+
+  it('Low with doubles as their own suit: a led double must be followed with a double', () => {
+    let match = readyToPlay({ trump: Suit.LowDoublesOwnSuit });
+    match = playDomino(match, 'p1', createDomino(6, 6));
+    expect(match.currentGame.currentTrick.suit).toBe(Suit.Doubles);
+
+    // p2 holds 6/3 and 0/0 - the six isn't a Double, so 0/0 is the only legal play.
+    expect(() => playDomino(match, 'p2', createDomino(6, 3))).toThrow(ValidationError);
+    match = playDomino(match, 'p2', createDomino(0, 0));
+    expect(match.currentGame.currentTrick.playerId).toBe('p1');
+    // p3 is the bidder's partner and sits out, so p4 plays next.
+    expect(match.currentGame.currentPlayerId).toBe('p4');
+  });
+
   it('completes a trick, advances currentPlayerId to the winner, and starts a fresh trick', () => {
     let match = readyToPlay();
     match = playDomino(match, 'p1', createDomino(6, 6)); // p1 wins so far

@@ -1,6 +1,6 @@
 import { Bid } from './bid';
 import { Hand } from './hand';
-import { Suit } from './suit';
+import { Suit, isLow } from './suit';
 import { Teams } from './teams';
 import { Trick, trickValue } from './trick';
 
@@ -45,7 +45,7 @@ export function gameWinningTeam(g: Game): Teams | null {
 
   const adjustedBid = (g.bid as number) % 42 === 0 ? 42 : (g.bid as number);
 
-  return g.trump === Suit.Low
+  return isLow(g.trump)
     ? biddingTeamId != null && teamPoints.has(biddingTeamId)
       ? otherTeamId
       : g.tricks.length === 7

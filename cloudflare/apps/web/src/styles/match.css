@@ -145,6 +145,17 @@
   font-weight: 600;
 }
 
+.contract-trump-rule {
+  color: var(--ink-muted);
+  font-size: 0.85em;
+}
+
+/* The bidder's partner on a Low hand has nothing to play - say why instead of a turn prompt. */
+.rail-status.rail-sitting-out {
+  color: var(--bone);
+  font-weight: 600;
+}
+
 /* ---------- Board: piles | table | piles ---------- */
 
 .game-wrapper {
@@ -719,6 +730,25 @@
   min-width: 4.5rem;
   padding: 0.45rem 0.6rem 0.4rem;
   font: 600 0.85rem var(--font-ui);
+}
+
+/* Low's doubles step (TrumpPicker.tsx): a rule plus a one-line explanation per tile. */
+.trump-tile-wide {
+  max-width: 11rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.trump-tile-detail {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--walnut);
+}
+
+.trump-tile-back {
+  justify-content: center;
+  background: transparent;
+  color: var(--bone);
+  box-shadow: inset 0 0 0 1px rgba(242, 234, 219, 0.4);
 }
 
 .bid-tile:hover:not(:disabled),

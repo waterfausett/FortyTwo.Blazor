@@ -1,5 +1,5 @@
 import { nextPosition, Positions } from './positions';
-import { Suit } from './suit';
+import { Suit, isLow } from './suit';
 
 export interface MatchPlayerRef {
   playerId: string;
@@ -20,7 +20,7 @@ export function selectNextPlayer(
 
   let nextPlayerPosition = nextPosition(players.find((x) => x.playerId === currentPlayerId)!.position);
 
-  if (trump === Suit.Low) {
+  if (isLow(trump)) {
     const biddingPlayerPosition = players.find((x) => x.playerId === biddingPlayerId)!.position;
 
     if (biddingPlayerPosition !== nextPlayerPosition && biddingPlayerPosition % 2 === nextPlayerPosition % 2) {

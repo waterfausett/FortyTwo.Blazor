@@ -17,7 +17,7 @@ export type { Game } from './game';
 export { gameValue, gameWinningTeam } from './game';
 export type { MatchPlayerRef } from './match';
 export { selectNextPlayer } from './match';
-export { Suit, suitToPrettyString } from './suit';
+export { Suit, LOW_TRUMPS, isLow, suitToPrettyString, lowDoublesToPrettyString } from './suit';
 export { Bid, bidToPrettyString } from './bid';
 export { Teams } from './teams';
 export { Positions, nextPosition } from './positions';

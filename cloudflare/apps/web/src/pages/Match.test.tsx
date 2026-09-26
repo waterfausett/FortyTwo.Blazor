@@ -196,6 +196,82 @@ describe('Match', () => {
       expect(within(picker).getByRole('button', { name: /follow me/i })).not.toBeNull();
       expect(within(picker).getByRole('button', { name: /^low$/i })).not.toBeNull();
     });
+
+    it('asks how doubles play after picking Low, then names that Low variant', async () => {
+      setTrumpMock.mockResolvedValue({} as MatchState);
+      useMatchSocketMock.mockReturnValue({ match: trumpSelectMatch(Bid.FortyTwo), connected: true });
+      renderMatch();
+
+      fireEvent.click(screen.getByRole('button', { name: /^low$/i }));
+      expect(setTrumpMock).not.toHaveBeenCalled();
+
+      const picker = screen.getByRole('region', { name: /select trump/i });
+      expect(within(picker).getByRole('button', { name: /^high/i })).not.toBeNull();
+      expect(within(picker).getByRole('button', { name: /^low\s*each double/i })).not.toBeNull();
+      fireEvent.click(within(picker).getByRole('button', { name: /suit of their own/i }));
+
+      await waitFor(() => expect(setTrumpMock).toHaveBeenCalledWith('match-1', Suit.LowDoublesOwnSuit));
+    });
+
+    it('goes back from the doubles step to the full trump list', () => {
+      useMatchSocketMock.mockReturnValue({ match: trumpSelectMatch(Bid.FortyTwo), connected: true });
+      renderMatch();
+
+      fireEvent.click(screen.getByRole('button', { name: /^low$/i }));
+      fireEvent.click(screen.getByRole('button', { name: /back/i }));
+
+      expect(screen.getByRole('button', { name: /sixes/i })).not.toBeNull();
+    });
+  });
+
+  describe('a Low hand', () => {
+    function lowMatch(trump: Suit): MatchState {
+      const hand = (playerId: string, team: Teams, handBid: Bid) => ({
+        playerId,
+        team,
+        dominoes: [createDomino(1, 2), createDomino(3, 4)],
+        bid: handBid,
+      });
+      return baseMatch(
+        {},
+        {
+          bid: Bid.FortyTwo,
+          biddingPlayerId: 'p1',
+          trump,
+          currentPlayerId: 'p1',
+          hands: [
+            hand('p1', Teams.TeamA, Bid.FortyTwo),
+            hand('p2', Teams.TeamB, Bid.Pass),
+            hand('p3', Teams.TeamA, Bid.Pass),
+            hand('p4', Teams.TeamB, Bid.Pass),
+          ],
+        }
+      );
+    }
+
+    it("tells the bidder's partner they sit the hand out", () => {
+      currentUserId.value = 'p3';
+      useMatchSocketMock.mockReturnValue({ match: lowMatch(Suit.Low), connected: true });
+      renderMatch();
+
+      expect(screen.getByText(/sit this hand out/i)).not.toBeNull();
+    });
+
+    it('does not tell the opponents they sit out', () => {
+      currentUserId.value = 'p2';
+      useMatchSocketMock.mockReturnValue({ match: lowMatch(Suit.Low), connected: true });
+      renderMatch();
+
+      expect(screen.queryByText(/sit this hand out/i)).toBeNull();
+    });
+
+    it('shows the doubles rule next to the trump on the scoreboard', () => {
+      useMatchSocketMock.mockReturnValue({ match: lowMatch(Suit.LowDoublesOwnSuit), connected: true });
+      renderMatch();
+
+      const scoreboard = screen.getByRole('banner', { name: /scores/i });
+      expect(within(scoreboard).getByText(/suit of their own/i)).not.toBeNull();
+    });
   });
 
   it('shows Hand + TrickDisplay during the playing phase and plays a domino on click', async () => {

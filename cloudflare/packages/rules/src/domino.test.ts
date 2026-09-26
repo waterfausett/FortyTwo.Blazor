@@ -40,6 +40,40 @@ describe('domino', () => {
     expect(getSuitValue(createDomino(0, 1), Suit.Fours, Suit.Sixes)).toBe(-1); // neither suit
   });
 
+  describe('Low doubles rules', () => {
+    const d66 = createDomino(6, 6);
+    const d60 = createDomino(6, 0);
+    const d61 = createDomino(6, 1);
+    const d55 = createDomino(5, 5);
+
+    it('doubles are high: the double tops its suit', () => {
+      expect(getSuit(d66, Suit.Low)).toBe(Suit.Sixes);
+      expect(getSuitValue(d66, Suit.Sixes, Suit.Low)).toBeGreaterThan(getSuitValue(d61, Suit.Sixes, Suit.Low));
+    });
+
+    it('doubles are low: the double sits under six-blank but still beats off-suit', () => {
+      expect(getSuit(d66, Suit.LowDoublesLow)).toBe(Suit.Sixes);
+      expect(isOfSuit(d66, Suit.Sixes, Suit.LowDoublesLow)).toBe(true);
+      expect(getSuitValue(d66, Suit.Sixes, Suit.LowDoublesLow)).toBeLessThan(getSuitValue(d60, Suit.Sixes, Suit.LowDoublesLow));
+      expect(getSuitValue(d66, Suit.Sixes, Suit.LowDoublesLow)).toBeGreaterThan(
+        getSuitValue(d55, Suit.Sixes, Suit.LowDoublesLow)
+      );
+    });
+
+    it('doubles are their own suit: a double is only a Double, ranked by its pips', () => {
+      expect(getSuit(d66, Suit.LowDoublesOwnSuit)).toBe(Suit.Doubles);
+      expect(getSuit(d61, Suit.LowDoublesOwnSuit)).toBe(Suit.Sixes);
+      expect(isOfSuit(d66, Suit.Sixes, Suit.LowDoublesOwnSuit)).toBe(false);
+      expect(isOfSuit(d61, Suit.Doubles, Suit.LowDoublesOwnSuit)).toBe(false);
+      // A double can't win a Sixes trick, and double-six is the highest Double.
+      expect(getSuitValue(d66, Suit.Sixes, Suit.LowDoublesOwnSuit)).toBe(-1);
+      expect(getSuitValue(d66, Suit.Doubles, Suit.LowDoublesOwnSuit)).toBeGreaterThan(
+        getSuitValue(d55, Suit.Doubles, Suit.LowDoublesOwnSuit)
+      );
+      expect(getSuitValue(d61, Suit.Doubles, Suit.LowDoublesOwnSuit)).toBe(-1);
+    });
+  });
+
   it('dominoes are equal regardless of orientation', () => {
     expect(dominoEquals(createDomino(2, 5), createDomino(5, 2))).toBe(true);
     expect(dominoEquals(createDomino(2, 5), createDomino(2, 6))).toBe(false);

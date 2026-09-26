@@ -79,10 +79,16 @@ describe('availableTrumps', () => {
     expect(trumps).not.toContain(Suit.Low);
   });
 
-  it('adds Follow Me and Low at 42 and above, including Plunge', () => {
+  it('adds Follow Me and every Low doubles rule at 42 and above, including Plunge', () => {
     for (const bid of [Bid.FortyTwo, Bid.EightyFour, Bid.Plunge]) {
-      expect(availableTrumps(game(bid))).toEqual(expect.arrayContaining([Suit.None, Suit.Low]));
+      expect(availableTrumps(game(bid))).toEqual(
+        expect.arrayContaining([Suit.None, Suit.Low, Suit.LowDoublesLow, Suit.LowDoublesOwnSuit])
+      );
     }
+  });
+
+  it('never offers Doubles as a trump', () => {
+    expect(availableTrumps(game(Bid.FortyTwo))).not.toContain(Suit.Doubles);
   });
 });
 
@@ -90,6 +96,7 @@ describe('assertValidTrump', () => {
   it('rejects Follow Me and Low under 42', () => {
     expect(() => assertValidTrump(game(Bid.Thirty), Suit.None)).toThrow(ValidationError);
     expect(() => assertValidTrump(game(Bid.Thirty), Suit.Low)).toThrow(ValidationError);
+    expect(() => assertValidTrump(game(Bid.Thirty), Suit.LowDoublesOwnSuit)).toThrow(ValidationError);
   });
 
   it('accepts a named suit at any bid', () => {

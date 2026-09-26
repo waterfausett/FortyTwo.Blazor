@@ -1,5 +1,5 @@
 import { Domino, dominoValue, getSuit } from './domino';
-import { Suit } from './suit';
+import { Suit, isLow } from './suit';
 import { Teams } from './teams';
 
 export interface Trick {
@@ -22,7 +22,7 @@ export function trickValue(t: Trick): number {
 }
 
 export function isTrickFull(t: Trick, trump: Suit): boolean {
-  return trump === Suit.Low
+  return isLow(trump)
     ? t.dominoes.filter((x) => x !== null).length === 3
     : t.dominoes.every((x) => x !== null);
 }

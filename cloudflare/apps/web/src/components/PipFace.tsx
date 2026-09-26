@@ -2,7 +2,7 @@
 // on the trump picker, the scoreboard and the bidder's seat. "Follow Me" (Suit.None) and Low have
 // no pip count, so they render as a short word on the same tile instead.
 import type { JSX } from 'react';
-import { Suit, suitToPrettyString } from '@fortytwo/rules';
+import { Suit, isLow, suitToPrettyString } from '@fortytwo/rules';
 
 // Which of the 9 grid cells (row-major, 0-8) carry a pip for each count - a standard die face,
 // matching Domino.tsx's layout (corners from 2 up, middle row pair for 6, center for odd counts).
@@ -19,7 +19,7 @@ const PIP_CELLS: Record<number, number[]> = {
 export function PipFace({ suit, size = 'md' }: { suit: Suit; size?: 'xs' | 'md' }): JSX.Element {
   const label = suitToPrettyString(suit);
 
-  if (suit === Suit.None || suit === Suit.Low) {
+  if (suit === Suit.None || isLow(suit)) {
     return (
       <span className={`pip-face pip-face-${size} pip-face-word`} title={label} aria-hidden="true">
         {suit === Suit.None ? 'FM' : 'Lo'}

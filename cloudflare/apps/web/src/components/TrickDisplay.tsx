@@ -10,7 +10,7 @@
 // TrickHistory's side piles; this component only ever deals with the one trick in play.
 import type { JSX } from 'react';
 import type { Trick } from '@fortytwo/rules';
-import { Suit } from '@fortytwo/rules';
+import { Suit, isLow } from '@fortytwo/rules';
 import type { Seat } from '../match/table';
 import { Domino } from './Domino';
 
@@ -28,7 +28,7 @@ export interface TrickDisplayProps {
 const DEFAULT_SEATS: Seat[] = ['bottom', 'left', 'top', 'right'];
 
 export function TrickDisplay({ trick, trump, slotSeats, winningSlot = null, sweepTo = null }: TrickDisplayProps): JSX.Element {
-  const slotCount = trump === Suit.Low ? 3 : 4;
+  const slotCount = isLow(trump) ? 3 : 4;
   const slots = trick.dominoes.slice(0, slotCount);
   const isComplete = slots.every((d) => d !== null);
 

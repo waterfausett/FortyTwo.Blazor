@@ -33,13 +33,15 @@ import {
   trickValue,
   gameWinningTeam,
   assertValidDomino,
-  availableTrumps,
+  isLow,
+  lowDoublesToPrettyString,
 } from '@fortytwo/rules';
 import { apiClient } from '../api/client';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
 import { Hand } from '../components/Hand';
 import { PipFace } from '../components/PipFace';
+import { TrumpPicker } from '../components/TrumpPicker';
 import { Seat } from '../components/Seat';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
@@ -88,7 +90,7 @@ function teamTrickPoints(tricks: Trick[], team: Teams): number {
 // a Low-trump hand, both of which keep every trick meaningful to look back on), each side's trick
 // pile is trimmed to just the last 2 so it doesn't grow into an unbounded scroll of tiny dominoes.
 function shouldStackTricks(game: Game): boolean {
-  return game.bid != null && game.bid > Bid.FortyTwo && game.bid !== Bid.Plunge && game.trump !== Suit.Low;
+  return game.bid != null && game.bid > Bid.FortyTwo && game.bid !== Bid.Plunge && !isLow(game.trump);
 }
 
 // Port of Match.razor:117-118's `teamTricks.Skip(Math.Max(0, teamTricks.Count() - 2))`.
@@ -101,7 +103,7 @@ function teamTricksForDisplay(tricks: Trick[], team: Teams, stack: boolean): Tri
 // any marks bid (84, 126, ... - gameWinningTeam's `adjustedBid`). Low has no point target at all
 // (the bidders simply must not take a trick), and there's no target until bidding closes.
 function bidTarget(game: Game): number | null {
-  if (game.bid == null || game.trump == null || game.trump === Suit.Low) return null;
+  if (game.bid == null || game.trump == null || isLow(game.trump)) return null;
   return game.bid % 42 === 0 ? 42 : game.bid;
 }
 
@@ -386,6 +388,15 @@ export function Match(): JSX.Element {
     .filter((p) => p.playerId !== myPlayerId)
     .map((p) => ({ player: p, seat: seatFor(match.players, myPlayerId, p.playerId)! }));
 
+  // On a Low hand the bidder plays alone, so their partner never gets a turn (selectNextPlayer
+  // skips them) - tell them why rather than leaving them watching "X to play" all hand.
+  const isSittingOut =
+    isPlayingPhase &&
+    !isHandOver &&
+    isLow(game.trump) &&
+    game.biddingPlayerId !== myPlayerId &&
+    bidderTeam === me.team;
+
   // One line on the rail saying what the table is waiting on.
   let status: string;
   if (isMatchOver) status = match.winningTeam === me.team ? 'You won the match' : 'They won the match';
@@ -394,6 +405,8 @@ export function Match(): JSX.Element {
   else if (isHandOver) status = iAmReady ? 'Waiting for everyone to ready up' : 'Hand over. Ready up for the next one';
   else if (isBiddingPhase) status = `${activeName} is bidding`;
   else if (isTrumpSelectPhase) status = `${activeName} is naming trump`;
+  else if (isSittingOut)
+    status = `${nameFor(game.biddingPlayerId)} went Low and plays alone, so you sit this hand out. They need to lose every trick.`;
   else if (me.isActive) status = isTrickStarted(game.currentTrick) ? 'Your play' : 'Your lead';
   else status = `${activeName} to play`;
 
@@ -451,6 +464,9 @@ export function Match(): JSX.Element {
               <span className="contract-label">Trump</span>
               <PipFace suit={game.trump} />
               <span className="contract-trump-name">{suitToPrettyString(game.trump)}</span>
+              {isLow(game.trump) && (
+                <span className="contract-trump-rule">{lowDoublesToPrettyString(game.trump)}</span>
+              )}
             </span>
           )}
         </div>
@@ -538,7 +554,7 @@ export function Match(): JSX.Element {
         <div className={`player${me.isActive && !isHandOver && isTableReady ? ' active' : ''}`}>
           {/* The bid/trump pickers carry their own prompt, so the status line steps aside. */}
           {!canBid && !canSelectTrump && (
-            <p className="rail-status" role="status">
+            <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
               {status}
             </p>
           )}
@@ -553,23 +569,11 @@ export function Match(): JSX.Element {
           )}
 
           {canSelectTrump && (
-            <section className="trump-select-section" aria-label="Select trump">
-              <p className="action-prompt">Select a trump</p>
-              <div className="trump-options">
-                {availableTrumps(game).map((suit) => (
-                  <button
-                    key={suit}
-                    type="button"
-                    className="trump-tile"
-                    disabled={setTrumpMutation.isPending}
-                    onClick={() => setTrumpMutation.mutate(suit)}
-                  >
-                    <PipFace suit={suit} />
-                    <span>{suitToPrettyString(suit)}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
+            <TrumpPicker
+              game={game}
+              onSelect={(suit) => setTrumpMutation.mutate(suit)}
+              disabled={setTrumpMutation.isPending}
+            />
           )}
 
           <Hand

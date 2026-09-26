@@ -12,7 +12,7 @@ import { Bid, bidToPrettyString } from './bid';
 import { Domino, dominoEquals, isDouble, isOfSuit } from './domino';
 import { ValidationError } from './errors';
 import { Game, gameWinningTeam } from './game';
-import { Suit, suitToPrettyString } from './suit';
+import { LOW_TRUMPS, Suit, isLow, suitToPrettyString } from './suit';
 import { Teams } from './teams';
 
 // Minimal structural shape validation needs from a Match/MatchState. Defined here (rather than
@@ -144,16 +144,23 @@ export function availableBids(game: Game, userId: string): Bid[] {
 const NAMED_SUITS = [Suit.Blanks, Suit.Aces, Suit.Deuces, Suit.Threes, Suit.Fours, Suit.Fives, Suit.Sixes];
 
 // Port of `Match.razor`'s trump-picker filter - the trumps the bidder may call, in picker order:
-// every named suit, plus Follow Me (Suit.None) and Low once the winning bid is at least one mark
-// (42).
+// every named suit, plus Follow Me (Suit.None) and the three Low variants (one per doubles rule)
+// once the winning bid is at least one mark (42).
 export function availableTrumps(game: Game): Suit[] {
-  return game.bid !== null && game.bid >= Bid.FortyTwo ? [...NAMED_SUITS, Suit.None, Suit.Low] : [...NAMED_SUITS];
+  return game.bid !== null && game.bid >= Bid.FortyTwo
+    ? [...NAMED_SUITS, Suit.None, ...LOW_TRUMPS]
+    : [...NAMED_SUITS];
 }
 
 // NEW (the C# SelectTrumpAsync accepted any suit): enforces `availableTrumps` on the server.
 export function assertValidTrump(game: Game, suit: Suit): void {
   if (!availableTrumps(game).includes(suit)) {
-    throw new ValidationError('Invalid Trump', `<code>${suitToPrettyString(suit)}</code> needs a bid of at least 42`);
+    throw new ValidationError(
+      'Invalid Trump',
+      suit === Suit.None || isLow(suit)
+        ? `<code>${suitToPrettyString(suit)}</code> needs a bid of at least 42`
+        : "That isn't a trump you can call"
+    );
   }
 }
 
@@ -199,8 +206,9 @@ export function assertValidDomino(game: Game, userId: string, domino: Domino): v
 }
 
 // Port of `PluralizationProvider.Singularize(game.CurrentTrick.Suit.ToString())` for the error
-// message above. Only real suits (Blanks..Sixes) ever reach this call site (`trickSuit` is a
-// set trick suit, never Low/None), so a small lookup table covers every case exactly — a plain
+// message above. Only real suits (Blanks..Sixes, plus Doubles when doubles are their own suit)
+// ever reach this call site (`trickSuit` is a set trick suit, never Low/None), so a small lookup
+// table covers every case exactly — a plain
 // strip-trailing-"s" would mangle "Sixes" -> "Sixe" instead of "Six".
 const SUIT_SINGULAR: Partial<Record<Suit, string>> = {
   [Suit.Blanks]: 'Blank',
@@ -210,6 +218,7 @@ const SUIT_SINGULAR: Partial<Record<Suit, string>> = {
   [Suit.Fours]: 'Four',
   [Suit.Fives]: 'Five',
   [Suit.Sixes]: 'Six',
+  [Suit.Doubles]: 'Double',
 };
 
 function singularizeSuit(suit: Suit): string {
