@@ -36,6 +36,7 @@ import {
   lowDoublesToPrettyString,
 } from '@fortytwo/rules';
 import { apiClient } from '../api/client';
+import { useGetToken } from '../auth/useGetToken';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
 import { Hand } from '../components/Hand';
@@ -115,14 +116,9 @@ function MarkTally({ marks }: { marks: number }): JSX.Element {
 
 export function Match(): JSX.Element {
   const { matchId } = useParams<{ matchId: string }>();
-  const { user, getAccessTokenSilently } = useAuth0();
+  const { user } = useAuth0();
   const myPlayerId = user?.sub;
-
-  const getToken = async (): Promise<string> => {
-    const token = await getAccessTokenSilently();
-    if (!token) throw new Error('Failed to obtain an access token.');
-    return token;
-  };
+  const getToken = useGetToken();
 
   const { match: socketMatch } = useMatchSocket(matchId ?? '', getToken);
   const client = apiClient(getToken);

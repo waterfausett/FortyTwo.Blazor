@@ -13,7 +13,7 @@
 // Find a Game may want its own polling/push back later (matches can appear from other players at
 // any time) - left as-is for now per explicit product direction.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useGetToken } from '../auth/useGetToken';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { JSX } from 'react';
@@ -90,18 +90,9 @@ function errorMessage(error: unknown): string {
 }
 
 export function Lobby(): JSX.Element {
-  const { getAccessTokenSilently } = useAuth0();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // Auth0's getAccessTokenSilently is typed to return `Promise<string | undefined>` (it's
-  // overloaded, and the plain-string overload can still resolve `undefined`) while apiClient's
-  // getToken param is a plain `() => Promise<string>` - wrap it and fail loudly rather than
-  // silently sending a request with an `Authorization: Bearer undefined` header.
-  const client = apiClient(async () => {
-    const token = await getAccessTokenSilently();
-    if (!token) throw new Error('Failed to obtain an access token.');
-    return token;
-  });
+  const client = apiClient(useGetToken());
 
   const [activeTab, setActiveTab] = useState<MatchFilter>('Active');
   const activeTabLabel = TABS.find((tab) => tab.filter === activeTab)?.label ?? activeTab;

@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, JSX } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useGetToken } from '../auth/useGetToken';
 import { apiClient } from '../api/client';
 import './Profile.css';
 
@@ -21,15 +21,7 @@ function errorMessage(error: unknown): string {
 }
 
 export function Profile(): JSX.Element {
-  const { getAccessTokenSilently } = useAuth0();
-  // Mirrors Lobby.tsx's/Match.tsx's getToken wrapper: auth0-react's getAccessTokenSilently is
-  // typed to possibly resolve undefined, while apiClient's getToken param is a plain
-  // () => Promise<string> - fail loudly rather than send `Authorization: Bearer undefined`.
-  const client = apiClient(async () => {
-    const token = await getAccessTokenSilently();
-    if (!token) throw new Error('Failed to obtain an access token.');
-    return token;
-  });
+  const client = apiClient(useGetToken());
 
   const profileQuery = useQuery({ queryKey: ['profile'], queryFn: () => client.getProfile() });
 
