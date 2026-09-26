@@ -147,6 +147,7 @@
 
   .gameboard .opponent-tricks {
     justify-content: flex-start;
+    align-self: flex-start;
   }
 
   /* New: TrickHistory.tsx's per-team pile of completed tricks - ported from Match.razor's
