@@ -36,39 +36,61 @@ const EMPTY_LABELS: Record<MatchFilter, string> = {
   Completed: 'Finished games will show up here.',
 };
 
-// The lobby's list rows come from the lightweight D1 "MatchSummary" shape (`{ id, status,
-// playerCount, updatedOn }`) - it carries no team composition, unlike the full MatchState a match
-// page would have. Without per-team occupancy to drive a team picker, a single "Join" button is
-// the simplest reasonable UX for this task; the server (`validation.ts`'s `assertTeamNotFull`,
-// called from `matchEngine.ts`'s `addPlayer`) validates team capacity and rejects a full team,
-// which surfaces here as a mutation error rather than a client-side team-select flow.
-//
-// Which team the button requests, though, can't be a fixed constant: `createMatch` always seats
-// the creator on TeamA (position First - matchEngine.ts's `createMatch`), and every join since has
-// gone through this same alternating pattern, so a match's `playerCount` alone tells us which team
-// still has room - 1 seated (TeamA) -> join TeamB; 2 seated (1 per team) -> join TeamA; 3 seated (2
-// TeamA, 1 TeamB) -> join TeamB. A fixed TeamA here was the scoped re-review's CRITICAL 3 finding:
-// once the server's team-capacity guard is real, every 3rd join permanently fails "Team is full",
-// so no match could ever reach 4 players through the UI.
-const TEAM_A = 1; // Teams.TeamA in @fortytwo/rules
-const TEAM_B = 2; // Teams.TeamB in @fortytwo/rules
+// A table seen from above, indexed by seat position: the creator's seat (0) nearest you, then
+// clockwise in turn order - the same layout the match screen uses (match/table.ts), so the seat
+// you pick here is where you'll sit relative to the others there. Partners sit across.
+const SEAT_SIDES = ['bottom', 'left', 'top', 'right'] as const;
 
-function joinTeamFor(playerCount: number): number {
-  return playerCount % 2 === 1 ? TEAM_B : TEAM_A;
-}
-
-// A table seen from above: four seats around a square of mat, filled in the order players sit
-// down (the creator nearest you, then around the table). Says "how full is this game" at a glance.
-const SEAT_ORDER = ['bottom', 'left', 'top', 'right'] as const;
-
-function SeatGlyph({ seated }: { seated: number }): JSX.Element {
+function SeatGlyph({ seats }: { seats: (string | null)[] }): JSX.Element {
   return (
     <span className="seat-glyph" aria-hidden="true">
       <span className="seat-glyph-table" />
-      {SEAT_ORDER.map((seat, i) => (
-        <span key={seat} className={`seat-glyph-seat seat-glyph-${seat}${i < seated ? ' is-seated' : ''}`} />
+      {SEAT_SIDES.map((side, position) => (
+        <span key={side} className={`seat-glyph-seat seat-glyph-${side}${seats[position] != null ? ' is-seated' : ''}`} />
       ))}
     </span>
+  );
+}
+
+// The Join flow for a Find a Game row: the table again, bigger, with each taken seat's name and a
+// button in each open one. An open seat says who you'd partner with, since that's what picking a
+// seat really decides (along with who plays before and after you).
+function SeatPicker({
+  seats,
+  disabled,
+  onPick,
+}: {
+  seats: (string | null)[];
+  disabled: boolean;
+  onPick: (position: number) => void;
+}): JSX.Element {
+  return (
+    <div className="seat-picker" role="group" aria-label="Pick a seat">
+      <span className="seat-picker-table" aria-hidden="true" />
+      {SEAT_SIDES.map((side, position) => {
+        const name = seats[position];
+        if (name != null) {
+          return (
+            <span key={side} className={`seat-picker-seat seat-picker-${side} is-seated`}>
+              {name}
+            </span>
+          );
+        }
+        const partner = seats[(position + 2) % 4];
+        return (
+          <button
+            key={side}
+            type="button"
+            className={`seat-picker-seat seat-picker-${side}`}
+            disabled={disabled}
+            onClick={() => onPick(position)}
+          >
+            <span className="seat-picker-action">Sit here</span>
+            <span className="seat-picker-hint">{partner != null ? `with ${partner}` : 'open seat'}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -111,12 +133,17 @@ export function Lobby(): JSX.Element {
     },
   });
 
+  // The Find a Game row whose seat picker is open, if any.
+  const [pickingSeatIn, setPickingSeatIn] = useState<string | null>(null);
+
   const joinMatch = useMutation({
-    mutationFn: ({ id, team }: { id: string; team: number }) => client.joinMatch(id, team),
+    mutationFn: ({ id, position }: { id: string; position: number }) => client.joinMatch(id, position),
     onSuccess: (match) => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
       navigate(`/match/${match.id}`);
     },
+    // Most likely someone took the seat first - refetch so the picker shows who.
+    onError: () => queryClient.invalidateQueries({ queryKey: ['matches'] }),
   });
 
   return (
@@ -186,7 +213,7 @@ export function Lobby(): JSX.Element {
             {matches.map((match) => (
               <li key={match.id} className="lobby-match-row">
                 <Link to={`/match/${match.id}`} className="lobby-match-link">
-                  <SeatGlyph seated={match.playerCount} />
+                  <SeatGlyph seats={match.seats} />
                   <span className="lobby-match-text">
                     <span className="lobby-match-players">{formatMatchup(match)}</span>
                     <span className="lobby-match-meta">
@@ -198,11 +225,18 @@ export function Lobby(): JSX.Element {
                   <button
                     type="button"
                     className="action-button action-button-small"
-                    onClick={() => joinMatch.mutate({ id: match.id, team: joinTeamFor(match.playerCount) })}
-                    disabled={joinMatch.isPending}
+                    aria-expanded={pickingSeatIn === match.id}
+                    onClick={() => setPickingSeatIn(pickingSeatIn === match.id ? null : match.id)}
                   >
-                    Join
+                    {pickingSeatIn === match.id ? 'Cancel' : 'Join'}
                   </button>
+                )}
+                {activeTab === 'Joinable' && pickingSeatIn === match.id && (
+                  <SeatPicker
+                    seats={match.seats}
+                    disabled={joinMatch.isPending}
+                    onPick={(position) => joinMatch.mutate({ id: match.id, position })}
+                  />
                 )}
               </li>
             ))}

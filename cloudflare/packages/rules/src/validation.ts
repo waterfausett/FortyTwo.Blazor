@@ -66,6 +66,17 @@ export function assertTeamNotFull(players: { position: number }[], team: Teams):
   }
 }
 
+// NEW guard, not a port: the C# app never let players pick a seat. `takeSeat` (matchEngine.ts)
+// needs a real, unoccupied position or it would stack two players in one seat.
+export function assertSeatOpen(players: { position: number }[], position: number): void {
+  if (!Number.isInteger(position) || position < 0 || position > 3) {
+    throw new ValidationError('Invalid seat', 'Pick one of the four seats at the table');
+  }
+  if (players.some((p) => p.position === position)) {
+    throw new ValidationError('Seat is taken', 'Someone is already sitting there');
+  }
+}
+
 // Port of `IsActiveTurn`.
 export function assertActiveTurn(game: Game, userId: string): void {
   if (game.currentPlayerId !== userId) throw new ValidationError("It's not your turn!");

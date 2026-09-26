@@ -43,6 +43,7 @@ export type { MatchPlayerState, MatchState, LoggedInPlayer } from './matchEngine
 export {
   createMatch,
   addPlayer,
+  takeSeat,
   patchPlayerReady,
   placeBid,
   setTrump,

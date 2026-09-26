@@ -63,12 +63,17 @@ matches.get('/', async (c) => {
   const allPlayerIds = [...playersByMatch.values()].flat().map((p) => p.playerId);
   const names = await displayNames(c, [...new Set(allPlayerIds)]);
   // `teams` is [TeamA names, TeamB names], each in join order, for a "A & B vs C & D" matchup.
+  // `seats` is who sits at each position 0-3 (null for an open seat), for picking a seat to join.
   return c.json(
     rows.map((row) => {
       const seated = playersByMatch.get(row.id) ?? [];
-      const namesOn = (team: Teams) =>
-        seated.filter((p) => p.team === team).map((p) => names.get(p.playerId) ?? p.playerId);
-      return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)] };
+      const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
+      const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
+      const seats = [0, 1, 2, 3].map((position) => {
+        const player = seated.find((p) => p.position === position);
+        return player ? nameOf(player.playerId) : null;
+      });
+      return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
     })
   );
 });
@@ -114,12 +119,18 @@ matches.get('/:id/players', async (c) => {
 matches.post('/:id/players', async (c) => {
   const matchId = c.req.param('id');
   const userId = c.get('user').sub;
-  const { team } = await c.req.json();
-  // A shuffled dealOrder is generated on EVERY join: addPlayer (matchEngine.ts) only actually
-  // deals when this is the 4th hand being added, but it's harmless (silently unused) on joins 2
-  // and 3 - and this is the ONLY mechanism that ever deals a match's first hand, matching the
-  // real app's behavior of dealing the instant the 4th player joins.
-  const res = await callRpc(stub(c, matchId), 'addPlayer', { playerId: userId, team, dealOrder: shuffledDominoOrder() });
+  // `{ position }` sits the player in the seat they picked; `{ team }` is the older join-a-team
+  // form, which lets the engine choose the seat.
+  const { team, position } = await c.req.json();
+  // A shuffled dealOrder is generated on EVERY join: addPlayer/takeSeat (matchEngine.ts) only
+  // actually deal when this is the 4th hand being added, but it's harmless (silently unused) on
+  // joins 2 and 3 - and this is the ONLY mechanism that ever deals a match's first hand, matching
+  // the real app's behavior of dealing the instant the 4th player joins.
+  const dealOrder = shuffledDominoOrder();
+  const res =
+    position !== undefined
+      ? await callRpc(stub(c, matchId), 'takeSeat', { playerId: userId, position, dealOrder })
+      : await callRpc(stub(c, matchId), 'addPlayer', { playerId: userId, team, dealOrder });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);

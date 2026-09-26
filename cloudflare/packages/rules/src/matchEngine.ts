@@ -26,6 +26,7 @@ import {
   assertIsNotMatchPlayer,
   assertNotFull,
   assertReadyToPlay,
+  assertSeatOpen,
   assertTeamNotFull,
   assertValidBid,
   assertValidDomino,
@@ -148,10 +149,26 @@ export function addPlayer(match: MatchState, playerId: string, team: Teams, deal
         ? Positions.Second
         : Positions.First;
 
+  return seatPlayer(match, playerId, position, dealOrder);
+}
+
+// Joins a match at a seat the player picked, rather than one derived from a team (addPlayer).
+// The seat decides both team (position parity) and turn order, so it must be one of the four
+// positions and not already taken.
+export function takeSeat(match: MatchState, playerId: string, position: number, dealOrder?: Domino[]): MatchState {
+  assertActive(match);
+  assertNotFull(match);
+  assertIsNotMatchPlayer(match, playerId);
+  assertSeatOpen(match.players, position);
+
+  return seatPlayer(match, playerId, position as Positions, dealOrder);
+}
+
+function seatPlayer(match: MatchState, playerId: string, position: Positions, dealOrder?: Domino[]): MatchState {
   const newPlayer: MatchPlayerState = { playerId, position, ready: true };
   // Mirrors the C# source's own quirk: the new Hand's team is computed from POSITION, not the
-  // `team` argument directly - always consistent in practice since position is derived from
-  // `team` above, but written the same (redundant) way for a faithful line-for-line port.
+  // `team` argument directly - always consistent in practice since addPlayer derives position
+  // from `team`, but written the same (redundant) way for a faithful line-for-line port.
   const newHand: Hand = { playerId, team: teamForPosition(position), dominoes: [], bid: null };
 
   let players = [...match.players, newPlayer];

@@ -25,6 +25,11 @@ export async function upsertMatchSummary(db: D1Database, summary: MatchSummary):
 export interface SeatedPlayer {
   playerId: string;
   team: Teams;
+  position: number;
+}
+
+function teamForPosition(position: number): Teams {
+  return position % 2 === 0 ? Teams.TeamA : Teams.TeamB;
 }
 
 // Replaces the full player set for a match (delete-then-reinsert), not an incremental add. Each
@@ -39,8 +44,8 @@ export async function syncMatchPlayers(
     db.prepare('DELETE FROM match_players WHERE match_id = ?').bind(matchId),
     ...players.map(({ playerId, position }) =>
       db
-        .prepare('INSERT OR IGNORE INTO match_players (match_id, player_id, team) VALUES (?, ?, ?)')
-        .bind(matchId, playerId, position % 2 === 0 ? Teams.TeamA : Teams.TeamB)
+        .prepare('INSERT OR IGNORE INTO match_players (match_id, player_id, team, position) VALUES (?, ?, ?, ?)')
+        .bind(matchId, playerId, teamForPosition(position), position)
     ),
   ];
   await db.batch(statements);
@@ -55,17 +60,19 @@ export async function listMatchPlayers(db: D1Database, matchIds: string[]): Prom
   if (matchIds.length === 0) return byMatch;
   const { results } = await db
     .prepare(
-      `SELECT match_id AS matchId, player_id AS playerId, team FROM match_players
+      `SELECT match_id AS matchId, player_id AS playerId, team, position FROM match_players
        WHERE match_id IN (SELECT value FROM json_each(?)) ORDER BY rowid`
     )
     .bind(JSON.stringify(matchIds))
-    .all<{ matchId: string; playerId: string; team: Teams | null }>();
-  for (const { matchId, playerId, team } of results) {
+    .all<{ matchId: string; playerId: string; team: Teams | null; position: number | null }>();
+  for (const { matchId, playerId, team, position } of results) {
     const seated = byMatch.get(matchId);
     if (!seated) continue;
-    // Rows synced before the team column existed have no team; joins alternate teams starting
-    // with the creator on TeamA (see Lobby.tsx's joinTeamFor), so join order stands in for it.
-    seated.push({ playerId, team: team ?? (seated.length % 2 === 0 ? Teams.TeamA : Teams.TeamB) });
+    // Rows synced before the position column existed have no seat. Before players could pick
+    // seats, joins alternated teams starting with the creator on TeamA, which puts the Nth
+    // joiner in seat N - so join order stands in for it (and, before the team column, for team).
+    const seat = position ?? seated.length;
+    seated.push({ playerId, team: team ?? teamForPosition(seat), position: seat });
   }
   return byMatch;
 }

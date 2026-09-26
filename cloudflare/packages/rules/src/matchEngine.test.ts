@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createMatch,
   addPlayer,
+  takeSeat,
   patchPlayerReady,
   placeBid,
   setTrump,
@@ -167,6 +168,59 @@ describe('addPlayer', () => {
     expect(new Set(p3.players.map((p) => p.position)).size).toBe(3); // all 3 positions distinct
     expect(p3Player.position).not.toBe(Positions.First);
     expect(p3Player.position).not.toBe(Positions.Third);
+  });
+});
+
+describe('takeSeat', () => {
+  it('seats the player at the chosen position, on that seat’s team', () => {
+    let match = createMatch('p1'); // p1 @ First(0), TeamA
+
+    match = takeSeat(match, 'p2', Positions.Fourth);
+
+    expect(match.players.find((p) => p.playerId === 'p2')).toEqual({ playerId: 'p2', position: Positions.Fourth, ready: true });
+    expect(match.currentGame.hands.find((h) => h.playerId === 'p2')!.team).toBe(Teams.TeamB);
+  });
+
+  it('deals once the 4th seat is taken, given a dealOrder', () => {
+    let match = createMatch('p1');
+    match = takeSeat(match, 'p2', Positions.Third);
+    match = takeSeat(match, 'p3', Positions.Fourth);
+    match = takeSeat(match, 'p4', Positions.Second, fullDeck());
+
+    // Each hand is dealt from its seat's slice of the deal order.
+    const deck = fullDeck();
+    const p4Hand = match.currentGame.hands.find((h) => h.playerId === 'p4')!;
+    expect(p4Hand.dominoes).toEqual(deck.slice(7, 14));
+    expect(match.players.every((p) => p.ready === false)).toBe(true);
+  });
+
+  it('rejects a seat someone is already in', () => {
+    const match = createMatch('p1');
+
+    expect(() => takeSeat(match, 'p2', Positions.First)).toThrow(ValidationError);
+    try {
+      takeSeat(match, 'p2', Positions.First);
+    } catch (e) {
+      expect((e as ValidationError).title).toBe('Seat is taken');
+    }
+  });
+
+  it('rejects a position that is not one of the four seats', () => {
+    const match = createMatch('p1');
+
+    for (const position of [-1, 4, 1.5, NaN]) {
+      expect(() => takeSeat(match, 'p2', position)).toThrow(ValidationError);
+    }
+  });
+
+  it('rejects a player who is already seated, and a full match', () => {
+    let match = createMatch('p1');
+    expect(() => takeSeat(match, 'p1', Positions.Second)).toThrow(ValidationError);
+
+    match = takeSeat(match, 'p2', Positions.Second);
+    match = takeSeat(match, 'p3', Positions.Third);
+    match = takeSeat(match, 'p4', Positions.Fourth, fullDeck());
+    expect(() => takeSeat(match, 'p5', Positions.Second)).toThrow(ValidationError);
   });
 });
 

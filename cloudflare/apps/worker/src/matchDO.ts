@@ -5,6 +5,7 @@ import { verifyToken } from './auth/verifyJwt';
 import {
   createMatch,
   addPlayer,
+  takeSeat,
   patchPlayerReady,
   placeBid,
   setTrump,
@@ -129,6 +130,11 @@ export class MatchDO implements DurableObject {
         // caller (a future Worker route, Task 16) is responsible for generating a real shuffled
         // deck; MatchDO's job here is only to not silently drop it.
         next = addPlayer(existing, body.playerId as string, body.team as number, body.dealOrder as Domino[] | undefined);
+        break;
+      case 'takeSeat':
+        // Same as addPlayer, but at a seat the joining player picked rather than one derived from
+        // a team.
+        next = takeSeat(existing, body.playerId as string, body.position as number, body.dealOrder as Domino[] | undefined);
         break;
       case 'readyUp':
         next = patchPlayerReady(existing, body.playerId as string, body.ready as boolean, body.dealOrder as Domino[]);

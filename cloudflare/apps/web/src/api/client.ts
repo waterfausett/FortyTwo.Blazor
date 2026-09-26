@@ -14,13 +14,14 @@ import type { MatchState } from '@fortytwo/rules';
 // index) and not something apps/web should reach across the app boundary to import. Mirrored
 // locally to match exactly what GET /api/matches returns - plus `teams`, which the route attaches
 // to each row: [TeamA, TeamB] display names, each in join order (bots, and anyone Auth0 couldn't
-// resolve, appear by raw id).
+// resolve, appear by raw id), and `seats`, the display name at each position 0-3 (null if open).
 export interface MatchSummary {
   id: string;
   status: 'active' | 'completed';
   playerCount: number;
   updatedOn: string;
   teams: [string[], string[]];
+  seats: (string | null)[];
 }
 
 // Mirrors the real /api/users/* response shape (Task 15's `toUserResponse` in
@@ -106,10 +107,11 @@ export function apiClient(getToken: () => Promise<string>) {
 
     getMatch: (id: string): Promise<MatchState> => request<MatchState>(getToken, `/api/matches/${id}`),
 
-    joinMatch: (id: string, team: number): Promise<MatchState> =>
+    // `position` is the seat (0-3) the player picked.
+    joinMatch: (id: string, position: number): Promise<MatchState> =>
       request<MatchState>(getToken, `/api/matches/${id}/players`, {
         method: 'POST',
-        body: JSON.stringify({ team }),
+        body: JSON.stringify({ position }),
       }),
 
     readyUp: (id: string, ready: boolean): Promise<MatchState> =>

@@ -276,6 +276,28 @@ describe('match routes', () => {
     expect(rows.find((row) => row.id === created.id)?.teams).toEqual([['Player One', 'three'], ['p2']]);
   });
 
+  it('joins at a picked seat and lists which seats are open', async () => {
+    const p1 = await signToken('p1');
+    const p2 = await signToken('p2');
+    const p3 = await signToken('p3');
+
+    const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+    // p2 skips seat 1 (left of the creator) and sits at seat 3, on the creator's right.
+    const join = await api(`/api/matches/${created.id}/players`, p2, { method: 'POST', body: JSON.stringify({ position: 3 }) });
+    expect(join.status).toBe(200);
+    const joined = (await join.json()) as { players: { playerId: string; position: number }[] };
+    expect(joined.players.find((p) => p.playerId === 'p2')?.position).toBe(3);
+
+    const taken = await api(`/api/matches/${created.id}/players`, p3, { method: 'POST', body: JSON.stringify({ position: 3 }) });
+    expect(taken.status).toBe(400);
+    expect(((await taken.json()) as { title: string }).title).toBe('Seat is taken');
+
+    // No Auth0 mock, so seats show raw ids.
+    const res = await api('/api/matches?filter=Joinable', p3);
+    const rows = (await res.json()) as { id: string; seats: (string | null)[] }[];
+    expect(rows.find((row) => row.id === created.id)?.seats).toEqual(['p1', null, null, 'p2']);
+  });
+
   it(
     "the WebSocket broadcast payload carries the SAME id as the REST create response - " +
       "regression guard for matchEngine.ts's createMatch() minting its own internal id " +

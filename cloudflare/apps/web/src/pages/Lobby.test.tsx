@@ -49,11 +49,19 @@ const ACTIVE_FIXTURE: MatchSummary[] = [
       ['Alice', 'bot-2'],
       ['bot-1', 'bot-3'],
     ],
+    seats: ['Alice', 'bot-1', 'bot-2', 'bot-3'],
   },
 ];
-// Only the creator's team has anyone on it yet.
+// Bob created it (seat 0) and Cara sat on his right (seat 3), leaving seats 1 and 2 open.
 const JOINABLE_FIXTURE: MatchSummary[] = [
-  { id: 'joinable-1', status: 'active', playerCount: 1, updatedOn: '2026-01-01T00:00:00.000Z', teams: [['Bob'], []] },
+  {
+    id: 'joinable-1',
+    status: 'active',
+    playerCount: 2,
+    updatedOn: '2026-01-01T00:00:00.000Z',
+    teams: [['Bob'], ['Cara']],
+    seats: ['Bob', null, null, 'Cara'],
+  },
 ];
 const COMPLETED_FIXTURE: MatchSummary[] = [
   {
@@ -65,11 +73,12 @@ const COMPLETED_FIXTURE: MatchSummary[] = [
       ['Alice', 'Cara'],
       ['Bob', 'Dan'],
     ],
+    seats: ['Alice', 'Bob', 'Cara', 'Dan'],
   },
 ];
 // Each row is labelled by its matchup, not the match id.
 const ACTIVE_ROW = 'Alice & bot-2 vs bot-1 & bot-3';
-const JOINABLE_ROW = 'Bob vs ?';
+const JOINABLE_ROW = 'Bob vs Cara';
 const COMPLETED_ROW = 'Alice & Cara vs Bob & Dan';
 
 function mockLists() {
@@ -195,69 +204,56 @@ describe('Lobby', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/new-match-id'));
   });
 
-  it('calls joinMatch with the row id when Join is clicked, then navigates to the joined match', async () => {
-    joinMatchMock.mockResolvedValue({ id: 'joinable-1' } as MatchState);
-    renderLobby();
-    switchTab(/find a game/i);
-
-    const row = (await screen.findByText(JOINABLE_ROW)).closest('li');
-    expect(row).not.toBeNull();
-    const joinButton = within(row as HTMLElement).getByRole('button', { name: /join/i });
-    fireEvent.click(joinButton);
-
-    await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('joinable-1', expect.any(Number)));
-    // Regression test for CRITICAL finding #4: joining used to only invalidate the list queries,
-    // leaving the player with no way back to the match they just joined except typing the URL.
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/joinable-1'));
-  });
-
-  // Regression tests for the scoped re-review's CRITICAL 3 follow-up: Lobby used to always join
-  // `DEFAULT_JOIN_TEAM` (TeamA) regardless of who was already seated. Since createMatch always
-  // seats the creator on TeamA (position First), and the server now genuinely rejects a full team
-  // (`assertTeamNotFull`), a fixed TeamA meant the 3rd join into ANY match always failed with
-  // "Team is full" - no match could ever reach 4 players through the UI. The fix must pick
-  // whichever team still has room, inferred from `MatchSummary.playerCount` (the only team-shaped
-  // signal the lobby list exposes) under the assumption that every prior join alternated teams the
-  // same way (each match starts with exactly 1 player, always on TeamA).
-  describe('join team selection', () => {
-    function renderJoinable(match: MatchSummary) {
-      listMatchesMock.mockImplementation((filter: 'Active' | 'Completed' | 'Joinable') => {
-        switch (filter) {
-          case 'Active':
-            return Promise.resolve(ACTIVE_FIXTURE);
-          case 'Joinable':
-            return Promise.resolve([match]);
-          case 'Completed':
-            return Promise.resolve(COMPLETED_FIXTURE);
-        }
-      });
-      joinMatchMock.mockResolvedValue({ id: match.id } as MatchState);
+  describe('joining', () => {
+    async function openSeatPicker() {
       renderLobby();
       switchTab(/find a game/i);
+      const row = (await screen.findByText(JOINABLE_ROW)).closest('li') as HTMLElement;
+      fireEvent.click(within(row).getByRole('button', { name: /join/i }));
+      return within(row).getByRole('group', { name: /pick a seat/i });
     }
 
-    it('requests TeamB when only the creator (1 player, on TeamA) is seated', async () => {
-      renderJoinable({ id: 'j1', status: 'active', playerCount: 1, updatedOn: '2026-01-01T00:00:00.000Z', teams: [[], []] });
+    it('opens a seat picker showing who sits where, with a button in each open seat', async () => {
+      const picker = await openSeatPicker();
 
-      fireEvent.click(await screen.findByRole('button', { name: /join/i }));
-
-      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('j1', 2 /* Teams.TeamB */));
+      expect(within(picker).getByText('Bob')).toBeTruthy();
+      expect(within(picker).getByText('Cara')).toBeTruthy();
+      // Seat 1 is across from Cara, seat 2 across from Bob - each says who you'd partner with.
+      const seats = within(picker).getAllByRole('button');
+      expect(seats.map((seat) => seat.textContent)).toEqual(['Sit herewith Cara', 'Sit herewith Bob']);
+      expect(joinMatchMock).not.toHaveBeenCalled();
     });
 
-    it('requests TeamA when 2 players (1 per team) are seated', async () => {
-      renderJoinable({ id: 'j2', status: 'active', playerCount: 2, updatedOn: '2026-01-01T00:00:00.000Z', teams: [[], []] });
+    it('joins at the picked seat, then navigates to the joined match', async () => {
+      joinMatchMock.mockResolvedValue({ id: 'joinable-1' } as MatchState);
+      const picker = await openSeatPicker();
 
-      fireEvent.click(await screen.findByRole('button', { name: /join/i }));
+      fireEvent.click(within(picker).getByRole('button', { name: /with bob/i }));
 
-      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('j2', 1 /* Teams.TeamA */));
+      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('joinable-1', 2));
+      // Regression test for CRITICAL finding #4: joining used to only invalidate the list queries,
+      // leaving the player with no way back to the match they just joined except typing the URL.
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/joinable-1'));
     });
 
-    it('requests TeamB when 3 players (2 on TeamA, 1 on TeamB) are seated', async () => {
-      renderJoinable({ id: 'j3', status: 'active', playerCount: 3, updatedOn: '2026-01-01T00:00:00.000Z', teams: [[], []] });
+    it('closes the picker on Cancel', async () => {
+      await openSeatPicker();
 
-      fireEvent.click(await screen.findByRole('button', { name: /join/i }));
+      fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
 
-      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('j3', 2 /* Teams.TeamB */));
+      expect(screen.queryByRole('group', { name: /pick a seat/i })).toBeNull();
+    });
+
+    it('shows the error and refreshes the list when the seat was taken first', async () => {
+      joinMatchMock.mockRejectedValue(new Error('Seat is taken: Someone is already sitting there'));
+      const picker = await openSeatPicker();
+      listMatchesMock.mockClear();
+
+      fireEvent.click(within(picker).getByRole('button', { name: /with cara/i }));
+
+      expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Seat is taken: Someone is already sitting there');
+      await waitFor(() => expect(listMatchesMock).toHaveBeenCalledWith('Joinable'));
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
   });
 
@@ -279,7 +275,14 @@ describe('Lobby', () => {
 
   it('falls back to the match id for a row with no players listed', async () => {
     listMatchesMock.mockResolvedValue([
-      { id: 'no-players', status: 'active', playerCount: 0, updatedOn: '2026-01-01T00:00:00.000Z', teams: [[], []] },
+      {
+        id: 'no-players',
+        status: 'active',
+        playerCount: 0,
+        updatedOn: '2026-01-01T00:00:00.000Z',
+        teams: [[], []],
+        seats: [null, null, null, null],
+      },
     ]);
     renderLobby();
 

@@ -147,13 +147,32 @@ describe('lobby', () => {
       const players = await listMatchPlayers(testEnv.DB, ['m1', 'm2', 'm-empty']);
 
       expect(players.get('m1')).toEqual([
-        { playerId: 'zed', team: Teams.TeamA },
-        { playerId: 'amy', team: Teams.TeamA },
-        { playerId: 'bot-2', team: Teams.TeamB },
-        { playerId: 'late', team: Teams.TeamB },
+        { playerId: 'zed', team: Teams.TeamA, position: 0 },
+        { playerId: 'amy', team: Teams.TeamA, position: 2 },
+        { playerId: 'bot-2', team: Teams.TeamB, position: 3 },
+        { playerId: 'late', team: Teams.TeamB, position: 1 },
       ]);
-      expect(players.get('m2')).toEqual([{ playerId: 'p1', team: Teams.TeamA }]);
+      expect(players.get('m2')).toEqual([{ playerId: 'p1', team: Teams.TeamA, position: 0 }]);
       expect(players.get('m-empty')).toEqual([]);
+    });
+
+    it('infers seats from join order for rows synced before the position column existed', async () => {
+      await upsertMatchSummary(testEnv.DB, summary('legacy'));
+      await testEnv.DB.batch(
+        [
+          ['a', Teams.TeamA],
+          ['b', Teams.TeamB],
+        ].map(([playerId, team]) =>
+          testEnv.DB.prepare('INSERT INTO match_players (match_id, player_id, team) VALUES (?, ?, ?)').bind('legacy', playerId, team)
+        )
+      );
+
+      const players = await listMatchPlayers(testEnv.DB, ['legacy']);
+
+      expect(players.get('legacy')).toEqual([
+        { playerId: 'a', team: Teams.TeamA, position: 0 },
+        { playerId: 'b', team: Teams.TeamB, position: 1 },
+      ]);
     });
 
     it('infers teams from join order for rows synced before the team column existed', async () => {
@@ -167,9 +186,9 @@ describe('lobby', () => {
       const players = await listMatchPlayers(testEnv.DB, ['legacy']);
 
       expect(players.get('legacy')).toEqual([
-        { playerId: 'a', team: Teams.TeamA },
-        { playerId: 'b', team: Teams.TeamB },
-        { playerId: 'c', team: Teams.TeamA },
+        { playerId: 'a', team: Teams.TeamA, position: 0 },
+        { playerId: 'b', team: Teams.TeamB, position: 1 },
+        { playerId: 'c', team: Teams.TeamA, position: 2 },
       ]);
     });
 
