@@ -10,7 +10,7 @@
 // defined`. A minimal no-op stub is enough since these tests only exercise click-to-play and
 // component wiring, not real pointer-drag physics (real drag-and-drop is not meaningfully
 // testable under jsdom without a much heavier simulation harness).
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createDomino } from '@fortytwo/rules';
 import { Hand } from './Hand';
@@ -110,6 +110,62 @@ describe('Hand', () => {
     for (const tile of screen.getAllByTestId('domino').map((d) => d.closest('.hand-tile')!)) {
       expect(tile.getAttribute('aria-disabled')).toBe('false');
     }
+  });
+
+  // Dragging used to move the hand tile itself (a CSS transform on the original element), which
+  // could be dragged past the bottom of the page - growing it, and dnd-kit's auto-scroll chased it
+  // forever. A drag now lifts a ghost copy into a fixed overlay while the original stays put as a
+  // faded placeholder. Driven by dnd-kit's keyboard sensor (Space picks up / drops) since jsdom
+  // has no real pointer-drag physics.
+  describe('drag ghost', () => {
+    function pickUp(tile: HTMLElement): void {
+      tile.focus();
+      fireEvent.keyDown(tile, { code: 'Space' });
+    }
+
+    it('lifts a ghost copy of the dragged domino and leaves the original in place, faded', () => {
+      render(<Hand dominoes={DOMINOES} selectable={false} onPlay={() => {}} />);
+      const handTile = screen.getAllByTestId('domino')[1].closest<HTMLElement>('.hand-tile')!;
+
+      pickUp(handTile);
+
+      const ghost = document.querySelector('.hand-drag-ghost');
+      expect(ghost).not.toBeNull();
+      expect(pipsOf(ghost!.querySelector<HTMLElement>('[data-testid="domino"]')!)).toEqual([3, 4]);
+      expect(handTile.classList.contains('hand-tile-dragging')).toBe(true);
+      // The original never moves - only the ghost does.
+      expect(handTile.style.transform).toBe('');
+    });
+
+    it("doesn't start a drag (or show a ghost) on a plain click", () => {
+      const onPlay = vi.fn();
+      render(<Hand dominoes={DOMINOES} selectable onPlay={onPlay} />);
+      const tile = screen.getAllByTestId('domino')[0];
+
+      fireEvent.pointerDown(tile, { isPrimary: true, button: 0, clientX: 10, clientY: 10 });
+      expect(document.querySelector('.hand-drag-ghost')).toBeNull();
+      fireEvent.pointerUp(tile, { isPrimary: true, button: 0, clientX: 10, clientY: 10 });
+      fireEvent.click(tile);
+
+      expect(document.querySelector('.hand-drag-ghost')).toBeNull();
+      expect(onPlay).toHaveBeenCalledWith(DOMINOES[0]);
+    });
+
+    it('removes the ghost once the drag ends', async () => {
+      render(<Hand dominoes={DOMINOES} selectable={false} onPlay={() => {}} />);
+      const handTile = screen.getAllByTestId('domino')[0].closest<HTMLElement>('.hand-tile')!;
+
+      pickUp(handTile);
+      expect(document.querySelector('.hand-drag-ghost')).not.toBeNull();
+      // dnd-kit's KeyboardSensor only starts listening for move/drop/cancel keys a tick after
+      // pickup (a setTimeout in its attach step).
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+      fireEvent.keyDown(handTile, { code: 'Escape' });
+
+      expect(handTile.classList.contains('hand-tile-dragging')).toBe(false);
+      // The ghost may linger for DragOverlay's brief return-to-slot animation.
+      await waitFor(() => expect(document.querySelector('.hand-drag-ghost')).toBeNull());
+    });
   });
 
   describe('double-click to play / preselect', () => {

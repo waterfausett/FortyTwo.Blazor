@@ -39,24 +39,13 @@ export function BiddingPanel({ game, myPlayerId, onBid, disabled = false }: Bidd
 
   return (
     <section className="bidding-panel" aria-label="Bidding">
-      <p>Select a bid:</p>
+      <p className="action-prompt">Select a bid</p>
       <div className="bidding-options">
-        <button
-          type="button"
-          className="custom-chip custom-chip-warning custom-chip-large"
-          disabled={allDisabled}
-          onClick={() => onBid(Bid.Pass)}
-        >
+        <button type="button" className="bid-tile bid-tile-pass" disabled={allDisabled} onClick={() => onBid(Bid.Pass)}>
           {bidToPrettyString(Bid.Pass)}
         </button>
         {availableBids.map((bid) => (
-          <button
-            key={bid}
-            type="button"
-            className="custom-chip custom-chip-info custom-chip-large"
-            disabled={allDisabled}
-            onClick={() => onBid(bid)}
-          >
+          <button key={bid} type="button" className="bid-tile" disabled={allDisabled} onClick={() => onBid(bid)}>
             {bidToPrettyString(bid)}
           </button>
         ))}

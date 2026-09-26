@@ -16,9 +16,29 @@
 // actions above - is NEVER gated on `selectable`: a player should be able to rearrange their own
 // hand for reference at any time, not just on their turn. It doesn't call the server either,
 // mirroring the old app's `OnSort` handler, which only reordered `Player.Dominos` client-side.
-import type { CSSProperties, JSX, ReactNode } from 'react';
+//
+// While dragging, the tile itself never moves: a ghost copy follows the pointer in a
+// `DragOverlay` (position: fixed, so it can't stretch the page), and the original stays in the
+// hand as a faded placeholder. Moving the original used to let a tile be dragged past the bottom
+// of the page, growing it - with dnd-kit's auto-scroll chasing it downward forever. Auto-scroll is
+// off entirely (the hand and the play zone share one rail; there's nothing to scroll toward), and
+// the ghost is clamped to the viewport.
+import type { JSX, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { DndContext, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+  type Modifier,
+} from '@dnd-kit/core';
 import type { Domino as DominoType } from '@fortytwo/rules';
 import { Domino } from './Domino';
 
@@ -40,6 +60,25 @@ const PLAY_ZONE_ID = '__play-zone__';
 // firing the instant the turn arrives.
 const PRESELECT_AUTO_PLAY_DELAY_MS = 400;
 
+// A press has to travel this far before it counts as a drag. Without it, every click and
+// double-click (play / preselect) would start a zero-distance drag - briefly flashing the ghost
+// and fading the tile.
+const DRAG_ACTIVATION_DISTANCE_PX = 5;
+
+// Keeps the drag ghost fully on screen.
+const restrictToViewport: Modifier = ({ transform, draggingNodeRect, windowRect }) => {
+  if (!draggingNodeRect || !windowRect) return transform;
+  const minX = windowRect.left - draggingNodeRect.left;
+  const maxX = windowRect.left + windowRect.width - draggingNodeRect.right;
+  const minY = windowRect.top - draggingNodeRect.top;
+  const maxY = windowRect.top + windowRect.height - draggingNodeRect.bottom;
+  return {
+    ...transform,
+    x: Math.min(Math.max(transform.x, minX), maxX),
+    y: Math.min(Math.max(transform.y, minY), maxY),
+  };
+};
+
 function DraggableDomino({
   domino,
   selectable,
@@ -55,15 +94,9 @@ function DraggableDomino({
 }): JSX.Element {
   // Reordering (drag-to-swap) is always available, regardless of whose turn it is - only the
   // play-zone-drop *action* (handled in handleDragEnd below) needs to stay turn-gated.
-  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
-    id: domino.id,
-  });
+  // No `transform` applied here - the DragOverlay ghost is what moves; this stays put.
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id: domino.id });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: domino.id });
-
-  const style: CSSProperties = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    zIndex: isDragging ? 10 : undefined,
-  };
 
   return (
     <div
@@ -71,8 +104,7 @@ function DraggableDomino({
         setDragRef(node);
         setDropRef(node);
       }}
-      style={style}
-      className={`hand-tile${isOver ? ' hand-tile-over' : ''}`}
+      className={`hand-tile${isOver && !isDragging ? ' hand-tile-over' : ''}${isDragging ? ' hand-tile-dragging' : ''}`}
       {...listeners}
       {...attributes}
     >
@@ -88,10 +120,14 @@ function DraggableDomino({
   );
 }
 
-function PlayZone({ children }: { children: ReactNode }): JSX.Element {
+// Only outlined (match.css's `.hand-play-zone-live`) while a drop would actually play.
+function PlayZone({ live, children }: { live: boolean; children: ReactNode }): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id: PLAY_ZONE_ID });
   return (
-    <div ref={setNodeRef} className={`hand-play-zone${isOver ? ' hand-play-zone-over' : ''}`}>
+    <div
+      ref={setNodeRef}
+      className={`hand-play-zone${live ? ' hand-play-zone-live' : ''}${isOver ? ' hand-play-zone-over' : ''}`}
+    >
       {children}
     </div>
   );
@@ -130,6 +166,10 @@ export function Hand({ dominoes, selectable, onPlay, isValidPlay = () => true }:
   // double-clicking a tile before `selectable` is true. Only one at a time: double-clicking a
   // different tile replaces it, matching a player only ever getting to make one move per turn.
   const [preselectedId, setPreselectedId] = useState<string | null>(null);
+  // The tile being dragged (drawn as the DragOverlay ghost), and whether dropping it right now
+  // would play it (it's over the play zone on this player's turn).
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropWillPlay, setDropWillPlay] = useState(false);
 
   // Latest-value refs so the auto-play effect below can depend on just `[selectable,
   // preselectedId]` - `order` gets a new array identity on every reorder (unrelated to whether a
@@ -191,7 +231,17 @@ export function Hand({ dominoes, selectable, onPlay, isValidPlay = () => true }:
     });
   }
 
+  function handleDragStart(event: DragStartEvent): void {
+    setDraggingId(String(event.active.id));
+    setDropWillPlay(false);
+  }
+
+  function handleDragOver(event: DragOverEvent): void {
+    setDropWillPlay(selectable && event.over?.id === PLAY_ZONE_ID);
+  }
+
   function handleDragEnd(event: DragEndEvent): void {
+    setDraggingId(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -214,9 +264,23 @@ export function Hand({ dominoes, selectable, onPlay, isValidPlay = () => true }:
     setOrder(reordered);
   }
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
+    useSensor(KeyboardSensor)
+  );
+
+  const draggingDomino = draggingId == null ? null : (order.find((d) => d.id === draggingId) ?? null);
+
   return (
-    <DndContext onDragEnd={handleDragEnd}>
-      <PlayZone>Drop here to play</PlayZone>
+    <DndContext
+      sensors={sensors}
+      autoScroll={false}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setDraggingId(null)}
+    >
+      <PlayZone live={selectable}>Drop here to play</PlayZone>
       <div className="hand domino-container" data-testid="hand">
         {order.map((domino) => (
           <DraggableDomino
@@ -228,6 +292,15 @@ export function Hand({ dominoes, selectable, onPlay, isValidPlay = () => true }:
             onDoubleClick={() => handleDoubleClick(domino)}
           />
         ))}
+        {/* Inside the hand container so the ghost inherits its tile sizing. A tile dropped on the
+            play zone is played, so it shouldn't first glide back to its slot in the hand. */}
+        <DragOverlay modifiers={[restrictToViewport]} dropAnimation={dropWillPlay ? null : undefined}>
+          {draggingDomino && (
+            <div className="hand-drag-ghost">
+              <Domino top={draggingDomino.top} bottom={draggingDomino.bottom} />
+            </div>
+          )}
+        </DragOverlay>
       </div>
     </DndContext>
   );

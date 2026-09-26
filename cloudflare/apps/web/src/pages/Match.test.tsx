@@ -543,16 +543,98 @@ describe('Match', () => {
       await waitFor(() => expect(readyUpMock).toHaveBeenCalledWith('match-1', true));
     });
 
-    it("shows each player's ready/not-ready status", () => {
+    it("shows each player's ready/not-ready status on their seat", () => {
       const finished = finishedHandMatch();
       useMatchSocketMock.mockReturnValue({ match: finished, connected: true });
 
       renderMatch();
 
-      const rows = screen.getAllByTestId('ready-status-row');
-      expect(rows).toHaveLength(4);
-      expect(rows.find((r) => r.textContent?.includes('p2'))?.textContent).toMatch(/ready$/i);
-      expect(rows.find((r) => r.textContent?.includes('p1'))?.textContent).toMatch(/not ready/i);
+      const statuses = screen.getAllByTestId('ready-status');
+      expect(statuses).toHaveLength(4);
+      const statusIn = (seat: HTMLElement) => seat.querySelector('[data-testid="ready-status"]')?.textContent;
+      const p2Seat = screen.getAllByTestId('remote-player').find((el) => el.textContent?.includes('p2'))!;
+      expect(statusIn(p2Seat)).toBe('Ready');
+      // p1 is the viewer, seated at the bottom.
+      expect(statusIn(screen.getByTestId('my-seat'))).toBe('Not ready');
+    });
+  });
+
+  describe('Table markers', () => {
+    function playingMatch(): MatchState {
+      return baseMatch(
+        {},
+        {
+          firstActionBy: 'p1', // p1 opened the bidding, so p4 (seated just before) dealt.
+          bid: Bid.ThirtyFour,
+          biddingPlayerId: 'p2',
+          trump: Suit.Fives,
+          currentPlayerId: 'p3',
+          hands: [
+            { playerId: 'p1', team: Teams.TeamA, dominoes: [createDomino(1, 2)], bid: Bid.Thirty },
+            { playerId: 'p2', team: Teams.TeamB, dominoes: [createDomino(0, 0)], bid: Bid.ThirtyFour },
+            { playerId: 'p3', team: Teams.TeamA, dominoes: [createDomino(0, 1), createDomino(0, 2)], bid: Bid.Pass },
+            { playerId: 'p4', team: Teams.TeamB, dominoes: [createDomino(0, 3)], bid: Bid.Pass },
+          ],
+          // p2 won the bid, so p2 leads the first trick and has already played.
+          currentTrick: { playerId: 'p2', team: Teams.TeamB, suit: Suit.Fives, dominoes: [createDomino(5, 5), null, null, null] },
+        }
+      );
+    }
+
+    function seatOf(name: string): HTMLElement {
+      return screen.getAllByTestId('remote-player').find((el) => el.querySelector('.seat-name')?.textContent === name)!;
+    }
+
+    it('marks the dealer', () => {
+      useMatchSocketMock.mockReturnValue({ match: playingMatch(), connected: true });
+      renderMatch();
+
+      expect(seatOf('p4').querySelector('.marker-dealer')).not.toBeNull();
+      expect(seatOf('p2').querySelector('.marker-dealer')).toBeNull();
+    });
+
+    it("tags the domino that led the trick, seated in front of the player who played it", () => {
+      useMatchSocketMock.mockReturnValue({ match: playingMatch(), connected: true });
+      const { container } = renderMatch();
+
+      // p2 led, and sits to p1's left (next clockwise).
+      const leftSlot = container.querySelector('.trick-slot-left')!;
+      expect(leftSlot.querySelector('[data-testid="domino"]')).not.toBeNull();
+      expect(leftSlot.querySelector('.trick-lead-tag')).not.toBeNull();
+      expect(container.querySelectorAll('.trick-lead-tag')).toHaveLength(1);
+    });
+
+    it('marks who is about to lead before the first domino of a trick is down', () => {
+      const match = playingMatch();
+      match.currentGame.currentPlayerId = 'p2';
+      match.currentGame.currentTrick = { playerId: null, team: null, suit: null, dominoes: [null, null, null, null] };
+      useMatchSocketMock.mockReturnValue({ match, connected: true });
+      renderMatch();
+
+      expect(seatOf('p2').querySelector('.marker-lead')).not.toBeNull();
+      expect(seatOf('p3').querySelector('.marker-lead')).toBeNull();
+    });
+
+    it('shows the winning bid and trump, credited to the bidding team', () => {
+      useMatchSocketMock.mockReturnValue({ match: playingMatch(), connected: true });
+      const { container } = renderMatch();
+
+      const contract = container.querySelector('.contract-bid')!;
+      expect(contract.classList.contains('contract-them')).toBe(true);
+      expect(contract.textContent).toContain('34');
+      expect(contract.textContent).toContain('p2');
+      expect(seatOf('p2').querySelector('.marker-bid-high')?.textContent).toContain('34');
+      // Once trump is named, the other players' bids come off their plates.
+      expect(seatOf('p4').querySelector('.marker-bid')).toBeNull();
+      expect(screen.getByText('Fives')).not.toBeNull();
+    });
+
+    it("draws one face-down tile for each domino another player still holds", () => {
+      useMatchSocketMock.mockReturnValue({ match: playingMatch(), connected: true });
+      renderMatch();
+
+      expect(seatOf('p3').querySelectorAll('.tile-back')).toHaveLength(2);
+      expect(seatOf('p4').querySelectorAll('.tile-back')).toHaveLength(1);
     });
   });
 
@@ -727,6 +809,65 @@ describe('Match', () => {
       vi.useRealTimers();
     });
 
+    // Regression test: the completing broadcast moves the trick into `tricks` and empties
+    // `currentTrick` in one step. If the held trick is only picked up in an effect, the render in
+    // between shows an empty trick, unmounting every tile - and remounting them replays each
+    // tile's fly-in animation. The tiles already on the table must survive as the same nodes.
+    it('keeps the already-played tiles mounted when the last domino completes the trick', () => {
+      const hands = [
+        { playerId: 'p1', team: Teams.TeamA, dominoes: [createDomino(1, 2)], bid: Bid.Thirty },
+        { playerId: 'p2', team: Teams.TeamB, dominoes: [createDomino(3, 4)], bid: Bid.Pass },
+        { playerId: 'p3', team: Teams.TeamA, dominoes: [createDomino(5, 6)], bid: Bid.Pass },
+        { playerId: 'p4', team: Teams.TeamB, dominoes: [createDomino(0, 6)], bid: Bid.Pass },
+      ];
+      const gameOverrides = { bid: Bid.Thirty, biddingPlayerId: 'p1', trump: Suit.Sixes, hands };
+      const played = [createDomino(0, 0), createDomino(1, 1), createDomino(2, 2)];
+
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch(
+          {},
+          {
+            ...gameOverrides,
+            currentPlayerId: 'p4',
+            currentTrick: { playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [...played, null] },
+          }
+        ),
+        connected: true,
+      });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      // A fresh element on each render - re-rendering the identical element object would let
+      // React skip the update entirely.
+      const ui = () => (
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      const { rerender } = render(ui());
+      const tilesBefore = within(screen.getByLabelText(/current trick/i)).getAllByTestId('domino');
+      expect(tilesBefore).toHaveLength(3);
+
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch(
+          {},
+          {
+            ...gameOverrides,
+            currentPlayerId: 'p1',
+            tricks: [{ playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [...played, createDomino(3, 3)] }],
+          }
+        ),
+        connected: true,
+      });
+      act(() => rerender(ui()));
+
+      const tilesAfter = within(screen.getByLabelText(/current trick/i)).getAllByTestId('domino');
+      expect(tilesAfter).toHaveLength(4);
+      for (const tile of tilesBefore) {
+        expect(tile.isConnected).toBe(true);
+      }
+    });
+
     it('holds a just-completed trick center-board, then reveals it in the winning side pile after the hold', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
 
@@ -761,7 +902,11 @@ describe('Match', () => {
       expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(0);
       expect(container.querySelector('.player-team-tricks .badge')?.textContent).toBe('0');
 
-      await act(() => vi.advanceTimersByTimeAsync(1500));
+      // Near the end of the hold, the trick sweeps off toward the winners' (our) pile.
+      await act(() => vi.advanceTimersByTimeAsync(1100));
+      expect(screen.getByLabelText(/current trick/i).classList.contains('sweep-us')).toBe(true);
+
+      await act(() => vi.advanceTimersByTimeAsync(400));
 
       // Hold expired: the center trick area is empty again...
       await waitFor(() => {

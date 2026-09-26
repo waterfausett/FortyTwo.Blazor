@@ -38,14 +38,23 @@ import { apiClient } from '../api/client';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
 import { Hand } from '../components/Hand';
+import { PipFace } from '../components/PipFace';
+import { Seat } from '../components/Seat';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
+import { dealerId, isTrickStarted, seatFor, trickLeaderId, trickPlayOrder } from '../match/table';
 import '../styles/match.css';
 
 // How long a just-completed trick stays put in the center of the board (as if still "in
 // progress") before it's swept off to its team's side pile - long enough to actually see what
 // was played, instead of the trick vanishing the instant the last domino lands.
 const TRICK_HOLD_MS = 1500;
+// The tail end of that hold, during which the trick slides off toward the winning team's pile
+// (match.css's `.sweep-us`/`.sweep-them`) rather than just blinking out.
+const TRICK_SWEEP_MS = 450;
+
+// A match is won at 7 marks (matchEngine.ts's WINNING_SCORE) - drawn as a 7-notch tally.
+const MARKS_TO_WIN = 7;
 
 // Every hand is always dealt exactly 7 dominoes (matchEngine.ts's dealHands: 28 dominoes / 4
 // players) - used to detect whether a player has already played into the current, still-in-
@@ -95,19 +104,21 @@ function teamTricksForDisplay(tricks: Trick[], team: Teams, stack: boolean): Tri
   return stack ? teamTricks.slice(Math.max(0, teamTricks.length - 2)) : teamTricks;
 }
 
-// Minimal status for one of the other 3 seated players: their id (MatchState carries no Auth0
-// display name for anyone but the calling user - an id-based label matches the real
-// `MatchPlayer` entity's own scope, not a shortcut), a visual "their turn" indicator, and their
-// remaining domino count. Deliberately reads only `hand.dominoes.length`, never the dominoes
-// themselves, for a non-self hand - MatchState's wire shape happens to carry every hand's full
-// contents unfiltered today (see Task 20's report), but a player-status display has no business
-// showing another player's actual tiles regardless of what the wire currently allows.
-function OtherPlayerStatus({ playerId, hand, isActive }: { playerId: string; hand: Game['hands'][number] | undefined; isActive: boolean }): JSX.Element {
+// The points a bidding team has to take to make its bid: the bid itself for 30-42, or all 42 for
+// any marks bid (84, 126, ... - gameWinningTeam's `adjustedBid`). Low has no point target at all
+// (the bidders simply must not take a trick), and there's no target until bidding closes.
+function bidTarget(game: Game): number | null {
+  if (game.bid == null || game.trump == null || game.trump === Suit.Low) return null;
+  return game.bid % 42 === 0 ? 42 : game.bid;
+}
+
+function MarkTally({ marks }: { marks: number }): JSX.Element {
   return (
-    <div className={`player-remote${isActive ? ' active' : ''}`} data-testid="remote-player">
-      <span className="player-remote-name">{playerId}</span>
-      <span className="player-remote-dominoes">{hand?.dominoes.length ?? 0} dominoes</span>
-    </div>
+    <span className="mark-tally" aria-hidden="true">
+      {Array.from({ length: MARKS_TO_WIN }, (_, i) => (
+        <span key={i} className={i < marks ? 'mark mark-won' : 'mark'} />
+      ))}
+    </span>
   );
 }
 
@@ -170,15 +181,16 @@ export function Match(): JSX.Element {
     mutationFn: () => client.readyUp(matchId!, true),
   });
 
-  // Trick-hold state: `heldTrick` is the just-completed trick while it's still being shown
-  // center-board (see TRICK_HOLD_MS above); `revealedTrickCount` is how many of `game.tricks` have
-  // finished their hold and are allowed to appear in the side piles/point totals. Both are derived
-  // from `match?.currentGame` rather than the `game` constant below since hooks must run
+  // Trick-hold state: `revealedTrickCount` is how many of `game.tricks` have finished their hold
+  // (see TRICK_HOLD_MS above) and are allowed to appear in the side piles/point totals. Any trick
+  // past that count is still being shown center-board - `heldTrick` below. Derived from
+  // `match?.currentGame` rather than the `game` constant below since hooks must run
   // unconditionally, ahead of this function's early-return guards.
   const holdGame = match?.currentGame ?? null;
-  const [heldTrick, setHeldTrick] = useState<Trick | null>(null);
+  const [isSweeping, setIsSweeping] = useState(false);
   const [revealedTrickCount, setRevealedTrickCount] = useState(holdGame?.tricks.length ?? 0);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sweepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastGameIdRef = useRef(holdGame?.id ?? null);
 
   useEffect(() => {
@@ -189,29 +201,42 @@ export function Match(): JSX.Element {
     if (lastGameIdRef.current !== holdGame.id) {
       lastGameIdRef.current = holdGame.id;
       if (holdTimerRef.current != null) clearTimeout(holdTimerRef.current);
+      if (sweepTimerRef.current != null) clearTimeout(sweepTimerRef.current);
       holdTimerRef.current = null;
-      setHeldTrick(null);
+      sweepTimerRef.current = null;
+      setIsSweeping(false);
       setRevealedTrickCount(holdGame.tricks.length);
       return;
     }
 
     if (holdGame.tricks.length > revealedTrickCount && holdTimerRef.current == null) {
-      const justCompleted = holdGame.tricks[holdGame.tricks.length - 1];
       const revealAt = holdGame.tricks.length;
-      setHeldTrick(justCompleted);
+      sweepTimerRef.current = setTimeout(() => {
+        sweepTimerRef.current = null;
+        setIsSweeping(true);
+      }, TRICK_HOLD_MS - TRICK_SWEEP_MS);
       holdTimerRef.current = setTimeout(() => {
         holdTimerRef.current = null;
-        setHeldTrick(null);
+        setIsSweeping(false);
         setRevealedTrickCount(revealAt);
       }, TRICK_HOLD_MS);
     }
   }, [holdGame, revealedTrickCount]);
+
+  // The just-completed trick, while its hold runs. Worked out during render rather than stored by
+  // the effect above: the broadcast that completes a trick also empties `currentTrick`, so waiting
+  // for an effect would render one frame of an empty table in between - unmounting every tile and
+  // replaying each one's fly-in animation when the held trick then remounted them. A new hand
+  // starts with no tricks, so a stale `revealedTrickCount` from the last hand can't match here.
+  const heldTrick: Trick | null =
+    holdGame && holdGame.tricks.length > revealedTrickCount ? holdGame.tricks[holdGame.tricks.length - 1] : null;
 
   // Clear any in-flight hold timer on unmount (e.g. navigating away mid-hold) so it doesn't fire
   // a state update against an unmounted component.
   useEffect(() => {
     return () => {
       if (holdTimerRef.current != null) clearTimeout(holdTimerRef.current);
+      if (sweepTimerRef.current != null) clearTimeout(sweepTimerRef.current);
     };
   }, []);
 
@@ -307,7 +332,62 @@ export function Match(): JSX.Element {
   const opponentTrickPoints = teamTrickPoints(revealedTricks, opponentTeam);
   const displayedTrick = heldTrick ?? game.currentTrick;
 
-  const otherPlayers = match.players.filter((p) => p.playerId !== myPlayerId);
+  // Table geometry for the trick in the middle: who led it and which seat played each slot (so
+  // every domino lands in front of whoever played it). A held trick is the last completed one.
+  const displayedTrickIndex = heldTrick ? game.tricks.length - 1 : game.tricks.length;
+  const trickLeader = isPlayingPhase ? trickLeaderId(match.players, game, displayedTrickIndex) : null;
+  const trickOrder = trickPlayOrder(match.players, game, trickLeader);
+  const trickSlotSeats = trickOrder.map((id) => (id == null ? null : seatFor(match.players, myPlayerId, id)));
+  const winningSlot = displayedTrick.playerId == null ? null : trickOrder.indexOf(displayedTrick.playerId);
+  const sweepTo = heldTrick && isSweeping ? (heldTrick.team === me.team ? 'us' : 'them') : null;
+
+  const dealer = isTableReady ? dealerId(match.players, game) : null;
+  const bidderTeam = game.hands.find((h) => h.playerId === game.biddingPlayerId)?.team ?? null;
+  const target = bidTarget(game);
+  const handWinner = gameWinningTeam(game);
+  const isMatchOver = match.winningTeam != null;
+
+  const nameFor = (playerId: string | null): string => (playerId === myPlayerId ? 'You' : (playerId ?? ''));
+  const activeName = nameFor(game.currentPlayerId);
+
+  // The markers every seat plate (mine included) shows, keyed off a player id.
+  function seatPropsFor(playerId: string) {
+    const player = match!.players.find((p) => p.playerId === playerId);
+    const hand = game.hands.find((h) => h.playerId === playerId);
+    const isHighBidder = game.biddingPlayerId === playerId && game.bid != null && game.bid !== Bid.Pass;
+    // While bidding is open everyone's bid (Pass included) shows; once trump is named only the
+    // winning bidder's does, alongside the trump they named.
+    const bid = game.trump == null ? (hand?.bid ?? null) : isHighBidder ? game.bid : null;
+    return {
+      name: nameFor(playerId),
+      side: player && player.position % 2 === myPosition % 2 ? ('us' as const) : ('them' as const),
+      isActive: isTableReady && !isHandOver && game.currentPlayerId === playerId,
+      isDealer: dealer === playerId,
+      // Once the lead domino is down it carries its own "Lead" tag on the table, so the seat only
+      // flags who is about to lead.
+      isLeader: trickLeader === playerId && !isHandOver && !isTrickStarted(displayedTrick),
+      bid: isTableReady ? bid : null,
+      isHighBidder,
+      trump: game.trump,
+      ready: isHandOver && !isMatchOver ? (player?.ready ?? false) : null,
+    };
+  }
+
+  const myPosition = match.players.find((p) => p.playerId === myPlayerId)!.position;
+  const seatedOthers = match.players
+    .filter((p) => p.playerId !== myPlayerId)
+    .map((p) => ({ player: p, seat: seatFor(match.players, myPlayerId, p.playerId)! }));
+
+  // One line on the rail saying what the table is waiting on.
+  let status: string;
+  if (isMatchOver) status = match.winningTeam === me.team ? 'You won the match' : 'They won the match';
+  else if (!isTableReady)
+    status = match.players.length < 4 ? `Waiting for players: ${match.players.length} of 4 seated` : 'Dealing';
+  else if (isHandOver) status = iAmReady ? 'Waiting for everyone to ready up' : 'Hand over. Ready up for the next one';
+  else if (isBiddingPhase) status = `${activeName} is bidding`;
+  else if (isTrumpSelectPhase) status = `${activeName} is naming trump`;
+  else if (me.isActive) status = isTrickStarted(game.currentTrick) ? 'Your play' : 'Your lead';
+  else status = `${activeName} to play`;
 
   // A player plays exactly once per trick (dealHands deals HAND_SIZE_DEALT each) - so if this
   // hand already holds fewer dominoes than "HAND_SIZE_DEALT minus completed tricks", they've
@@ -325,7 +405,7 @@ export function Match(): JSX.Element {
   function isValidPlay(domino: DominoType): boolean {
     if (haveIPlayedInCurrentTrick) return true;
     try {
-      assertValidDomino(game, myPlayerId, domino);
+      assertValidDomino(game, me.playerId, domino);
       return true;
     } catch {
       return false;
@@ -340,58 +420,121 @@ export function Match(): JSX.Element {
         </p>
       )}
 
-      <section className="team-scores" aria-label="Scores">
-        <span>Us: {scores[me.team] ?? 0}</span>
-        <span>Them: {scores[opponentTeam] ?? 0}</span>
-        {match.winningTeam != null && (
-          <span className="stamp">{match.winningTeam === me.team ? 'Winners!' : 'Game Over'}</span>
-        )}
-      </section>
+      <header className="scoreboard" aria-label="Scores">
+        <div className="score score-us">
+          <span className="score-label">Us</span>
+          <span className="score-value">{scores[me.team] ?? 0}</span>
+          <MarkTally marks={scores[me.team] ?? 0} />
+        </div>
+
+        <div className="contract">
+          <span className="contract-game">{game.name}</span>
+          {game.bid != null && game.bid !== Bid.Pass && game.biddingPlayerId != null ? (
+            <span className={`contract-bid contract-${bidderTeam === me.team ? 'us' : 'them'}`}>
+              <span className="contract-label">{game.trump == null ? 'High bid' : 'Bid'}</span>
+              <span className="contract-value">{bidToPrettyString(game.bid)}</span>
+              <span className="contract-by">{nameFor(game.biddingPlayerId)}</span>
+            </span>
+          ) : (
+            isBiddingPhase && <span className="contract-bid contract-open">Bidding is open</span>
+          )}
+          {game.trump != null && (
+            <span className="contract-trump">
+              <span className="contract-label">Trump</span>
+              <PipFace suit={game.trump} />
+              <span className="contract-trump-name">{suitToPrettyString(game.trump)}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="score score-them">
+          <span className="score-label">Them</span>
+          <span className="score-value">{scores[opponentTeam] ?? 0}</span>
+          <MarkTally marks={scores[opponentTeam] ?? 0} />
+        </div>
+      </header>
 
       <div className="game-wrapper">
-        <h5>{game.name}</h5>
-
-        <div className="players-row" aria-label="Other players">
-          {otherPlayers.map((p) => (
-            <OtherPlayerStatus
-              key={p.playerId}
-              playerId={p.playerId}
-              hand={game.hands.find((h) => h.playerId === p.playerId)}
-              isActive={game.currentPlayerId === p.playerId}
-            />
-          ))}
-        </div>
-
         <div className="gameboard">
-          <TrickHistory tricks={myTricks} points={myTrickPoints} align="mine" />
+          <TrickHistory
+            tricks={myTricks}
+            points={myTrickPoints}
+            align="mine"
+            label="Us"
+            target={bidderTeam === me.team ? target : null}
+          />
 
-          <TrickDisplay trick={displayedTrick} trump={game.trump} />
+          <div className="table" aria-label="Table">
+            {seatedOthers.map(({ player, seat }) => {
+              const hand = game.hands.find((h) => h.playerId === player.playerId);
+              return (
+                <Seat
+                  key={player.playerId}
+                  seat={seat}
+                  dominoCount={hand?.dominoes.length ?? 0}
+                  {...seatPropsFor(player.playerId)}
+                />
+              );
+            })}
 
-          <TrickHistory tricks={opponentTricks} points={opponentTrickPoints} align="opponent" />
+            <div className="table-center">
+              {isHandOver && !heldTrick ? (
+                <section className="hand-result" aria-label="Ready up">
+                  <p className="hand-result-title">
+                    {isMatchOver
+                      ? match.winningTeam === me.team
+                        ? 'You won the match'
+                        : 'They won the match'
+                      : handWinner === me.team
+                        ? 'We took the hand'
+                        : 'They took the hand'}
+                  </p>
+                  {!isMatchOver && (
+                    <>
+                      <button
+                        type="button"
+                        className="action-button"
+                        disabled={iAmReady || readyUpMutation.isPending}
+                        onClick={() => readyUpMutation.mutate()}
+                      >
+                        {iAmReady ? "You're ready" : 'Ready up'}
+                      </button>
+                    </>
+                  )}
+                </section>
+              ) : !isTableReady ? (
+                <p className="table-waiting">{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
+              ) : (
+                <TrickDisplay
+                  trick={displayedTrick}
+                  trump={game.trump}
+                  slotSeats={trickSlotSeats}
+                  winningSlot={winningSlot}
+                  sweepTo={sweepTo}
+                />
+              )}
+            </div>
+
+            <Seat seat="bottom" dominoCount={null} {...seatPropsFor(myPlayerId)} />
+          </div>
+
+          <TrickHistory
+            tricks={opponentTricks}
+            points={opponentTrickPoints}
+            align="opponent"
+            label="Them"
+            target={bidderTeam === opponentTeam ? target : null}
+          />
         </div>
 
-        {isHandOver && (
-          <section className="ready-up-section" aria-label="Ready up">
-            <p>This hand is over. Ready up to start the next one:</p>
-            <button
-              type="button"
-              className="custom-chip custom-chip-info custom-chip-large"
-              disabled={iAmReady || readyUpMutation.isPending}
-              onClick={() => readyUpMutation.mutate()}
-            >
-              {iAmReady ? "You're ready" : 'Ready Up'}
-            </button>
-            <ul className="ready-up-status">
-              {match.players.map((p) => (
-                <li key={p.playerId} data-testid="ready-status-row">
-                  {p.playerId}: {p.ready ? 'Ready' : 'Not ready'}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <div className={`player${me.isActive && !isHandOver && isTableReady ? ' active' : ''}`}>
+          {/* The bid/trump pickers carry their own prompt, so the status line steps aside. */}
+          {!canBid && !canSelectTrump && (
+            <p className="rail-status" role="status">
+              {status}
+            </p>
+          )}
 
-        <div className={`player p-2${me.isActive ? ' active' : ''}`}>
           {canBid && (
             <BiddingPanel
               game={game}
@@ -403,38 +546,22 @@ export function Match(): JSX.Element {
 
           {canSelectTrump && (
             <section className="trump-select-section" aria-label="Select trump">
-              <p>Select a trump:</p>
+              <p className="action-prompt">Select a trump</p>
               <div className="trump-options">
                 {ALL_TRUMP_CHOICES.map((suit) => (
                   <button
                     key={suit}
                     type="button"
-                    className="custom-chip custom-chip-info custom-chip-large"
+                    className="trump-tile"
                     disabled={setTrumpMutation.isPending}
                     onClick={() => setTrumpMutation.mutate(suit)}
                   >
-                    {suitToPrettyString(suit)}
+                    <PipFace suit={suit} />
+                    <span>{suitToPrettyString(suit)}</span>
                   </button>
                 ))}
               </div>
             </section>
-          )}
-
-          {(me.bid != null || game.trump != null) && (
-            <div className="my-bid-trump">
-              {me.bid != null && (
-                <span className="custom-chip custom-chip-warning">
-                  Bid
-                  <span className="badge badge-warning">{bidToPrettyString(me.bid)}</span>
-                </span>
-              )}
-              {game.trump != null && (
-                <span className="custom-chip">
-                  Trump
-                  <span className="badge">{suitToPrettyString(game.trump)}</span>
-                </span>
-              )}
-            </div>
           )}
 
           <Hand

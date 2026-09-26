@@ -1,12 +1,10 @@
-// Renders one team's pile of already-completed tricks off to the side of the gameboard, plus
-// that team's running "Points" badge. Replaces the `player-team-tricks`/`opponent-tricks` halves
-// of FortyTwo/Client/Pages/Match.razor's `gameboard` block (lines 121-154), which rendered every
-// completed trick belonging to a team as a row of vertical Dominoes next to a Points chip - a
-// history the React port had previously dropped in favor of showing only the points badge.
+// One team's pile of already-completed tricks at the side of the table, headed by that team's
+// running point total for the hand. Replaces the `player-team-tricks`/`opponent-tricks` halves of
+// FortyTwo/Client/Pages/Match.razor's `gameboard` block, which rendered every completed trick
+// belonging to a team as a row of vertical Dominoes next to a Points chip.
 //
-// `align="mine"` matches Match.razor's own-team panel: tricks listed most-recent-first
-// (`teamTricks.Reverse()`), Points badge below the pile. `align="opponent"` matches its opponent
-// panel: tricks in completion order, Points badge above the pile.
+// `align="mine"` lists the newest trick first (Match.razor's `teamTricks.Reverse()`);
+// `align="opponent"` lists tricks in completion order. Both put the point total at the top.
 import type { JSX } from 'react';
 import type { Trick } from '@fortytwo/rules';
 import { Domino } from './Domino';
@@ -15,35 +13,53 @@ export interface TrickHistoryProps {
   tricks: Trick[];
   points: number;
   align: 'mine' | 'opponent';
+  // The points this team needs to make its bid, when it's the bidding team.
+  target?: number | null;
+  label?: string;
 }
 
-function trickKey(trick: Trick, index: number): string {
-  return `${index}-${trick.dominoes.map((d) => d?.id ?? 'x').join(',')}`;
+// Keyed by the trick's dominoes alone - never its list position. Positions shift whenever a trick
+// joins the newest-first "mine" pile (or the stacked view drops its oldest), and a position-based
+// key would then remount every row, replaying each one's arrival animation. Every domino is played
+// exactly once per hand, so the domino ids already identify a trick uniquely.
+function trickKey(trick: Trick): string {
+  return trick.dominoes.map((d) => d?.id ?? 'x').join(',');
 }
 
-export function TrickHistory({ tricks, points, align }: TrickHistoryProps): JSX.Element {
+// Disambiguates tricks with identical contents (impossible in a real hand, but test fixtures reuse
+// the same dominoes) so React never sees duplicate keys.
+function uniqueKeys(tricks: Trick[]): string[] {
+  const seen = new Map<string, number>();
+  return tricks.map((trick) => {
+    const key = trickKey(trick);
+    const count = seen.get(key) ?? 0;
+    seen.set(key, count + 1);
+    return count === 0 ? key : `${key}#${count}`;
+  });
+}
+
+export function TrickHistory({ tricks, points, align, target = null, label }: TrickHistoryProps): JSX.Element {
   const ordered = align === 'mine' ? [...tricks].reverse() : tricks;
-
-  const badge = (
-    <span className="custom-chip custom-chip-info">
-      Points
-      <span className="badge badge-info">{points}</span>
-    </span>
-  );
+  const keys = uniqueKeys(ordered);
 
   return (
-    <div className={align === 'mine' ? 'player-team-tricks' : 'opponent-tricks'}>
-      {align === 'opponent' && badge}
+    <div className={align === 'mine' ? 'player-team-tricks' : 'opponent-tricks'} aria-label={label ? `${label} tricks` : undefined}>
+      <div className="pile-total">
+        {label && <span className="pile-label">{label}</span>}
+        <span className="pile-points">
+          <span className="badge">{points}</span>
+          {target != null ? <span className="pile-target"> of {target}</span> : <span className="pile-target"> pts</span>}
+        </span>
+      </div>
       <div className="trick-history">
         {ordered.map((trick, index) => (
-          <div key={trickKey(trick, index)} className="trick-history-row">
+          <div key={keys[index]} className="trick-history-row">
             {trick.dominoes.map(
               (domino) => domino && <Domino key={domino.id} top={domino.top} bottom={domino.bottom} direction="vertical" />
             )}
           </div>
         ))}
       </div>
-      {align === 'mine' && badge}
     </div>
   );
 }

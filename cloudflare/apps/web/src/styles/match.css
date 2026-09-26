@@ -1,193 +1,842 @@
-/* Match page layout. Ported from two sources that Task 17's CSS port missed (it only copied the
-   4 GLOBAL stylesheets - theme/app/domino/chip.css - never identifying this page-scoped one):
-     - FortyTwo/Client/Pages/Match.razor.css (a Blazor CSS-isolation scoped stylesheet:
-       .game-wrapper, .gameboard + its 3 children, .domino-container, .player.active,
-       .sortable-domino, and the 768px media query)
-     - FortyTwo/Client/Pages/Match.razor's own inline <style> block (.team-scores .stamp)
-   Selectors are adapted to this component tree's actual class names (assigned directly in
-   Match.tsx/TrickDisplay.tsx/Hand.tsx/BiddingPanel.tsx) rather than reproducing Blazor's
-   scoped-attribute selectors, but the layout BEHAVIOR (flex structure, sizing, the "active
-   player" glow) is preserved. The old markup also leaned on inline Bootstrap utility classes
-   (d-flex, justify-content-center, p-4, etc.) that this app has no Bootstrap for - those are
-   folded directly into the relevant rule below instead of staying separate utility classes.
-   Imported directly by Match.tsx (page-specific - unlike the 4 global files, this doesn't need
-   to go through main.tsx's global imports). */
+/* Match page: a domino-hall table. Walnut tabletop, bone tiles, each team in its own color
+   (turquoise for us, ochre for them) and brass for the table's own markers - whose turn, who
+   dealt, who led. Layout keeps the old Blazor page's bones (Match.razor.css: our trick pile on
+   the left, the trick in play in the middle, theirs on the right, the hand along the bottom) but
+   seats the other three players around the table instead of in a row above it.
+
+   Motion is reserved for what just happened: a played domino slides in from its player's seat,
+   and a finished trick sweeps off to the winning team's pile. The active seat breathes slowly.
+   All of it is switched off under prefers-reduced-motion. */
 
 .match {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  /* Fills the rest of the viewport below NavBar (index.css's `#root` flex column) so
-     `.game-wrapper`/`.gameboard` below have real extra height to flex-grow into, instead of each
-     collapsing to its own content size. */
+  --walnut: #3a2a20;
+  --walnut-deep: #241913;
+  --mat: #4b3627;
+  --bone: #f2eadb;
+  --bone-edge: #b8a78a;
+  --ink-muted: #b9a58c;
+  --us: #3db5a6;
+  --them: #e2a747;
+  --brass: #c9a45c;
+  --danger: #e07a5f;
+
+  --font-ui: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Zilla Slab', Georgia, serif;
+
+  /* Domino tiles (domino.css) read their colors from these. */
+  --domino-color: var(--bone);
+  --domino-border-color: var(--bone-edge);
+  --domino-hover-color: var(--brass);
+  --domino-preselected-color: var(--danger);
+
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* A sweeping trick travels toward the side piles and can briefly poke past the page edge -
+     clip it rather than flash a horizontal scrollbar. `clip` (not `hidden`) keeps this from
+     becoming a scroll container, so vertical page scrolling is unaffected. */
+  overflow-x: clip;
+  color: var(--bone);
+  font-family: var(--font-ui);
+  background-color: var(--walnut);
+  background-image:
+    radial-gradient(ellipse at 50% 40%, rgba(255, 220, 170, 0.07), transparent 65%),
+    repeating-linear-gradient(
+      93deg,
+      rgba(0, 0, 0, 0.05) 0 2px,
+      transparent 2px 9px,
+      rgba(255, 255, 255, 0.015) 9px 11px,
+      transparent 11px 23px
+    );
 }
 
-/* Match.tsx's player area keeps the old markup's Bootstrap `p-2` utility class name (this app
-   has no Bootstrap) - defined here with Bootstrap's own p-2 = 0.5rem spacing value so it isn't
-   dead weight. */
-.p-2 {
-  padding: 0.5rem;
+.match .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.match button:focus-visible {
+  outline: 2px solid var(--bone);
+  outline-offset: 2px;
 }
 
 .match-error {
+  margin: 0.5rem 1rem 0;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
-  background: var(--label-danger-bg-color, #feddd7);
-  color: var(--label-danger-font-color, #991700);
-  border: 1px solid var(--label-danger-border-color, #991700);
+  border-radius: 6px;
+  background: #5a2419;
+  color: #ffd9cf;
+  border: 1px solid var(--danger);
 }
 
-/* Ported from Match.razor's inline <style> block. */
-.team-scores {
-  position: relative;
+/* ---------- Scoreboard ---------- */
+
+.scoreboard {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1.25rem;
+  background: rgba(0, 0, 0, 0.22);
+  border-bottom: 1px solid rgba(242, 234, 219, 0.08);
+}
+
+.score {
   display: flex;
-  justify-content: space-around;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--domino-border-color, #ccc);
+  align-items: center;
+  gap: 0.6rem;
 }
 
-  .team-scores .stamp {
-    margin-left: 0.5rem;
-    opacity: 0.5;
-  }
+.score-them {
+  justify-self: end;
+  flex-direction: row-reverse;
+}
 
-/* New: the other 3 players' status row - Task 20's brief lists RemotePlayer.razor as replaced by
-   this page; no scoped CSS existed for it (RemotePlayer.razor.css was never a thing in this
-   port), so this is a minimal new layout, not a port. */
-.players-row {
+.score-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.score-us .score-label,
+.score-us .score-value {
+  color: var(--us);
+}
+
+.score-them .score-label,
+.score-them .score-value {
+  color: var(--them);
+}
+
+.score-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.1rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Marks toward the 7 needed to win, drawn as the edges of standing dominoes. */
+.mark-tally {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.mark {
+  width: 6px;
+  height: 18px;
+  border-radius: 2px;
+  background: rgba(242, 234, 219, 0.14);
+}
+
+.score-us .mark-won {
+  background: var(--us);
+}
+
+.score-them .mark-won {
+  background: var(--them);
+}
+
+.contract {
   display: flex;
-  flex-direction: row;
-  justify-content: space-around;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 1.25rem;
+  font-size: 0.9rem;
 }
 
-.player-remote {
-  padding: 0.5rem;
-  border-radius: 8px;
-  min-width: 8rem;
-  text-align: center;
+.contract-game {
+  color: var(--ink-muted);
 }
 
-  .player-remote.active {
-    -moz-box-shadow: 0px 0px 30px 3px lightgreen;
-    -webkit-box-shadow: 0px 0px 30px 3px lightgreen;
-    box-shadow: 0px 0px 30px 3px lightgreen;
-  }
+.contract-bid,
+.contract-trump {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
 
-/* Ported from Match.razor.css's .game-wrapper. */
+.contract-label {
+  color: var(--ink-muted);
+}
+
+.contract-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.contract-us .contract-value,
+.contract-us .contract-by {
+  color: var(--us);
+}
+
+.contract-them .contract-value,
+.contract-them .contract-by {
+  color: var(--them);
+}
+
+.contract-open {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.contract-trump-name {
+  font-weight: 600;
+}
+
+/* ---------- Board: piles | table | piles ---------- */
+
 .game-wrapper {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 0.5rem;
-  /* Reserve room at the bottom of the flow so the fixed `.player` bar below never overlaps the
-     gameboard/ready-up content that would otherwise render underneath it. */
-  padding-bottom: 9rem;
-  /* Fills the rest of `.match` (below the scores/name/players-row) so `.gameboard`'s own
-     flex-grow: 1 (below) has real space to expand into instead of collapsing to content size. */
+}
+
+.gameboard {
   flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 11rem) minmax(0, 1fr) minmax(6.5rem, 11rem);
+  grid-template-areas: 'us table them';
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.player-team-tricks {
+  grid-area: us;
+  --team: var(--us);
+}
+
+.opponent-tricks {
+  grid-area: them;
+  --team: var(--them);
+}
+
+.player-team-tricks,
+.opponent-tricks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+  padding: 0.75rem 0.5rem;
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(242, 234, 219, 0.06);
+}
+
+.pile-total {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+
+.pile-label {
+  font-weight: 600;
+  color: var(--team);
+}
+
+.pile-points .badge {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.6rem;
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+}
+
+.pile-target {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.trick-history {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 4px;
+  overflow-y: auto;
   min-height: 0;
 }
 
-  /* Anchored low on screen (fixed to the viewport, not just flex order) so the player's hand -
-     and what's happening at the table above it - stays visible without scrolling, however tall
-     the rest of the board gets. */
-  .game-wrapper .player {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 20;
-    min-height: 10vh;
-    margin: 0;
-    padding-bottom: 12px;
-    background: var(--theme-background-color, #fff);
-    border-top: 1px solid var(--domino-border-color, #ccc);
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
-  }
-
-  /* Ported from Match.razor.css's .player.active. */
-  .game-wrapper .player.active {
-    -moz-box-shadow: 0px 0px 50px 5px lightgreen;
-    -webkit-box-shadow: 0px 0px 50px 5px lightgreen;
-    box-shadow: 0px 0px 50px 5px lightgreen;
-    border-radius: 8px;
-  }
-
-/* Ported from Match.razor.css's .gameboard + its 3 children (.player-team-tricks,
-   .current-trick, .opponent-tricks) - the real "table" layout: a flex row with my team's tricks
-   pile on the left, the active trick centered and flexible, the opponent's tricks pile on the
-   right. */
-.gameboard {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 7rem;
+/* Our pile sits at the bottom of its column, nearest our side of the table, and grows upward
+   (newest trick on top - TrickHistory's `align="mine"` ordering). */
+.player-team-tricks .trick-history {
+  margin-top: auto;
 }
 
-  .gameboard .player-team-tricks,
-  .gameboard .opponent-tricks {
-    font-size: 5px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+.trick-history-row {
+  display: flex;
+  flex-direction: row;
+  animation: pile-in 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.trick-history .domino {
+  box-shadow: 0.25em 0.25em 0 0 var(--bone-edge);
+}
+
+/* Grows in from smaller, never larger: the pile scrolls on overflow, so a row that briefly
+   outgrew it would flash scrollbars while it settled. */
+@keyframes pile-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
   }
+}
 
-  .gameboard .player-team-tricks {
-    justify-content: flex-end;
-    /* Anchor the "us" pile to the bottom of the gameboard instead of floating vertically
-       centered like the opponent's pile (.gameboard's own align-items: center). */
-    align-self: flex-end;
+/* ---------- The table ---------- */
+
+.table {
+  grid-area: table;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    '. top .'
+    'left center right'
+    '. bottom .';
+  align-items: center;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 1.5rem;
+  background: radial-gradient(ellipse at 50% 45%, #5a4130, var(--mat) 70%);
+  box-shadow:
+    inset 0 2px 18px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(242, 234, 219, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.table-center {
+  grid-area: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 12rem;
+}
+
+.table-waiting {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 1.1rem;
+}
+
+/* ---------- Seats ---------- */
+
+.seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.seat-top {
+  grid-area: top;
+}
+
+.seat-left {
+  grid-area: left;
+}
+
+.seat-right {
+  grid-area: right;
+}
+
+.seat-bottom {
+  grid-area: bottom;
+}
+
+.seat-us {
+  --team: var(--us);
+}
+
+.seat-them {
+  --team: var(--them);
+}
+
+.seat-plate {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  max-width: 100%;
+  padding: 0.3rem 0.5rem 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(20, 13, 9, 0.55);
+  box-shadow:
+    inset 3px 0 0 var(--team),
+    0 0 0 1px rgba(242, 234, 219, 0.1);
+  transition: box-shadow 200ms ease;
+}
+
+.seat.active .seat-plate {
+  background: rgba(58, 42, 22, 0.85);
+  box-shadow:
+    inset 3px 0 0 var(--team),
+    0 0 0 2px var(--brass),
+    0 0 26px rgba(201, 164, 92, 0.7);
+  animation: seat-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes seat-breathe {
+  50% {
+    box-shadow:
+      inset 3px 0 0 var(--team),
+      0 0 0 2px var(--brass),
+      0 0 12px rgba(201, 164, 92, 0.35);
   }
+}
 
-  .gameboard .opponent-tricks {
-    justify-content: flex-start;
-    align-self: flex-start;
+.seat-name {
+  font-weight: 600;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat-markers {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.35rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* The dealer puck: a round bone button, like the one passed around a card table. */
+.marker-dealer {
+  width: 1.35rem;
+  padding: 0;
+  justify-content: center;
+  background: var(--bone);
+  color: var(--walnut-deep);
+  font-family: var(--font-display);
+  font-weight: 700;
+  box-shadow: 0 1px 0 var(--bone-edge), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.marker-lead {
+  color: var(--brass);
+  box-shadow: inset 0 0 0 1px var(--brass);
+}
+
+.marker-bid {
+  color: var(--ink-muted);
+  box-shadow: inset 0 0 0 1px rgba(242, 234, 219, 0.2);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+}
+
+.marker-bid-high {
+  background: var(--team);
+  color: var(--walnut-deep);
+  box-shadow: none;
+}
+
+.marker-ready {
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+.marker-ready.is-ready {
+  color: var(--us);
+}
+
+/* Face-down tiles: how many dominoes each other player still holds. */
+.tile-backs {
+  display: flex;
+  gap: 3px;
+}
+
+.tile-backs-left,
+.tile-backs-right {
+  flex-direction: column;
+}
+
+.tile-back {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 28px;
+  border-radius: 2px;
+  background: linear-gradient(135deg, #fbf6ec, #ddd0b8);
+  box-shadow:
+    1px 1px 0 var(--bone-edge),
+    0 2px 3px rgba(0, 0, 0, 0.35);
+}
+
+.tile-backs-left .tile-back,
+.tile-backs-right .tile-back {
+  width: 28px;
+  height: 14px;
+}
+
+.tile-back::after {
+  content: '';
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: var(--bone-edge);
+}
+
+/* ---------- Trick in play ---------- */
+
+.current-trick {
+  font-size: clamp(6px, min(1.1vw, 1.25vh), 12px);
+}
+
+.trick-slots {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  grid-template-rows: repeat(3, auto);
+  grid-template-areas:
+    '. top .'
+    'left . right'
+    '. bottom .';
+  align-items: center;
+  justify-items: center;
+  gap: 0 1.5em;
+}
+
+.trick-slot {
+  position: relative;
+  width: 7em;
+  height: 13em;
+}
+
+/* Top and bottom tiles tuck into the gap beside the left/right ones, keeping the cross compact. */
+.trick-slot-top {
+  grid-area: top;
+  margin-bottom: -3.5em;
+}
+
+.trick-slot-left {
+  grid-area: left;
+}
+
+.trick-slot-right {
+  grid-area: right;
+}
+
+.trick-slot-bottom {
+  grid-area: bottom;
+  margin-top: -3.5em;
+}
+
+.trick-slot .domino {
+  box-shadow:
+    0.3em 0.3em 0 0.05em var(--bone-edge),
+    0.5em 0.8em 1.4em rgba(0, 0, 0, 0.4);
+}
+
+.played-from-top .domino {
+  animation: from-top 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.played-from-bottom .domino {
+  animation: from-bottom 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.played-from-left .domino {
+  animation: from-left 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.played-from-right .domino {
+  animation: from-right 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes from-top {
+  from {
+    opacity: 0;
+    transform: translateY(-160%) rotate(-8deg);
   }
+}
 
-  /* New: TrickHistory.tsx's per-team pile of completed tricks - ported from Match.razor's
-     `<div class="row">` per trick (each a row of vertical Dominoes) inside `.player-team-tricks`/
-     `.opponent-tricks`. */
-  .gameboard .trick-history {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
+@keyframes from-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(160%) rotate(8deg);
   }
+}
 
-    .gameboard .trick-history-row {
-      display: flex;
-      flex-direction: row;
-    }
-
-  .gameboard .current-trick {
-    flex: 1;
-    font-size: min(1rem, 1.42vw);
-    /* Folded in from Match.razor's inline `d-flex justify-content-center align-items-center p-4`
-       (no Bootstrap here). */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 1rem;
+@keyframes from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-220%) rotate(-14deg);
   }
+}
 
-    .gameboard .current-trick .trick-slots {
-      display: flex;
-      flex-direction: row;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: center;
-    }
+@keyframes from-right {
+  from {
+    opacity: 0;
+    transform: translateX(220%) rotate(14deg);
+  }
+}
 
-/* Ported from Match.razor.css's .domino-container - used both by the hand's tile list
-   (Hand.tsx) and would apply to any other domino-container-classed list. */
+.trick-lead-tag {
+  position: absolute;
+  left: 50%;
+  bottom: -0.35rem;
+  transform: translateX(-50%);
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--walnut-deep);
+  color: var(--brass);
+  box-shadow: inset 0 0 0 1px var(--brass);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  z-index: 500;
+}
+
+.trick-slot-winner .domino {
+  box-shadow:
+    0 0 0 0.35em var(--brass),
+    0 0 2.2em rgba(201, 164, 92, 0.7);
+}
+
+/* The finished trick slides off toward the winning team's pile. */
+.current-trick.sweep-us .trick-slot,
+.current-trick.sweep-them .trick-slot {
+  animation: 450ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+
+.current-trick.sweep-us .trick-slot {
+  animation-name: sweep-us;
+}
+
+.current-trick.sweep-them .trick-slot {
+  animation-name: sweep-them;
+}
+
+@keyframes sweep-us {
+  to {
+    opacity: 0;
+    transform: translateX(-38vw) scale(0.4);
+  }
+}
+
+@keyframes sweep-them {
+  to {
+    opacity: 0;
+    transform: translateX(38vw) scale(0.4);
+  }
+}
+
+/* ---------- Hand result / ready up ---------- */
+
+.hand-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1.25rem 1.75rem;
+  border-radius: 1rem;
+  background: rgba(20, 13, 9, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(242, 234, 219, 0.1);
+  text-align: center;
+}
+
+.hand-result-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.7rem;
+}
+
+.action-button {
+  padding: 0.55rem 1.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brass);
+  color: var(--walnut-deep);
+  font: 600 1rem var(--font-ui);
+  cursor: pointer;
+  box-shadow: 0 2px 0 #8d6f35;
+}
+
+.action-button:hover:not(:disabled) {
+  background: #d8b46b;
+}
+
+.action-button:disabled {
+  background: transparent;
+  color: var(--brass);
+  box-shadow: inset 0 0 0 1px var(--brass);
+  cursor: default;
+}
+
+/* ---------- The rail: status, actions, my hand ---------- */
+
+.game-wrapper .player {
+  position: relative;
+  padding: 0.6rem 1rem 1rem;
+  background: linear-gradient(var(--walnut-deep), #1b120d);
+  border-top: 1px solid rgba(242, 234, 219, 0.08);
+  transition: box-shadow 250ms ease;
+}
+
+.game-wrapper .player.active {
+  box-shadow:
+    inset 0 2px 0 var(--brass),
+    0 -14px 30px -18px rgba(201, 164, 92, 0.8);
+}
+
+.rail-status {
+  margin: 0 0 0.4rem;
+  text-align: center;
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+.player.active .rail-status {
+  color: var(--brass);
+  font-weight: 600;
+}
+
+.action-prompt {
+  margin: 0 0 0.5rem;
+  color: var(--bone);
+  font-weight: 600;
+}
+
+.bidding-panel,
+.trump-select-section {
+  text-align: center;
+  padding: 0.25rem 0 0.75rem;
+}
+
+.bidding-options,
+.trump-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.bid-tile,
+.trump-tile {
+  border: 0;
+  border-radius: 0.45rem;
+  background: var(--bone);
+  color: var(--walnut-deep);
+  cursor: pointer;
+  box-shadow:
+    0 3px 0 var(--bone-edge),
+    0 4px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.bid-tile {
+  min-width: 3rem;
+  padding: 0.4rem 0.7rem;
+  font: 700 1.1rem var(--font-display);
+}
+
+.bid-tile-pass {
+  background: transparent;
+  color: var(--bone);
+  box-shadow: inset 0 0 0 1px rgba(242, 234, 219, 0.4);
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+.trump-tile {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 4.5rem;
+  padding: 0.45rem 0.6rem 0.4rem;
+  font: 600 0.85rem var(--font-ui);
+}
+
+.bid-tile:hover:not(:disabled),
+.trump-tile:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.bid-tile:disabled,
+.trump-tile:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* A single domino half standing in for a suit. */
+.pip-face {
+  display: inline-grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0.2rem;
+  border-radius: 0.3rem;
+  background: var(--bone);
+  box-shadow: inset 0 0 0 1px var(--bone-edge);
+  vertical-align: middle;
+}
+
+.pip-face .pip {
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  background: #000;
+}
+
+.pip-face[data-value='1'] .pip { background: var(--domino-1-color, lightblue); }
+.pip-face[data-value='2'] .pip { background: var(--domino-2-color, green); }
+.pip-face[data-value='3'] .pip { background: var(--domino-3-color, indianred); }
+.pip-face[data-value='4'] .pip { background: var(--domino-4-color, sandybrown); }
+.pip-face[data-value='5'] .pip { background: var(--domino-5-color, darkblue); }
+.pip-face[data-value='6'] .pip { background: var(--domino-6-color, gold); }
+
+.pip-face-word {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--walnut-deep);
+  font: 700 0.8rem var(--font-display);
+}
+
+.pip-face-xs {
+  width: 1rem;
+  height: 1rem;
+  padding: 0.1rem;
+  border-radius: 0.2rem;
+}
+
+.pip-face-xs.pip-face-word {
+  font-size: 0.5rem;
+}
+
+/* Hand tiles (Hand.tsx) */
 .domino-container {
-  font-size: min(0.75rem, 1.42vw);
+  font-size: min(0.72rem, 1.35vw);
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -195,59 +844,195 @@
   align-content: center;
 }
 
-  .domino-container .domino-spacer {
-    flex-basis: 100%;
-  }
-
-/* New: Hand.tsx's play zone/tiles - no old-app equivalent (BlazorSortableJS handled dragging
-   entirely via JS interop with no bespoke CSS of its own beyond .sortable-domino below). */
-.hand-play-zone {
-  min-height: 2rem;
-  margin-bottom: 0.5rem;
-  border: 2px dashed transparent;
-  border-radius: 8px;
-  text-align: center;
-  font-size: 0.8rem;
-  color: var(--label-font-color-light, #666);
+.hand .domino {
+  box-shadow:
+    0.3em 0.3em 0 0.05em var(--bone-edge),
+    0.4em 0.7em 1.2em rgba(0, 0, 0, 0.45);
+  transition: box-shadow 150ms ease, transform 150ms ease;
 }
 
-  .hand-play-zone-over {
-    border-color: var(--domino-hover-color, #7ec8e3);
-  }
+.hand .domino.clickable {
+  cursor: pointer;
+}
 
-/* Ported from Match.razor.css's .sortable-domino (the equivalent hand-tile wrapper here). */
+.hand .domino.clickable:hover {
+  box-shadow:
+    0 0 0 0.4em var(--brass),
+    0.4em 0.7em 1.2em rgba(0, 0, 0, 0.45);
+  border: none;
+}
+
+.hand .domino.preselected {
+  box-shadow:
+    0 0 0 0.4em var(--danger),
+    0.4em 0.7em 1.2em rgba(0, 0, 0, 0.45);
+  border: none;
+}
+
+.hand-play-zone {
+  min-height: 1.6rem;
+  margin: 0 auto 0.5rem;
+  max-width: 40rem;
+  border: 1px dashed transparent;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 0.8rem;
+  line-height: 1.6rem;
+  color: transparent;
+}
+
+.hand-play-zone-live {
+  border-color: rgba(201, 164, 92, 0.35);
+  color: var(--ink-muted);
+}
+
+.hand-play-zone-over {
+  border-color: var(--brass);
+  background: rgba(201, 164, 92, 0.12);
+}
+
 .hand-tile {
   display: inline-block;
   cursor: grab;
 }
 
-  .hand-tile-over {
-    outline: 2px dashed var(--domino-hover-color, #7ec8e3);
-  }
-
-  /* Hand.tsx's double-click "preselect to auto-play on my turn" queue reuses domino.css's
-     existing `.domino.preselected` glow (a straight port of Domino.razor's `Preselected` param) -
-     no new rule needed here. */
-
-/* New: BiddingPanel/trump-select layout - the old app used bare Bootstrap `.row`/`.col-12` for
-   this, which this app doesn't have; a simple centered flex-wrap row covers the same ground. */
-.bidding-panel,
-.trump-select-section {
-  text-align: center;
-  padding: 0.5rem 0;
+.hand-tile-over {
+  outline: 2px dashed var(--brass);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
 }
 
-  .bidding-options,
-  .trump-options {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+/* The slot a dragged tile came from: a faint impression left in the rail. */
+.hand-tile-dragging .domino {
+  opacity: 0.25;
+  box-shadow: none;
+}
+
+/* The drag ghost (Hand.tsx's DragOverlay): the same tile, picked up - lifted, slightly tilted,
+   with a deeper shadow. The tilt/scale sit on this inner wrapper; DragOverlay drives the outer
+   element's transform to follow the pointer. */
+.hand-drag-ghost {
+  display: inline-block;
+  cursor: grabbing;
+  transform: rotate(-4deg) scale(1.06);
+  animation: ghost-lift 140ms ease-out;
+}
+
+.hand .hand-drag-ghost .domino {
+  box-shadow:
+    0.3em 0.3em 0 0.05em var(--bone-edge),
+    0.8em 1.6em 2.4em rgba(0, 0, 0, 0.55);
+}
+
+@keyframes ghost-lift {
+  from {
+    transform: none;
+  }
+}
+
+/* ---------- Narrow screens: piles move above the table ---------- */
+
+@media (max-width: 760px) {
+  .scoreboard {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'us them'
+      'contract contract';
+    row-gap: 0.4rem;
+    padding: 0.5rem 1rem;
   }
 
-/* Ported from Match.razor.css's 768px media query. */
-@media (max-width: 768px) {
-  .gameboard .player-team-tricks,
-  .gameboard .opponent-tricks {
-    font-size: 0.175rem;
+  .score-us {
+    grid-area: us;
+  }
+
+  .score-them {
+    grid-area: them;
+  }
+
+  .contract {
+    grid-area: contract;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+  }
+
+  .score-value {
+    font-size: 1.7rem;
+  }
+
+  .gameboard {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'us them'
+      'table table';
+    gap: 0.6rem;
+    padding: 0.6rem 16px;
+  }
+
+  .player-team-tricks,
+  .opponent-tricks {
+    flex-direction: row;
+    align-items: center;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .trick-history {
+    flex-direction: row;
+    flex-wrap: wrap;
+    font-size: 2.5px;
+    overflow: hidden;
+  }
+
+  .player-team-tricks .trick-history {
+    margin-top: 0;
+  }
+
+  .table {
+    padding: 0.5rem;
+    border-radius: 1rem;
+  }
+
+  .seat-plate {
+    padding: 0.2rem 0.4rem 0.2rem 0.6rem;
+    border-radius: 0.9rem;
+    font-size: 0.85rem;
+  }
+
+  .seat-name {
+    max-width: 5.5rem;
+  }
+
+  .marker-bid .pip-face {
+    display: none;
+  }
+
+  .tile-back {
+    width: 8px;
+    height: 16px;
+  }
+
+  .tile-backs-left .tile-back,
+  .tile-backs-right .tile-back {
+    width: 16px;
+    height: 8px;
+  }
+
+  .current-trick {
+    font-size: 6px;
+  }
+
+  .domino-container {
+    font-size: 1.5vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match *,
+  .match *::before,
+  .match *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }
