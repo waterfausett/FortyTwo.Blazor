@@ -281,6 +281,12 @@
     0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+/* A hand tile dragged over the table on this player's turn: dropping it here plays it. */
+.table.play-zone-over {
+  outline: 2px dashed var(--brass);
+  outline-offset: -0.35rem;
+}
+
 .table-center {
   grid-area: center;
   display: flex;
@@ -869,28 +875,6 @@
     0 0 0 0.4em var(--danger),
     0.4em 0.7em 1.2em rgba(0, 0, 0, 0.45);
   border: none;
-}
-
-.hand-play-zone {
-  min-height: 1.6rem;
-  margin: 0 auto 0.5rem;
-  max-width: 40rem;
-  border: 1px dashed transparent;
-  border-radius: 999px;
-  text-align: center;
-  font-size: 0.8rem;
-  line-height: 1.6rem;
-  color: transparent;
-}
-
-.hand-play-zone-live {
-  border-color: rgba(201, 164, 92, 0.35);
-  color: var(--ink-muted);
-}
-
-.hand-play-zone-over {
-  border-color: var(--brass);
-  background: rgba(201, 164, 92, 0.12);
 }
 
 .hand-tile {

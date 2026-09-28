@@ -1,8 +1,8 @@
-// Hand.tsx renders the player's own dominoes inside a @dnd-kit/core DndContext (useDraggable
-// for reordering within the hand, useDroppable for a dedicated "play zone" representing dropping
-// onto the trick), firing `onPlay(domino)` on click (when selectable) or on a drop onto the play
-// zone. Replaces the `SortGroup`/`BlazorSortableJS`-driven hand section of
-// FortyTwo/Client/Pages/Match.razor.
+// Hand.tsx renders the player's own dominoes (useDraggable/useDroppable for reordering within the
+// hand), firing `onPlay(domino)` on click (when selectable) or on a drop onto the table. It
+// follows drags through the enclosing PlayDnd.tsx `PlayDndContext` that Match.tsx provides, so
+// every render here goes through that same context. Replaces the
+// `SortGroup`/`BlazorSortableJS`-driven hand section of FortyTwo/Client/Pages/Match.razor.
 //
 // jsdom doesn't implement ResizeObserver (used internally by @dnd-kit/core's droppable-rect
 // measuring) - this is the "known test-infra gap" the brief calls out for dnd-kit specifically;
@@ -10,10 +10,17 @@
 // defined`. A minimal no-op stub is enough since these tests only exercise click-to-play and
 // component wiring, not real pointer-drag physics (real drag-and-drop is not meaningfully
 // testable under jsdom without a much heavier simulation harness).
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createDomino } from '@fortytwo/rules';
 import { Hand } from './Hand';
+import { PlayDndContext } from './PlayDnd';
+
+// `rerender` keeps the wrapper, so a re-rendered Hand stays in the same context.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: PlayDndContext });
+}
 
 beforeAll(() => {
   if (!('ResizeObserver' in globalThis)) {

@@ -43,6 +43,7 @@ import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
 import { Hand } from '../components/Hand';
 import { PipFace } from '../components/PipFace';
+import { PlayDndContext, PlayDropZone } from '../components/PlayDnd';
 import { TrumpPicker } from '../components/TrumpPicker';
 import { Seat } from '../components/Seat';
 import { TrickDisplay } from '../components/TrickDisplay';
@@ -497,151 +498,155 @@ export function Match(): JSX.Element {
       </header>
 
       <div className="game-wrapper">
-        <div className="gameboard">
-          <TrickHistory
-            tricks={myTricks}
-            points={myTrickPoints}
-            align="mine"
-            label="Us"
-            target={bidderTeam === me.team ? target : null}
-          />
+        {/* One drag context around the table and the hand: a tile is dragged out of the hand and
+            played by dropping it on the table. */}
+        <PlayDndContext>
+          <div className="gameboard">
+            <TrickHistory
+              tricks={myTricks}
+              points={myTrickPoints}
+              align="mine"
+              label="Us"
+              target={bidderTeam === me.team ? target : null}
+            />
 
-          <div className="table" aria-label="Table">
-            {seatedOthers.map(({ player, seat }) => {
-              const hand = game.hands.find((h) => h.playerId === player.playerId);
-              return (
-                <Seat
-                  key={player.playerId}
-                  seat={seat}
-                  dominoCount={hand?.dominoes.length ?? 0}
-                  {...seatPropsFor(player.playerId)}
-                />
-              );
-            })}
+            <PlayDropZone live={canPlay} className="table" aria-label="Table">
+              {seatedOthers.map(({ player, seat }) => {
+                const hand = game.hands.find((h) => h.playerId === player.playerId);
+                return (
+                  <Seat
+                    key={player.playerId}
+                    seat={seat}
+                    dominoCount={hand?.dominoes.length ?? 0}
+                    {...seatPropsFor(player.playerId)}
+                  />
+                );
+              })}
 
-            {emptySeats.map(({ position, seat }) => (
-              <div key={position} className={`seat seat-${seat} seat-open`} data-testid="open-seat">
-                <div className="seat-plate">
-                  <span className="seat-name">Open seat</span>
-                  {botsEnabled && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary seat-add-bot"
-                      disabled={addBotsMutation.isPending}
-                      onClick={() => addBotsMutation.mutate(position)}
-                    >
-                      Add bot
-                    </button>
-                  )}
+              {emptySeats.map(({ position, seat }) => (
+                <div key={position} className={`seat seat-${seat} seat-open`} data-testid="open-seat">
+                  <div className="seat-plate">
+                    <span className="seat-name">Open seat</span>
+                    {botsEnabled && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary seat-add-bot"
+                        disabled={addBotsMutation.isPending}
+                        onClick={() => addBotsMutation.mutate(position)}
+                      >
+                        Add bot
+                      </button>
+                    )}
+                  </div>
                 </div>
+              ))}
+
+              <div className="table-center">
+                {!isTableReady ? (
+                  <div className="table-waiting">
+                    <p>{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
+                    {botsEnabled && emptySeats.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        disabled={addBotsMutation.isPending}
+                        onClick={() => addBotsMutation.mutate(undefined)}
+                      >
+                        Fill with bots
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <TrickDisplay
+                    trick={displayedTrick}
+                    trump={game.trump}
+                    slotSeats={trickSlotSeats}
+                    winningSlot={winningSlot}
+                    sweepTo={sweepTo}
+                    sweepMode={sweepMode}
+                    sweepTarget={sweepTarget}
+                  />
+                )}
               </div>
-            ))}
 
-            <div className="table-center">
-              {!isTableReady ? (
-                <div className="table-waiting">
-                  <p>{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
-                  {botsEnabled && emptySeats.length > 0 && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary"
-                      disabled={addBotsMutation.isPending}
-                      onClick={() => addBotsMutation.mutate(undefined)}
-                    >
-                      Fill with bots
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <TrickDisplay
-                  trick={displayedTrick}
-                  trump={game.trump}
-                  slotSeats={trickSlotSeats}
-                  winningSlot={winningSlot}
-                  sweepTo={sweepTo}
-                  sweepMode={sweepMode}
-                  sweepTarget={sweepTarget}
-                />
-              )}
-            </div>
+              <Seat seat="bottom" dominoCount={null} {...seatPropsFor(myPlayerId)} />
+            </PlayDropZone>
 
-            <Seat seat="bottom" dominoCount={null} {...seatPropsFor(myPlayerId)} />
+            <TrickHistory
+              tricks={opponentTricks}
+              points={opponentTrickPoints}
+              align="opponent"
+              label="Them"
+              target={bidderTeam === opponentTeam ? target : null}
+            />
           </div>
 
-          <TrickHistory
-            tricks={opponentTricks}
-            points={opponentTrickPoints}
-            align="opponent"
-            label="Them"
-            target={bidderTeam === opponentTeam ? target : null}
-          />
-        </div>
+          <div className={`player${me.isActive && !isHandPlayedOut && isTableReady ? ' active' : ''}`}>
+            {showHandOver && (
+              <section className="hand-result" aria-label="Hand over">
+                <p className="hand-result-title">
+                  {isMatchOver
+                    ? match.winningTeam === me.team
+                      ? 'You won the match'
+                      : 'They won the match'
+                    : handWinner === me.team
+                      ? 'We took the hand'
+                      : 'They took the hand'}
+                </p>
+                {!isMatchOver && (
+                  <>
+                    <p className="hand-result-note">
+                      {iAmReady
+                        ? `Waiting for everyone to ready up (${readyCount} of 4)`
+                        : isHandPlayedOut
+                          ? 'Ready up for the next hand'
+                          : 'Play it out, or ready up for the next hand'}
+                    </p>
+                    <button
+                      type="button"
+                      className="action-button"
+                      disabled={iAmReady || readyUpMutation.isPending}
+                      onClick={() => readyUpMutation.mutate()}
+                    >
+                      {iAmReady ? "You're ready" : 'Ready up'}
+                    </button>
+                  </>
+                )}
+              </section>
+            )}
 
-        <div className={`player${me.isActive && !isHandPlayedOut && isTableReady ? ' active' : ''}`}>
-          {showHandOver && (
-            <section className="hand-result" aria-label="Hand over">
-              <p className="hand-result-title">
-                {isMatchOver
-                  ? match.winningTeam === me.team
-                    ? 'You won the match'
-                    : 'They won the match'
-                  : handWinner === me.team
-                    ? 'We took the hand'
-                    : 'They took the hand'}
+            {/* The bid/trump pickers carry their own prompt, so the status line steps aside. */}
+            {!canBid && !canSelectTrump && status != null && (
+              <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
+                {status}
               </p>
-              {!isMatchOver && (
-                <>
-                  <p className="hand-result-note">
-                    {iAmReady
-                      ? `Waiting for everyone to ready up (${readyCount} of 4)`
-                      : isHandPlayedOut
-                        ? 'Ready up for the next hand'
-                        : 'Play it out, or ready up for the next hand'}
-                  </p>
-                  <button
-                    type="button"
-                    className="action-button"
-                    disabled={iAmReady || readyUpMutation.isPending}
-                    onClick={() => readyUpMutation.mutate()}
-                  >
-                    {iAmReady ? "You're ready" : 'Ready up'}
-                  </button>
-                </>
-              )}
-            </section>
-          )}
+            )}
 
-          {/* The bid/trump pickers carry their own prompt, so the status line steps aside. */}
-          {!canBid && !canSelectTrump && status != null && (
-            <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
-              {status}
-            </p>
-          )}
+            {canBid && (
+              <BiddingPanel
+                game={game}
+                myPlayerId={myPlayerId}
+                onBid={(bid) => bidMutation.mutate(bid)}
+                disabled={bidMutation.isPending}
+              />
+            )}
 
-          {canBid && (
-            <BiddingPanel
-              game={game}
-              myPlayerId={myPlayerId}
-              onBid={(bid) => bidMutation.mutate(bid)}
-              disabled={bidMutation.isPending}
+            {canSelectTrump && (
+              <TrumpPicker
+                game={game}
+                onSelect={(suit) => setTrumpMutation.mutate(suit)}
+                disabled={setTrumpMutation.isPending}
+              />
+            )}
+
+            <Hand
+              dominoes={me.dominoes ?? []}
+              selectable={canPlay}
+              onPlay={(domino) => playMutation.mutate(domino)}
+              isValidPlay={isValidPlay}
             />
-          )}
-
-          {canSelectTrump && (
-            <TrumpPicker
-              game={game}
-              onSelect={(suit) => setTrumpMutation.mutate(suit)}
-              disabled={setTrumpMutation.isPending}
-            />
-          )}
-
-          <Hand
-            dominoes={me.dominoes ?? []}
-            selectable={canPlay}
-            onPlay={(domino) => playMutation.mutate(domino)}
-            isValidPlay={isValidPlay}
-          />
-        </div>
+          </div>
+        </PlayDndContext>
       </div>
     </div>
   );
