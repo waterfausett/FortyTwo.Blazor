@@ -51,3 +51,4 @@ export {
   getPlayerView,
   matchScores,
 } from './matchEngine';
+export { matchViewFor, handSize } from './view';

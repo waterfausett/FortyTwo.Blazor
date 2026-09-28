@@ -33,6 +33,7 @@ import {
   matchScores,
   trickValue,
   gameWinningTeam,
+  handSize,
   assertValidDomino,
   isLow,
   lowDoublesToPrettyString,
@@ -322,7 +323,8 @@ export function Match(): JSX.Element {
   const isTableReady =
     match.players.length === 4 &&
     game.hands.length === 4 &&
-    (game.hands.some((h) => h.dominoes.length > 0) ||
+    // handSize, not dominoes.length: other players' hands arrive hidden, as a count.
+    (game.hands.some((h) => handSize(h) > 0) ||
       game.tricks.length > 0 ||
       game.currentTrick.dominoes.some((d) => d !== null));
   const isBiddingPhase = isTableReady && game.hands.some((h) => h.bid == null);
@@ -517,7 +519,7 @@ export function Match(): JSX.Element {
                   <Seat
                     key={player.playerId}
                     seat={seat}
-                    dominoCount={hand?.dominoes.length ?? 0}
+                    dominoCount={hand ? handSize(hand) : 0}
                     {...seatPropsFor(player.playerId)}
                   />
                 );

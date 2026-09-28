@@ -11,6 +11,7 @@ import {
   setTrump,
   playDomino,
   getPlayerView,
+  matchViewFor,
   assertIsMatchPlayer,
   ValidationError,
   type MatchState,
@@ -99,9 +100,8 @@ export class MatchDO implements DurableObject {
       throw new NotFoundError('Match not found!');
     }
 
-    // `getMatch` ports `MatchService.GetAsync` - a plain, UNGUARDED full-match fetch. The real
-    // C# method has zero validation calls (not even a membership check); this is a pre-existing
-    // characteristic of the real app, not something to tighten here.
+    // `getMatch` ports `MatchService.GetAsync` - the full stored match, every hand included. The
+    // Worker route never hands it out as-is: it narrows it to the caller's view (matchViewFor).
     if (method === 'getMatch') {
       return existing;
     }
@@ -243,9 +243,12 @@ export class MatchDO implements DurableObject {
     // reconnecting mid-game) never receives any state at all. `existing` may be null only if a
     // client somehow opens a socket against a DO that was never `create`d - nothing to send yet in
     // that case, so this is skipped rather than sending a `null` match.
+    //
+    // Someone who isn't seated may still connect (the lobby links to matches you haven't joined);
+    // they just see every hand hidden, same as the REST route.
     const existing = await this.load();
     if (existing !== null) {
-      pair[1].send(JSON.stringify({ type: 'match', match: existing }));
+      pair[1].send(matchMessageFor(existing, user.sub));
     }
 
     return new Response(null, { status: 101, webSocket: pair[0] });
@@ -267,10 +270,16 @@ export class MatchDO implements DurableObject {
     }
   }
 
+  // Each socket gets its own view - its player's hand, and only a count of everyone else's.
   private broadcast(match: MatchState): void {
-    const payload = JSON.stringify({ type: 'match', match });
     for (const ws of this.state.getWebSockets()) {
-      ws.send(payload);
+      // Every socket is tagged on upgrade; an untagged one sees no hands at all.
+      const attachment = ws.deserializeAttachment() as { playerId: string } | null;
+      ws.send(matchMessageFor(match, attachment?.playerId ?? ''));
     }
   }
+}
+
+function matchMessageFor(match: MatchState, viewerId: string): string {
+  return JSON.stringify({ type: 'match', match: matchViewFor(match, viewerId) });
 }

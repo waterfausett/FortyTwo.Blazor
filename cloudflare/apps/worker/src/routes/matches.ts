@@ -14,7 +14,7 @@ import {
 import { isBot, shuffledDominoOrder } from '../bots';
 import { getUsers } from '../auth0Management';
 import { toUserResponse } from './users';
-import { Teams, type MatchState } from '@fortytwo/rules';
+import { Teams, matchViewFor, type MatchState } from '@fortytwo/rules';
 
 type AppEnv = { Bindings: Env; Variables: { user: { sub: string } } };
 const matches = new Hono<AppEnv>();
@@ -25,6 +25,12 @@ function stub(c: any, matchId: string) {
 
 async function callRpc(matchDO: DurableObjectStub, method: string, body: Record<string, unknown>): Promise<Response> {
   return matchDO.fetch(`https://do/rpc/${method}`, { method: 'POST', body: JSON.stringify(body) });
+}
+
+// The match as the calling user may see it - their own hand, and only a count of everyone else's.
+// Every route that returns a match goes through this; the DO's RPC replies carry every hand.
+function matchView(c: any, match: MatchState) {
+  return matchViewFor(match, c.get('user').sub);
 }
 
 async function syncLobby(c: any, matchId: string, match: MatchState): Promise<void> {
@@ -49,7 +55,7 @@ matches.post('/', async (c) => {
   const res = await callRpc(stub(c, matchId), 'create', { firstPlayerId: userId, matchId });
   const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
-  return c.json(match, 201);
+  return c.json(matchView(c, match), 201);
 });
 
 matches.get('/', async (c) => {
@@ -98,14 +104,15 @@ async function displayNames(c: any, playerIds: string[]): Promise<Map<string, st
   return names;
 }
 
-// Full MatchState (all players, full game info) - backs the Match page's initial load and
-// reconnect-catchup flow. Calls the unguarded `getMatch` RPC, NOT `getPlayerView` (which returns
-// a narrow per-player DTO and is a different route, below).
+// The whole match as the caller may see it (other hands reduced to counts) - backs the Match
+// page's initial load and reconnect-catchup flow. Not limited to seated players: the lobby links
+// to matches you haven't joined, and someone outside the match simply sees every hand hidden.
+// `getPlayerView` is the narrow per-player DTO, a different route below.
 matches.get('/:id', async (c) => {
   const matchId = c.req.param('id');
   const res = await callRpc(stub(c, matchId), 'getMatch', {});
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
-  return c.json(await res.json());
+  return c.json(matchView(c, await res.json()));
 });
 
 // The narrow per-player DTO for the calling user - replaces `MatchPlayersController.Get` /
@@ -134,7 +141,7 @@ matches.post('/:id/players', async (c) => {
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
-  return c.json(match);
+  return c.json(matchView(c, match));
 });
 
 // Dev-only (AUTO_PLAY_BOTS): seats a bot at `{ position }`, or at every open seat when no position
@@ -151,7 +158,7 @@ matches.post('/:id/bots', async (c) => {
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
-  return c.json(match);
+  return c.json(matchView(c, match));
 });
 
 matches.patch('/:id/players', async (c) => {
@@ -163,21 +170,21 @@ matches.patch('/:id/players', async (c) => {
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
-  return c.json(match);
+  return c.json(matchView(c, match));
 });
 
 matches.patch('/:id/games/current', async (c) => {
   const { suit } = await c.req.json();
   const res = await callRpc(stub(c, c.req.param('id')), 'setTrump', { playerId: c.get('user').sub, suit });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
-  return c.json(await res.json());
+  return c.json(matchView(c, await res.json()));
 });
 
 matches.post('/:id/games/current/bids', async (c) => {
   const { bid } = await c.req.json();
   const res = await callRpc(stub(c, c.req.param('id')), 'bid', { playerId: c.get('user').sub, bid });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
-  return c.json(await res.json());
+  return c.json(matchView(c, await res.json()));
 });
 
 matches.post('/:id/games/current/moves', async (c) => {
@@ -187,7 +194,7 @@ matches.post('/:id/games/current/moves', async (c) => {
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
-  return c.json(match);
+  return c.json(matchView(c, match));
 });
 
 export default matches;

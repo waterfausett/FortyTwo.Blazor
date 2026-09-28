@@ -875,6 +875,19 @@ describe('Match', () => {
       expect(seatOf('p3').querySelectorAll('.tile-back')).toHaveLength(2);
       expect(seatOf('p4').querySelectorAll('.tile-back')).toHaveLength(1);
     });
+
+    // The Worker never sends another player's dominoes, only how many they hold.
+    it('draws face-down tiles from the count the server sends for a hidden hand', () => {
+      const match = playingMatch();
+      const hands = match.currentGame.hands.map((h) =>
+        h.playerId === 'p1' ? h : { ...h, dominoes: [], hiddenCount: h.dominoes.length }
+      );
+      useMatchSocketMock.mockReturnValue({ match: { ...match, currentGame: { ...match.currentGame, hands } }, connected: true });
+      renderMatch();
+
+      expect(seatOf('p3').querySelectorAll('.tile-back')).toHaveLength(2);
+      expect(seatOf('p4').querySelectorAll('.tile-back')).toHaveLength(1);
+    });
   });
 
   it("renders the other 3 players' status: id, remaining domino count, and a turn indicator", () => {

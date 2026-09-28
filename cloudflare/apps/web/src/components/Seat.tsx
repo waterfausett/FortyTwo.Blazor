@@ -2,8 +2,7 @@
 // and, for everyone but the viewer, a face-down fan of the dominoes they still hold. Replaces the
 // old app's RemotePlayer.razor (which drew the same face-down tiles via Domino's ShowPlaceHolder).
 //
-// Deliberately never receives another player's actual dominoes - only a count - even though
-// MatchState's wire shape currently carries every hand unfiltered.
+// Only ever receives a count for another player - the Worker never sends their dominoes.
 import type { JSX } from 'react';
 import type { Bid, Suit } from '@fortytwo/rules';
 import { bidToPrettyString } from '@fortytwo/rules';

@@ -133,15 +133,22 @@ describe('match routes', () => {
       });
       expect(join4.status).toBe(200);
       const afterJoin4 = (await join4.json()) as {
-        currentGame: { hands: { playerId: string; dominoes: { id: string; top: number; bottom: number }[] }[] };
+        currentGame: {
+          hands: { playerId: string; dominoes: { id: string; top: number; bottom: number }[]; hiddenCount?: number }[];
+        };
         players: { playerId: string }[];
       };
       expect(afterJoin4.players).toHaveLength(4);
       expect(afterJoin4.currentGame.hands).toHaveLength(4);
+      // p4 sees their own 7 dominoes and only a count of everyone else's.
       for (const hand of afterJoin4.currentGame.hands) {
+        if (hand.playerId !== 'p4') {
+          expect(hand).toMatchObject({ dominoes: [], hiddenCount: 7 });
+          continue;
+        }
         expect(hand.dominoes).toHaveLength(7);
         for (const domino of hand.dominoes) {
-          // Change 2: every dealt domino must have a genuine `.id`, not undefined - proves
+          // Every dealt domino must have a genuine `.id`, not undefined - proves
           // shuffledDominoOrder() uses createDomino() rather than hand-rolled {top,bottom} objects.
           expect(domino.id).toBeTruthy();
           expect(typeof domino.id).toBe('string');
@@ -240,6 +247,25 @@ describe('match routes', () => {
       expect(outsiderJoinBody.title).toBeTruthy();
     }
   );
+
+  it("returns the caller's own hand from GET /api/matches/:id and hides the rest", async () => {
+    const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4', 'p5'].map(signToken));
+    const [p1, p2, p3, p4, outsider] = tokens;
+    const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+    for (const [token, position] of [[p2, 1], [p3, 2], [p4, 3]] as const) {
+      await api(`/api/matches/${created.id}/players`, token, { method: 'POST', body: JSON.stringify({ position }) });
+    }
+    type View = { currentGame: { hands: { playerId: string; dominoes: unknown[]; hiddenCount?: number }[] } };
+
+    const forP2 = (await (await api(`/api/matches/${created.id}`, p2)).json()) as View;
+    const forOutsider = (await (await api(`/api/matches/${created.id}`, outsider)).json()) as View;
+
+    for (const hand of forP2.currentGame.hands) {
+      if (hand.playerId === 'p2') expect(hand.dominoes).toHaveLength(7);
+      else expect(hand).toMatchObject({ dominoes: [], hiddenCount: 7 });
+    }
+    expect(forOutsider.currentGame.hands.every((h) => h.dominoes.length === 0 && h.hiddenCount === 7)).toBe(true);
+  });
 
   it('lists each match with its teams by display name, falling back to the raw id', async () => {
     const p1 = await signToken('p1');

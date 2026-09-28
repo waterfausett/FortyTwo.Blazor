@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env, fetchMock, runInDurableObject } from 'cloudflare:test';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
-import { Teams } from '@fortytwo/rules';
+import { Teams, createDomino } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import type { MatchDO } from '../src/matchDO';
 
@@ -206,6 +206,79 @@ describe('MatchDO WebSocket upgrade', () => {
       // with unread Response bodies.
       ws?.close();
     }
+  });
+
+  describe('hidden hands', () => {
+    type Payload = { match: { currentGame: { hands: { playerId: string; dominoes: unknown[]; hiddenCount?: number }[] } } };
+
+    function deck() {
+      const dominoes = [];
+      for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dominoes.push(createDomino(i, j));
+      return dominoes;
+    }
+
+    // p1 creates, p2-p4 take seats 1-3; the 4th seat deals.
+    async function dealtMatch(name: string) {
+      const stub = stubFor(name);
+      await rpc(stub, 'create', { firstPlayerId: 'p1' });
+      await rpc(stub, 'takeSeat', { playerId: 'p2', position: 1 });
+      await rpc(stub, 'takeSeat', { playerId: 'p3', position: 2 });
+      return stub;
+    }
+
+    async function connect(stub: ReturnType<typeof stubFor>, sub: string) {
+      const { ws } = await openSocket(stub, `/ws?token=${await signToken({ sub })}`);
+      if (!ws) throw new Error('expected a client WebSocket on the 101 response');
+      const messages: Payload[] = [];
+      const waiters: (() => void)[] = [];
+      ws.addEventListener('message', (event) => {
+        messages.push(JSON.parse((event as MessageEvent).data as string) as Payload);
+        waiters.splice(0).forEach((wake) => wake());
+      });
+      const nth = async (n: number): Promise<Payload> => {
+        while (messages.length < n) await new Promise<void>((resolve) => waiters.push(resolve));
+        return messages[n - 1];
+      };
+      return { ws, nth };
+    }
+
+    const hand = (payload: Payload, playerId: string) =>
+      payload.match.currentGame.hands.find((h) => h.playerId === playerId)!;
+
+    it("broadcasts each player their own hand and only a count of everyone else's", async () => {
+      const stub = await dealtMatch('socket-hidden-broadcast');
+      const p1 = await connect(stub, 'p1');
+      const p2 = await connect(stub, 'p2');
+      try {
+        await p1.nth(1);
+        await p2.nth(1);
+
+        await rpc(stub, 'takeSeat', { playerId: 'p4', position: 3, dealOrder: deck() });
+
+        const forP1 = await p1.nth(2);
+        const forP2 = await p2.nth(2);
+        expect(hand(forP1, 'p1').dominoes).toHaveLength(7);
+        expect(hand(forP1, 'p2')).toMatchObject({ dominoes: [], hiddenCount: 7 });
+        expect(hand(forP2, 'p2').dominoes).toHaveLength(7);
+        expect(hand(forP2, 'p1')).toMatchObject({ dominoes: [], hiddenCount: 7 });
+      } finally {
+        p1.ws.close();
+        p2.ws.close();
+      }
+    });
+
+    it('hides every hand from a connected socket whose user is not seated', async () => {
+      const stub = await dealtMatch('socket-hidden-outsider');
+      await rpc(stub, 'takeSeat', { playerId: 'p4', position: 3, dealOrder: deck() });
+      const outsider = await connect(stub, 'p5');
+      try {
+        const first = await outsider.nth(1);
+
+        expect(first.match.currentGame.hands.every((h) => h.dominoes.length === 0 && h.hiddenCount === 7)).toBe(true);
+      } finally {
+        outsider.ws.close();
+      }
+    });
   });
 
   // Regression test: a client that disconnects without sending a close frame (e.g. a tab

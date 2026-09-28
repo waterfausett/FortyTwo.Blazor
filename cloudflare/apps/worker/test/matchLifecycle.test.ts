@@ -155,12 +155,23 @@ describe('match lifecycle', () => {
 
       expect(state.players).toHaveLength(4);
       expect(state.currentGame.hands).toHaveLength(4);
-      for (const hand of state.currentGame.hands) {
-        expect(hand.dominoes).toHaveLength(7);
-        for (const domino of hand.dominoes) {
+
+      // Each player only ever sees their own hand, so read it from their own view of the match.
+      async function ownHand(playerId: string): Promise<Domino[]> {
+        const res = await api(`/api/matches/${matchId}`, tokenByPlayerId[playerId]);
+        const view = (await res.json()) as MatchStateDto;
+        return view.currentGame.hands.find((h) => h.playerId === playerId)!.dominoes;
+      }
+
+      const handsBeforeReady = new Map<string, string[]>();
+      for (const sub of subs) {
+        const hand = await ownHand(sub);
+        expect(hand).toHaveLength(7);
+        for (const domino of hand) {
           expect(domino.id).toBeTruthy();
           expect(typeof domino.id).toBe('string');
         }
+        handsBeforeReady.set(sub, hand.map((d) => d.id));
       }
 
       // --- D1 lobby-index check #1: right after the 4th join ---
@@ -171,7 +182,6 @@ describe('match lifecycle', () => {
       // --- Ready up all 4. For this match's FIRST hand this can't (and shouldn't) trigger a
       // second deal: patchPlayerReady only re-deals when the previous game already has a winner,
       // which is impossible before any bid has happened. Hands must stay exactly as dealt. ---
-      const handsBeforeReady = state.currentGame.hands;
       for (const sub of subs) {
         const readyRes = await api(`/api/matches/${matchId}/players`, tokenByPlayerId[sub], {
           method: 'PATCH',
@@ -180,9 +190,8 @@ describe('match lifecycle', () => {
         expect(readyRes.status).toBe(200);
         state = (await readyRes.json()) as MatchStateDto;
       }
-      for (const hand of state.currentGame.hands) {
-        const before = handsBeforeReady.find((h) => h.playerId === hand.playerId)!;
-        expect(hand.dominoes.map((d) => d.id)).toEqual(before.dominoes.map((d) => d.id));
+      for (const sub of subs) {
+        expect((await ownHand(sub)).map((d) => d.id)).toEqual(handsBeforeReady.get(sub));
       }
 
       // --- Bidding: whichever player is currentPlayerId bids Bid.Thirty (the lowest legal bid -
@@ -222,7 +231,7 @@ describe('match lifecycle', () => {
       for (let play = 0; play < 8; play++) {
         const playerId = state.currentGame.currentPlayerId!;
         const token = tokenByPlayerId[playerId];
-        const hand = state.currentGame.hands.find((h) => h.playerId === playerId)!.dominoes;
+        const hand = await ownHand(playerId);
         const ledSuit = state.currentGame.currentTrick.suit;
         const trump = state.currentGame.trump!;
         const domino = pickLegalDomino(hand, ledSuit, trump);
