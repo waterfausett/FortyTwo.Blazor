@@ -2,6 +2,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { getUser, getUsers, updateUser, type Auth0User } from '../auth0Management';
+import { profilePatch, readBody, readUserIds } from '../requestBody';
 
 type AppEnv = { Bindings: Env; Variables: { user: { sub: string } } };
 const users = new Hono<AppEnv>();
@@ -19,25 +20,26 @@ export function toUserResponse(u: Auth0User) {
   return { ...u, picture: effectivePicture, displayName };
 }
 
+// What any player may see of another: enough to show them at the table, and nothing that
+// identifies them outside the game (email, real name).
+export function toPublicUser(u: Auth0User) {
+  const { user_id, displayName, picture } = toUserResponse(u);
+  return { user_id, displayName, picture };
+}
+
+// The caller's own full profile - the only route that returns email and name.
 users.get('/profile', async (c) => {
   const user = await getUser(c.env, c.get('user').sub);
   return c.json(toUserResponse(user));
 });
 
-users.get('/', async (c) => {
-  const all = await getUsers(c.env);
-  return c.json(all.map(toUserResponse));
-});
-
 users.post('/search', async (c) => {
-  const userIds = await c.req.json<string[]>();
-  const found = await getUsers(c.env, userIds);
-  return c.json(found.map(toUserResponse));
+  const found = await getUsers(c.env, await readUserIds(c));
+  return c.json(found.map(toPublicUser));
 });
 
 users.patch('/', async (c) => {
-  const patch = await c.req.json<{ displayName?: string; theme?: 'Light' | 'Dark'; picture?: string }>();
-  await updateUser(c.env, c.get('user').sub, patch);
+  await updateUser(c.env, c.get('user').sub, profilePatch(await readBody(c)));
   return c.body(null, 200);
 });
 

@@ -53,7 +53,7 @@ describe('auth0Management', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(fetchMock.mock.calls[0][0]).toBe('https://test-tenant.auth0.local/oauth/token');
       expect(fetchMock.mock.calls[0][1]?.method).toBe('POST');
-      expect(fetchMock.mock.calls[1][0]).toBe('https://test-tenant.auth0.local/api/v2/users/auth0|1');
+      expect(fetchMock.mock.calls[1][0]).toBe('https://test-tenant.auth0.local/api/v2/users/auth0%7C1');
       const headers = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
       expect(headers.Authorization).toBe('Bearer test-access-token');
       expect(user.user_id).toBe('auth0|1');
@@ -127,37 +127,63 @@ describe('auth0Management', () => {
   });
 
   describe('getUsers', () => {
-    it('with no ids requests GET api/v2/users with the base fields/include_fields filter', async () => {
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(tokenResponse())
-        .mockResolvedValueOnce(jsonResponse([{ user_id: 'u1' }]));
-      vi.stubGlobal('fetch', fetchMock);
+    // The search query the request carried, decoded.
+    function searchParams(fetchMock: ReturnType<typeof vi.fn>): URLSearchParams {
+      return new URL(String(fetchMock.mock.calls[1][0])).searchParams;
+    }
 
-      const result = await mod.getUsers(testEnv);
-
-      expect(fetchMock.mock.calls[1][0]).toBe(
-        'https://test-tenant.auth0.local/api/v2/users?fields=identities,app_metadata,last_ip&include_fields=false'
-      );
-      expect(result).toEqual([{ user_id: 'u1' }]);
-
-      vi.unstubAllGlobals();
-    });
-
-    // Correction C: a distinct URL/query shape when ids are supplied - a single q=user_id:(...)
-    // param, each id double-quoted, comma-separated, no spaces.
-    it('with ids requests GET api/v2/users with a q=user_id:(...) filter using exact quoting', async () => {
+    // Correction C: a single q=user_id:(...) param, each id double-quoted, comma-separated, no spaces.
+    it('requests GET api/v2/users with a q=user_id:(...) filter using exact quoting', async () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(tokenResponse())
         .mockResolvedValueOnce(jsonResponse([{ user_id: 'u1' }, { user_id: 'u2' }]));
       vi.stubGlobal('fetch', fetchMock);
 
-      await mod.getUsers(testEnv, ['u1', 'u2']);
+      const result = await mod.getUsers(testEnv, ['auth0|u1', 'u2']);
 
-      expect(fetchMock.mock.calls[1][0]).toBe(
-        'https://test-tenant.auth0.local/api/v2/users?fields=identities,app_metadata,last_ip&include_fields=false&q=user_id:("u1","u2")'
-      );
+      const url = new URL(String(fetchMock.mock.calls[1][0]));
+      expect(`${url.origin}${url.pathname}`).toBe('https://test-tenant.auth0.local/api/v2/users');
+      const params = searchParams(fetchMock);
+      expect(params.get('fields')).toBe('identities,app_metadata,last_ip');
+      expect(params.get('include_fields')).toBe('false');
+      expect(params.get('q')).toBe('user_id:("auth0|u1","u2")');
+      expect(result).toEqual([{ user_id: 'u1' }, { user_id: 'u2' }]);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("escapes quotes and backslashes so an id can't break out of its phrase", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(tokenResponse())
+        .mockResolvedValueOnce(jsonResponse([]));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await mod.getUsers(testEnv, ['x") OR user_id:(*', 'a\\']);
+
+      expect(searchParams(fetchMock).get('q')).toBe('user_id:("x\\") OR user_id:(*","a\\\\")');
+
+      vi.unstubAllGlobals();
+    });
+
+    it('returns no users without calling Auth0 when given no ids', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      expect(await mod.getUsers(testEnv, [])).toEqual([]);
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      vi.unstubAllGlobals();
+    });
+
+    it('refuses more ids than one page of results holds', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      const ids = Array.from({ length: mod.MAX_USER_IDS + 1 }, (_, i) => `u${i}`);
+      await expect(mod.getUsers(testEnv, ids)).rejects.toThrow(/at most 50/);
+      expect(fetchMock).not.toHaveBeenCalled();
 
       vi.unstubAllGlobals();
     });
@@ -171,9 +197,9 @@ describe('auth0Management', () => {
         .mockResolvedValueOnce(new Response(null, { status: 200 }));
       vi.stubGlobal('fetch', fetchMock);
 
-      await mod.updateUser(testEnv, 'u1', { displayName: 'Adam' });
+      await mod.updateUser(testEnv, 'auth0|u1', { displayName: 'Adam' });
 
-      expect(fetchMock.mock.calls[1][0]).toBe('https://test-tenant.auth0.local/api/v2/users/u1');
+      expect(fetchMock.mock.calls[1][0]).toBe('https://test-tenant.auth0.local/api/v2/users/auth0%7Cu1');
       const init = fetchMock.mock.calls[1][1] as RequestInit;
       expect(init.method).toBe('PATCH');
       const body = JSON.parse(init.body as string);

@@ -24,7 +24,7 @@ export interface MatchSummary {
   seats: (string | null)[];
 }
 
-// Mirrors the real /api/users/* response shape (Task 15's `toUserResponse` in
+// Mirrors the /api/users/profile response shape (Task 15's `toUserResponse` in
 // apps/worker/src/routes/users.ts): the raw Auth0 Management API fields the Worker forwards, plus
 // the two fields it computes server-side (`displayName` is always present via a fallback chain;
 // `picture` prefers a non-blank `user_metadata.picture` over the raw top-level `picture`).
@@ -42,6 +42,9 @@ export interface Auth0User {
   displayName: string;
   user_metadata?: { displayName?: string; theme?: 'Light' | 'Dark'; picture?: string };
 }
+
+// What /api/users/search returns for each player (`toPublicUser`): never their email or real name.
+export type PublicUser = Pick<Auth0User, 'user_id' | 'displayName' | 'picture'>;
 
 interface ApiErrorBody {
   title?: string;
@@ -152,8 +155,8 @@ export function apiClient(getToken: () => Promise<string>) {
     getProfile: (): Promise<Auth0User> => request<Auth0User>(getToken, '/api/users/profile'),
 
     // Ids with no Auth0 account (bots) are simply absent from the result.
-    searchUsers: (userIds: string[]): Promise<Auth0User[]> =>
-      request<Auth0User[]>(getToken, '/api/users/search', {
+    searchUsers: (userIds: string[]): Promise<PublicUser[]> =>
+      request<PublicUser[]>(getToken, '/api/users/search', {
         method: 'POST',
         body: JSON.stringify(userIds),
       }),

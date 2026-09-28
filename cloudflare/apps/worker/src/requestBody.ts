@@ -3,6 +3,7 @@
 // `onError` turns into a 400 in the same { title, detail } shape as a rule violation.
 import type { Context } from 'hono';
 import { Bid, Suit, Teams, createDomino, type Domino } from '@fortytwo/rules';
+import { MAX_USER_IDS } from './auth0Management';
 
 export class BadRequestError extends Error {
   readonly title = 'Invalid request';
@@ -15,14 +16,17 @@ export class BadRequestError extends Error {
 
 type Body = Record<string, unknown>;
 
-// The body as a JSON object - a missing body, broken JSON, or an array/primitive is a 400.
-export async function readBody(c: Context): Promise<Body> {
-  let body: unknown;
+async function readJson(c: Context): Promise<unknown> {
   try {
-    body = await c.req.json();
+    return await c.req.json();
   } catch {
     throw new BadRequestError('The request body must be JSON.');
   }
+}
+
+// The body as a JSON object - a missing body, broken JSON, or an array/primitive is a 400.
+export async function readBody(c: Context): Promise<Body> {
+  const body = await readJson(c);
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     throw new BadRequestError('The request body must be a JSON object.');
   }
@@ -75,4 +79,62 @@ export function domino(body: Body): Domino {
     throw new BadRequestError('`domino` must have a `top` and `bottom` from 0 to 6.');
   }
   return createDomino(value.top as number, value.bottom as number);
+}
+
+// Auth0 ids are `connection|id` (e.g. `auth0|64f...`, `google-oauth2|1234`, `samlp|acme|a@b.com`);
+// bots are `bot-N`. Anything with quotes, brackets or whitespace isn't an id.
+const USER_ID = /^[A-Za-z0-9|._:@+=/-]{1,256}$/;
+
+// The body of a user search: a JSON array of up to MAX_USER_IDS user ids, de-duplicated.
+export async function readUserIds(c: Context): Promise<string[]> {
+  const body = await readJson(c);
+  if (!Array.isArray(body) || !body.every((id) => typeof id === 'string' && USER_ID.test(id))) {
+    throw new BadRequestError('The request body must be an array of user ids.');
+  }
+  const ids = [...new Set(body as string[])];
+  if (ids.length > MAX_USER_IDS) {
+    throw new BadRequestError(`Look up at most ${MAX_USER_IDS} users at a time.`);
+  }
+  return ids;
+}
+
+export const MAX_DISPLAY_NAME_LENGTH = 50;
+export const MAX_PICTURE_URL_LENGTH = 2048;
+
+// A profile update, keeping only the fields a player may set; anything else in the body is dropped
+// rather than stored in their Auth0 user_metadata.
+export function profilePatch(body: Body): { displayName?: string; picture?: string } {
+  const patch: { displayName?: string; picture?: string } = {};
+  if (body.displayName !== undefined) patch.displayName = displayName(body.displayName);
+  if (body.picture !== undefined) patch.picture = picture(body.picture);
+  return patch;
+}
+
+// Trimmed, 1 to MAX_DISPLAY_NAME_LENGTH characters, and no control characters.
+function displayName(value: unknown): string {
+  const name = typeof value === 'string' ? value.trim() : '';
+  if (name === '' || [...name].length > MAX_DISPLAY_NAME_LENGTH || /\p{Cc}/u.test(name)) {
+    throw new BadRequestError(
+      `\`displayName\` must be 1 to ${MAX_DISPLAY_NAME_LENGTH} characters, with no control characters.`
+    );
+  }
+  return name;
+}
+
+// An https: URL, since everyone at the table loads it as an <img src>. Blank clears it, which puts
+// the account's own picture back.
+function picture(value: unknown): string {
+  if (typeof value !== 'string') throw new BadRequestError('`picture` must be a URL.');
+  const url = value.trim();
+  if (url === '') return '';
+  let protocol: string;
+  try {
+    protocol = new URL(url).protocol;
+  } catch {
+    protocol = '';
+  }
+  if (protocol !== 'https:' || url.length > MAX_PICTURE_URL_LENGTH) {
+    throw new BadRequestError(`\`picture\` must be an https: URL of at most ${MAX_PICTURE_URL_LENGTH} characters.`);
+  }
+  return url;
 }

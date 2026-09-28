@@ -101,6 +101,7 @@ export function Profile(): JSX.Element {
             type="text"
             id="txtDisplayName"
             placeholder="What the table calls you"
+            maxLength={50}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />

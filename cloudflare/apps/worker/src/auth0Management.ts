@@ -87,20 +87,33 @@ async function authorizedFetch(env: Env, path: string, init: RequestInit = {}): 
 
 // Ports Auth0ApiClient.GetUserAsync.
 export async function getUser(env: Env, userId: string): Promise<Auth0User> {
-  const response = await authorizedFetch(env, `api/v2/users/${userId}`);
+  const response = await authorizedFetch(env, `api/v2/users/${encodeURIComponent(userId)}`);
   return response.json();
 }
 
-// Ports Auth0ApiClient.GetUsersAsync()/GetUsersAsync(List<string>) - two genuinely different
-// query strings depending on whether userIds was supplied (Correction C), both hitting the same
-// GET api/v2/users path. include_fields=false means EXCLUDE the listed `fields` from the
-// response - an odd-looking but real filter, ported as-is.
-export async function getUsers(env: Env, userIds?: string[]): Promise<Auth0User[]> {
-  const base = 'api/v2/users?fields=identities,app_metadata,last_ip&include_fields=false';
-  const url = userIds
-    ? `${base}&q=user_id:(${userIds.map((id) => `"${id}"`).join(',')})`
-    : base;
-  const response = await authorizedFetch(env, url);
+// Auth0's user search returns at most this many users per page.
+export const MAX_USER_IDS = 50;
+
+// One term of a Lucene quoted phrase. Only `\` and `"` can end the phrase early, so escaping
+// those keeps an id from rewriting the search.
+function quoted(value: string): string {
+  return `"${value.replace(/[\\"]/g, '\\$&')}"`;
+}
+
+// Ports Auth0ApiClient.GetUsersAsync(List<string>): looks the given ids up in one search, so the
+// caller splits anything over MAX_USER_IDS. include_fields=false means EXCLUDE the listed `fields`
+// from the response - an odd-looking but real filter, ported as-is.
+export async function getUsers(env: Env, userIds: string[]): Promise<Auth0User[]> {
+  if (userIds.length === 0) return [];
+  if (userIds.length > MAX_USER_IDS) {
+    throw new Error(`getUsers takes at most ${MAX_USER_IDS} ids, got ${userIds.length}`);
+  }
+  const query = new URLSearchParams({
+    fields: 'identities,app_metadata,last_ip',
+    include_fields: 'false',
+    q: `user_id:(${userIds.map(quoted).join(',')})`,
+  });
+  const response = await authorizedFetch(env, `api/v2/users?${query}`);
   return response.json();
 }
 
@@ -110,9 +123,9 @@ export async function getUsers(env: Env, userIds?: string[]): Promise<Auth0User[
 export async function updateUser(
   env: Env,
   userId: string,
-  patch: { displayName?: string; theme?: 'Light' | 'Dark'; picture?: string }
+  patch: { displayName?: string; picture?: string }
 ): Promise<void> {
-  await authorizedFetch(env, `api/v2/users/${userId}`, {
+  await authorizedFetch(env, `api/v2/users/${encodeURIComponent(userId)}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ user_metadata: patch }),

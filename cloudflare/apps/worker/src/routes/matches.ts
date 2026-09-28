@@ -12,7 +12,7 @@ import {
   listMatchPlayers,
 } from '../lobby';
 import { isBot, shuffledDominoOrder } from '../bots';
-import { getUsers } from '../auth0Management';
+import { getUsers, MAX_USER_IDS } from '../auth0Management';
 import { toUserResponse } from './users';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
@@ -86,9 +86,6 @@ matches.get('/', async (c) => {
   );
 });
 
-// Auth0 caps a user search at 50 results per page, so look ids up in pages of that size.
-const AUTH0_PAGE_SIZE = 50;
-
 // Maps player ids to display names for the lobby list. Bots have no Auth0 account and keep their
 // id ("bot-1"). A failed Auth0 lookup just leaves ids unnamed - the list is still usable showing
 // raw ids, which beats failing the whole lobby over a cosmetic field.
@@ -96,8 +93,8 @@ async function displayNames(c: any, playerIds: string[]): Promise<Map<string, st
   const names = new Map<string, string>();
   const humans = playerIds.filter((id) => !isBot(id));
   try {
-    for (let i = 0; i < humans.length; i += AUTH0_PAGE_SIZE) {
-      const users = await getUsers(c.env, humans.slice(i, i + AUTH0_PAGE_SIZE));
+    for (let i = 0; i < humans.length; i += MAX_USER_IDS) {
+      const users = await getUsers(c.env, humans.slice(i, i + MAX_USER_IDS));
       for (const user of users) names.set(user.user_id, toUserResponse(user).displayName);
     }
   } catch (error) {
