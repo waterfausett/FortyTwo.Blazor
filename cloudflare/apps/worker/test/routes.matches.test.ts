@@ -324,6 +324,61 @@ describe('match routes', () => {
     expect(rows.find((row) => row.id === created.id)?.seats).toEqual(['p1', null, null, 'p2']);
   });
 
+  describe('malformed request bodies', () => {
+    // Each is rejected at the route boundary, before the match is touched, with the same
+    // { title, detail } shape the client renders for a rule violation.
+    it.each([
+      ['POST', 'players', undefined],
+      ['POST', 'players', 'not json'],
+      ['POST', 'players', '[]'],
+      ['POST', 'players', '{}'],
+      ['POST', 'players', '{"position":4}'],
+      ['POST', 'players', '{"position":"1"}'],
+      ['POST', 'players', '{"team":3}'],
+      ['PATCH', 'players', '{}'],
+      ['PATCH', 'players', '{"ready":"false"}'],
+      ['PATCH', 'games/current', '{"suit":"6"}'],
+      ['PATCH', 'games/current', '{"suit":8}'],
+      ['POST', 'games/current/bids', '{"bid":"30"}'],
+      ['POST', 'games/current/bids', '{"bid":29}'],
+      ['POST', 'games/current/moves', '{"domino":null}'],
+      ['POST', 'games/current/moves', '{"domino":{}}'],
+      ['POST', 'games/current/moves', '{"domino":{"top":7,"bottom":0}}'],
+      ['POST', 'games/current/moves', '{"domino":{"top":1.5,"bottom":0}}'],
+    ])('%s %s with %s -> 400', async (method, path, body) => {
+      const p1 = await signToken('p1');
+      const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await api(`/api/matches/${created.id}/${path}`, p1, {
+        method,
+        body,
+        headers: { 'content-type': 'application/json' },
+      });
+
+      expect(res.status).toBe(400);
+      const error = (await res.json()) as { title: string; detail: string };
+      expect(error.title).toBe('Invalid request');
+      expect(error.detail).toEqual(expect.any(String));
+    });
+
+    it('hides unexpected errors behind a generic 500', async () => {
+      const p1 = await signToken('p1');
+      const broken = {
+        ...testEnv,
+        MATCH_DO: {
+          idFromName: () => {
+            throw new Error('secret internals');
+          },
+        },
+      };
+
+      const res = await app.request('/api/matches', { method: 'POST', headers: { Authorization: `Bearer ${p1}` } }, broken);
+
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({ title: 'Something went wrong' });
+    });
+  });
+
   describe('bots', () => {
     // SELF always runs with the pool's global bindings (AUTO_PLAY_BOTS: 'false'), so these call
     // the Hono app directly to switch the flag on for one request at a time.
@@ -377,6 +432,19 @@ describe('match routes', () => {
       const res = await apiWithBots(`/api/matches/${created.id}/bots`, p1, { method: 'POST', body: '{}' }, 'false');
 
       expect(res.status).toBe(404);
+    });
+
+    it('rejects a seat that is not 0-3', async () => {
+      const p1 = await signToken('p1');
+      const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await apiWithBots(`/api/matches/${created.id}/bots`, p1, {
+        method: 'POST',
+        body: JSON.stringify({ position: 1.5 }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { title: string }).title).toBe('Invalid request');
     });
 
     it("won't let someone outside the match add bots", async () => {

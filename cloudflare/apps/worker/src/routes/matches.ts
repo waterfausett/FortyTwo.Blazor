@@ -14,6 +14,8 @@ import {
 import { isBot, shuffledDominoOrder } from '../bots';
 import { getUsers } from '../auth0Management';
 import { toUserResponse } from './users';
+import * as field from '../requestBody';
+import { readBody } from '../requestBody';
 import { Teams, matchViewFor, type MatchState } from '@fortytwo/rules';
 
 type AppEnv = { Bindings: Env; Variables: { user: { sub: string } } };
@@ -128,16 +130,18 @@ matches.post('/:id/players', async (c) => {
   const userId = c.get('user').sub;
   // `{ position }` sits the player in the seat they picked; `{ team }` is the older join-a-team
   // form, which lets the engine choose the seat.
-  const { team, position } = await c.req.json();
+  const body = await readBody(c);
+  const seat =
+    body.position !== undefined ? { position: field.position(body) } : { team: field.team(body) };
   // A shuffled dealOrder is generated on EVERY join: addPlayer/takeSeat (matchEngine.ts) only
   // actually deal when this is the 4th hand being added, but it's harmless (silently unused) on
   // joins 2 and 3 - and this is the ONLY mechanism that ever deals a match's first hand, matching
   // the real app's behavior of dealing the instant the 4th player joins.
   const dealOrder = shuffledDominoOrder();
   const res =
-    position !== undefined
-      ? await callRpc(stub(c, matchId), 'takeSeat', { playerId: userId, position, dealOrder })
-      : await callRpc(stub(c, matchId), 'addPlayer', { playerId: userId, team, dealOrder });
+    'position' in seat
+      ? await callRpc(stub(c, matchId), 'takeSeat', { playerId: userId, position: seat.position, dealOrder })
+      : await callRpc(stub(c, matchId), 'addPlayer', { playerId: userId, team: seat.team, dealOrder });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   const match: MatchState = await res.json();
   await syncLobby(c, matchId, match);
@@ -150,10 +154,10 @@ matches.post('/:id/players', async (c) => {
 matches.post('/:id/bots', async (c) => {
   if (c.env.AUTO_PLAY_BOTS !== 'true') return c.json({ title: 'Not found' }, 404);
   const matchId = c.req.param('id');
-  const { position } = await c.req.json();
+  const body = await readBody(c);
   const res = await callRpc(stub(c, matchId), 'addBots', {
     requesterId: c.get('user').sub,
-    positions: position !== undefined ? [position] : undefined,
+    positions: body.position !== undefined ? [field.position(body)] : undefined,
   });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   const match: MatchState = await res.json();
@@ -164,7 +168,7 @@ matches.post('/:id/bots', async (c) => {
 matches.patch('/:id/players', async (c) => {
   const matchId = c.req.param('id');
   const userId = c.get('user').sub;
-  const { ready } = await c.req.json();
+  const ready = field.ready(await readBody(c));
   const dealOrder = ready ? shuffledDominoOrder() : undefined;
   const res = await callRpc(stub(c, matchId), 'readyUp', { playerId: userId, ready, dealOrder });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
@@ -174,14 +178,14 @@ matches.patch('/:id/players', async (c) => {
 });
 
 matches.patch('/:id/games/current', async (c) => {
-  const { suit } = await c.req.json();
+  const suit = field.suit(await readBody(c));
   const res = await callRpc(stub(c, c.req.param('id')), 'setTrump', { playerId: c.get('user').sub, suit });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   return c.json(matchView(c, await res.json()));
 });
 
 matches.post('/:id/games/current/bids', async (c) => {
-  const { bid } = await c.req.json();
+  const bid = field.bid(await readBody(c));
   const res = await callRpc(stub(c, c.req.param('id')), 'bid', { playerId: c.get('user').sub, bid });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   return c.json(matchView(c, await res.json()));
@@ -189,7 +193,7 @@ matches.post('/:id/games/current/bids', async (c) => {
 
 matches.post('/:id/games/current/moves', async (c) => {
   const matchId = c.req.param('id');
-  const { domino } = await c.req.json();
+  const domino = field.domino(await readBody(c));
   const res = await callRpc(stub(c, matchId), 'playDomino', { playerId: c.get('user').sub, domino });
   if (res.status !== 200) return c.json(await res.json(), res.status as 400);
   const match: MatchState = await res.json();

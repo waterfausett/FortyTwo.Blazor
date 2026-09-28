@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { requireAuth, type AuthedUser } from './auth/verifyJwt';
 import matchesRoutes from './routes/matches';
 import usersRoutes from './routes/users';
+import { BadRequestError } from './requestBody';
 
 export interface Env {
   MATCH_DO: DurableObjectNamespace;
@@ -23,6 +24,15 @@ export interface Env {
 }
 
 const app = new Hono<{ Bindings: Env; Variables: { user: AuthedUser } }>();
+
+// A malformed request body gets the same { title, detail } shape as a rule violation, which the
+// client already renders. Anything else is logged and hidden behind a generic 500, so no stack
+// trace or internal message ever reaches a client.
+app.onError((err, c) => {
+  if (err instanceof BadRequestError) return c.json({ title: err.title, detail: err.detail }, 400);
+  console.error('Unhandled error', err);
+  return c.json({ title: 'Something went wrong' }, 500);
+});
 
 app.get('/health', (c) => c.json({ ok: true }));
 
