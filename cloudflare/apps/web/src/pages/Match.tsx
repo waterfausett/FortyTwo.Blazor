@@ -662,3 +662,10 @@ export function Match(): JSX.Element {
     </div>
   );
 }
+
+// The /match/:matchId route. Keyed by id so following a rematch mounts a fresh page: the trick
+// hold, the sweep, and the new-hand tracker all belong to one match and mustn't carry over.
+export function MatchRoute(): JSX.Element {
+  const { matchId } = useParams<{ matchId: string }>();
+  return <Match key={matchId} />;
+}

@@ -123,6 +123,10 @@ export function apiClient(getToken: () => Promise<string>) {
         body: JSON.stringify({ ready }),
       }),
 
+    // A vote to play the same four again once the match is over.
+    rematch: (id: string): Promise<MatchState> =>
+      request<MatchState>(getToken, `/api/matches/${id}/rematch`, { method: 'POST' }),
+
     setTrump: (id: string, suit: number): Promise<MatchState> =>
       request<MatchState>(getToken, `/api/matches/${id}/games/current`, {
         method: 'PATCH',

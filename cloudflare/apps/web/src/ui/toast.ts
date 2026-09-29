@@ -46,3 +46,9 @@ export function toastError(error: unknown): void {
     });
   }
 }
+
+// A heads-up rather than an error - e.g. the next hand being dealt while you looked away. Turn
+// notifications (#2) can build on this.
+export function toastInfo(title: string, text?: string): void {
+  void Toast.fire({ icon: 'info', title, text });
+}

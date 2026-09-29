@@ -1,7 +1,7 @@
 import Swal from 'sweetalert2';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api/client';
-import { toastError } from './toast';
+import { toastError, toastInfo } from './toast';
 
 // jsdom has no matchMedia; SweetAlert2's icons read the color scheme through it.
 beforeAll(() => {
@@ -37,5 +37,16 @@ describe('toastError', () => {
     toastError(new Error('Network down'));
 
     expect(Swal.getTitle()?.textContent).toBe('Network down');
+  });
+});
+
+describe('toastInfo', () => {
+  it('shows an info toast with the given title and text', () => {
+    toastInfo('Game 4 dealt', 'Alice bids first');
+
+    expect(Swal.getTitle()?.textContent).toBe('Game 4 dealt');
+    expect(Swal.getHtmlContainer()?.textContent).toBe('Alice bids first');
+    expect(Swal.getIcon()?.classList.contains('swal2-info')).toBe(true);
+    expect(Swal.getPopup()?.classList.contains('hall-toast')).toBe(true);
   });
 });
