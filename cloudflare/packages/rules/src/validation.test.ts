@@ -79,11 +79,21 @@ describe('availableTrumps', () => {
     expect(trumps).not.toContain(Suit.Low);
   });
 
-  it('adds Follow Me and every Low doubles rule at 42 and above, including Plunge', () => {
-    for (const bid of [Bid.FortyTwo, Bid.EightyFour, Bid.Plunge]) {
+  it('adds Follow Me and every Low doubles rule at 42 and above', () => {
+    for (const bid of [Bid.FortyTwo, Bid.EightyFour]) {
       expect(availableTrumps(game(bid))).toEqual(
         expect.arrayContaining([Suit.None, Suit.Low, Suit.LowDoublesLow, Suit.LowDoublesOwnSuit])
       );
+    }
+  });
+
+  // A Plunge must take every trick, so Low (lose every trick) makes no sense - but Follow Me does.
+  it('offers the named suits and Follow Me on a Plunge, but no Low', () => {
+    const trumps = availableTrumps(game(Bid.Plunge));
+    expect(trumps).toContain(Suit.None);
+    expect(trumps).toContain(Suit.Sixes);
+    for (const low of [Suit.Low, Suit.LowDoublesLow, Suit.LowDoublesOwnSuit]) {
+      expect(trumps).not.toContain(low);
     }
   });
 
@@ -97,6 +107,13 @@ describe('assertValidTrump', () => {
     expect(() => assertValidTrump(game(Bid.Thirty), Suit.None)).toThrow(ValidationError);
     expect(() => assertValidTrump(game(Bid.Thirty), Suit.Low)).toThrow(ValidationError);
     expect(() => assertValidTrump(game(Bid.Thirty), Suit.LowDoublesOwnSuit)).toThrow(ValidationError);
+  });
+
+  it('rejects Low on a Plunge, but accepts Follow Me', () => {
+    expect(() => assertValidTrump(game(Bid.Plunge), Suit.Low)).toThrow(ValidationError);
+    expect(() => assertValidTrump(game(Bid.Plunge), Suit.LowDoublesLow)).toThrow(ValidationError);
+    expect(() => assertValidTrump(game(Bid.Plunge), Suit.LowDoublesOwnSuit)).toThrow(ValidationError);
+    expect(() => assertValidTrump(game(Bid.Plunge), Suit.None)).not.toThrow();
   });
 
   it('accepts a named suit at any bid', () => {

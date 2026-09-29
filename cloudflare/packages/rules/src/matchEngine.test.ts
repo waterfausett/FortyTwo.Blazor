@@ -416,6 +416,40 @@ describe('setTrump', () => {
     expect(() => setTrump(match, 'p2', Suit.Sixes)).toThrow(ValidationError);
   });
 
+  describe('on a Plunge', () => {
+    // p1 plunged; partner p3 names trump and leads.
+    function plunged(): MatchState {
+      return baseMatch({
+        currentGame: baseGame({
+          bid: Bid.Plunge,
+          biddingPlayerId: 'p1',
+          currentPlayerId: 'p3',
+          hands: [
+            baseHand('p1', Teams.TeamA, { bid: Bid.Plunge }),
+            baseHand('p2', Teams.TeamB, { bid: Bid.Pass }),
+            baseHand('p3', Teams.TeamA, { bid: Bid.Pass }),
+            baseHand('p4', Teams.TeamB, { bid: Bid.Pass }),
+          ],
+        }),
+      });
+    }
+
+    it("lets the plunger's partner name trump and lead, not the plunger", () => {
+      const match = plunged();
+      expect(() => setTrump({ ...match, currentGame: { ...match.currentGame, currentPlayerId: 'p1' } }, 'p1', Suit.Sixes))
+        .toThrow(ValidationError);
+
+      const result = setTrump(match, 'p3', Suit.Sixes);
+      expect(result.currentGame.trump).toBe(Suit.Sixes);
+      expect(result.currentGame.currentPlayerId).toBe('p3');
+    });
+
+    it('accepts Follow Me but rejects Low', () => {
+      expect(setTrump(plunged(), 'p3', Suit.None).currentGame.trump).toBe(Suit.None);
+      expect(() => setTrump(plunged(), 'p3', Suit.Low)).toThrow(ValidationError);
+    });
+  });
+
   it('rejects Follow Me and Low on a bid under 42', () => {
     const match = readyToSetTrump();
     expect(() => setTrump(match, 'p1', Suit.None)).toThrow(ValidationError);

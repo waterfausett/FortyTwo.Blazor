@@ -154,8 +154,10 @@ const NAMED_SUITS = [Suit.Blanks, Suit.Aces, Suit.Deuces, Suit.Threes, Suit.Four
 
 // Port of `Match.razor`'s trump-picker filter - the trumps the bidder may call, in picker order:
 // every named suit, plus Follow Me (Suit.None) and the three Low variants (one per doubles rule)
-// once the winning bid is at least one mark (42).
+// once the winning bid is at least one mark (42). A Plunge has to take every trick, so it gets
+// Follow Me but never Low.
 export function availableTrumps(game: Game): Suit[] {
+  if (game.bid === Bid.Plunge) return [...NAMED_SUITS, Suit.None];
   return game.bid !== null && game.bid >= Bid.FortyTwo
     ? [...NAMED_SUITS, Suit.None, ...LOW_TRUMPS]
     : [...NAMED_SUITS];
@@ -166,9 +168,11 @@ export function assertValidTrump(game: Game, suit: Suit): void {
   if (!availableTrumps(game).includes(suit)) {
     throw new ValidationError(
       'Invalid Trump',
-      suit === Suit.None || isLow(suit)
-        ? `<code>${suitToPrettyString(suit)}</code> needs a bid of at least 42`
-        : "That isn't a trump you can call"
+      game.bid === Bid.Plunge && isLow(suit)
+        ? "A Plunge has to take every trick, so it can't go Low"
+        : suit === Suit.None || isLow(suit)
+          ? `<code>${suitToPrettyString(suit)}</code> needs a bid of at least 42`
+          : "That isn't a trump you can call"
     );
   }
 }
