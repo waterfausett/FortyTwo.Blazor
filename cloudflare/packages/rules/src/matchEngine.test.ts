@@ -513,6 +513,34 @@ describe('playDomino', () => {
     expect(match.currentGame.currentPlayerId).toBe('p4');
   });
 
+  // Reported from a live game: sixes trump, opponents lead 1/3, then 3/4, 3/6 (trump), 4/6 (trump).
+  // 4/6 is the higher trump, but the opponent's 3/6 was awarded the trick.
+  it('ranks trumps by their non-trump half, even when that half matches the led suit', () => {
+    let match = baseMatch({
+      currentGame: baseGame({
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p3',
+        trump: Suit.Sixes,
+        currentPlayerId: 'p4',
+        hands: [
+          baseHand('p1', Teams.TeamA, { bid: Bid.Pass, dominoes: [createDomino(3, 4), createDomino(1, 2)] }),
+          baseHand('p2', Teams.TeamB, { bid: Bid.Pass, dominoes: [createDomino(3, 6), createDomino(0, 0)] }),
+          baseHand('p3', Teams.TeamA, { bid: Bid.Thirty, dominoes: [createDomino(4, 6), createDomino(2, 2)] }),
+          baseHand('p4', Teams.TeamB, { bid: Bid.Pass, dominoes: [createDomino(1, 3), createDomino(5, 5)] }),
+        ],
+      }),
+    });
+
+    match = playDomino(match, 'p4', createDomino(1, 3));
+    match = playDomino(match, 'p1', createDomino(3, 4));
+    match = playDomino(match, 'p2', createDomino(3, 6));
+    match = playDomino(match, 'p3', createDomino(4, 6));
+
+    expect(match.currentGame.tricks).toHaveLength(1);
+    expect(match.currentGame.tricks[0].playerId).toBe('p3');
+    expect(match.currentGame.tricks[0].team).toBe(Teams.TeamA);
+  });
+
   it('completes a trick, advances currentPlayerId to the winner, and starts a fresh trick', () => {
     let match = readyToPlay();
     match = playDomino(match, 'p1', createDomino(6, 6)); // p1 wins so far

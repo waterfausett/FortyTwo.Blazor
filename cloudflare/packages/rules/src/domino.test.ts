@@ -40,6 +40,12 @@ describe('domino', () => {
     expect(getSuitValue(createDomino(0, 1), Suit.Fours, Suit.Sixes)).toBe(-1); // neither suit
   });
 
+  it('getSuitValue ranks a trump by its non-trump half, even when that half is the led suit', () => {
+    // led suit = Threes, trump = Sixes: 3/6 is trump 3, 4/6 is trump 4.
+    expect(getSuitValue(createDomino(3, 6), Suit.Threes, Suit.Sixes)).toBe(13);
+    expect(getSuitValue(createDomino(4, 6), Suit.Threes, Suit.Sixes)).toBe(14);
+  });
+
   describe('Low doubles rules', () => {
     const d66 = createDomino(6, 6);
     const d60 = createDomino(6, 0);

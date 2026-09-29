@@ -48,7 +48,7 @@ export function getSuitValue(d: Domino, suit: Suit, trump: Suit): number {
     return d.top === suit ? d.bottom : d.top;
   }
   if (isOfSuit(d, trump)) {
-    return 10 + (isDouble(d) ? 7 : d.top === suit ? d.bottom : d.top);
+    return 10 + (isDouble(d) ? 7 : d.top === trump ? d.bottom : d.top);
   }
   return -1;
 }
