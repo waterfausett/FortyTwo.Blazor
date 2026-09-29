@@ -16,12 +16,14 @@
 // A decided hand can still be played out: play stays open until all 7 tricks are down, and the
 // next hand deals as soon as all four players ready up, whether or not they finished playing.
 // Rejected actions (an illegal play, a stale bid) pop a SweetAlert2 toast (ui/toast.ts), as the
-// old app did; its "next game started" / "match over" modals are still not ported.
+// old app did. When the match ends, a summary dialog (components/MatchSummary.tsx) replaces the
+// old app's "match over" modal and offers a rematch; a toast stands in for its "next game started"
+// one.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Domino as DominoType, Game, Trick } from '@fortytwo/rules';
 import {
   Bid,
@@ -37,11 +39,13 @@ import {
   assertValidDomino,
   isLow,
   lowDoublesToPrettyString,
+  rematchAgreed,
 } from '@fortytwo/rules';
 import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
+import { MatchSummary } from '../components/MatchSummary';
 import { Hand } from '../components/Hand';
 import { PipFace } from '../components/PipFace';
 import { PlayDndContext, PlayDropZone } from '../components/PlayDnd';
@@ -49,7 +53,7 @@ import { TrumpPicker } from '../components/TrumpPicker';
 import { Seat } from '../components/Seat';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
-import { toastError } from '../ui/toast';
+import { toastError, toastInfo } from '../ui/toast';
 import { dealerId, isTrickStarted, openSeats, seatFor, trickLeaderId, trickPlayOrder } from '../match/table';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
@@ -196,6 +200,14 @@ export function Match(): JSX.Element {
     mutationFn: () => client.readyUp(matchId!, true),
     onError: toastError,
   });
+  const rematchMutation = useMutation({
+    mutationFn: () => client.rematch(matchId!),
+    onError: toastError,
+  });
+  // The summary opens by itself when the match ends; closing it uncovers the final table, and
+  // the rail keeps a button to bring it back.
+  const [summaryOpen, setSummaryOpen] = useState(true);
+  const navigate = useNavigate();
   // Bots are a dev-only testing aid (the Worker's AUTO_PLAY_BOTS), so the controls for them only
   // show when the Worker says they're available.
   const configQuery = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig(), staleTime: Infinity });
@@ -286,6 +298,28 @@ export function Match(): JSX.Element {
     }
   }, [awaitingTurnAdvance, holdGame, myPlayerId]);
 
+  // Everyone asked for a rematch and it now exists (MatchDO creates it before recording the id),
+  // so take this player there. MatchRoute keys the page by match id, so it starts fresh.
+  const rematchId = match?.rematchId;
+  useEffect(() => {
+    if (rematchId) navigate(`/match/${rematchId}`);
+  }, [rematchId, navigate]);
+
+  // A cue that the next hand is out, for anyone who readied up and looked away: bidding has
+  // started without them. Only on a change of hand - never for the one the page opened on.
+  const dealtGame = match?.currentGame ?? null;
+  const seenGameIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!dealtGame) return;
+    const previousId = seenGameIdRef.current;
+    seenGameIdRef.current = dealtGame.id;
+    if (previousId === null || previousId === dealtGame.id) return;
+    const opener = dealtGame.firstActionBy;
+    const who =
+      opener === myPlayerId ? 'You bid first' : `${(opener && namesQuery.data?.get(opener)) ?? opener} bids first`;
+    toastInfo(`${dealtGame.name} dealt`, who);
+  }, [dealtGame, myPlayerId, namesQuery.data]);
+
   if (!matchId) {
     return (
       <p role="alert" className="match-error">
@@ -348,6 +382,7 @@ export function Match(): JSX.Element {
   const myReadyState = match.players.find((p) => p.playerId === myPlayerId);
   const iAmReady = myReadyState?.ready ?? false;
   const readyCount = match.players.filter((p) => p.ready).length;
+  const iVotedRematch = match.rematchVotes?.includes(myPlayerId) ?? false;
 
   // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
   // itself always reflects the true, immediate server state (used above for e.g. `isHandOver`,
@@ -604,7 +639,25 @@ export function Match(): JSX.Element {
                       ? 'We took the hand'
                       : 'They took the hand'}
                 </p>
-                {!isMatchOver && (
+                {isMatchOver ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => setSummaryOpen(true)}
+                    >
+                      Match summary
+                    </button>
+                    <button
+                      type="button"
+                      className="action-button"
+                      disabled={iVotedRematch || !connected || rematchMutation.isPending}
+                      onClick={() => rematchMutation.mutate()}
+                    >
+                      {iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
+                    </button>
+                  </>
+                ) : (
                   <>
                     <p className="hand-result-note">
                       {iAmReady
@@ -659,6 +712,18 @@ export function Match(): JSX.Element {
           </div>
         </PlayDndContext>
       </div>
+
+      {showHandOver && isMatchOver && summaryOpen && (
+        <MatchSummary
+          match={match}
+          myTeam={me.team}
+          nameFor={nameFor}
+          iVoted={iVotedRematch}
+          rematchDisabled={!connected || rematchMutation.isPending}
+          onRematch={() => rematchMutation.mutate()}
+          onClose={() => setSummaryOpen(false)}
+        />
+      )}
     </div>
   );
 }

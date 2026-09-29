@@ -35,6 +35,9 @@ const {
   addBotsMock,
   useMatchSocketMock,
   toastErrorMock,
+  toastInfoMock,
+  rematchMock,
+  navigateMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -48,6 +51,9 @@ const {
     addBotsMock: vi.fn(),
     useMatchSocketMock: vi.fn(),
     toastErrorMock: vi.fn(),
+    toastInfoMock: vi.fn(),
+    rematchMock: vi.fn(),
+    navigateMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -64,11 +70,13 @@ vi.mock('../api/client', () => ({
     searchUsers: searchUsersMock,
     getConfig: getConfigMock,
     addBots: addBotsMock,
+    rematch: rematchMock,
   }),
 }));
 
 vi.mock('../ui/toast', () => ({
   toastError: toastErrorMock,
+  toastInfo: toastInfoMock,
 }));
 
 vi.mock('../api/useMatchSocket', () => ({
@@ -84,7 +92,7 @@ vi.mock('@auth0/auth0-react', () => ({
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
-  return { ...actual, useParams: () => ({ matchId: 'match-1' }) };
+  return { ...actual, useParams: () => ({ matchId: 'match-1' }), useNavigate: () => navigateMock };
 });
 
 beforeEach(() => {
@@ -1310,6 +1318,137 @@ describe('Match', () => {
       for (const button of screen.getAllByRole('button', { name: /add bot/i })) {
         expect((button as HTMLButtonElement).disabled).toBe(true);
       }
+    });
+  });
+  describe('match over', () => {
+    // The last hand of a finished match: TeamA (p1/p3) bid Thirty and took it, reaching 7 marks.
+    function finishedMatch(overrides: Partial<MatchState> = {}): MatchState {
+      const lastHand = {
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: Bid.Thirty },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+        ],
+        tricks: [
+          {
+            playerId: 'p1',
+            team: Teams.TeamA,
+            suit: Suit.Sixes,
+            dominoes: [createDomino(5, 0), createDomino(5, 5), createDomino(6, 4), createDomino(4, 1)],
+          },
+        ],
+      };
+      const base = baseMatch({ winningTeam: Teams.TeamA }, lastHand);
+      return { ...base, games: { [Teams.TeamA]: [base.currentGame] }, ...overrides };
+    }
+
+    it('opens the summary dialog once the match is over', () => {
+      useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
+      renderMatch();
+
+      const dialog = screen.getByRole('dialog', { name: /you won the match/i });
+      expect(within(dialog).getByText('Game 1')).not.toBeNull();
+    });
+
+    it('does not show the summary while the match is on', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('votes for a rematch', async () => {
+      rematchMock.mockResolvedValue(finishedMatch());
+      useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
+      renderMatch();
+
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^rematch/i }));
+
+      await waitFor(() => expect(rematchMock).toHaveBeenCalledWith('match-1'));
+    });
+
+    it('shows my vote as waiting, with the count', () => {
+      useMatchSocketMock.mockReturnValue({ match: finishedMatch({ rematchVotes: ['p1', 'p2'] }), connected: true });
+      renderMatch();
+
+      expect(
+        within(screen.getByRole('dialog')).getByRole('button', { name: /waiting for rematch \(2 of 4\)/i })
+      ).not.toBeNull();
+    });
+
+    it('closes to the table, leaving a way back to the summary', () => {
+      useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
+      renderMatch();
+
+      fireEvent.click(screen.getByRole('button', { name: /close/i }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+      const rail = screen.getByRole('region', { name: /hand over/i });
+      expect(within(rail).getByText(/you won the match/i)).not.toBeNull();
+
+      fireEvent.click(within(rail).getByRole('button', { name: /match summary/i }));
+      expect(screen.getByRole('dialog')).not.toBeNull();
+    });
+
+    it('can vote from the rail with the dialog closed', async () => {
+      rematchMock.mockResolvedValue(finishedMatch());
+      useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
+      renderMatch();
+
+      fireEvent.click(screen.getByRole('button', { name: /close/i }));
+      const rail = screen.getByRole('region', { name: /hand over/i });
+      fireEvent.click(within(rail).getByRole('button', { name: /^rematch/i }));
+
+      await waitFor(() => expect(rematchMock).toHaveBeenCalledWith('match-1'));
+    });
+
+    it('follows the rematch once everyone has agreed', () => {
+      useMatchSocketMock.mockReturnValue({ match: finishedMatch({ rematchId: 'match-2' }), connected: true });
+      renderMatch();
+
+      expect(navigateMock).toHaveBeenCalledWith('/match/match-2');
+    });
+  });
+
+  describe('new hand cue', () => {
+    function rerenderMatch(view: ReturnType<typeof renderMatch>) {
+      view.rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+    }
+
+    it('toasts when the next hand is dealt, naming who bids first', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      const view = renderMatch();
+      expect(toastInfoMock).not.toHaveBeenCalled();
+
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { id: 'g2', name: 'Game 2', firstActionBy: 'p2', currentPlayerId: 'p2' }),
+        connected: true,
+      });
+      rerenderMatch(view);
+
+      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'p2 bids first');
+    });
+
+    it("says \"You bid first\" when it's me", () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      const view = renderMatch();
+
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { id: 'g2', name: 'Game 2', firstActionBy: 'p1' }),
+        connected: true,
+      });
+      rerenderMatch(view);
+
+      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'You bid first');
     });
   });
 });
