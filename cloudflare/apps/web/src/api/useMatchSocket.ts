@@ -70,7 +70,12 @@ export function useMatchSocket(
       // the token - bail out rather than opening a socket nobody will ever close.
       if (cancelled) return;
 
-      const ws = new WebSocket(`${import.meta.env.VITE_WS_ORIGIN}/matches/${matchId}/ws?token=${token}`);
+      // Unset (or empty) in production, where the Worker serves the web app, so the socket goes to
+      // the same host.
+      const origin =
+        import.meta.env.VITE_WS_ORIGIN ||
+        `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+      const ws = new WebSocket(`${origin}/matches/${matchId}/ws?token=${token}`);
       socket = ws;
 
       ws.addEventListener('open', () => {

@@ -1,6 +1,6 @@
 # Forty-Two on Cloudflare
 
-The Texas 42 domino game as a React app on Cloudflare Pages, backed by a Cloudflare Worker. Each
+The Texas 42 domino game as a React app served by a Cloudflare Worker, which is also its API. Each
 match lives in its own Durable Object, and a D1 database indexes matches for the lobby.
 
 ## Layout
@@ -39,7 +39,7 @@ The web app reads `apps/web/.env.local` (gitignored):
 | Variable | Purpose |
 | --- | --- |
 | `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE` | Auth0 sign-in. |
-| `VITE_API_ORIGIN` | Where the Worker's REST API is, e.g. `http://localhost:8787`. |
+| `VITE_API_ORIGIN` | Where the Worker's REST API is, e.g. `http://localhost:8787`. Unset or empty means the page's own origin. |
 | `VITE_WS_ORIGIN` | The same, for WebSockets, e.g. `ws://localhost:8787`. |
 
 ## Running locally
@@ -69,6 +69,24 @@ Each package runs its own suite with `npm test`:
 
 ## Deploying
 
-`apps/worker/wrangler.toml` still holds placeholders: set the real `database_id` (from
-`wrangler d1 create fortytwo`) and the route patterns' domain before `npm run deploy`, and add the
-Auth0 settings above with `wrangler secret put`.
+The Worker serves the web app's build as static assets, so the whole game is one `wrangler deploy`
+on one origin. `.github/workflows/cloudflare.yml` tests every pull request, and on a push to
+`master` (or a manual run) builds the web app, applies new D1 migrations and deploys.
+
+One-time setup:
+
+1. `cd apps/worker && npx wrangler d1 create fortytwo`, and put the returned ID in `wrangler.toml`'s
+   `database_id`.
+2. Set the Worker's Auth0 secrets: `npx wrangler secret put AUTH0_DOMAIN`, and the same for
+   `AUTH0_AUDIENCE`, `AUTH0_API_CLIENT_ID`, `AUTH0_API_CLIENT_SECRET` and `AUTH0_API_AUDIENCE`.
+   `ALLOWED_ORIGIN` isn't needed, since the app and the API share an origin.
+3. In GitHub, add the secrets `CLOUDFLARE_API_TOKEN` (the "Edit Cloudflare Workers" template, plus
+   D1 edit) and `CLOUDFLARE_ACCOUNT_ID`, and the variables `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID` and
+   `AUTH0_AUDIENCE` for the web build.
+4. In the Auth0 SPA application, add the Worker's URL to Allowed Callback URLs, Allowed Web Origins
+   and Allowed Logout URLs.
+
+To deploy by hand instead, `cd apps/worker && npm run deploy` builds the web app and deploys. Its
+build also loads `apps/web/.env.local`, so override its localhost origins in
+`apps/web/.env.production.local` with empty values (`VITE_API_ORIGIN=` and `VITE_WS_ORIGIN=`), and
+put the Auth0 settings there if they differ from dev.

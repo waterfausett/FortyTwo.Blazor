@@ -1,5 +1,11 @@
 import { defineWorkersConfig, readD1Migrations } from '@cloudflare/vitest-pool-workers/config';
+import fs from 'node:fs';
 import path from 'node:path';
+
+// wrangler.toml serves the web app's build as static assets and refuses to load if that directory
+// is missing. The tests never request an asset, so an empty directory is enough when the web app
+// hasn't been built.
+fs.mkdirSync(path.join(__dirname, '../web/dist'), { recursive: true });
 
 // vitest-pool-workers' local D1 instance is isolated from `wrangler d1 migrations apply --local`
 // (a separate CLI-driven sqlite store) - so migrations must be applied inside the test worker

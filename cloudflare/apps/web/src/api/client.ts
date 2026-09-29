@@ -42,7 +42,8 @@ async function request<T>(
   parseJson = true
 ): Promise<T> {
   const token = await getToken();
-  const res = await fetch(`${import.meta.env.VITE_API_ORIGIN}${path}`, {
+  // Unset in production, where the Worker serves the web app, so requests go to the same origin.
+  const res = await fetch(`${import.meta.env.VITE_API_ORIGIN ?? ''}${path}`, {
     ...init,
     headers: {
       ...(init.body ? { 'content-type': 'application/json' } : {}),

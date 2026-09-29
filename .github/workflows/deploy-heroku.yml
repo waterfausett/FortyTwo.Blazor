@@ -1,10 +1,9 @@
 name: CD-Heroku
 
+# Disabled: the Heroku app is gone and the game now deploys to Cloudflare (cloudflare.yml). Only a
+# manual run starts this.
 on:
-  push:
-    branches:
-    - master
-    - release/*
+  workflow_dispatch:
 
 jobs:
   build_fortytwogame:
