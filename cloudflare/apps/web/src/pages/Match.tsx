@@ -23,7 +23,7 @@ import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Domino as DominoType, Game, Trick } from '@fortytwo/rules';
 import {
   Bid,
@@ -299,11 +299,21 @@ export function Match(): JSX.Element {
   }, [awaitingTurnAdvance, holdGame, myPlayerId]);
 
   // Everyone asked for a rematch and it now exists (MatchDO creates it before recording the id),
-  // so take this player there. MatchRoute keys the page by match id, so it starts fresh.
+  // so take this player there - but only when that happens while they're on the page. A match
+  // whose rematch already existed when the page opened (from Game History, or Back from the
+  // rematch) stays put and links to it instead; following it then would make the finished match
+  // unviewable and trap the Back button. `replace` keeps the finished match out of history for
+  // the same reason. MatchRoute keys the page by match id, so the rematch starts fresh.
   const rematchId = match?.rematchId;
+  const rematchIdAtLoadRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (rematchId) navigate(`/match/${rematchId}`);
-  }, [rematchId, navigate]);
+    if (!match) return;
+    if (rematchIdAtLoadRef.current === undefined) {
+      rematchIdAtLoadRef.current = rematchId ?? null;
+      return;
+    }
+    if (rematchId && rematchId !== rematchIdAtLoadRef.current) navigate(`/match/${rematchId}`, { replace: true });
+  }, [match, rematchId, navigate]);
 
   // A cue that the next hand is out, for anyone who readied up and looked away: bidding has
   // started without them. Only on a change of hand - never for the one the page opened on.
@@ -648,14 +658,20 @@ export function Match(): JSX.Element {
                     >
                       Match summary
                     </button>
-                    <button
-                      type="button"
-                      className="action-button"
-                      disabled={iVotedRematch || !connected || rematchMutation.isPending}
-                      onClick={() => rematchMutation.mutate()}
-                    >
-                      {iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
-                    </button>
+                    {match.rematchId ? (
+                      <Link to={`/match/${match.rematchId}`} className="action-button">
+                        Go to rematch
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        className="action-button"
+                        disabled={iVotedRematch || !connected || rematchMutation.isPending}
+                        onClick={() => rematchMutation.mutate()}
+                      >
+                        {iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
+                      </button>
+                    )}
                   </>
                 ) : (
                   <>

@@ -1405,11 +1405,32 @@ describe('Match', () => {
       await waitFor(() => expect(rematchMock).toHaveBeenCalledWith('match-1'));
     });
 
-    it('follows the rematch once everyone has agreed', () => {
+    it('follows the rematch when it is created while I am here, replacing this page in history', () => {
+      useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
+      const view = renderMatch();
+      expect(navigateMock).not.toHaveBeenCalled();
+
+      useMatchSocketMock.mockReturnValue({ match: finishedMatch({ rematchId: 'match-2' }), connected: true });
+      view.rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+
+      expect(navigateMock).toHaveBeenCalledWith('/match/match-2', { replace: true });
+    });
+
+    it('stays on a finished match whose rematch already existed, linking to it instead', () => {
+      // e.g. opened from Game History, or Back from the rematch.
       useMatchSocketMock.mockReturnValue({ match: finishedMatch({ rematchId: 'match-2' }), connected: true });
       renderMatch();
 
-      expect(navigateMock).toHaveBeenCalledWith('/match/match-2');
+      expect(navigateMock).not.toHaveBeenCalled();
+      const rail = screen.getByRole('region', { name: /hand over/i });
+      expect(within(rail).getByRole('link', { name: /go to rematch/i }).getAttribute('href')).toBe('/match/match-2');
+      expect(within(rail).queryByRole('button', { name: /rematch/i })).toBeNull();
     });
   });
 

@@ -62,19 +62,23 @@ New `rematch` RPC on `MatchDO`, `{ playerId }`:
 
 1. `voteRematch(existing, playerId)`.
 2. If every seated non-bot player (`isBot`, bots.ts) has voted:
-   - If there's no `rematchId` yet, mint one (`crypto.randomUUID()`) and save it with the votes
-     before anything else, so a second vote landing while step 3 is in flight can't mint another.
-   - Call the new match's DO (`env.MATCH_DO.idFromName(rematchId)`) with a `createRematch` RPC,
+   - Mint the new id once (`crypto.randomUUID()`) and keep it under its own storage key
+     (`pendingRematchId`, not on `MatchState`) before anything else, so a second vote landing
+     while the next step is in flight reuses it instead of minting another.
+   - Call the new match's DO (`env.MATCH_DO.idFromName(id)`) with a `createRematch` RPC,
      passing the previous match and a `shuffledDominoOrder()`.
+   - Only once that succeeds, set `rematchId` on the match.
 3. Save, broadcast, return the old match.
+
+`rematchId` never names a match that doesn't exist yet — not in a broadcast, a reload, or a
+reconnect. If creation fails, the RPC errors before the completing vote is saved, so that voter's
+Rematch button stays live and voting again retries against the same id.
 
 `createRematch` RPC on the new DO, `{ matchId, previous, dealOrder }`: like `create`, allowed on a
 DO with no stored match. If a match is already stored it returns it untouched (idempotent);
-otherwise it stores `createRematch(...)`, broadcasts, syncs the D1 lobby index for itself (the
-way `alarm()` does, since no route touches this match), and schedules bots.
-
-Because step 2 re-runs `createRematch` whenever a `rematchId` is present, a vote retried after a
-failed or interrupted creation finishes the job instead of leaving a dangling id.
+otherwise it stores `createRematch(...)`, broadcasts, schedules bots, and syncs the D1 lobby index
+for itself (the way `alarm()` does, since no route touches this match). The idempotent path
+schedules bots too, in case the first attempt failed before it got that far.
 
 ### Route
 
@@ -110,7 +114,10 @@ Everything comes from the `MatchState` already on the page; no new fetch.
 
 ### Following a rematch
 
-When the match's `rematchId` becomes set, `Match.tsx` navigates to `/match/<rematchId>`. The
+When the match's `rematchId` becomes set **while the page is open**, `Match.tsx` navigates to
+`/match/<rematchId>`, replacing the finished match in history. A match whose `rematchId` was
+already set when the page opened (from Game History, or Back from the rematch) stays put, and the
+dialog and rail offer a **Go to rematch** link in place of the Rematch button. The
 `/match/:matchId` route renders `<Match key={matchId} />` so all per-match state (trick hold,
 sweep, `awaitingTurnAdvance`, the new-hand tracker below) starts fresh rather than carrying over.
 

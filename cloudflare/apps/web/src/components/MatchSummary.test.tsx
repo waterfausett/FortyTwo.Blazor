@@ -122,6 +122,13 @@ describe('MatchSummary', () => {
     expect(screen.getByRole('button', { name: /^rematch$/i })).not.toBeNull();
   });
 
+  it('links to the rematch once it exists, in place of the Rematch button', () => {
+    renderSummary({ match: finishedMatch({ rematchId: 'match-2' }) });
+
+    expect(screen.getByRole('link', { name: /go to rematch/i }).getAttribute('href')).toBe('/match/match-2');
+    expect(screen.queryByRole('button', { name: /rematch/i })).toBeNull();
+  });
+
   it('closes', () => {
     const { onClose } = renderSummary();
     fireEvent.click(screen.getByRole('button', { name: /close/i }));

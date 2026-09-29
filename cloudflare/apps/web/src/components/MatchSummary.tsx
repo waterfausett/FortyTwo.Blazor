@@ -1,6 +1,6 @@
 // The match-over dialog: who won, each team and its final marks, every hand played, and the way
-// on - back to the lobby, or a rematch with the same four once everyone asks for one. Everything
-// here comes from the MatchState the page already holds.
+// on - back to the lobby, or a rematch with the same four once everyone asks for one (or a link to
+// it, once it exists). Everything here comes from the MatchState the page already holds.
 import type { JSX } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -102,9 +102,15 @@ export function MatchSummary({
           <Link to="/" className="btn btn-outline-secondary">
             Back to lobby
           </Link>
-          <button type="button" className="action-button" disabled={iVoted || rematchDisabled} onClick={onRematch}>
-            {iVoted ? `Waiting for rematch (${agreed} of 4)` : agreed > 0 ? `Rematch (${agreed} of 4)` : 'Rematch'}
-          </button>
+          {match.rematchId ? (
+            <Link to={`/match/${match.rematchId}`} className="action-button">
+              Go to rematch
+            </Link>
+          ) : (
+            <button type="button" className="action-button" disabled={iVoted || rematchDisabled} onClick={onRematch}>
+              {iVoted ? `Waiting for rematch (${agreed} of 4)` : agreed > 0 ? `Rematch (${agreed} of 4)` : 'Rematch'}
+            </button>
+          )}
         </div>
       </div>
     </div>
