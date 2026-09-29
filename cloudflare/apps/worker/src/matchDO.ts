@@ -100,14 +100,18 @@ export class MatchDO implements DurableObject {
     // redeal it.
     if (method === 'createRematch') {
       const stored = await this.load();
-      if (stored !== null) return stored;
+      if (stored !== null) {
+        // A retry: the first attempt may have failed before its bots were scheduled.
+        await this.scheduleBotsIfNeeded(stored);
+        return stored;
+      }
 
       const next = createRematch(body.matchId as string, body.previous as MatchState, body.dealOrder as Domino[]);
       await this.save(next);
       this.broadcast(next);
+      await this.scheduleBotsIfNeeded(next);
       // No route touches this match on its way in, so the lobby index is synced here, as alarm() does.
       await this.syncLobbyIndex(next);
-      await this.scheduleBotsIfNeeded(next);
       return next;
     }
 
@@ -190,20 +194,23 @@ export class MatchDO implements DurableObject {
     return next;
   }
 
-  // Records a rematch vote. The vote that completes the table creates the rematch's DO before this
-  // match records its id, so no client, all of which follow `rematchId` off the broadcast, can
-  // arrive there first. The id is saved before that call: DO input is only gated on storage, not
-  // on an outgoing fetch, so a second vote can run while it's in flight and must reuse the id
-  // rather than mint another. A vote after the id exists re-runs the (idempotent) creation, which
-  // finishes the job if an earlier attempt failed partway.
+  // Records a rematch vote. The vote that completes the table creates the rematch's DO first, and
+  // only then does `rematchId` go on the match - every client follows it (off a broadcast, a
+  // reload, or a reconnect), so it must never name a match that doesn't exist yet.
+  //
+  // The new id is minted once and kept under its own storage key before that call: DO input is
+  // only gated on storage, not on an outgoing fetch, so another completing vote can run while it's
+  // in flight and must reuse the id rather than mint a second match. If creation fails, this
+  // throws before the vote is saved, so the voter's Rematch button stays live and trying again
+  // finishes the job against the same (idempotent) id.
   private async rematch(match: MatchState, playerId: string): Promise<MatchState> {
-    let next = voteRematch(match, playerId);
-    if (rematchAgreed(next).length < next.players.length) return next;
+    const next = voteRematch(match, playerId);
+    if (next.rematchId !== undefined || rematchAgreed(next).length < next.players.length) return next;
 
-    const rematchId = next.rematchId ?? crypto.randomUUID();
-    if (next.rematchId === undefined) {
-      next = { ...next, rematchId };
-      await this.save(next);
+    let rematchId = await this.state.storage.get<string>('pendingRematchId');
+    if (rematchId === undefined) {
+      rematchId = crypto.randomUUID();
+      await this.state.storage.put('pendingRematchId', rematchId);
     }
 
     const rematchDO = this.env.MATCH_DO.get(this.env.MATCH_DO.idFromName(rematchId));
@@ -213,7 +220,7 @@ export class MatchDO implements DurableObject {
     });
     await res.json();
     if (!res.ok) throw new Error(`Creating rematch ${rematchId} failed with ${res.status}`);
-    return next;
+    return { ...next, rematchId };
   }
 
   // Performs exactly one bot action - whichever `findNextBotAction` (bots.ts) says is next - via

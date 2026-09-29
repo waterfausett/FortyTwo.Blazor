@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { Positions, Teams, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import type { MatchDO } from '../src/matchDO';
 
 const testEnv = env as unknown as Env;
 
@@ -151,5 +152,61 @@ describe('MatchDO rematch', () => {
       .bind(rematchId, 'lobby-p1')
       .first<{ status: string }>();
     expect(row?.status).toBe('active');
+  });
+  it('keeps no rematch id when creating the rematch fails, so the last voter can retry', async () => {
+    const stub = await seed('rematch-fails', finishedMatch('rematch-fails', ['p1', 'bot-1', 'bot-2', 'bot-3']));
+
+    // The completing vote reaches a rematch DO that errors. `MatchDO.env` is private, so the
+    // instance is viewed through a public `{ env }` just to swap MATCH_DO for this one call.
+    await runInDurableObject(stub, async (instance) => {
+      const withEnv = instance as unknown as { env: Env };
+      const realEnv = withEnv.env;
+      withEnv.env = {
+        ...realEnv,
+        MATCH_DO: {
+          idFromName: (name: string) => realEnv.MATCH_DO.idFromName(name),
+          get: () => ({ fetch: async () => Response.json({ title: 'boom' }, { status: 500 }) }),
+        } as unknown as Env['MATCH_DO'],
+      };
+      try {
+        await expect(
+          (instance as MatchDO).fetch(
+            new Request('https://do/rpc/rematch', { method: 'POST', body: JSON.stringify({ playerId: 'p1' }) })
+          )
+        ).rejects.toThrow();
+      } finally {
+        withEnv.env = realEnv;
+      }
+    });
+
+    // Nobody who loads the match now is pointed at a match that doesn't exist, and p1's vote isn't
+    // recorded, so their Rematch button stays live for another try.
+    const stored = (await rpc(stub, 'getMatch', {})).body as MatchState;
+    expect(stored.rematchId).toBeUndefined();
+    expect(stored.rematchVotes ?? []).not.toContain('p1');
+
+    const retried = (await rpc(stub, 'rematch', { playerId: 'p1' })).body as MatchState;
+    expect(retried.rematchId).toBeTruthy();
+    expect((await rpc(stubFor(retried.rematchId!), 'getMatch', {})).status).toBe(200);
+    await settleBots(retried.rematchId!);
+  });
+
+  it('schedules bot moves again when creating a rematch is retried', async () => {
+    const previous = finishedMatch('rematch-previous', ['p1', 'bot-1', 'bot-2', 'bot-3']);
+    const stub = stubFor('rematch-retry-bots');
+    const body = { matchId: 'rematch-retry-bots', previous, dealOrder: undefined };
+    // p1 opened the last hand, so bot-1 bids first in the rematch and a bot move is due.
+    const dealOrder = (await import('../src/bots')).shuffledDominoOrder();
+    await rpc(stub, 'createRematch', { ...body, dealOrder });
+    // As if the first attempt's alarm was lost (it failed before scheduling bots).
+    await runInDurableObject(stub, async (_instance, state) => {
+      await state.storage.deleteAlarm();
+    });
+
+    await rpc(stub, 'createRematch', { ...body, dealOrder });
+
+    const alarm = await runInDurableObject(stub, async (_instance, state) => state.storage.getAlarm());
+    expect(alarm).not.toBeNull();
+    await settleBots('rematch-retry-bots');
   });
 });
