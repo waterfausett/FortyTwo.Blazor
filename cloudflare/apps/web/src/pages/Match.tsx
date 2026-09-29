@@ -127,11 +127,11 @@ export function Match(): JSX.Element {
   const myPlayerId = user?.sub;
   const getToken = useGetToken();
 
-  const { match: socketMatch, connected } = useMatchSocket(matchId ?? '', getToken);
-  // The socket had delivered state and then dropped. The first connect doesn't count - the REST
-  // snapshot below covers it. While down, the table may be stale (a turn may already have passed),
-  // so the page says so and holds every action until the socket is back.
-  const isReconnecting = !connected && socketMatch != null;
+  // `reconnecting` means a socket closed on us - a live one dropped, or the first connect failed -
+  // and the hook is retrying; the initial connect alone doesn't count. While down, the table may be
+  // stale (a turn may already have passed), so the page says so and holds every action until the
+  // socket is back.
+  const { match: socketMatch, connected, reconnecting } = useMatchSocket(matchId ?? '', getToken);
   const client = apiClient(getToken);
 
   // Initial load + reconnect-catchup: `useMatchSocket` starts at `null` and only fills once a
@@ -466,7 +466,7 @@ export function Match(): JSX.Element {
 
   return (
     <div ref={matchRootRef} className="match">
-      {isReconnecting && (
+      {reconnecting && (
         <p className="match-reconnecting" role="status" aria-label="Reconnecting">
           Reconnecting…
         </p>

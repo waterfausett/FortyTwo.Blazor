@@ -225,6 +225,70 @@ describe('useMatchSocket', () => {
     unmount();
   });
 
+  describe('reconnecting', () => {
+    it('is false during the first connect', async () => {
+      const getToken = vi.fn(async () => 'test-token');
+      const { result, unmount } = renderHook(() => useMatchSocket('match-1', getToken));
+      await flush();
+
+      expect(result.current.reconnecting).toBe(false);
+
+      unmount();
+    });
+
+    it('turns on when the first connect fails, and off once a socket opens', async () => {
+      const getToken = vi.fn(async () => 'test-token');
+      const { result, unmount } = renderHook(() => useMatchSocket('match-1', getToken));
+      await flush();
+
+      // Never opened - e.g. the Worker is unreachable.
+      await act(async () => {
+        MockWebSocket.instances[0].emit('close', { wasClean: false, code: 1006 });
+      });
+      expect(result.current.reconnecting).toBe(true);
+
+      await flush(1000);
+      await act(async () => {
+        MockWebSocket.instances[1].emit('open');
+      });
+      expect(result.current.reconnecting).toBe(false);
+      expect(result.current.connected).toBe(true);
+
+      unmount();
+    });
+
+    it('turns on when a live socket drops', async () => {
+      const getToken = vi.fn(async () => 'test-token');
+      const { result, unmount } = renderHook(() => useMatchSocket('match-1', getToken));
+      await flush();
+
+      await act(async () => {
+        MockWebSocket.instances[0].emit('open');
+        MockWebSocket.instances[0].emit('close', { wasClean: true, code: 1000 });
+      });
+      expect(result.current.reconnecting).toBe(true);
+
+      unmount();
+    });
+
+    it('resets when matchId changes', async () => {
+      const getToken = vi.fn(async () => 'test-token');
+      const { result, rerender, unmount } = renderHook(({ id }) => useMatchSocket(id, getToken), {
+        initialProps: { id: 'match-1' },
+      });
+      await flush();
+      await act(async () => {
+        MockWebSocket.instances[0].emit('close', { wasClean: false, code: 1006 });
+      });
+      expect(result.current.reconnecting).toBe(true);
+
+      rerender({ id: 'match-2' });
+      expect(result.current.reconnecting).toBe(false);
+
+      unmount();
+    });
+  });
+
   it('resets match state when matchId changes so the previous match never renders', async () => {
     const getToken = vi.fn(async () => 'test-token');
     const { result, rerender, unmount } = renderHook(({ id }) => useMatchSocket(id, getToken), {

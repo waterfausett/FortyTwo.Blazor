@@ -1222,10 +1222,20 @@ describe('Match', () => {
       );
 
     it('shows a reconnecting banner after a live socket drops', () => {
-      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: false });
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: false, reconnecting: true });
       renderMatch();
 
       expect(screen.getByRole('status', { name: /reconnecting/i })).not.toBeNull();
+    });
+
+    // The socket never opened, but the REST snapshot did load - without the banner the page would
+    // sit there with every action disabled and no word why.
+    it('shows the banner when the first connect fails', async () => {
+      getMatchMock.mockResolvedValue(baseMatch());
+      useMatchSocketMock.mockReturnValue({ match: null, connected: false, reconnecting: true });
+      renderMatch();
+
+      expect(await screen.findByRole('status', { name: /reconnecting/i })).not.toBeNull();
     });
 
     it('shows no banner while connected', () => {
@@ -1237,7 +1247,7 @@ describe('Match', () => {
 
     it('shows no banner during the first connect, while the REST snapshot fills in', async () => {
       getMatchMock.mockResolvedValue(baseMatch());
-      useMatchSocketMock.mockReturnValue({ match: null, connected: false });
+      useMatchSocketMock.mockReturnValue({ match: null, connected: false, reconnecting: false });
       renderMatch();
 
       await screen.findAllByTestId('domino');

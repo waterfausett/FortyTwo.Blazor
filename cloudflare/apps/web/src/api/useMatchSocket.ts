@@ -36,11 +36,15 @@ function isMatchSocketMessage(value: unknown): value is MatchSocketMessage {
 export function useMatchSocket(
   matchId: string,
   getToken: () => Promise<string>
-): { match: MatchState | null; connected: boolean } {
+): { match: MatchState | null; connected: boolean; reconnecting: boolean } {
   // Both are tagged with the matchId they belong to, so the very first render for a new matchId
   // never shows the previous match's state (or its "connected") while the new socket comes up.
   const [latest, setLatest] = useState<{ matchId: string; match: MatchState } | null>(null);
   const [connectedTo, setConnectedTo] = useState<string | null>(null);
+  // Set when a socket closes on us - a live one dropping, or a first connect failing - and cleared
+  // when one opens. The initial connect doesn't count, so callers can tell "still coming up" apart
+  // from "down, retrying".
+  const [droppedFrom, setDroppedFrom] = useState<string | null>(null);
 
   // getToken is commonly a fresh closure every render (e.g. Auth0's getAccessTokenSilently
   // wrapped inline) - stash the latest in a ref so the connection effect below only depends on
@@ -79,6 +83,7 @@ export function useMatchSocket(
         if (cancelled) return;
         reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
         setConnectedTo(matchId);
+        setDroppedFrom(null);
       });
 
       ws.addEventListener('message', (event: MessageEvent) => {
@@ -101,6 +106,7 @@ export function useMatchSocket(
         // wasClean flag.
         if (cancelled) return;
         setConnectedTo(null);
+        setDroppedFrom(matchId);
         if (NO_RECONNECT_CODES.has(event.code)) return;
         reconnectTimer = setTimeout(() => {
           reconnectTimer = null;
@@ -139,11 +145,13 @@ export function useMatchSocket(
       // socket delivers.
       setLatest(null);
       setConnectedTo(null);
+      setDroppedFrom(null);
     };
   }, [matchId]);
 
   return {
     match: latest?.matchId === matchId ? latest.match : null,
     connected: connectedTo === matchId,
+    reconnecting: droppedFrom === matchId,
   };
 }
