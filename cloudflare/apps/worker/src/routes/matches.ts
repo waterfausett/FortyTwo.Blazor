@@ -174,6 +174,18 @@ matches.patch('/:id/players', async (c) => {
   return c.json(matchView(c, match));
 });
 
+// A vote to play the same four again once the match is over. The vote that completes the table
+// also creates the rematch (MatchDO's `rematch`), which syncs its own lobby row; this route only
+// syncs the finished match.
+matches.post('/:id/rematch', async (c) => {
+  const matchId = c.req.param('id');
+  const res = await callRpc(stub(c, matchId), 'rematch', { playerId: c.get('user').sub });
+  if (res.status !== 200) return c.json(await res.json(), res.status as 400);
+  const match: MatchState = await res.json();
+  await syncLobby(c, matchId, match);
+  return c.json(matchView(c, match));
+});
+
 matches.patch('/:id/games/current', async (c) => {
   const suit = field.suit(await readBody(c));
   const res = await callRpc(stub(c, c.req.param('id')), 'setTrump', { playerId: c.get('user').sub, suit });

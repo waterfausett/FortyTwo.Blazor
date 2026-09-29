@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { env, fetchMock, SELF } from 'cloudflare:test';
+import { env, fetchMock, runInDurableObject, SELF } from 'cloudflare:test';
+import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import app, { type Env } from '../src/index';
 
@@ -510,4 +511,60 @@ describe('match routes', () => {
       }
     }
   );
+  it('collects rematch votes and hands every voter the rematch once all four agree', async () => {
+    const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4'].map(signToken));
+    const matchId = crypto.randomUUID();
+    const finished: MatchState = {
+      id: matchId,
+      createdOn: '2026-01-01T00:00:00.000Z',
+      updatedOn: '2026-01-01T00:00:00.000Z',
+      winningTeam: Teams.TeamB,
+      games: {},
+      players: ['p1', 'p2', 'p3', 'p4'].map((playerId, position) => ({
+        playerId,
+        position: position as Positions,
+        ready: false,
+      })),
+      currentGame: {
+        id: 'g9',
+        name: 'Game 9',
+        firstActionBy: 'p1',
+        bid: null,
+        biddingPlayerId: null,
+        trump: null,
+        currentPlayerId: 'p1',
+        hands: ['p1', 'p2', 'p3', 'p4'].map((playerId, i) => ({
+          playerId,
+          team: i % 2 === 0 ? Teams.TeamA : Teams.TeamB,
+          dominoes: [],
+          bid: null,
+        })),
+        currentTrick: { playerId: null, team: null, suit: null, dominoes: [null, null, null, null] },
+        tricks: [],
+      },
+    };
+    await runInDurableObject(testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(matchId)), async (_i, state) => {
+      await state.storage.put('match', finished);
+    });
+
+    const stranger = await api(`/api/matches/${matchId}/rematch`, await signToken('stranger'), { method: 'POST' });
+    expect(stranger.status).toBe(400);
+    await stranger.json();
+
+    let last: MatchState | undefined;
+    for (const token of tokens) {
+      const res = await api(`/api/matches/${matchId}/rematch`, token, { method: 'POST' });
+      expect(res.status).toBe(200);
+      last = await res.json();
+    }
+
+    expect(last!.rematchId).toBeTruthy();
+    const rematch = await api(`/api/matches/${last!.rematchId}`, tokens[0]);
+    expect(rematch.status).toBe(200);
+    const body: MatchState = await rematch.json();
+    expect(body.players).toHaveLength(4);
+    // Still only the caller's own hand in full.
+    expect(body.currentGame.hands.find((h) => h.playerId === 'p1')!.dominoes).toHaveLength(7);
+    expect(body.currentGame.hands.find((h) => h.playerId === 'p2')!.dominoes).toHaveLength(0);
+  });
 });

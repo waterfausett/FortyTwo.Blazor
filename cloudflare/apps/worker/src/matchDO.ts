@@ -12,6 +12,9 @@ import {
   playDomino,
   getPlayerView,
   matchViewFor,
+  voteRematch,
+  rematchAgreed,
+  createRematch,
   assertIsMatchPlayer,
   ValidationError,
   type MatchState,
@@ -92,6 +95,22 @@ export class MatchDO implements DurableObject {
       return next;
     }
 
+    // The other way a match comes into being: the finished match's DO (the `rematch` case below)
+    // calls this on the rematch's DO. Returns an existing match untouched, so a retried call can't
+    // redeal it.
+    if (method === 'createRematch') {
+      const stored = await this.load();
+      if (stored !== null) return stored;
+
+      const next = createRematch(body.matchId as string, body.previous as MatchState, body.dealOrder as Domino[]);
+      await this.save(next);
+      this.broadcast(next);
+      // No route touches this match on its way in, so the lobby index is synced here, as alarm() does.
+      await this.syncLobbyIndex(next);
+      await this.scheduleBotsIfNeeded(next);
+      return next;
+    }
+
     const existing = await this.load();
     if (existing === null) {
       // Fixes a latent bug in this DO's original sketch: without this check, `existing!` below
@@ -141,6 +160,9 @@ export class MatchDO implements DurableObject {
       case 'playDomino':
         next = playDomino(existing, body.playerId as string, body.domino as Domino);
         break;
+      case 'rematch':
+        next = await this.rematch(existing, body.playerId as string);
+        break;
       default:
         throw new NotFoundError('Unknown method');
     }
@@ -165,6 +187,32 @@ export class MatchDO implements DurableObject {
       const botId = BOT_IDS.find((id) => next.players.every((p) => p.playerId !== id))!;
       next = takeSeat(next, botId, position, shuffledDominoOrder());
     }
+    return next;
+  }
+
+  // Records a rematch vote. The vote that completes the table creates the rematch's DO before this
+  // match records its id, so no client, all of which follow `rematchId` off the broadcast, can
+  // arrive there first. The id is saved before that call: DO input is only gated on storage, not
+  // on an outgoing fetch, so a second vote can run while it's in flight and must reuse the id
+  // rather than mint another. A vote after the id exists re-runs the (idempotent) creation, which
+  // finishes the job if an earlier attempt failed partway.
+  private async rematch(match: MatchState, playerId: string): Promise<MatchState> {
+    let next = voteRematch(match, playerId);
+    if (rematchAgreed(next).length < next.players.length) return next;
+
+    const rematchId = next.rematchId ?? crypto.randomUUID();
+    if (next.rematchId === undefined) {
+      next = { ...next, rematchId };
+      await this.save(next);
+    }
+
+    const rematchDO = this.env.MATCH_DO.get(this.env.MATCH_DO.idFromName(rematchId));
+    const res = await rematchDO.fetch('https://do/rpc/createRematch', {
+      method: 'POST',
+      body: JSON.stringify({ matchId: rematchId, previous: next, dealOrder: shuffledDominoOrder() }),
+    });
+    await res.json();
+    if (!res.ok) throw new Error(`Creating rematch ${rematchId} failed with ${res.status}`);
     return next;
   }
 
@@ -206,14 +254,20 @@ export class MatchDO implements DurableObject {
     const next = this.applyBotAction(match, action);
     await this.save(next);
     this.broadcast(next);
-    await upsertMatchSummary(this.env.DB, {
-      id: next.id,
-      status: next.winningTeam ? 'completed' : 'active',
-      playerCount: next.players.length,
-      updatedOn: next.updatedOn,
-    });
-    await syncMatchPlayers(this.env.DB, next.id, next.players);
+    await this.syncLobbyIndex(next);
     await this.scheduleBotsIfNeeded(next);
+  }
+
+  // Keeps the D1 lobby index (lobby.ts) in step for changes that don't come through
+  // routes/matches.ts, which syncs everything else.
+  private async syncLobbyIndex(match: MatchState): Promise<void> {
+    await upsertMatchSummary(this.env.DB, {
+      id: match.id,
+      status: match.winningTeam ? 'completed' : 'active',
+      playerCount: match.players.length,
+      updatedOn: match.updatedOn,
+    });
+    await syncMatchPlayers(this.env.DB, match.id, match.players);
   }
 
   // Uses the Hibernation API (`this.state.acceptWebSocket`, not the plain `WebSocket` `accept()`)
