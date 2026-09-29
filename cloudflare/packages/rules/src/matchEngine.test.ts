@@ -9,6 +9,9 @@ import {
   playDomino,
   getPlayerView,
   matchScores,
+  voteRematch,
+  rematchAgreed,
+  createRematch,
   MatchState,
 } from './matchEngine';
 import { ValidationError } from './errors';
@@ -666,5 +669,91 @@ describe('getPlayerView', () => {
   it('rejects a caller who is not a player in this match', () => {
     const match = baseMatch();
     expect(() => getPlayerView(match, 'not-a-player')).toThrow(ValidationError);
+  });
+});
+
+describe('rematch', () => {
+  // A finished match: TeamA reached 7 marks. Only the fields the rematch functions read matter.
+  function finishedMatch(overrides: Partial<MatchState> = {}): MatchState {
+    return {
+      id: 'm1',
+      createdOn: '2026-01-01T00:00:00.000Z',
+      updatedOn: '2026-01-01T00:00:00.000Z',
+      currentGame: baseGame({ id: 'g9', name: 'Game 9', firstActionBy: 'p2' }),
+      games: {},
+      winningTeam: Teams.TeamA,
+      players: fourPlayers().map((p) => ({ ...p, ready: false })),
+      ...overrides,
+    };
+  }
+
+  describe('voteRematch', () => {
+    it('records a vote from a seated player on a finished match, even with no votes stored yet', () => {
+      const match = finishedMatch();
+      expect(match.rematchVotes).toBeUndefined();
+
+      expect(voteRematch(match, 'p3').rematchVotes).toEqual(['p3']);
+    });
+
+    it('ignores a repeat vote', () => {
+      const once = voteRematch(finishedMatch(), 'p3');
+      expect(voteRematch(once, 'p3')).toBe(once);
+    });
+
+    it('rejects a vote while the match is still being played', () => {
+      expect(() => voteRematch(finishedMatch({ winningTeam: null }), 'p1')).toThrow(ValidationError);
+    });
+
+    it('rejects a vote from someone not seated', () => {
+      expect(() => voteRematch(finishedMatch(), 'stranger')).toThrow(ValidationError);
+    });
+  });
+
+  describe('rematchAgreed', () => {
+    it('counts voters and every bot, in seat order', () => {
+      const match = finishedMatch({
+        players: [
+          { playerId: 'p1', position: Positions.First, ready: false },
+          { playerId: 'bot-1', position: Positions.Second, ready: false },
+          { playerId: 'p3', position: Positions.Third, ready: false },
+          { playerId: 'bot-2', position: Positions.Fourth, ready: false },
+        ],
+        rematchVotes: ['p3'],
+      });
+
+      expect(rematchAgreed(match)).toEqual(['bot-1', 'p3', 'bot-2']);
+    });
+  });
+
+  describe('createRematch', () => {
+    it('seats the same four at the same positions and deals Game 1', () => {
+      const rematch = createRematch('m2', finishedMatch(), fullDeck());
+
+      expect(rematch.id).toBe('m2');
+      expect(rematch.winningTeam).toBeNull();
+      expect(rematch.games).toEqual({});
+      expect(rematch.rematchVotes).toBeUndefined();
+      expect(rematch.rematchId).toBeUndefined();
+      expect(rematch.players).toEqual(fourPlayers().map((p) => ({ ...p, ready: false })));
+      expect(rematch.currentGame.name).toBe('Game 1');
+      expect(rematch.currentGame.hands.map((h) => [h.playerId, h.team, h.dominoes.length])).toEqual([
+        ['p1', Teams.TeamA, 7],
+        ['p2', Teams.TeamB, 7],
+        ['p3', Teams.TeamA, 7],
+        ['p4', Teams.TeamB, 7],
+      ]);
+    });
+
+    it("keeps the deal rotating: the seat after the last hand's first bidder bids first", () => {
+      // The finished match's last hand was opened by p2 (Second), so p3 (Third) opens the rematch.
+      const rematch = createRematch('m2', finishedMatch(), fullDeck());
+
+      expect(rematch.currentGame.firstActionBy).toBe('p3');
+      expect(rematch.currentGame.currentPlayerId).toBe('p3');
+    });
+
+    it('refuses a previous match without four players', () => {
+      expect(() => createRematch('m2', finishedMatch({ players: fourPlayers().slice(0, 3) }), fullDeck())).toThrow();
+    });
   });
 });

@@ -50,5 +50,9 @@ export {
   playDomino,
   getPlayerView,
   matchScores,
+  voteRematch,
+  rematchAgreed,
+  createRematch,
 } from './matchEngine';
+export { BOT_IDS, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';

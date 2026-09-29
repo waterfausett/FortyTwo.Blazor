@@ -13,13 +13,13 @@ import {
   MatchState,
   Suit,
   gameWinningTeam,
+  BOT_IDS,
+  isBot,
 } from '@fortytwo/rules';
 
-export const BOT_IDS = ['bot-1', 'bot-2', 'bot-3'] as const;
-
-export function isBot(playerId: string): boolean {
-  return (BOT_IDS as readonly string[]).includes(playerId);
-}
+// Defined in the rules package so the web client can tell bots apart too; re-exported here for
+// the Worker code that already imports them from this file.
+export { BOT_IDS, isBot };
 
 // Builds a genuinely shuffled 28-domino deck using `createDomino()` (not hand-rolled
 // `{ top, bottom }` objects) so every dealt Domino carries a real `.id` field - the

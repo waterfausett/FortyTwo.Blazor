@@ -8,7 +8,9 @@
 // immutable-state convention (established in trick.ts's `addDominoToTrick`), even though some
 // nested structures are rebuilt more eagerly than strictly necessary for clarity.
 import { Bid } from './bid';
+import { isBot } from './botIds';
 import { Domino, dominoEquals, getSuitValue } from './domino';
+import { ValidationError } from './errors';
 import { Game, gameValue, gameWinningTeam } from './game';
 import { Hand } from './hand';
 import { MatchPlayerRef, selectNextPlayer } from './match';
@@ -63,6 +65,11 @@ export interface MatchState {
   games: Partial<Record<Teams, Game[]>>;
   winningTeam: Teams | null;
   players: MatchPlayerState[];
+  // Who has asked to play the same four again, once the match is over. Optional, like rematchId,
+  // because matches stored before rematches existed have neither.
+  rematchVotes?: string[];
+  // The rematch's match id, set once everyone has agreed and that match exists.
+  rematchId?: string;
 }
 
 // Port of C# `MatchPlayerExtensions.Team()`: `(int)position % 2 == 0 ? TeamA : TeamB`.
@@ -371,6 +378,63 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
     : null;
 
   return { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
+}
+
+// Asks to play the same four again. Only once the match is over, and only from someone seated;
+// asking twice changes nothing.
+export function voteRematch(match: MatchState, playerId: string): MatchState {
+  if (match.winningTeam === null) throw new ValidationError('This match is still being played');
+  assertIsMatchPlayer(match, playerId);
+
+  const votes = match.rematchVotes ?? [];
+  if (votes.includes(playerId)) return match;
+  return { ...match, rematchVotes: [...votes, playerId], updatedOn: now() };
+}
+
+// Everyone who counts as wanting a rematch: those who voted, plus the bots, which never vote but
+// never hold one up either. A rematch starts when this covers every seat.
+export function rematchAgreed(match: MatchState): string[] {
+  const votes = match.rematchVotes ?? [];
+  return match.players.map((p) => p.playerId).filter((id) => isBot(id) || votes.includes(id));
+}
+
+// A fresh match for the same four, each in the seat they had, with the first hand dealt. The deal
+// keeps rotating: the seat after whoever opened the previous match's last hand opens this one.
+export function createRematch(id: string, previous: MatchState, dealOrder: Domino[]): MatchState {
+  if (previous.players.length !== 4) throw new Error('A rematch needs all four players');
+
+  const timestamp = now();
+  const players = previous.players.map((p) => ({ ...p, ready: false }));
+  const lastOpener = players.find((p) => p.playerId === previous.currentGame.firstActionBy) ?? players[0];
+  const openerPosition = nextPosition(lastOpener.position);
+  const firstActionBy = players.find((p) => p.position === openerPosition)!.playerId;
+
+  const hands = dealHands(
+    players.map((p) => ({ playerId: p.playerId, team: teamForPosition(p.position), dominoes: [], bid: null })),
+    players,
+    dealOrder
+  );
+
+  return {
+    id,
+    createdOn: timestamp,
+    updatedOn: timestamp,
+    currentGame: {
+      id: crypto.randomUUID(),
+      name: 'Game 1',
+      firstActionBy,
+      bid: null,
+      biddingPlayerId: null,
+      trump: null,
+      currentPlayerId: firstActionBy,
+      hands,
+      currentTrick: createTrick(),
+      tricks: [],
+    },
+    games: {},
+    winningTeam: null,
+    players,
+  };
 }
 
 // Port of `MatchService.GetPlayerForMatch`. Guards: `IsNotNull(match)` has no TS equivalent here
