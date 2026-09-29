@@ -1201,4 +1201,105 @@ describe('Match', () => {
       expect(container.querySelectorAll('.opponent-tricks .trick-history-row')).toHaveLength(2);
     });
   });
+
+  // With the socket down the table may be stale, so the page says so and holds every action until
+  // it's back rather than letting a player act on a turn that may already have passed.
+  describe('while the socket is disconnected', () => {
+    const allBid = (trump: Suit | null, dominoes: Domino[]) =>
+      baseMatch(
+        {},
+        {
+          bid: Bid.Thirty,
+          biddingPlayerId: 'p1',
+          trump,
+          hands: [
+            { playerId: 'p1', team: Teams.TeamA, dominoes, bid: Bid.Thirty },
+            { playerId: 'p2', team: Teams.TeamB, dominoes: [createDomino(0, 0)], bid: Bid.Pass },
+            { playerId: 'p3', team: Teams.TeamA, dominoes: [createDomino(0, 1)], bid: Bid.Pass },
+            { playerId: 'p4', team: Teams.TeamB, dominoes: [createDomino(0, 2)], bid: Bid.Pass },
+          ],
+        }
+      );
+
+    it('shows a reconnecting banner after a live socket drops', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: false });
+      renderMatch();
+
+      expect(screen.getByRole('status', { name: /reconnecting/i })).not.toBeNull();
+    });
+
+    it('shows no banner while connected', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+
+      expect(screen.queryByRole('status', { name: /reconnecting/i })).toBeNull();
+    });
+
+    it('shows no banner during the first connect, while the REST snapshot fills in', async () => {
+      getMatchMock.mockResolvedValue(baseMatch());
+      useMatchSocketMock.mockReturnValue({ match: null, connected: false });
+      renderMatch();
+
+      await screen.findAllByTestId('domino');
+      expect(screen.queryByRole('status', { name: /reconnecting/i })).toBeNull();
+    });
+
+    it('disables bidding', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: false });
+      renderMatch();
+
+      const bidButtons = screen.getAllByRole('button').filter((b) => b.closest('.bidding-panel'));
+      expect(bidButtons.length).toBeGreaterThan(0);
+      for (const button of bidButtons) expect((button as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('disables naming trump', () => {
+      useMatchSocketMock.mockReturnValue({ match: allBid(null, []), connected: false });
+      renderMatch();
+
+      const sixes = screen.getByRole('button', { name: /sixes/i }) as HTMLButtonElement;
+      expect(sixes.disabled).toBe(true);
+    });
+
+    it('disables playing a domino', () => {
+      useMatchSocketMock.mockReturnValue({ match: allBid(Suit.Sixes, [createDomino(1, 2)]), connected: false });
+      renderMatch();
+
+      const tiles = screen.getAllByTestId('domino');
+      for (const tile of tiles) expect(tile.classList.contains('clickable')).toBe(false);
+    });
+
+    it('disables Ready Up', () => {
+      const match = allBid(Suit.Sixes, []);
+      match.players = match.players.map((p) => ({ ...p, ready: false }));
+      match.currentGame.tricks = [
+        {
+          playerId: 'p1',
+          team: Teams.TeamA,
+          suit: Suit.Sixes,
+          dominoes: [createDomino(5, 0), createDomino(5, 5), createDomino(6, 4), createDomino(4, 1)],
+        },
+      ];
+      useMatchSocketMock.mockReturnValue({ match, connected: false });
+      renderMatch();
+
+      expect((screen.getByRole('button', { name: /ready up/i }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('disables adding bots', async () => {
+      getConfigMock.mockResolvedValue({ bots: true });
+      const waiting = baseMatch(
+        { players: [PLAYERS[0]] },
+        { hands: [{ playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: null }] }
+      );
+      useMatchSocketMock.mockReturnValue({ match: waiting, connected: false });
+      renderMatch();
+
+      const fill = (await screen.findByRole('button', { name: /fill with bots/i })) as HTMLButtonElement;
+      expect(fill.disabled).toBe(true);
+      for (const button of screen.getAllByRole('button', { name: /add bot/i })) {
+        expect((button as HTMLButtonElement).disabled).toBe(true);
+      }
+    });
+  });
 });

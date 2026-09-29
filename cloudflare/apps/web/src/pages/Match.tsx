@@ -127,7 +127,11 @@ export function Match(): JSX.Element {
   const myPlayerId = user?.sub;
   const getToken = useGetToken();
 
-  const { match: socketMatch } = useMatchSocket(matchId ?? '', getToken);
+  const { match: socketMatch, connected } = useMatchSocket(matchId ?? '', getToken);
+  // The socket had delivered state and then dropped. The first connect doesn't count - the REST
+  // snapshot below covers it. While down, the table may be stale (a turn may already have passed),
+  // so the page says so and holds every action until the socket is back.
+  const isReconnecting = !connected && socketMatch != null;
   const client = apiClient(getToken);
 
   // Initial load + reconnect-catchup: `useMatchSocket` starts at `null` and only fills once a
@@ -333,7 +337,7 @@ export function Match(): JSX.Element {
 
   const canBid = isBiddingPhase && me.isActive;
   const canSelectTrump = isTrumpSelectPhase && me.isActive;
-  const canPlay = isPlayingPhase && me.isActive && !playMutation.isPending && !awaitingTurnAdvance;
+  const canPlay = isPlayingPhase && me.isActive && connected && !playMutation.isPending && !awaitingTurnAdvance;
 
   // Once the current hand has a winner, the ONLY way to continue is for all 4 players to
   // explicitly ready up again (patchPlayerReady deals the next hand once everyone has) - with no
@@ -462,6 +466,11 @@ export function Match(): JSX.Element {
 
   return (
     <div ref={matchRootRef} className="match">
+      {isReconnecting && (
+        <p className="match-reconnecting" role="status" aria-label="Reconnecting">
+          Reconnecting…
+        </p>
+      )}
       <header className="scoreboard" aria-label="Scores">
         <div className="score score-us">
           <span className="score-label">Us</span>
@@ -533,7 +542,7 @@ export function Match(): JSX.Element {
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-secondary seat-add-bot"
-                        disabled={addBotsMutation.isPending}
+                        disabled={!connected || addBotsMutation.isPending}
                         onClick={() => addBotsMutation.mutate(position)}
                       >
                         Add bot
@@ -551,7 +560,7 @@ export function Match(): JSX.Element {
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-secondary"
-                        disabled={addBotsMutation.isPending}
+                        disabled={!connected || addBotsMutation.isPending}
                         onClick={() => addBotsMutation.mutate(undefined)}
                       >
                         Fill with bots
@@ -607,7 +616,7 @@ export function Match(): JSX.Element {
                     <button
                       type="button"
                       className="action-button"
-                      disabled={iAmReady || readyUpMutation.isPending}
+                      disabled={iAmReady || !connected || readyUpMutation.isPending}
                       onClick={() => readyUpMutation.mutate()}
                     >
                       {iAmReady ? "You're ready" : 'Ready up'}
@@ -629,7 +638,7 @@ export function Match(): JSX.Element {
                 game={game}
                 myPlayerId={myPlayerId}
                 onBid={(bid) => bidMutation.mutate(bid)}
-                disabled={bidMutation.isPending}
+                disabled={!connected || bidMutation.isPending}
               />
             )}
 
@@ -637,7 +646,7 @@ export function Match(): JSX.Element {
               <TrumpPicker
                 game={game}
                 onSelect={(suit) => setTrumpMutation.mutate(suit)}
-                disabled={setTrumpMutation.isPending}
+                disabled={!connected || setTrumpMutation.isPending}
               />
             )}
 

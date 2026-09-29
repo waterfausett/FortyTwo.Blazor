@@ -30,6 +30,17 @@
   border: 1px solid var(--danger);
 }
 
+/* The live socket dropped - the table below may be stale and actions are held until it's back. */
+.match-reconnecting {
+  margin: 0.5rem 1rem 0;
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--bone);
+  border: 1px solid var(--brass);
+}
+
 /* ---------- Scoreboard ---------- */
 
 .scoreboard {

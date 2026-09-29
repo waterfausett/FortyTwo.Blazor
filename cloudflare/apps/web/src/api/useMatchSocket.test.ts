@@ -7,7 +7,7 @@ import { useMatchSocket } from './useMatchSocket';
 
 // Minimal event-emitter WebSocket stand-in. Tests drive it directly via `emit(...)` instead of
 // simulating real network timing - the hook only cares about addEventListener/removeEventListener
-// and the close event's `wasClean` flag, so that's all this needs to fake.
+// and the close event's `code`, so that's all this needs to fake.
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
 
@@ -204,5 +204,164 @@ describe('useMatchSocket', () => {
 
     await flush(5000);
     expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
+  // A DO restart, a Worker deploy, or webSocketClose echoing the client's 1000 all close cleanly -
+  // none of them mean "stop listening", so the page would otherwise freeze until a reload.
+  it('reconnects after a clean close it did not initiate', async () => {
+    const getToken = vi.fn(async () => 'test-token');
+    const { result, unmount } = renderHook(() => useMatchSocket('match-1', getToken));
+    await flush();
+
+    await act(async () => {
+      MockWebSocket.instances[0].emit('open');
+      MockWebSocket.instances[0].emit('close', { wasClean: true, code: 1000 });
+    });
+    expect(result.current.connected).toBe(false);
+
+    await flush(1000);
+    expect(MockWebSocket.instances).toHaveLength(2);
+
+    unmount();
+  });
+
+  it('resets match state when matchId changes so the previous match never renders', async () => {
+    const getToken = vi.fn(async () => 'test-token');
+    const { result, rerender, unmount } = renderHook(({ id }) => useMatchSocket(id, getToken), {
+      initialProps: { id: 'match-1' },
+    });
+    await flush();
+
+    await act(async () => {
+      MockWebSocket.instances[0].emit('open');
+      MockWebSocket.instances[0].emit('message', { data: JSON.stringify({ type: 'match', match: MATCH_FIXTURE }) });
+    });
+    expect(result.current.match).toEqual(MATCH_FIXTURE);
+    expect(result.current.connected).toBe(true);
+
+    rerender({ id: 'match-2' });
+    expect(result.current.match).toBeNull();
+    expect(result.current.connected).toBe(false);
+
+    await flush();
+    expect(MockWebSocket.instances[1].url).toBe('wss://api.test.local/matches/match-2/ws?token=test-token');
+
+    unmount();
+  });
+
+  describe('reconnecting immediately when the page wakes up', () => {
+    function setVisibility(state: DocumentVisibilityState) {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+    }
+
+    afterEach(() => {
+      setVisibility('visible');
+    });
+
+    it('skips the backoff when the tab becomes visible while disconnected', async () => {
+      const getToken = vi.fn(async () => 'test-token');
+      const { unmount } = renderHook(() => useMatchSocket('match-1', getToken));
+      await flush();
+
+      // Drive the backoff up to 2s so "immediately" is clearly distinguishable from it.
+      await act(async () => {
+        MockWebSocket.instances[0].emit('close', { wasClean: false, code: 1006 });
+      });
+      await flush(1000);
+      await act(async () => {
+        MockWebSocket.instances[1].emit('close', { wasClean: false, code: 1006 });
+      });
+      expect(MockWebSocket.instances).toHaveLength(2);
+
+      setVisibility('visible');
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await flush();
+      expect(MockWebSocket.instances).toHaveLength(3);
+
+      // The pending backoff timer was cancelled - it must not open a fourth socket.
+      await flush(5000);
+      expect(MockWebSocket.instances).toHaveLength(3);
+
+      unmount();
+    });
+
+    it('reconnects immediately when the browser comes back online', async () => {
+      const getToken = vi.fn(async () => 'test-token');
+      const { unmount } = renderHook(() => useMatchSocket('match-1', getToken));
+      await flush();
+
+      await act(async () => {
+        MockWebSocket.instances[0].emit('close', { wasClean: false, code: 1006 });
+      });
+      await act(async () => {
+        window.dispatchEvent(new Event('online'));
+      });
+      await flush();
+      expect(MockWebSocket.instances).toHaveLength(2);
+
+      unmount();
+    });
+
+    it('ignores the tab being hidden', async () => {
+      const getToken = vi.fn(async () => 'test-token');
+      const { unmount } = renderHook(() => useMatchSocket('match-1', getToken));
+      await flush();
+      await act(async () => {
+        MockWebSocket.instances[0].emit('close', { wasClean: false, code: 1006 });
+      });
+
+      setVisibility('hidden');
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await flush();
+      expect(MockWebSocket.instances).toHaveLength(1);
+
+      unmount();
+    });
+
+    it('does nothing while a socket is already open or still connecting', async () => {
+      let resolveToken: (token: string) => void = () => {};
+      const getToken = vi.fn(() => new Promise<string>((resolve) => (resolveToken = resolve)));
+      const { unmount } = renderHook(() => useMatchSocket('match-1', getToken));
+
+      // Still awaiting the token - a wake-up must not start a second connect.
+      await act(async () => {
+        window.dispatchEvent(new Event('online'));
+      });
+      expect(getToken).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveToken('test-token');
+      });
+      await flush();
+      expect(MockWebSocket.instances).toHaveLength(1);
+
+      // Socket exists (connecting or open) - still nothing to do.
+      await act(async () => {
+        MockWebSocket.instances[0].emit('open');
+        window.dispatchEvent(new Event('online'));
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await flush();
+      expect(MockWebSocket.instances).toHaveLength(1);
+
+      unmount();
+    });
+
+    it('stops listening for wake-ups after unmount', async () => {
+      const getToken = vi.fn(async () => 'test-token');
+      const { unmount } = renderHook(() => useMatchSocket('match-1', getToken));
+      await flush();
+      unmount();
+
+      await act(async () => {
+        window.dispatchEvent(new Event('online'));
+      });
+      await flush();
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
   });
 });

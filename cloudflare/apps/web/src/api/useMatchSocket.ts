@@ -14,6 +14,11 @@ import type { MatchState } from '@fortytwo/rules';
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
+// Close codes the server sends on purpose to say "don't come back" (e.g. a future "not a player"
+// code). Every other close - clean or not - is retried: a DO restart, a Worker deploy, and
+// webSocketClose echoing a 1000 all close cleanly without meaning the match is over.
+const NO_RECONNECT_CODES: ReadonlySet<number> = new Set();
+
 interface MatchSocketMessage {
   type: 'match';
   match: MatchState;
@@ -32,8 +37,10 @@ export function useMatchSocket(
   matchId: string,
   getToken: () => Promise<string>
 ): { match: MatchState | null; connected: boolean } {
-  const [match, setMatch] = useState<MatchState | null>(null);
-  const [connected, setConnected] = useState(false);
+  // Both are tagged with the matchId they belong to, so the very first render for a new matchId
+  // never shows the previous match's state (or its "connected") while the new socket comes up.
+  const [latest, setLatest] = useState<{ matchId: string; match: MatchState } | null>(null);
+  const [connectedTo, setConnectedTo] = useState<string | null>(null);
 
   // getToken is commonly a fresh closure every render (e.g. Auth0's getAccessTokenSilently
   // wrapped inline) - stash the latest in a ref so the connection effect below only depends on
@@ -48,11 +55,19 @@ export function useMatchSocket(
   useEffect(() => {
     let cancelled = false;
     let socket: WebSocket | null = null;
+    // True while awaiting the token, before `socket` exists - so a wake-up can't open a second one.
+    let connecting = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
 
     async function connect() {
-      const token = await getTokenRef.current();
+      connecting = true;
+      let token: string;
+      try {
+        token = await getTokenRef.current();
+      } finally {
+        connecting = false;
+      }
       // The effect may have been cleaned up (unmount, or matchId changing) while we were awaiting
       // the token - bail out rather than opening a socket nobody will ever close.
       if (cancelled) return;
@@ -63,7 +78,7 @@ export function useMatchSocket(
       ws.addEventListener('open', () => {
         if (cancelled) return;
         reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
-        setConnected(true);
+        setConnectedTo(matchId);
       });
 
       ws.addEventListener('message', (event: MessageEvent) => {
@@ -75,7 +90,7 @@ export function useMatchSocket(
           return; // Ignore malformed frames.
         }
         if (isMatchSocketMessage(data)) {
-          setMatch(data.match);
+          setLatest({ matchId, match: data.match });
         }
       });
 
@@ -85,27 +100,50 @@ export function useMatchSocket(
         // matchId changing) - never reconnect in that case, regardless of the close event's
         // wasClean flag.
         if (cancelled) return;
-        setConnected(false);
-        // event.wasClean is false for an unexpected drop (network blip, server restart, etc.) -
-        // reconnect with exponential backoff. A clean, server-initiated close (wasClean: true)
-        // is treated as intentional and is not retried.
-        if (!event.wasClean) {
-          reconnectTimer = setTimeout(() => {
-            reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
-            connect();
-          }, reconnectDelay);
-        }
+        setConnectedTo(null);
+        if (NO_RECONNECT_CODES.has(event.code)) return;
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
+          connect();
+        }, reconnectDelay);
       });
     }
 
+    // Mobile browsers kill sockets in background tabs, and a dropped network kills them anywhere.
+    // When the tab comes back or the network returns, reconnect now rather than sitting out the
+    // rest of a backoff delay that may have grown to 30s.
+    function reconnectNow() {
+      if (socket !== null || connecting || reconnectTimer === null) return;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+      connect();
+    }
+
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') reconnectNow();
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('online', reconnectNow);
     connect();
 
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('online', reconnectNow);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       socket?.close();
+      // Dropped too, so navigating A -> B -> A can't bring back A's old state before its new
+      // socket delivers.
+      setLatest(null);
+      setConnectedTo(null);
     };
   }, [matchId]);
 
-  return { match, connected };
+  return {
+    match: latest?.matchId === matchId ? latest.match : null,
+    connected: connectedTo === matchId,
+  };
 }
