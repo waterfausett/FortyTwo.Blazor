@@ -258,10 +258,9 @@ describe('characterization: plunge-game fixture', () => {
     }
 
     expect(i).toBe(steps.length);
-    // Only 2 of what would need to be a full hand's tricks were recorded. Plunge's adjustedBid
-    // is 169 (the enum value itself - 169 % 42 !== 0, so the "%42===0 -> 42" normalization never
-    // applies to it), so the bidding team can never cross that threshold in 2 tricks, and the
-    // other team hasn't won a trick either.
+    // Only 2 of what would need to be a full hand's tricks were recorded. A Plunge needs all 42
+    // points, which the bidding team can't have after 2 tricks, and the other team hasn't won a
+    // trick either.
     expect(gameWinningTeam(match.currentGame)).toBeNull();
   });
 });

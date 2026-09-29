@@ -43,7 +43,8 @@ export function gameWinningTeam(g: Game): Teams | null {
     teamPoints.set(t.team, (teamPoints.get(t.team) ?? 0) + trickValue(t));
   }
 
-  const adjustedBid = (g.bid as number) % 42 === 0 ? 42 : (g.bid as number);
+  // Marks bids and Plunge (169, not a multiple of 42) all need every point.
+  const adjustedBid = g.bid === Bid.Plunge || (g.bid as number) % 42 === 0 ? 42 : (g.bid as number);
 
   return isLow(g.trump)
     ? biddingTeamId != null && teamPoints.has(biddingTeamId)

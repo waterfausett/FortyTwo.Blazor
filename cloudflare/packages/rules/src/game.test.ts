@@ -125,6 +125,32 @@ describe('gameWinningTeam', () => {
     expect(gameWinningTeam(g)).toBe(Teams.TeamB);
   });
 
+  it('(e) Plunge: bidding team wins by taking every trick', () => {
+    const g = baseGame({
+      biddingPlayerId: 'p1',
+      bid: Bid.Plunge,
+      trump: Suit.Sixes,
+      hands: [biddingHand(Bid.Plunge, Teams.TeamA), otherHand(Teams.TeamB)],
+      tricks: [
+        wonTrick(Teams.TeamA, [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)]), // 31
+        wonTrick(Teams.TeamA, [createDomino(3, 2)]), // 6
+        ...Array.from({ length: 5 }, () => wonTrick(Teams.TeamA, [createDomino(1, 2)])), // 1 each
+      ], // 42 total
+    });
+    expect(gameWinningTeam(g)).toBe(Teams.TeamA);
+  });
+
+  it('(f) Plunge: other team wins as soon as they take a trick', () => {
+    const g = baseGame({
+      biddingPlayerId: 'p1',
+      bid: Bid.Plunge,
+      trump: Suit.Sixes,
+      hands: [biddingHand(Bid.Plunge, Teams.TeamA), otherHand(Teams.TeamB)],
+      tricks: [wonTrick(Teams.TeamA, [createDomino(5, 5)]), wonTrick(Teams.TeamB, [createDomino(1, 2)])],
+    });
+    expect(gameWinningTeam(g)).toBe(Teams.TeamB);
+  });
+
   it('returns null when no bidding player is set', () => {
     const g = baseGame({ biddingPlayerId: null });
     expect(gameWinningTeam(g)).toBeNull();
