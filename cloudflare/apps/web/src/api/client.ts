@@ -1,55 +1,21 @@
 // Thin typed wrapper over the Worker's REST routes (apps/worker/src/routes/matches.ts and
-// routes/users.ts, Tasks 14-15). Every method attaches a bearer token from the caller-supplied
-// getToken() (an Auth0 `getAccessTokenSilently` in production) and throws a descriptive Error on
-// any non-2xx response, surfacing the Worker's `{ title, detail }` error body (matchDO.ts's
-// ValidationError -> 400 / not-found -> 404 mapping) so a caller can display it directly.
+// routes/users.ts). Every method attaches a bearer token from the caller-supplied getToken() (an
+// Auth0 `getAccessTokenSilently` in production) and throws an ApiError on any non-2xx response,
+// carrying the Worker's `{ title, detail }` error body so a caller can display it directly.
 //
-// MatchState is imported type-only from @fortytwo/rules: it's a data SHAPE (not executable rule
-// logic), so this is erased at compile time and does not make apps/web depend on the rules engine
-// at runtime - client-side rule validation stays deferred (GitHub issue #9).
+// Response shapes come from @fortytwo/api-types, shared with the Worker, and MatchState from
+// @fortytwo/rules.
 import type { MatchState } from '@fortytwo/rules';
+import type {
+  ApiErrorBody,
+  ClientConfig,
+  MatchSummary,
+  ProfilePatch,
+  PublicUser,
+  UserProfile,
+} from '@fortytwo/api-types';
 
-// MatchSummary is the D1 "lobby index" row shape (apps/worker/src/lobby.ts) - a Worker-internal
-// module, not part of @fortytwo/rules (which only models in-DO match/game state, never the lobby
-// index) and not something apps/web should reach across the app boundary to import. Mirrored
-// locally to match exactly what GET /api/matches returns - plus `teams`, which the route attaches
-// to each row: [TeamA, TeamB] display names, each in join order (bots, and anyone Auth0 couldn't
-// resolve, appear by raw id), and `seats`, the display name at each position 0-3 (null if open).
-export interface MatchSummary {
-  id: string;
-  status: 'active' | 'completed';
-  playerCount: number;
-  updatedOn: string;
-  teams: [string[], string[]];
-  seats: (string | null)[];
-}
-
-// Mirrors the /api/users/profile response shape (Task 15's `toUserResponse` in
-// apps/worker/src/routes/users.ts): the raw Auth0 Management API fields the Worker forwards, plus
-// the two fields it computes server-side (`displayName` is always present via a fallback chain;
-// `picture` prefers a non-blank `user_metadata.picture` over the raw top-level `picture`).
-// Defined locally rather than imported from apps/worker for the same app-boundary reason as
-// MatchSummary above - apps/worker is a backend-internal module, never designed as a shared type
-// surface for apps/web.
-export interface Auth0User {
-  user_id: string;
-  email?: string;
-  name?: string;
-  given_name?: string;
-  family_name?: string;
-  nickname?: string;
-  picture?: string;
-  displayName: string;
-  user_metadata?: { displayName?: string; theme?: 'Light' | 'Dark'; picture?: string };
-}
-
-// What /api/users/search returns for each player (`toPublicUser`): never their email or real name.
-export type PublicUser = Pick<Auth0User, 'user_id' | 'displayName' | 'picture'>;
-
-interface ApiErrorBody {
-  title?: string;
-  detail?: string;
-}
+export type { MatchSummary, PublicUser, UserProfile };
 
 // Keeps the Worker's title and detail apart so a toast can show them as heading and body;
 // `message` still joins them for callers that just print it.
@@ -86,7 +52,7 @@ async function request<T>(
   });
 
   if (!res.ok) {
-    let body: ApiErrorBody = {};
+    let body: Partial<ApiErrorBody> = {};
     try {
       body = await res.json();
     } catch {
@@ -154,9 +120,9 @@ export function apiClient(getToken: () => Promise<string>) {
       }),
 
     // Feature switches the Worker turns on per environment.
-    getConfig: (): Promise<{ bots: boolean }> => request<{ bots: boolean }>(getToken, '/api/config'),
+    getConfig: (): Promise<ClientConfig> => request<ClientConfig>(getToken, '/api/config'),
 
-    getProfile: (): Promise<Auth0User> => request<Auth0User>(getToken, '/api/users/profile'),
+    getProfile: (): Promise<UserProfile> => request<UserProfile>(getToken, '/api/users/profile'),
 
     // Ids with no Auth0 account (bots) are simply absent from the result.
     searchUsers: (userIds: string[]): Promise<PublicUser[]> =>
@@ -165,7 +131,7 @@ export function apiClient(getToken: () => Promise<string>) {
         body: JSON.stringify(userIds),
       }),
 
-    patchProfile: (patch: { displayName?: string; picture?: string }): Promise<void> =>
+    patchProfile: (patch: ProfilePatch): Promise<void> =>
       request<void>(
         getToken,
         '/api/users',

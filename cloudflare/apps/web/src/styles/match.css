@@ -1,8 +1,7 @@
 /* Match page: a domino-hall table. Walnut tabletop, bone tiles, each team in its own color
    (turquoise for us, ochre for them) and brass for the table's own markers - whose turn, who
-   dealt, who led. Layout keeps the old Blazor page's bones (Match.razor.css: our trick pile on
-   the left, the trick in play in the middle, theirs on the right, the hand along the bottom) but
-   seats the other three players around the table instead of in a row above it.
+   dealt, who led. Our trick pile sits on the left, the trick in play in the middle, theirs on the
+   right, and the hand along the bottom, with the other three players seated around the table.
 
    Motion is reserved for what just happened: a played domino slides in from its player's seat,
    and a finished trick sweeps off to the winning team's pile. The active seat breathes slowly.

@@ -1,42 +1,22 @@
-// Exercises AUTO_PLAY_BOTS end to end against the real MatchDO: seating bots on demand (one seat,
-// or every open seat), then the alarm-paced bot loop carrying bidding/trump/play forward up to a
-// human's next turn. The AUTO_PLAY_BOTS binding isn't set globally (vitest.config.ts's bindings
-// apply to every test file in this pool, and other tests - matchDO.test.ts,
-// matchLifecycle.test.ts - manually addPlayer with their own ids). Instead, each call here reaches
-// into the live DO instance via `runInDurableObject` and overrides its `env` just for that call.
+// Exercises the dev-only bots end to end against the real MatchDO: seating bots on demand (one
+// seat, or every open seat), then the alarm-paced bot loop carrying bidding/trump/play forward up
+// to a human's next turn. AUTO_PLAY_BOTS only gates the REST route that seats bots, so these tests
+// can call MatchDO directly without it.
 import { describe, it, expect } from 'vitest';
-import { env, runInDurableObject, runDurableObjectAlarm } from 'cloudflare:test';
+import { env, runDurableObjectAlarm } from 'cloudflare:test';
 import { Bid, Suit, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
-import type { MatchDO } from '../src/matchDO';
 
 const testEnv = env as unknown as Env;
 
 function stubFor(name: string) {
-  const id = testEnv.MATCH_DO.idFromName(name);
-  return testEnv.MATCH_DO.get(id);
+  return testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(name));
 }
 
-async function rpcWithBots(
-  stub: ReturnType<typeof stubFor>,
-  method: string,
-  body: Record<string, unknown>
-): Promise<{ status: number; body: unknown }> {
-  return runInDurableObject(stub, async (instance) => {
-    // Two views of the same instance: `MatchDO.env` is private, so intersecting it with a public
-    // `{ env }` would collapse to `never`.
-    const withEnv = instance as unknown as { env: Env };
-    withEnv.env = { ...withEnv.env, AUTO_PLAY_BOTS: 'true' };
-    const res = await (instance as MatchDO).fetch(
-      new Request(`https://do/rpc/${method}`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-        headers: { 'content-type': 'application/json' },
-      })
-    );
-    const json = await res.json();
-    return { status: res.status, body: json };
-  });
+// The value of a result that must have succeeded.
+function valueOf<T>(result: { ok: true; value: T } | { ok: false }): T {
+  if (!result.ok) throw new Error(`expected an ok result, got ${JSON.stringify(result)}`);
+  return result.value;
 }
 
 async function runAllPendingAlarms(stub: ReturnType<typeof stubFor>, maxTicks = 20): Promise<void> {
@@ -52,37 +32,24 @@ function seatOf(match: MatchState, playerId: string): number | undefined {
 }
 
 describe('MatchDO bot auto-play', () => {
-  it('leaves the table open on create, so other people can still join', async () => {
-    const stub = stubFor('bots-create-open');
-
-    const created = await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
-
-    expect(created.status).toBe(200);
-    expect((created.body as MatchState).players.map((p) => p.playerId)).toEqual(['human-1']);
-  });
-
   it('seats a bot at a picked seat', async () => {
     const stub = stubFor('bots-one-seat');
-    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
+    await stub.create('human-1', 'bots-one-seat');
 
-    const res = await rpcWithBots(stub, 'addBots', { requesterId: 'human-1', positions: [2] });
+    const match = valueOf(await stub.addBots('human-1', [2]));
 
-    expect(res.status).toBe(200);
-    const match = res.body as MatchState;
     expect(match.players).toHaveLength(2);
     expect(seatOf(match, 'bot-1')).toBe(2);
   });
 
   it('fills every open seat around the humans when no seat is given, dealing the hand', async () => {
     const stub = stubFor('bots-fill');
-    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
-    await rpcWithBots(stub, 'takeSeat', { playerId: 'human-2', position: 2 });
-    await rpcWithBots(stub, 'addBots', { requesterId: 'human-1', positions: [1] });
+    await stub.create('human-1', 'bots-fill');
+    await stub.takeSeat('human-2', 2);
+    await stub.addBots('human-1', [1]);
 
-    const res = await rpcWithBots(stub, 'addBots', { requesterId: 'human-2' });
+    const match = valueOf(await stub.addBots('human-2'));
 
-    expect(res.status).toBe(200);
-    const match = res.body as MatchState;
     expect(match.players.map((p) => [p.playerId, p.position]).sort()).toEqual([
       ['bot-1', 1],
       ['bot-2', 3],
@@ -94,59 +61,50 @@ describe('MatchDO bot auto-play', () => {
 
   it("won't let someone outside the match add bots", async () => {
     const stub = stubFor('bots-outsider');
-    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
+    await stub.create('human-1', 'bots-outsider');
 
-    const res = await rpcWithBots(stub, 'addBots', { requesterId: 'stranger' });
-
-    expect(res.status).toBe(400);
+    expect(await stub.addBots('stranger')).toMatchObject({ ok: false, status: 400 });
   });
 
   it('rejects a bot at a taken seat', async () => {
     const stub = stubFor('bots-taken-seat');
-    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
+    await stub.create('human-1', 'bots-taken-seat');
 
-    const res = await rpcWithBots(stub, 'addBots', { requesterId: 'human-1', positions: [0] });
+    const result = await stub.addBots('human-1', [0]);
 
-    expect(res.status).toBe(400);
-    expect((res.body as { title: string }).title).toBe('Seat is taken');
+    expect(result).toMatchObject({ ok: false, status: 400, error: { title: 'Seat is taken' } });
   });
 
   it("bots auto-bid, auto-set-trump, and auto-play up to the human's next turn", async () => {
     const stub = stubFor('bots-bid-and-play');
 
-    await rpcWithBots(stub, 'create', { firstPlayerId: 'human-1' });
-    const filled = await rpcWithBots(stub, 'addBots', { requesterId: 'human-1' });
-    let match = filled.body as MatchState;
+    await stub.create('human-1', 'bots-bid-and-play');
+    let match = valueOf(await stub.addBots('human-1'));
     expect(match.currentGame.currentPlayerId).toBe('human-1');
 
     // Human bids the minimum; bots always pass, so human wins the bid outright.
-    const bidRes = await rpcWithBots(stub, 'bid', { playerId: 'human-1', bid: Bid.Thirty });
-    match = bidRes.body as MatchState;
+    match = valueOf(await stub.bid('human-1', Bid.Thirty));
     expect(match.currentGame.hands.some((h) => h.bid === null)).toBe(true); // bots haven't acted yet
 
     await runAllPendingAlarms(stub);
 
-    const afterBidding = await rpcWithBots(stub, 'getMatch', {});
-    match = afterBidding.body as MatchState;
+    match = valueOf(await stub.getMatch());
     expect(match.currentGame.hands.every((h) => h.bid !== null)).toBe(true);
     expect(match.currentGame.biddingPlayerId).toBe('human-1');
     expect(match.currentGame.trump).toBeNull(); // still waiting on the human to set trump
     expect(match.currentGame.currentPlayerId).toBe('human-1');
 
-    const trumpRes = await rpcWithBots(stub, 'setTrump', { playerId: 'human-1', suit: Suit.Sixes });
-    match = trumpRes.body as MatchState;
+    match = valueOf(await stub.setTrump('human-1', Suit.Sixes));
     expect(match.currentGame.trump).toBe(Suit.Sixes);
     expect(match.currentGame.currentPlayerId).toBe('human-1'); // the winning bidder leads
 
     const humanHand = match.currentGame.hands.find((h) => h.playerId === 'human-1')!.dominoes;
-    const playRes = await rpcWithBots(stub, 'playDomino', { playerId: 'human-1', domino: humanHand[0] });
-    match = playRes.body as MatchState;
+    match = valueOf(await stub.playDomino('human-1', humanHand[0]));
     expect(match.currentGame.tricks).toHaveLength(0); // trick not yet full
 
     await runAllPendingAlarms(stub);
 
-    const afterTrick = await rpcWithBots(stub, 'getMatch', {});
-    match = afterTrick.body as MatchState;
+    match = valueOf(await stub.getMatch());
     // Regardless of who won the trick, the alarm loop only ever stops once it's the human's turn
     // again - even if a bot won and had to lead the next trick.
     expect(match.currentGame.tricks).toHaveLength(1);

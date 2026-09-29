@@ -1,12 +1,10 @@
 // Hand.tsx renders the player's own dominoes (useDraggable/useDroppable for reordering within the
 // hand), firing `onPlay(domino)` on click (when selectable) or on a drop onto the table. It
 // follows drags through the enclosing PlayDnd.tsx `PlayDndContext` that Match.tsx provides, so
-// every render here goes through that same context. Replaces the
-// `SortGroup`/`BlazorSortableJS`-driven hand section of FortyTwo/Client/Pages/Match.razor.
+// every render here goes through that same context.
 //
 // jsdom doesn't implement ResizeObserver (used internally by @dnd-kit/core's droppable-rect
-// measuring) - this is the "known test-infra gap" the brief calls out for dnd-kit specifically;
-// without this polyfill, mounting a DndContext throws `ReferenceError: ResizeObserver is not
+// measuring); without this polyfill, mounting a DndContext throws `ReferenceError: ResizeObserver is not
 // defined`. A minimal no-op stub is enough since these tests only exercise click-to-play and
 // component wiring, not real pointer-drag physics (real drag-and-drop is not meaningfully
 // testable under jsdom without a much heavier simulation harness).

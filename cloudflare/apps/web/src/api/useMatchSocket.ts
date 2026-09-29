@@ -1,13 +1,7 @@
 // React hook wrapping the native WebSocket API to receive live MatchState updates from MatchDO's
-// broadcast socket (apps/worker/src/matchDO.ts, Task 11 - every RPC mutation broadcasts
-// `{ type: 'match', match }` to connected sockets). This replaces the old Blazor app's SignalR
-// `HubConnection`.
-//
-// Reconnect strategy note: the old app's `HubConnectionBuilder` (FortyTwo/Client/Program.cs:56-62)
-// never called `.WithAutomaticReconnect()`, so its `Reconnected` event handler in App.razor was
-// dead code - there is no real "old reconnect pattern" to port. The exponential-backoff strategy
-// below is new, added functionality (an improvement over the original, which never reconnected at
-// all), not a port of anything that previously worked.
+// broadcast socket (apps/worker/src/matchDO.ts - every change to a match broadcasts
+// `{ type: 'match', match }` to connected sockets). A dropped connection is retried with
+// exponential backoff.
 import { useEffect, useRef, useState } from 'react';
 import type { MatchState } from '@fortytwo/rules';
 

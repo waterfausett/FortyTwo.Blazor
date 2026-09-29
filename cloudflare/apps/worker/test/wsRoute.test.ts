@@ -1,10 +1,6 @@
-// Regression test for CRITICAL finding #1 from the final whole-branch review: the Worker never
-// routed a real WebSocket upgrade request (`/matches/:id/ws`) to MatchDO - `index.ts` only mounted
-// `/health`, `/api/matches`, `/api/users`, so every real upgrade attempt 404'd via Hono's default
-// handler. Task 12's own WebSocket tests (matchDOSocket.test.ts) connect directly to the DO stub
-// via `env.MATCH_DO.get(...)`, bypassing the Worker entirely - which is exactly why that gap was
-// never caught. This test goes through the REAL Worker (`SELF.fetch`, mirroring
-// routes.matches.test.ts/matchLifecycle.test.ts), not a direct DO-stub call.
+// The Worker's WebSocket route (`/matches/:id/ws`), through the REAL Worker (`SELF.fetch`).
+// matchDOSocket.test.ts connects straight to the DO stub, so it can't catch the Worker failing to
+// route an upgrade to MatchDO at all - which it once did, 404ing every real connection.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env, fetchMock, SELF } from 'cloudflare:test';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';

@@ -1,6 +1,5 @@
-// TrickHistory.tsx renders one team's completed-trick pile headed by its point total - see its own
-// header comment for the Match.razor behavior it ports (most-recent-first for "mine", completion
-// order for "opponent").
+// TrickHistory.tsx renders one team's completed-trick pile headed by its point total
+// (most-recent-first for "mine", completion order for "opponent").
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDomino, Teams, type Trick } from '@fortytwo/rules';

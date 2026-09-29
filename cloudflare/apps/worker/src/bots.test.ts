@@ -9,7 +9,7 @@ import {
   type Hand,
   type MatchState,
 } from '@fortytwo/rules';
-import { isBot, shuffledDominoOrder, decideBid, decideTrump, decideDomino, findNextBotAction } from './bots';
+import { isBot, decideBid, decideTrump, decideDomino, findNextBotAction } from './bots';
 
 function emptyHand(playerId: string, dominoes: ReturnType<typeof createDomino>[] = [], bid: Bid | null = null): Hand {
   return { playerId, team: Teams.TeamA, dominoes, bid };
@@ -50,14 +50,6 @@ describe('isBot', () => {
     expect(isBot('bot-2')).toBe(true);
     expect(isBot('bot-3')).toBe(true);
     expect(isBot('human-p1')).toBe(false);
-  });
-});
-
-describe('shuffledDominoOrder', () => {
-  it('produces all 28 unique dominoes', () => {
-    const order = shuffledDominoOrder();
-    expect(order).toHaveLength(28);
-    expect(new Set(order.map((d) => d.id)).size).toBe(28);
   });
 });
 

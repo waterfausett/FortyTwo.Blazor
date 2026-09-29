@@ -1,26 +1,14 @@
-// Port of the real C# app's Auth0AccessTokenProvider + Auth0ApiClient
-// (FortyTwo/Server/Services/Auth0AccessTokenProvider.cs, Auth0ApiClient.cs). A pure Auth0
-// Management API client - no response-shaping/computed-field logic here (see routes/users.ts's
-// toUserResponse for that; Auth0's raw shape is returned as-is).
+// A client for Auth0's Management API, authenticated with the Worker's own client credentials.
+// Users come back in Auth0's raw shape; routes/users.ts's toUserResponse works out what to show.
 import type { Env } from './index';
+import type { Auth0User, ProfilePatch } from '@fortytwo/api-types';
 
-export interface Auth0User {
-  user_id: string;
-  email?: string;
-  name?: string;
-  given_name?: string;
-  family_name?: string;
-  nickname?: string;
-  // Raw top-level Auth0 field - every Auth0 user has one (Gravatar/avatar URL). Used as the
-  // fallback in routes/users.ts's picture-preference logic (real C# User.Picture getter).
-  picture?: string;
-  user_metadata?: { displayName?: string; theme?: 'Light' | 'Dark'; picture?: string };
-}
+export type { Auth0User };
 
 interface CachedToken {
   token: string;
   tokenType: string;
-  // Epoch ms - mirrors the C# AccessToken's ExpiresOn (DateTimeOffset).
+  // Epoch ms.
   expiresOn: number;
 }
 
@@ -31,15 +19,13 @@ interface Auth0TokenResponse {
   scope?: string;
 }
 
-// Module-level cache: valid for the lifetime of the Worker isolate, mirroring the C# app's
-// IMemoryCache-backed provider. A cold isolate just re-fetches once.
+// Module-level cache: valid for the lifetime of the Worker isolate. A cold isolate just re-fetches
+// once.
 let cachedToken: CachedToken | undefined;
 
-// Ports Auth0AccessTokenProvider.FetchAsync literally, INCLUDING its freshness check
-// (Auth0AccessTokenProvider.cs:38): `cachedToken.ExpiresOn > DateTimeOffset.UtcNow.AddSeconds(-30)`
-// is equivalent to `now < expiresOn + 30s` - the cached token is treated as still valid for up to
-// 30 SECONDS PAST its nominal expiry (a real quirk of the original app), not refreshed 30s early.
-// Do not "fix" this to a refresh-before-expiry pattern.
+// Note the freshness check: a cached token is reused until 30 seconds PAST its expiry, not
+// refreshed 30 seconds early. That's the original app's behavior, kept as-is (and pinned by
+// auth0Management.test.ts).
 async function fetchAccessToken(env: Env): Promise<CachedToken> {
   if (cachedToken && cachedToken.expiresOn > Date.now() - 30_000) {
     return cachedToken;
@@ -85,7 +71,6 @@ async function authorizedFetch(env: Env, path: string, init: RequestInit = {}): 
   return response;
 }
 
-// Ports Auth0ApiClient.GetUserAsync.
 export async function getUser(env: Env, userId: string): Promise<Auth0User> {
   const response = await authorizedFetch(env, `api/v2/users/${encodeURIComponent(userId)}`);
   return response.json();
@@ -100,9 +85,8 @@ function quoted(value: string): string {
   return `"${value.replace(/[\\"]/g, '\\$&')}"`;
 }
 
-// Ports Auth0ApiClient.GetUsersAsync(List<string>): looks the given ids up in one search, so the
-// caller splits anything over MAX_USER_IDS. include_fields=false means EXCLUDE the listed `fields`
-// from the response - an odd-looking but real filter, ported as-is.
+// Looks the given ids up in one search, so the caller splits anything over MAX_USER_IDS.
+// include_fields=false means EXCLUDE the listed `fields` from the response.
 export async function getUsers(env: Env, userIds: string[]): Promise<Auth0User[]> {
   if (userIds.length === 0) return [];
   if (userIds.length > MAX_USER_IDS) {
@@ -117,14 +101,9 @@ export async function getUsers(env: Env, userIds: string[]): Promise<Auth0User[]
   return response.json();
 }
 
-// Ports Auth0ApiClient.UpdateUserAsync. JSON.stringify already omits `undefined`-valued keys, so
-// as long as `patch`'s unset fields are genuinely `undefined` (not `null`), this matches the C#
-// DefaultIgnoreCondition = WhenWritingNull partial-update behavior for free (Correction F).
-export async function updateUser(
-  env: Env,
-  userId: string,
-  patch: { displayName?: string; picture?: string }
-): Promise<void> {
+// Auth0 merges `user_metadata`, so this only changes the fields `patch` sets: JSON.stringify drops
+// `undefined` keys (an unset field must be `undefined`, not `null`, or it would be cleared).
+export async function updateUser(env: Env, userId: string, patch: ProfilePatch): Promise<void> {
   await authorizedFetch(env, `api/v2/users/${encodeURIComponent(userId)}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },

@@ -1,6 +1,5 @@
 // One player's place at the table: a name plate carrying their turn/dealer/lead/bid/ready markers
-// and, for everyone but the viewer, a face-down fan of the dominoes they still hold. Replaces the
-// old app's RemotePlayer.razor (which drew the same face-down tiles via Domino's ShowPlaceHolder).
+// and, for everyone but the viewer, a face-down fan of the dominoes they still hold.
 //
 // Only ever receives a count for another player - the Worker never sends their dominoes.
 import type { JSX } from 'react';

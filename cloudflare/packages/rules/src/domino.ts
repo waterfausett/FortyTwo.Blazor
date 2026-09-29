@@ -12,6 +12,22 @@ export function createDomino(top: number, bottom: number): Domino {
   return { id: `${lo}/${hi}`, top: lo, bottom: hi };
 }
 
+function cryptoRandom(): number {
+  return crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+}
+
+// All 28 dominoes in a random order, ready to deal. `random` returns a number in [0, 1), like
+// Math.random; tests pass their own to get a known order.
+export function shuffledDominoOrder(random: () => number = cryptoRandom): Domino[] {
+  const dominoes: Domino[] = [];
+  for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dominoes.push(createDomino(i, j));
+  for (let i = dominoes.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [dominoes[i], dominoes[j]] = [dominoes[j], dominoes[i]];
+  }
+  return dominoes;
+}
+
 export function dominoValue(d: Domino): number {
   const sum = d.top + d.bottom;
   return sum % 5 === 0 ? sum : 0;

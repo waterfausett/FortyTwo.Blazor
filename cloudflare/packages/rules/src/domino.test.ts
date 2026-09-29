@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { createDomino, dominoValue, isDouble, getSuit, isOfSuit, getSuitValue, dominoEquals } from './domino';
+import {
+  createDomino,
+  dominoValue,
+  isDouble,
+  getSuit,
+  isOfSuit,
+  getSuitValue,
+  dominoEquals,
+  shuffledDominoOrder,
+} from './domino';
 import { Suit } from './suit';
 
 describe('domino', () => {
@@ -83,5 +92,27 @@ describe('domino', () => {
   it('dominoes are equal regardless of orientation', () => {
     expect(dominoEquals(createDomino(2, 5), createDomino(5, 2))).toBe(true);
     expect(dominoEquals(createDomino(2, 5), createDomino(2, 6))).toBe(false);
+  });
+
+  describe('shuffledDominoOrder', () => {
+    it('holds all 28 dominoes exactly once', () => {
+      const order = shuffledDominoOrder();
+      expect(order).toHaveLength(28);
+      expect(new Set(order.map((d) => d.id)).size).toBe(28);
+    });
+
+    it('shuffles with the random source it is given', () => {
+      // Always drawing the top of the range swaps every domino with itself.
+      const unshuffled = shuffledDominoOrder(() => 0.9999);
+      expect(unshuffled.slice(0, 3).map((d) => d.id)).toEqual(['0/0', '0/1', '0/2']);
+      expect(unshuffled[27].id).toBe('6/6');
+
+      const draws = () => {
+        let seed = 7;
+        return () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      };
+      expect(shuffledDominoOrder(draws())).toEqual(shuffledDominoOrder(draws()));
+      expect(shuffledDominoOrder(draws())).not.toEqual(unshuffled);
+    });
   });
 });

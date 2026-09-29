@@ -1,9 +1,5 @@
-/* Global reset. Previously this file was still the unmodified Vite React scaffold stylesheet -
-   `#root { width: 1126px; text-align: center; border-inline: 1px solid ...}` and 56px `h1`/`h2`
-   rules meant for the scaffold's own demo page, never adapted for this app. They collided with
-   the real design system (theme.css/app.css/chip.css, ported from the old Blazor app), producing
-   the boxed, center-aligned, oversized-heading look every page rendered with. Replaced with a
-   minimal reset that gets out of the way instead. */
+/* Global reset - kept minimal so the design system (theme.css/app.css/chip.css/hall.css) does
+   the styling. */
 
 *, *::before, *::after {
   box-sizing: border-box;

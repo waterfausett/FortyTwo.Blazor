@@ -1,6 +1,5 @@
-// Task 16: full-lifecycle integration test exercising everything built in Tasks 9-15 together -
-// auth, MatchDO, D1 lobby sync, and every match route - through the REAL Worker (SELF.fetch), with
-// no mocking of internal layers. The only mocked boundary is the external Auth0 JWKS fetch, via
+// Full-lifecycle integration test exercising auth, MatchDO, D1 lobby sync, and every match route
+// together, through the REAL Worker (SELF.fetch), with no mocking of internal layers. The only mocked boundary is the external Auth0 JWKS fetch, via
 // `fetchMock`, mirroring the pattern established in routes.matches.test.ts/auth0Management.test.ts.
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env, fetchMock, SELF } from 'cloudflare:test';

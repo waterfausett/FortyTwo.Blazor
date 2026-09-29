@@ -1,8 +1,7 @@
 // Renders the bids this player may legally make right now (see `availableBids` in the rules
 // package: Pass unless forced to bid, only bids above `game.bid`, marks one rung at a time, and
 // Plunge only with four doubles), calling `onBid(bid)` when one is picked. Every button is
-// disabled whenever it isn't this player's turn (`game.currentPlayerId !== myPlayerId`). Replaces
-// the bidding section of FortyTwo/Client/Pages/Match.razor + its Chip-based bid buttons.
+// disabled whenever it isn't this player's turn (`game.currentPlayerId !== myPlayerId`).
 import type { JSX } from 'react';
 import type { Game } from '@fortytwo/rules';
 import { Bid, availableBids, bidToPrettyString } from '@fortytwo/rules';

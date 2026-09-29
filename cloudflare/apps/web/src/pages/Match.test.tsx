@@ -96,8 +96,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
 });
 
 beforeEach(() => {
-  // The page always issues a `getMatch` REST query alongside `useMatchSocket` (CRITICAL finding
-  // #2's initial-load fix) - give it a harmless default resolution so tests that don't care about
+  // The page always issues a `getMatch` REST query alongside `useMatchSocket` for its initial
+  // load - give it a harmless default resolution so tests that don't care about
   // it (nearly all of them, since `useMatchSocketMock` already supplies the match state they
   // assert on) don't hang on an unresolved query or an unhandled-rejection warning.
   getMatchMock.mockResolvedValue(null);
@@ -659,8 +659,7 @@ describe('Match', () => {
     expect(container.querySelector('.opponent-tricks .badge')?.textContent).toBe('21');
   });
 
-  // Regression test for IMPORTANT finding #6 from the final whole-branch review: the bidding UI
-  // used to show as soon as `game.hands.some(h => h.bid == null)`, which is trivially true for a
+  // The bidding UI used to show as soon as `game.hands.some(h => h.bid == null)`, which is trivially true for a
   // solo creator's 1-hand match (a table that isn't full yet). The creator would bid immediately,
   // "completing" bidding for that 1-hand view - so when players 2-4 joined later and their fresh
   // (bid: null) hands were added, bidding never resumed (currentPlayerId had already moved on),
@@ -688,9 +687,8 @@ describe('Match', () => {
     expect(screen.getByText(/select a bid/i)).not.toBeNull();
   });
 
-  // Regression test for CRITICAL finding #5 from the final whole-branch review: `readyUp` is the
-  // ONLY mechanism that deals a new hand once the current one has a winner, but Match.tsx had zero
-  // UI for it - so a match could play its first hand to completion and then simply never continue.
+  // `readyUp` is the ONLY mechanism that deals a new hand once the current one has a winner, so
+  // without this UI a match would play its first hand to completion and then never continue.
   describe('Ready Up', () => {
     function finishedHandMatch(): MatchState {
       // A finished game: TeamA (p1/p3) bid Thirty and won a single trick worth 31 (>= 30) - matches
@@ -932,7 +930,7 @@ describe('Match', () => {
     expect(p2Row?.classList.contains('active')).toBe(false);
   });
 
-  // Regression test for the scoped re-review's finding: `isTableReady` gated on
+  // `isTableReady` once gated on
   // `game.hands[0].dominoes.length > 0` - `hands[0]` is always the match creator's (first-dealt
   // player's) hand. Within the final (7th) trick, players play one at a time in turn order - so
   // whichever player happens to act FIRST in that trick empties their hand before the other 3
@@ -1177,7 +1175,7 @@ describe('Match', () => {
       expect(container.querySelector('.player-team-tricks .badge')?.textContent).toBe('1');
     });
 
-    it('trims each side to its last 2 tricks once the bid is big enough (matching the old Blazor shouldStack rule)', () => {
+    it('trims each side to its last 2 tricks once the bid is big enough (so a big hand keeps a short pile)', () => {
       const tricksFor = (team: Teams, count: number): Trick[] =>
         Array.from({ length: count }, () => ({
           playerId: 'p1',

@@ -1,11 +1,10 @@
 // Dumb, deterministic "auto-play" players used when AUTO_PLAY_BOTS is set (index.ts's Env), seated
 // on demand in whichever seats real players leave open, so a match can be exercised locally without
-// four real accounts. Bots
-// aren't smart: they pass unless forced to bid, set trump to their most-held suit, and play the
-// first legal domino they hold - just enough to keep a match moving for UI/flow testing.
+// four real accounts. Bots aren't smart: they pass unless forced to bid, set trump to their
+// most-held suit, and play the first legal domino they hold - just enough to keep a match moving
+// for UI/flow testing.
 import {
   Bid,
-  createDomino,
   Domino,
   Game,
   Hand,
@@ -20,24 +19,6 @@ import {
 // Defined in the rules package so the web client can tell bots apart too; re-exported here for
 // the Worker code that already imports them from this file.
 export { BOT_IDS, isBot };
-
-// Builds a genuinely shuffled 28-domino deck using `createDomino()` (not hand-rolled
-// `{ top, bottom }` objects) so every dealt Domino carries a real `.id` field - the
-// `@fortytwo/rules` `Domino` type requires it, and MatchDO's RPC boundary does an unchecked
-// `body.dealOrder as Domino[]` cast that would otherwise silently pass malformed objects straight
-// into player hands. Shared by routes/matches.ts (human joins/ready-ups) and matchDO.ts (bot
-// seat-filling and bot ready-ups) - lives here since matchDO.ts already imports this file for bot
-// decisions and routes/matches.ts importing from it is no more a layering issue than importing
-// from `@fortytwo/rules` itself.
-export function shuffledDominoOrder(): Domino[] {
-  const dominoes: Domino[] = [];
-  for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dominoes.push(createDomino(i, j));
-  for (let i = dominoes.length - 1; i > 0; i--) {
-    const j = Math.floor((crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32) * (i + 1));
-    [dominoes[i], dominoes[j]] = [dominoes[j], dominoes[i]];
-  }
-  return dominoes;
-}
 
 // The forced-bid rule (validation.ts's assertValidBid) only ever applies to whichever hand acts
 // last in a bidding round where the other three all passed - so "forced" needs no positional

@@ -1,15 +1,9 @@
-// One domino tile. Replaces FortyTwo/Client/Components/Domino.razor. Pip-layout structure
-// (six-position die face per half, plus the divider `<span class="line">`) is ported directly
-// from the real Domino.razor, reusing domino.css's existing class names as-is - no new CSS.
+// One domino tile: a six-position die face per half, plus the divider `<span class="line">`,
+// styled by domino.css.
 //
-// Orientation-flip simplification (see Task 20's report for the full data-model gap writeup):
-// the old Razor's `Instance.Orientation` (Left/Right) field let a player flip which half of the
-// underlying C# Domino displayed "on top" without changing its identity. Our TS `Domino` type
-// (packages/rules/src/domino.ts) has no such field - it only carries the canonical, normalized
-// `top <= bottom` values - and Task 20's brief never asks for orientation-flipping. Rather than
-// invent new component-local orientation state to replicate a UX affordance the shared type
-// doesn't support, this component uses a fixed, direct mapping: the `top` prop always renders in
-// the top half, `bottom` always in the bottom half.
+// The `top` prop always renders in the top half and `bottom` in the bottom half. A `Domino`
+// (packages/rules/src/domino.ts) only carries its canonical `top <= bottom` values, with no
+// orientation, so a tile can't be flipped.
 import type { JSX } from 'react';
 
 export interface DominoProps {
@@ -18,18 +12,17 @@ export interface DominoProps {
   onClick?: () => void;
   onDoubleClick?: () => void;
   selectable?: boolean;
-  // Port of Domino.razor's `Preselected` param - adds domino.css's existing `.preselected` class
-  // (a theme-aware glow, see theme.css's `--domino-preselected-color`) directly to this element,
-  // same as Domino.razor did. Deliberately NOT a wrapper class: `.horizontal`'s rotate+negative-
+  // Adds domino.css's `.preselected` class (a glow, see theme.css's `--domino-preselected-color`)
+  // directly to this element. Deliberately NOT a wrapper class: `.horizontal`'s rotate+negative-
   // margin hack means a wrapper div's own layout box doesn't line up with where the domino
   // actually renders, so styling has to live on the domino element itself to be visible at all.
   preselected?: boolean;
   direction?: 'horizontal' | 'vertical';
 }
 
-// Port of Domino.razor's conditional pip-span logic, applied identically to each half (`prefix`
-// is "T" for the top half / "B" for the bottom half; the class names themselves - e.g. TL23456 -
-// come straight from domino.css). Encodes a standard 6-position die face:
+// The pip spans for one half, applied identically to each (`prefix` is "T" for the top half / "B"
+// for the bottom half; the class names themselves - e.g. TL23456 - come from domino.css). Encodes
+// a standard 6-position die face:
 //   - value >= 2: left + right corner dots
 //   - value == 6: an additional middle-row pair (the "6" position)
 //   - value >= 4: another middle-row pair (the "456" position)
@@ -56,11 +49,9 @@ function DominoHalf({ prefix, value }: { prefix: 'T' | 'B'; value: number }): JS
   );
 }
 
-// Direction defaults to 'horizontal', matching Domino.razor's `Direction { get; set; } =
-// DominoDirection.Horizontal` default - domino.css's `.horizontal` class rotates the tile 90deg
-// from its natural tall/vertical shape, so the default rendering is the wide hand-tile look;
-// TrickDisplay passes direction="vertical" (omitting the class) for the tall trick-pile look,
-// matching Match.razor's explicit `Direction="DominoDirection.Vertical"` there.
+// Direction defaults to 'horizontal': domino.css's `.horizontal` class rotates the tile 90deg from
+// its natural tall/vertical shape, so the default rendering is the wide hand-tile look;
+// TrickDisplay passes direction="vertical" (omitting the class) for the tall trick-pile look.
 export function Domino({
   top,
   bottom,

@@ -1,6 +1,5 @@
 // The /api/users routes through the real Worker (Auth0 mocked via fetchMock), plus unit tests for
-// toUserResponse's two fallback chains (Correction E) - the real C# `User` DTO's computed
-// Picture/DisplayName properties - and toPublicUser's trimmed shape.
+// toUserResponse's two fallback chains (picture and displayName) and toPublicUser's trimmed shape.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { fetchMock, SELF } from 'cloudflare:test';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';

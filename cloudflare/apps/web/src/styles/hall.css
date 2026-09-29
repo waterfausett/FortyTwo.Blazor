@@ -3,7 +3,7 @@
    and each team in its own color - turquoise for us, ochre for them. Every page sits on the same
    walnut; the lobby and profile lay their content out on the felt-less "mat" the table uses.
 
-   Loaded after the ported Blazor stylesheets (theme.css/app.css/chip.css), so it wins over their
+   Loaded after the base stylesheets (theme.css/app.css/chip.css), so it wins over their
    light-theme page defaults. */
 
 :root {

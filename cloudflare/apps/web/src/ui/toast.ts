@@ -1,5 +1,4 @@
-// SweetAlert2 toasts, the way the old Blazor app surfaced errors (ApiClient.cs's HandleException):
-// a small card in the bottom-right corner that times out on its own and pauses while hovered.
+// SweetAlert2 toasts for errors and notices: a small card in the bottom-right corner that times out on its own and pauses while hovered.
 // Styled to the hall palette in styles/toast.css.
 import Swal from 'sweetalert2';
 import { ApiError } from '../api/client';
@@ -19,8 +18,8 @@ const Toast = Swal.mixin({
   },
 });
 
-// The rules engine's messages wrap the name of a bid or suit in `<code>` (validation.ts - a habit
-// from the old app, which rendered them as HTML). Build that one tag as a real element and
+// The rules engine's messages wrap the name of a bid or suit in `<code>` (validation.ts). Build
+// that one tag as a real element and
 // everything else as plain text, so no server string is ever parsed as HTML.
 function formatDetail(detail: string): HTMLElement {
   const container = document.createElement('span');

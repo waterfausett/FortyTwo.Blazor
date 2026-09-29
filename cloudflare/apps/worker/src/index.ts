@@ -4,9 +4,11 @@ import { requireAuth, type AuthedUser } from './auth/verifyJwt';
 import matchesRoutes from './routes/matches';
 import usersRoutes from './routes/users';
 import { BadRequestError } from './requestBody';
+import type { MatchDO } from './matchDO';
+import type { ClientConfig } from '@fortytwo/api-types';
 
 export interface Env {
-  MATCH_DO: DurableObjectNamespace;
+  MATCH_DO: DurableObjectNamespace<MatchDO>;
   DB: D1Database;
   AUTH0_DOMAIN: string;
   AUTH0_AUDIENCE: string;
@@ -17,13 +19,16 @@ export interface Env {
   // Dev-only testing aid (set via .dev.vars, gitignored - never present in a deployed environment):
   // when === 'true', players can seat bots in a match's open seats (POST /api/matches/:id/bots) and
   // MatchDO (matchDO.ts) drives their bids/trump/plays automatically, so one account - or a few
-  // people testing together - can play a full match. Read as a
-  // string, not boolean: .dev.vars is dotenv-style, so there's no real boolean type to declare here
-  // - see bots.ts.
+  // people testing together - can play a full match. A string, not a boolean: .dev.vars is
+  // dotenv-style, so every value arrives as text.
   AUTO_PLAY_BOTS?: string;
 }
 
-const app = new Hono<{ Bindings: Env; Variables: { user: AuthedUser } }>();
+// The Hono environment every route runs in: the bindings above, plus the signed-in user that
+// requireAuth() puts on the context.
+export type AppEnv = { Bindings: Env; Variables: { user: AuthedUser } };
+
+const app = new Hono<AppEnv>();
 
 // A malformed request body gets the same { title, detail } shape as a rule violation, which the
 // client already renders. Anything else is logged and hidden behind a generic 500, so no stack
@@ -71,7 +76,7 @@ app.use(
 );
 app.use('/api/*', requireAuth());
 // Feature switches the web app needs to know about - one worker flag drives both sides.
-app.get('/api/config', (c) => c.json({ bots: c.env.AUTO_PLAY_BOTS === 'true' }));
+app.get('/api/config', (c) => c.json({ bots: c.env.AUTO_PLAY_BOTS === 'true' } satisfies ClientConfig));
 app.route('/api/matches', matchesRoutes);
 app.route('/api/users', usersRoutes);
 

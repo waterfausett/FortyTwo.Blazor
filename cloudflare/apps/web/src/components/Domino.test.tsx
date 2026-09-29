@@ -1,17 +1,11 @@
-// Domino.tsx renders one domino tile: a fixed top/bottom pip-count pair (0-6 pips each,
-// standard die-face layout) using domino.css's existing class names (Task 20 brief step 1 - no
-// new CSS). Per the Task 20 report's data-model note: the old Domino.razor could flip which half
-// ("Top"/"Bottom") displayed via an `Orientation` field on the C# Domino - our TS `Domino` type
-// (packages/rules/src/domino.ts) carries no such field (only canonical top<=bottom values), and
-// the brief never asks for orientation-flipping, so this component intentionally uses a fixed,
-// direct top->top-half / bottom->bottom-half mapping instead of inventing local orientation state.
+// Domino.tsx renders one domino tile: a fixed top/bottom pip-count pair (0-6 pips each, standard
+// die-face layout) using domino.css's class names, with `top` always in the top half.
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Domino } from './Domino';
 
-// vitest.config.ts now sets `test.globals: true` (added in this task) so @testing-library/react's
-// auto-cleanup self-registers - this explicit afterEach is kept anyway, matching Lobby.test.tsx's
-// established belt-and-suspenders pattern, and is harmless to call twice.
+// vitest.config.ts's `test.globals: true` already registers @testing-library/react's auto-cleanup;
+// this explicit afterEach is belt-and-suspenders, and harmless to call twice.
 afterEach(() => {
   cleanup();
 });

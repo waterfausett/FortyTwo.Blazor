@@ -1,24 +1,16 @@
-// The match page: live bidding, trump selection, hand, and trick display. Replaces
-// FortyTwo/Client/Pages/Match.razor(.cs) + Components/Domino.razor/RemotePlayer.razor/Chip.razor.
-// Live state comes from `useMatchSocket` (Task 19's WebSocket hook, replacing the old app's
-// SignalR `HubConnection`); actions (`bid`/`setTrump`/`playDomino`) are `apiClient()` mutations
-// via TanStack Query's `useMutation`. Layout is `styles/match.css`, ported from
-// `FortyTwo/Client/Pages/Match.razor.css` (a Blazor CSS-isolation scoped stylesheet Task 17's
-// CSS port missed entirely, since it only identified/copied the 4 global stylesheets) plus
-// Match.razor's own inline `<style>` block - see match.css's header comment for the full mapping.
+// The match page: live bidding, trump selection, hand, and trick display. Live state comes from
+// `useMatchSocket`; actions (`bid`/`setTrump`/`playDomino`/`readyUp`) are `apiClient()` mutations
+// via TanStack Query's `useMutation`. Layout is `styles/match.css`.
 //
-// Scope note: this DOES port a "Ready Up" between-games flow (`readyUp`/`patchPlayerReady`) - it
-// was originally left out (Task 20's brief interfaces section only listed `bid`/`setTrump`/
-// `playDomino`), but that turned out to be load-bearing: `readyUp` is the ONLY mechanism that ever
-// deals a new hand once the current one has a winner (the very first hand deals automatically on
-// the 4th join), so without it a match could complete its first hand and then simply never
-// continue. See the "Hand over" section below, gated on `gameWinningTeam(currentGame) !== null`.
-// A decided hand can still be played out: play stays open until all 7 tricks are down, and the
-// next hand deals as soon as all four players ready up, whether or not they finished playing.
-// Rejected actions (an illegal play, a stale bid) pop a SweetAlert2 toast (ui/toast.ts), as the
-// old app did. When the match ends, a summary dialog (components/MatchSummary.tsx) replaces the
-// old app's "match over" modal and offers a rematch; a toast stands in for its "next game started"
-// one.
+// Between hands, every player readies up (`readyUp`) - that's the only thing that deals the next
+// hand once the current one has a winner (the very first hand deals on the 4th join). See the
+// "Hand over" section below, gated on `gameWinningTeam(currentGame) !== null`. A decided hand can
+// still be played out: play stays open until all 7 tricks are down, and the next hand deals as
+// soon as all four players ready up, whether or not they finished playing.
+//
+// Rejected actions (an illegal play, a stale bid) pop a SweetAlert2 toast (ui/toast.ts). When the
+// match ends, a summary dialog (components/MatchSummary.tsx) offers a rematch; a toast marks each
+// new hand.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -81,10 +73,9 @@ function otherTeam(team: Teams): Teams {
 }
 
 // A team's cumulative point value across a set of already-COMPLETED tricks (i.e. NOT the trick
-// still being played - that's TrickDisplay's job, and is a different, separate metric). Port of
-// Match.razor:132/143's `teamTricks.Sum(x => x.Value)` where
-// `teamTricks = CurrentGame.Tricks.Where(x => x.Team == team)`. `trickValue()` already includes
-// the +1 base point per trick (trick.ts), so it isn't added again here.
+// still being played - that's TrickDisplay's job, and is a different, separate metric).
+// `trickValue()` already includes the +1 base point per trick (trick.ts), so it isn't added again
+// here.
 //
 // Takes the tricks list rather than `Game` directly so callers can pass either the true
 // `game.tricks` or the hold-delayed "revealed" subset (see `Match()`'s `revealedTrickCount`) -
@@ -94,14 +85,14 @@ function teamTrickPoints(tricks: Trick[], team: Teams): number {
   return tricks.filter((t) => t.team === team).reduce((sum, t) => sum + trickValue(t), 0);
 }
 
-// Port of Match.razor:114's `shouldStack` - once a hand's bid gets big enough (and isn't Plunge or
+// Once a hand's bid gets big enough (and isn't Plunge or
 // a Low-trump hand, both of which keep every trick meaningful to look back on), each side's trick
 // pile is trimmed to just the last 2 so it doesn't grow into an unbounded scroll of tiny dominoes.
 function shouldStackTricks(game: Game): boolean {
   return game.bid != null && game.bid > Bid.FortyTwo && game.bid !== Bid.Plunge && !isLow(game.trump);
 }
 
-// Port of Match.razor:117-118's `teamTricks.Skip(Math.Max(0, teamTricks.Count() - 2))`.
+// A team's side pile: every trick it has taken, or only the last 2 when stacked.
 function teamTricksForDisplay(tricks: Trick[], team: Teams, stack: boolean): Trick[] {
   const teamTricks = tricks.filter((t) => t.team === team);
   return stack ? teamTricks.slice(Math.max(0, teamTricks.length - 2)) : teamTricks;

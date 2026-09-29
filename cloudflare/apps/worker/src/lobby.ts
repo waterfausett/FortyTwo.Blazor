@@ -1,18 +1,26 @@
 // D1-backed "lobby index": a lightweight, denormalized summary of matches for the lobby UI's
 // listing/filtering needs. The Durable Object (matchDO.ts) remains the sole source of truth for
-// in-progress match state; this module only reads/writes the queryable index kept in sync by
-// Worker routes (a later task) after each DO mutation.
-import { Teams, type MatchPlayerState } from '@fortytwo/rules';
+// match state; this index is synced from it after each change - by routes/matches.ts, or by
+// MatchDO itself for the changes no route makes (bot moves, a rematch).
+import { teamForPosition, type MatchPlayerState, type MatchState, type Teams } from '@fortytwo/rules';
+import type { MatchSummary } from '@fortytwo/api-types';
 
-export type MatchStatus = 'active' | 'completed';
-export interface MatchSummary {
-  id: string;
-  status: MatchStatus;
-  playerCount: number;
-  updatedOn: string;
+// One row of the `matches` table. GET /api/matches adds each match's teams and seats to make the
+// full MatchSummary.
+export type MatchIndexRow = Omit<MatchSummary, 'teams' | 'seats'>;
+
+// Brings a match's summary row and seated players up to date.
+export async function syncLobbyIndex(db: D1Database, match: MatchState): Promise<void> {
+  await upsertMatchSummary(db, {
+    id: match.id,
+    status: match.winningTeam ? 'completed' : 'active',
+    playerCount: match.players.length,
+    updatedOn: match.updatedOn,
+  });
+  await syncMatchPlayers(db, match.id, match.players);
 }
 
-export async function upsertMatchSummary(db: D1Database, summary: MatchSummary): Promise<void> {
+export async function upsertMatchSummary(db: D1Database, summary: MatchIndexRow): Promise<void> {
   await db
     .prepare(
       `INSERT INTO matches (id, status, player_count, updated_on) VALUES (?, ?, ?, ?)
@@ -28,13 +36,8 @@ export interface SeatedPlayer {
   position: number;
 }
 
-function teamForPosition(position: number): Teams {
-  return position % 2 === 0 ? Teams.TeamA : Teams.TeamB;
-}
-
 // Replaces the full player set for a match (delete-then-reinsert), not an incremental add. Each
-// player's team comes from their seat, the same parity rule matchEngine.ts uses (even positions
-// are TeamA, odd are TeamB).
+// player's team comes from their seat.
 export async function syncMatchPlayers(
   db: D1Database,
   matchId: string,
@@ -77,10 +80,10 @@ export async function listMatchPlayers(db: D1Database, matchIds: string[]): Prom
   return byMatch;
 }
 
-export async function listActive(db: D1Database, userId: string): Promise<MatchSummary[]> {
-  // NOTE: D1's `.all<MatchSummary>()` type parameter is compile-time only - it does not rename
+export async function listActive(db: D1Database, userId: string): Promise<MatchIndexRow[]> {
+  // NOTE: D1's `.all<MatchIndexRow>()` type parameter is compile-time only - it does not rename
   // runtime columns. The underlying `matches` table is snake_case (player_count, updated_on), so
-  // every column that maps to a camelCase MatchSummary field must be explicitly aliased with AS,
+  // every column that maps to a camelCase MatchIndexRow field must be explicitly aliased with AS,
   // or `.playerCount`/`.updatedOn` would be undefined on every returned row at runtime.
   const { results } = await db
     .prepare(
@@ -89,11 +92,11 @@ export async function listActive(db: D1Database, userId: string): Promise<MatchS
        WHERE mp.player_id = ? AND m.status = 'active' ORDER BY m.updated_on DESC`
     )
     .bind(userId)
-    .all<MatchSummary>();
+    .all<MatchIndexRow>();
   return results;
 }
 
-export async function listCompleted(db: D1Database, userId: string): Promise<MatchSummary[]> {
+export async function listCompleted(db: D1Database, userId: string): Promise<MatchIndexRow[]> {
   const { results } = await db
     .prepare(
       `SELECT m.id, m.status, m.player_count AS playerCount, m.updated_on AS updatedOn
@@ -101,11 +104,11 @@ export async function listCompleted(db: D1Database, userId: string): Promise<Mat
        WHERE mp.player_id = ? AND m.status = 'completed' ORDER BY m.updated_on DESC`
     )
     .bind(userId)
-    .all<MatchSummary>();
+    .all<MatchIndexRow>();
   return results;
 }
 
-export async function listJoinable(db: D1Database, userId: string): Promise<MatchSummary[]> {
+export async function listJoinable(db: D1Database, userId: string): Promise<MatchIndexRow[]> {
   const { results } = await db
     .prepare(
       `SELECT id, status, player_count AS playerCount, updated_on AS updatedOn
@@ -114,6 +117,6 @@ export async function listJoinable(db: D1Database, userId: string): Promise<Matc
        ORDER BY updated_on DESC, player_count DESC`
     )
     .bind(userId)
-    .all<MatchSummary>();
+    .all<MatchIndexRow>();
   return results;
 }

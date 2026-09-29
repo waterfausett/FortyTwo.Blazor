@@ -146,8 +146,7 @@ describe('addPlayer', () => {
     expect(() => addPlayer(match, 'p1', Teams.TeamB)).toThrow(ValidationError);
   });
 
-  // Regression test for CRITICAL finding #3 from the final whole-branch review: without a
-  // team-capacity guard, a 3rd player requesting an already-full team collides with the 2nd
+  // Without a team-capacity guard, a 3rd player requesting an already-full team collides with the 2nd
   // player's position (both compute `teammatePosition + 2` from the same first teammate),
   // corrupting the players array - this later crashes `selectNextPlayer`'s non-null assertion
   // when turn order needs to reach the never-assigned position. Must throw ValidationError
@@ -510,12 +509,8 @@ describe('playDomino', () => {
     expect(match.currentGame.currentTrick.playerId).toBe('p1');
   });
 
-  // Regression test for IMPORTANT finding #7 from the final whole-branch review: playDomino used
-  // to persist/broadcast whatever domino object the CALLER passed (straight from a client request
-  // body), not the actual domino from the player's hand - so a client sending `{top, bottom}` with
-  // no `id`, or extra/malformed fields, would have that exact object written to storage and
-  // broadcast to every socket. Simulates that by passing a bare object missing `.id` and carrying
-  // a bogus extra field.
+  // The domino that gets stored and broadcast is the one from the hand, never the caller's object -
+  // here a bare object with no `id` and a stray extra field.
   it('persists the ACTUAL domino from the hand (with its real id), not the raw request-body object', () => {
     const match = readyToPlay();
     const rawFromClient = { top: 6, bottom: 6, bogus: 'should not survive' } as unknown as Domino;
@@ -611,6 +606,25 @@ describe('playDomino', () => {
     expect(match.currentGame.tricks).toHaveLength(2);
     expect(match.games[Teams.TeamA]).toHaveLength(1);
     expect(matchScores(match)[Teams.TeamA]).toBe(1);
+  });
+
+  // Winning the match doesn't end the hand that won it - it can be played out like any other.
+  it('keeps accepting plays after the match is won, without changing the result', () => {
+    const decidingTrick: Trick = {
+      playerId: 'p1',
+      team: Teams.TeamA,
+      suit: Suit.Fives,
+      dominoes: [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)],
+    };
+    let match = readyToPlay({ tricks: [decidingTrick] });
+    const earlierWins = Array.from({ length: 6 }, (_, i) => ({ ...match.currentGame, id: `won-${i}` }));
+    match = { ...match, games: { [Teams.TeamA]: [...earlierWins, match.currentGame] }, winningTeam: Teams.TeamA };
+
+    match = playDomino(match, 'p1', createDomino(6, 6));
+
+    expect(match.currentGame.currentTrick.dominoes[0]).toEqual(createDomino(6, 6));
+    expect(match.winningTeam).toBe(Teams.TeamA);
+    expect(matchScores(match)[Teams.TeamA]).toBe(7);
   });
 });
 

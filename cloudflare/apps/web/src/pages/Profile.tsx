@@ -1,14 +1,11 @@
-// The profile page: display name and picture URL. Replaces
-// FortyTwo/Client/Pages/Profile.razor(.cs). Email is read-only, sourced straight from
+// The profile page: display name and picture URL. Email is read-only, sourced straight from
 // `getProfile()`'s response (never sent back via `patchProfile`). Picture is a plain URL text
-// field (despite the old app's <label for="filePicture">Picture</label>, it was never a file
-// upload - `ProfileModel.Picture` is a string, and `InputText` posts a URL) with a live preview
-// that falls back to the profile's existing picture until edited. The old app's light/dark theme
-// toggle is gone: the whole site is the one dark domino-hall look (styles/hall.css).
+// field (not a file upload) with a live preview that falls back to the profile's existing picture
+// until edited. There's no theme setting: the whole site is the one dark domino-hall look
+// (styles/hall.css).
 //
-// The old app used a SweetAlert2 toast on save; per this plan's established pattern (Task 20 used
-// a plain inline banner for errors instead of a toast library), a brief inline "Saved" message
-// near the button stands in for it - no new dependency.
+// A save confirms with a brief inline "Saved" message near the button, and an error shows as an
+// inline banner.
 import { useEffect, useState } from 'react';
 import type { FormEvent, JSX } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';

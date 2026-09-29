@@ -1,9 +1,7 @@
 // TrickDisplay.tsx renders the current trick's slots (4 normally, 3 for Suit.Low - matching
 // trick.ts's isTrickFull, which treats a Low-trump trick as full at 3 dominoes) around a table
-// center, rendering exactly one Domino per non-null slot. Reuses chip.css's existing
-// .custom-chip/.badge classes for the trick's running point value, matching Match.razor's
-// `<Chip Context="ContextualClass.Info"><Label>Points</Label><Badge>...</Badge></Chip>` usage
-// next to trick piles - no new CSS.
+// center, rendering exactly one Domino per non-null slot. Uses chip.css's .custom-chip/.badge
+// classes for the trick's running point value.
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDomino, Suit, type Trick } from '@fortytwo/rules';

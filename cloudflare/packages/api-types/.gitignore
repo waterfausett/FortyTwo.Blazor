@@ -1,0 +1,4 @@
+# Output of apps/web's `tsc -b`, which builds this package's declarations through a project
+# reference. Generated on demand; not committed.
+dist/
+*.tsbuildinfo

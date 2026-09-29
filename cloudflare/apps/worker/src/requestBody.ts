@@ -4,6 +4,7 @@
 import type { Context } from 'hono';
 import { Bid, Suit, Teams, createDomino, type Domino } from '@fortytwo/rules';
 import { MAX_USER_IDS } from './auth0Management';
+import type { ProfilePatch } from '@fortytwo/api-types';
 
 export class BadRequestError extends Error {
   readonly title = 'Invalid request';
@@ -103,8 +104,8 @@ export const MAX_PICTURE_URL_LENGTH = 2048;
 
 // A profile update, keeping only the fields a player may set; anything else in the body is dropped
 // rather than stored in their Auth0 user_metadata.
-export function profilePatch(body: Body): { displayName?: string; picture?: string } {
-  const patch: { displayName?: string; picture?: string } = {};
+export function profilePatch(body: Body): ProfilePatch {
+  const patch: ProfilePatch = {};
   if (body.displayName !== undefined) patch.displayName = displayName(body.displayName);
   if (body.picture !== undefined) patch.picture = picture(body.picture);
   return patch;

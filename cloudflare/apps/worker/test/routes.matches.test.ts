@@ -149,8 +149,8 @@ describe('match routes', () => {
         }
         expect(hand.dominoes).toHaveLength(7);
         for (const domino of hand.dominoes) {
-          // Every dealt domino must have a genuine `.id`, not undefined - proves
-          // shuffledDominoOrder() uses createDomino() rather than hand-rolled {top,bottom} objects.
+          // Every dealt domino must have a genuine `.id`, not undefined - the deal is built with
+          // createDomino(), not hand-rolled {top,bottom} objects.
           expect(domino.id).toBeTruthy();
           expect(typeof domino.id).toBe('string');
         }
@@ -461,9 +461,8 @@ describe('match routes', () => {
 
   it(
     "the WebSocket broadcast payload carries the SAME id as the REST create response - " +
-      "regression guard for matchEngine.ts's createMatch() minting its own internal id " +
-      "independent of the route's DO-addressing matchId (fixed at the source in matchDO.ts's " +
-      "'create' RPC case, not patched per-response)",
+      "createMatch() mints its own id, which MatchDO's `create` replaces with the id the DO is " +
+      'addressed by',
     async () => {
       const p1 = await signToken('p1');
       const p2 = await signToken('p2');
@@ -475,8 +474,8 @@ describe('match routes', () => {
       const restId = created.id;
 
       // Open a WebSocket DIRECTLY against the MatchDO stub for that same id - mirrors
-      // matchDOSocket.test.ts's approach, bypassing the (not-yet-built) Worker WS route since
-      // MatchDO's own `/ws` upgrade handler is what's under test here, not routing.
+      // matchDOSocket.test.ts's approach, since the id MatchDO broadcasts is what's under test
+      // here, not routing (wsRoute.test.ts covers that).
       const stub = testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(restId));
       const upgradeRes = await stub.fetch(`https://match-do/ws?token=${p1}`, {
         headers: { Upgrade: 'websocket' },
@@ -503,8 +502,7 @@ describe('match routes', () => {
         const payload = JSON.parse(event.data as string) as { type: string; match: { id: string } };
 
         expect(payload.type).toBe('match');
-        // The regression this guards against: before the fix, this would be the DIFFERENT,
-        // internally-minted id from matchEngine.ts's createMatch(), not restId.
+        // Not the DIFFERENT, internally-minted id from createMatch().
         expect(payload.match.id).toBe(restId);
       } finally {
         ws.close();

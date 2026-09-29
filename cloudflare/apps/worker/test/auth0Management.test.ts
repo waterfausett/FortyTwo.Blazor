@@ -1,7 +1,6 @@
-// Tests auth0Management.ts (port of Auth0AccessTokenProvider + Auth0ApiClient) by mocking global
-// fetch directly, per the task brief. The token cache is a module-level variable (mirrors the
-// real C# app's IMemoryCache-backed provider - valid for the Worker isolate's lifetime), so each
-// test resets the module via vi.resetModules() + a fresh dynamic import to get an unpolluted cache.
+// Tests auth0Management.ts by mocking global fetch directly. The token cache is a module-level
+// variable (valid for the Worker isolate's lifetime), so each test resets the module via
+// vi.resetModules() + a fresh dynamic import to get an unpolluted cache.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Env } from '../src/index';
 
@@ -79,10 +78,9 @@ describe('auth0Management', () => {
       vi.unstubAllGlobals();
     });
 
-    // Correction B: the real C# check is `cachedToken.ExpiresOn > DateTimeOffset.UtcNow.AddSeconds(-30)`,
-    // i.e. `now < expiresOn + 30s` - the cached token is treated as still valid for up to 30 SECONDS
-    // PAST its nominal expiry, not refreshed 30s early. Port the literal comparison.
-    it('treats a token up to 30s PAST its nominal expiry as still a cache hit (literal C# grace-period quirk)', async () => {
+    // The cached token stays valid until `now < expiresOn + 30s` - up to 30 SECONDS PAST its
+    // nominal expiry, not refreshed 30s early. The original app behaved this way; kept as-is.
+    it('treats a token up to 30s PAST its nominal expiry as still a cache hit (grace-period quirk)', async () => {
       vi.useFakeTimers();
       const fetchMock = vi
         .fn()
@@ -132,7 +130,7 @@ describe('auth0Management', () => {
       return new URL(String(fetchMock.mock.calls[1][0])).searchParams;
     }
 
-    // Correction C: a single q=user_id:(...) param, each id double-quoted, comma-separated, no spaces.
+    // A single q=user_id:(...) param, each id double-quoted, comma-separated, no spaces.
     it('requests GET api/v2/users with a q=user_id:(...) filter using exact quoting', async () => {
       const fetchMock = vi
         .fn()

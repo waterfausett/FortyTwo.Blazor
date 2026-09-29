@@ -1,13 +1,10 @@
-// The player's own hand: draggable/reorderable dominoes. Replaces the
-// `SortGroup`/`BlazorSortableJS`-driven hand section of FortyTwo/Client/Pages/Match.razor. Uses
-// @dnd-kit/core's `useDraggable` + per-tile `useDroppable` (so dropping one domino onto another
+// The player's own hand: draggable/reorderable dominoes. Uses @dnd-kit/core's `useDraggable` + per-tile `useDroppable` (so dropping one domino onto another
 // reorders) rather than @dnd-kit/sortable. The `DndContext` itself lives above this component
 // (PlayDnd.tsx's `PlayDndContext`), because the drop target that plays a domino is the table, not
 // anything in the hand; Hand follows drags through `useDndMonitor`, so it must be rendered inside
 // that context.
 //
-// `onPlay(domino)` fires three ways, matching the brief's "on click/drop onto the trick area" plus
-// the double-click/preselect addition below:
+// `onPlay(domino)` fires three ways:
 //   - clicking a tile directly (only when `selectable`)
 //   - dragging a tile and dropping it onto the table (also gated on `selectable`)
 //   - double-clicking a tile: plays immediately if `selectable`; otherwise queues it as a
@@ -15,8 +12,7 @@
 //     becomes this player's turn, gated by the caller-supplied `isValidPlay`
 // Reordering (dropping one tile onto another) is local UI state only, and - unlike the play
 // actions above - is NEVER gated on `selectable`: a player should be able to rearrange their own
-// hand for reference at any time, not just on their turn. It doesn't call the server either,
-// mirroring the old app's `OnSort` handler, which only reordered `Player.Dominos` client-side.
+// hand for reference at any time, not just on their turn. It doesn't call the server either.
 //
 // While dragging, the tile itself never moves: a ghost copy follows the pointer in a
 // `DragOverlay` (position: fixed, so it can't stretch the page), and the original stays in the

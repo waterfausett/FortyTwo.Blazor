@@ -1,15 +1,13 @@
-// The lobby: a tabbed match list (Find a Game / Active / Game History, defaulting to Active,
-// mirroring the old FortyTwo/Client/Pages/Index.razor's nav-tabs layout) plus create/join
-// actions. Replaces Index.razor + Index.razor.cs, which drove its lists via a SignalR push
-// (`OnMatchCreated`) into a client-side store.
+// The lobby: a tabbed match list (Find a Game / Active / Game History, defaulting to Active) plus
+// create/join actions.
 //
 // Only the selected tab's list is ever fetched - the single `useQuery` below is keyed on
 // `activeTab`, so switching tabs just mounts a new query instance instead of eagerly fetching all
 // three lists up front. There's no `refetchInterval` cadence either: Active games are expected to
 // stay fairly static now that in-match play has its own WebSocket (useMatchSocket) carrying
 // real-time updates once you're actually in a match - the lobby just needs a reasonably fresh
-// snapshot, not a live feed. A manual refresh icon button (the old app's oi-loop-circular, from
-// the open-iconic set already loaded via app.css) refetches whichever tab is currently selected.
+// snapshot, not a live feed. A manual refresh icon button (open-iconic's oi-loop-circular, loaded
+// via app.css) refetches whichever tab is currently selected.
 // Find a Game may want its own polling/push back later (matches can appear from other players at
 // any time) - left as-is for now per explicit product direction.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -22,8 +20,6 @@ import './Lobby.css';
 
 type MatchFilter = 'Active' | 'Joinable' | 'Completed';
 
-// Order and labels match the old app's tab bar (Index.razor's nav-tabs: Find a Game, Active
-// Games, Game History).
 const TABS: { filter: MatchFilter; label: string }[] = [
   { filter: 'Joinable', label: 'Find a Game' },
   { filter: 'Active', label: 'Active Games' },

@@ -8,6 +8,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fortytwo/api-types": "*",
     "@fortytwo/rules": "*",
     "hono": "^4.6.0",
     "jose": "^5.9.0"

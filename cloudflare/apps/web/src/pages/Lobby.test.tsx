@@ -1,8 +1,7 @@
 // Tests the Lobby page's tabbed match list (Find a Game / Active / Game History, defaulting to
 // Active) plus its create/join actions and manual refresh button. `apiClient` (client.ts) is
 // mocked at the module level rather than injected as a prop - Lobby.tsx calls `apiClient(getToken)`
-// internally per the brief's "Consumes: apiClient().listMatches..." framing - so tests control
-// each method's mocked return/behavior directly. `@auth0/auth0-react`'s `useAuth0` is likewise
+// internally - so tests control each method's mocked return/behavior directly. `@auth0/auth0-react`'s `useAuth0` is likewise
 // mocked rather than wrapped in a real `Auth0Provider`, since only a working
 // `getAccessTokenSilently` stub is needed here, not real auth behavior. `react-router-dom`'s
 // `useNavigate` is overridden (keeping the rest of the real module, including `MemoryRouter`) so
@@ -231,8 +230,7 @@ describe('Lobby', () => {
       fireEvent.click(within(picker).getByRole('button', { name: /with bob/i }));
 
       await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('joinable-1', 2));
-      // Regression test for CRITICAL finding #4: joining used to only invalidate the list queries,
-      // leaving the player with no way back to the match they just joined except typing the URL.
+      // Joining takes the player straight to the match they just joined.
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/joinable-1'));
     });
 
@@ -257,10 +255,8 @@ describe('Lobby', () => {
     });
   });
 
-  // Regression test for CRITICAL finding #4 from the final whole-branch review: match rows
-  // previously showed only id and player count, with no link to `/match/:id` anywhere - a player
-  // who left the match page (or the creator, before anyone else joined) had no way back in except
-  // manually typing a URL.
+  // A player who left the match page (or the creator, before anyone else joined) gets back in
+  // through the match's row.
   it('renders each match row as a link to its match page', async () => {
     renderLobby();
 

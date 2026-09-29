@@ -57,29 +57,19 @@ function stubFor(name: string) {
   return testEnv.MATCH_DO.get(id);
 }
 
-// Mirrors matchDO.test.ts's rpc() helper: always fully consumes the response body before
-// returning, even when the caller doesn't need it, per vitest-pool-workers' isolated-storage
-// guidance - an unread Response body can leave a resource open across the test boundary.
-async function rpc(
-  stub: ReturnType<typeof stubFor>,
-  method: string,
-  body: Record<string, unknown>
-): Promise<{ status: number; body: unknown }> {
-  const res = await stub.fetch(`https://match-do/rpc/${method}`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-    headers: { 'content-type': 'application/json' },
-  });
-  const json = await res.json();
-  return { status: res.status, body: json };
+// A DO named `name` holding a new match created by p1.
+async function createdBy(name: string, firstPlayerId = 'p1') {
+  const stub = stubFor(name);
+  await stub.create(firstPlayerId, name);
+  return stub;
 }
 
 // Attempts a WebSocket upgrade and ALWAYS fully drains the resulting Response - either by
 // accepting the returned client-side WebSocket (which owns the response going forward), or, when
-// no WebSocket comes back (a rejected/not-yet-implemented upgrade), by reading its body as text.
-// This must happen unconditionally, before any assertion that might throw, so a failing
-// assertion (expected during RED) can never leave a Response body or socket dangling across the
-// test boundary - exactly the unconsumed-resource EBUSY gotcha from Task 11.
+// no WebSocket comes back (a rejected upgrade), by reading its body as text. This must happen
+// unconditionally, before any assertion that might throw, so a failing assertion can never leave a
+// Response body or socket dangling across the test boundary - vitest-pool-workers' isolated
+// storage then fails to tear down (EBUSY on Windows).
 async function openSocket(
   stub: ReturnType<typeof stubFor>,
   path: string
@@ -98,8 +88,7 @@ async function openSocket(
 
 describe('MatchDO WebSocket upgrade', () => {
   it('accepts a valid-token upgrade with a 101 response', async () => {
-    const stub = stubFor('socket-valid-token');
-    await rpc(stub, 'create', { firstPlayerId: 'p1' });
+    const stub = await createdBy('socket-valid-token');
     const token = await signToken({ sub: 'p1' });
 
     const { status, ws } = await openSocket(stub, `/ws?token=${token}`);
@@ -127,14 +116,11 @@ describe('MatchDO WebSocket upgrade', () => {
     expect(ws).toBeFalsy();
   });
 
-  // Regression test for CRITICAL finding #2 (half 2) from the final whole-branch review: a client
-  // that connects and then does nothing used to receive NO state at all until the NEXT broadcast-
-  // causing RPC mutation - so the match creator waiting for others to join, or anyone reconnecting
-  // mid-game, saw an indefinite spinner. Asserts the very first message received after a successful
-  // upgrade (with no RPC call in between) already carries the current match state.
+  // A client that connects and then does nothing (the creator waiting for others to join, anyone
+  // reconnecting mid-game) must still get the match - otherwise it waits on a spinner until the
+  // next change. The very first message after the upgrade carries the current state.
   it('sends the current match state to a newly-connected socket immediately, with no RPC call needed', async () => {
-    const stub = stubFor('socket-initial-state');
-    await rpc(stub, 'create', { firstPlayerId: 'p1' });
+    const stub = await createdBy('socket-initial-state');
     const token = await signToken({ sub: 'p1' });
 
     const res = await stub.fetch('https://match-do/ws?token=' + token, {
@@ -165,8 +151,7 @@ describe('MatchDO WebSocket upgrade', () => {
   });
 
   it('broadcasts a match message to a connected socket when an RPC method runs', async () => {
-    const stub = stubFor('socket-broadcast');
-    await rpc(stub, 'create', { firstPlayerId: 'p1' });
+    const stub = await createdBy('socket-broadcast');
     const token = await signToken({ sub: 'p1' });
 
     const { status, ws } = await openSocket(stub, `/ws?token=${token}`);
@@ -184,16 +169,15 @@ describe('MatchDO WebSocket upgrade', () => {
         });
       }
 
-      // The connection's own initial-state send (matchDO.ts's post-upgrade `existing` push, added
-      // for CRITICAL finding #2) arrives first - drain it before waiting for the addPlayer-
-      // triggered broadcast below, or a `once` listener attached after it would consume THIS
-      // message instead of the one this test actually cares about.
+      // The connection's own initial-state send arrives first - drain it before waiting for the
+      // addPlayer-triggered broadcast below, or a `once` listener attached after it would consume
+      // THIS message instead of the one this test actually cares about.
       await nextMessage();
 
       const messagePromise = nextMessage();
 
-      const addPlayerResult = await rpc(stub, 'addPlayer', { playerId: 'p2', team: Teams.TeamA });
-      expect(addPlayerResult.status).toBe(200);
+      const addPlayerResult = await stub.addPlayer('p2', Teams.TeamA);
+      expect(addPlayerResult.ok).toBe(true);
 
       const event = await messagePromise;
       const payload = JSON.parse(event.data as string) as { type: string; match: { players: unknown[] } };
@@ -202,8 +186,7 @@ describe('MatchDO WebSocket upgrade', () => {
       expect(payload.match.players).toHaveLength(2);
     } finally {
       // Always close the client-side socket before the test ends - an unclosed WebSocket handle
-      // is the same class of dangling-resource issue that caused Task 11's Windows EBUSY crash
-      // with unread Response bodies.
+      // dangles across the test boundary just like an unread Response body (see openSocket).
       ws?.close();
     }
   });
@@ -219,10 +202,9 @@ describe('MatchDO WebSocket upgrade', () => {
 
     // p1 creates, p2-p4 take seats 1-3; the 4th seat deals.
     async function dealtMatch(name: string) {
-      const stub = stubFor(name);
-      await rpc(stub, 'create', { firstPlayerId: 'p1' });
-      await rpc(stub, 'takeSeat', { playerId: 'p2', position: 1 });
-      await rpc(stub, 'takeSeat', { playerId: 'p3', position: 2 });
+      const stub = await createdBy(name);
+      await stub.takeSeat('p2', 1);
+      await stub.takeSeat('p3', 2);
       return stub;
     }
 
@@ -253,7 +235,7 @@ describe('MatchDO WebSocket upgrade', () => {
         await p1.nth(1);
         await p2.nth(1);
 
-        await rpc(stub, 'takeSeat', { playerId: 'p4', position: 3, dealOrder: deck() });
+        await stub.takeSeat('p4', 3, deck());
 
         const forP1 = await p1.nth(2);
         const forP2 = await p2.nth(2);
@@ -269,7 +251,7 @@ describe('MatchDO WebSocket upgrade', () => {
 
     it('hides every hand from a connected socket whose user is not seated', async () => {
       const stub = await dealtMatch('socket-hidden-outsider');
-      await rpc(stub, 'takeSeat', { playerId: 'p4', position: 3, dealOrder: deck() });
+      await stub.takeSeat('p4', 3, deck());
       const outsider = await connect(stub, 'p5');
       try {
         const first = await outsider.nth(1);
@@ -286,8 +268,7 @@ describe('MatchDO WebSocket upgrade', () => {
   // reserved by the WebSocket protocol and throws `InvalidAccessError` if forwarded as-is to
   // `ws.close()` - this used to crash the DO's webSocketClose handler on every such disconnect.
   it('does not throw when webSocketClose receives the reserved 1005 close code', async () => {
-    const stub = stubFor('socket-reserved-close-code');
-    await rpc(stub, 'create', { firstPlayerId: 'p1' });
+    const stub = await createdBy('socket-reserved-close-code');
 
     await runInDurableObject(stub, async (instance, state) => {
       const matchDO = instance as unknown as MatchDO;

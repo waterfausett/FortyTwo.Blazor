@@ -1,12 +1,6 @@
-// Port of `FortyTwo/Server/Services/MatchService.cs`'s 6 mutating methods (`CreateAsync`,
-// `AddPlayerAsync`, `PatchPlayerAsync` + its private `ReadyUp`/`Deal` helpers, `BidAsync`,
-// `SetTrumpForCurrentGameAsync`, `PlayDominoAsync`) plus the `Match.Scores` computed property,
-// as pure functions over a `MatchState` aggregate. Every function throws `ValidationError`
-// (never returns an error value) on an illegal action, matching `CustomValidationException`.
-//
-// All 6 mutating functions return a fresh top-level `MatchState` object per TS/React's
-// immutable-state convention (established in trick.ts's `addDominoToTrick`), even though some
-// nested structures are rebuilt more eagerly than strictly necessary for clarity.
+// A match's rules as pure functions over `MatchState`: each action takes the current match and
+// returns a new one, never mutating its input, or throws `ValidationError` when the action isn't
+// allowed.
 import { Bid } from './bid';
 import { isBot } from './botIds';
 import { Domino, dominoEquals, getSuitValue } from './domino';
@@ -16,7 +10,7 @@ import { Hand } from './hand';
 import { MatchPlayerRef, selectNextPlayer } from './match';
 import { nextPosition, Positions } from './positions';
 import { Suit } from './suit';
-import { Teams } from './teams';
+import { Teams, teamForPosition } from './teams';
 import { addDominoToTrick, createTrick, isTrickFull } from './trick';
 import {
   assertActive,
@@ -35,18 +29,15 @@ import {
   assertValidTrump,
 } from './validation';
 
-// Port of `FortyTwo/Shared/Constants.cs`'s `WinningScore`.
+// Marks needed to win the match.
 const WINNING_SCORE = 7;
 
 export interface MatchPlayerState extends MatchPlayerRef {
   ready: boolean;
 }
 
-// Port of C# `LoggedInPlayer` (FortyTwo/Shared/Models) - the narrow, per-player DTO returned by
-// `MatchService.GetPlayerForMatch`. NOT the full `MatchState` - `getPlayerView` (Task 11's
-// `MatchDO`) is a separate operation from a full-match fetch. Field names follow this codebase's
-// established camelCase convention (`playerId`, `dominoes`) rather than the C# source's PascalCase
-// (`Id`, `Dominos`) - a faithful-in-shape, not faithful-in-spelling, port.
+// One seated player's own slice of a match (`getPlayerView`): their team, hand, bid and whether
+// it's their turn.
 export interface LoggedInPlayer {
   playerId: string;
   team: Teams;
@@ -56,7 +47,7 @@ export interface LoggedInPlayer {
   bid: Bid | null | undefined;
 }
 
-// The full aggregate the MatchDO (Task 11) will hold and mutate.
+// A whole match, every hand included - what the Worker's MatchDO stores.
 export interface MatchState {
   id: string;
   createdOn: string;
@@ -72,17 +63,11 @@ export interface MatchState {
   rematchId?: string;
 }
 
-// Port of C# `MatchPlayerExtensions.Team()`: `(int)position % 2 == 0 ? TeamA : TeamB`.
-function teamForPosition(position: Positions): Teams {
-  return position % 2 === 0 ? Teams.TeamA : Teams.TeamB;
-}
-
 function now(): string {
   return new Date().toISOString();
 }
 
-// Port of `MatchService.CreateAsync`. No validation guards - matches the C# original, which
-// calls none.
+// A new match with its creator in the first seat, waiting for three more players.
 export function createMatch(firstPlayerId: string): MatchState {
   const timestamp = now();
 
@@ -111,7 +96,7 @@ export function createMatch(firstPlayerId: string): MatchState {
 }
 
 // Deals 7 dominoes to each hand, sliced from `dealOrder` at `[position * 7, position * 7 + 7)`
-// per the seated player's position. Port of the domino-distribution half of `MatchService.Deal`.
+// per the seated player's position.
 function dealHands(hands: Hand[], players: MatchPlayerState[], dealOrder: Domino[]): Hand[] {
   return hands.map((hand) => {
     const player = players.find((p) => p.playerId === hand.playerId)!;
@@ -120,18 +105,10 @@ function dealHands(hands: Hand[], players: MatchPlayerState[], dealOrder: Domino
   });
 }
 
-// Port of `MatchService.AddPlayerAsync`.
-//
-// JUDGMENT CALL: the brief's interface for `addPlayer` takes no `dealOrder` parameter, but the
-// real C# `AddPlayerAsync` unconditionally deals (via the same `Deal()` helper `ReadyUp` uses)
-// the instant the 4th hand is added - and dealing requires a shuffled 28-domino source, which
-// this pure-function port can't conjure on its own (see `patchPlayerReady`'s `dealOrder` param
-// for why). To stay faithful to the interface's 3-arg calling convention while still supporting
-// that behavior, `dealOrder` is an added optional 4th parameter: when the 4th player's join
-// supplies it, the deal happens exactly as in `AddPlayerAsync` (dominoes dealt, all `ready`
-// flags reset to false); when omitted, the 4th hand is still added but dealing is skipped
-// (there being no dominoes to deal from) - a caller (the Task 11 Durable Object) that knows a
-// deal is about to be triggered should pass one.
+// Joins a match on `team`, taking the seat across from a teammate already there (or the first
+// open seat on that team's side). The 4th player's join deals the first hand from `dealOrder`
+// and unreadies everyone; these functions stay pure, so the caller does the shuffling. Without a
+// `dealOrder` the 4th player is still seated, but nothing is dealt.
 export function addPlayer(match: MatchState, playerId: string, team: Teams, dealOrder?: Domino[]): MatchState {
   assertActive(match);
   assertNotFull(match);
@@ -173,9 +150,6 @@ export function takeSeat(match: MatchState, playerId: string, position: number, 
 
 function seatPlayer(match: MatchState, playerId: string, position: Positions, dealOrder?: Domino[]): MatchState {
   const newPlayer: MatchPlayerState = { playerId, position, ready: true };
-  // Mirrors the C# source's own quirk: the new Hand's team is computed from POSITION, not the
-  // `team` argument directly - always consistent in practice since addPlayer derives position
-  // from `team`, but written the same (redundant) way for a faithful line-for-line port.
   const newHand: Hand = { playerId, team: teamForPosition(position), dominoes: [], bid: null };
 
   let players = [...match.players, newPlayer];
@@ -189,7 +163,8 @@ function seatPlayer(match: MatchState, playerId: string, position: Positions, de
   return { ...match, currentGame, players, updatedOn: now() };
 }
 
-// Port of `MatchService.PatchPlayerAsync` + its private `ReadyUp`/`Deal` helpers.
+// Marks a player ready (or not) for the next hand. Once the current hand is decided and all four
+// are ready, the next hand is dealt from `dealOrder`, opened by the seat after the last opener.
 export function patchPlayerReady(
   match: MatchState,
   playerId: string,
@@ -239,7 +214,8 @@ export function patchPlayerReady(
   return { ...match, players, currentGame, updatedOn: now() };
 }
 
-// Port of `MatchService.BidAsync`.
+// Records the current player's bid and moves on: to the next bidder, or once everyone has bid, to
+// the winning bidder (their partner, on a Plunge) to name trump.
 export function placeBid(match: MatchState, playerId: string, bid: Bid): MatchState {
   assertActive(match);
   assertActive(match.currentGame);
@@ -278,7 +254,7 @@ export function placeBid(match: MatchState, playerId: string, bid: Bid): MatchSt
   return { ...match, currentGame, updatedOn: now() };
 }
 
-// Port of `MatchService.SetTrumpForCurrentGameAsync`.
+// The winning bidder names trump. Trump can't be changed once named.
 export function setTrump(match: MatchState, playerId: string, suit: Suit): MatchState {
   assertActive(match);
   assertActive(match.currentGame);
@@ -287,18 +263,21 @@ export function setTrump(match: MatchState, playerId: string, suit: Suit): Match
   assertActiveBidder(match.currentGame, playerId);
   assertValidTrump(match.currentGame, suit);
 
-  // `match.CurrentGame.Trump ??= suit;` - first call wins.
   const currentGame: Game = { ...match.currentGame, trump: match.currentGame.trump ?? suit };
 
   return { ...match, currentGame, updatedOn: now() };
 }
 
-// Port of `MatchService.PlayDominoAsync`.
+// Plays a domino into the current trick. When the trick fills, its winner leads the next one; when
+// the play decides the hand, the hand is filed under the team that won it, and the match is won
+// once a team reaches WINNING_SCORE marks.
+//
+// Unlike the other actions, this deliberately skips `assertActive` for both the hand and the
+// match: a decided hand can be played out if the players want to, and that includes the hand that
+// won the match. Those plays never change the score, since a hand is only filed once.
 export function playDomino(match: MatchState, playerId: string, domino: Domino): MatchState {
   const game = match.currentGame;
 
-  // `IsNotNull(match)`/`IsNotNull(match.CurrentGame)` have no TS equivalent here - `match` and
-  // `match.currentGame` are non-null by type, unlike C#'s nullable-by-runtime-lookup.
   assertActiveTurn(game, playerId);
   assertReadyToPlay(game);
   assertHasDomino(game, playerId, domino);
@@ -308,11 +287,8 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
   const playerTeam = teamForPosition(player.position);
   const trump = game.trump!;
 
-  // `assertHasDomino` above only confirmed a VALUE-equal domino exists in the player's hand - it
-  // doesn't stop the caller's own `domino` argument (built straight from a client's request body)
-  // from being the object actually persisted/broadcast. Use the REAL domino object from the hand
-  // (with its genuine `.id` and no extra/malformed fields a client might have sent) for everything
-  // stored from here on, rather than the raw request-body object.
+  // Everything stored from here on uses the domino from the hand, not the caller's object, so
+  // nothing a client sent beyond the two halves is ever persisted or broadcast.
   const actualDomino = match.currentGame.hands.find((h) => h.playerId === playerId)!.dominoes.find((d) =>
     dominoEquals(d, domino)
   )!;
@@ -336,9 +312,6 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
   if (dominoEquals(currentlyWinningDomino, actualDomino)) {
     currentTrick = { ...currentTrick, playerId, team: playerTeam };
   }
-
-  // C#'s `alreadyHadAWinner` local is computed but never used anywhere later in the original
-  // method - dead code in the source, deliberately not ported.
 
   let tricks = game.tricks;
   let currentPlayerId = game.currentPlayerId;
@@ -364,13 +337,8 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
   const scores = matchScores({ ...match, games });
   const scoreEntries = Object.entries(scores) as [string, number][];
 
-  // Note: unlike `placeBid`/`setTrump`, `playDomino` doesn't guard on `assertActive(match)` -
-  // matching the real C# `PlayDominoAsync`, which has the same gap (it omits `.IsActive(match)`/
-  // `.IsActive(match.CurrentGame)`, unlike `BidAsync`/`SetTrumpForCurrentGameAsync`, both of which
-  // include them). A caller (the future Durable Object) is responsible for not routing further
-  // plays once `match.winningTeam` is set. The tie-break below (lower `Teams` enum value wins,
-  // via JS's guaranteed ascending-integer-key ordering on `Object.entries`) is a well-defined
-  // default regardless of whether that invariant holds.
+  // On a tie the lower `Teams` value wins: `Object.entries` lists integer keys in ascending order,
+  // and the reduce only replaces a strictly higher score.
   const matchWinningTeam: Teams | null = scoreEntries.some(([, value]) => value >= WINNING_SCORE)
     ? (Number(
         scoreEntries.reduce((best, current) => (current[1] > best[1] ? current : best))[0]
@@ -437,9 +405,7 @@ export function createRematch(id: string, previous: MatchState, dealOrder: Domin
   };
 }
 
-// Port of `MatchService.GetPlayerForMatch`. Guards: `IsNotNull(match)` has no TS equivalent here
-// (see validation.ts's header comment) - the Task 11 `MatchDO` caller is responsible for the
-// analogous "match exists in storage" check before calling this. `IsMatchPlayer` is ported as-is.
+// A seated player's own slice of the match. Only someone at the table has one.
 export function getPlayerView(match: MatchState, userId: string): LoggedInPlayer {
   assertIsMatchPlayer(match, userId);
 
@@ -456,8 +422,7 @@ export function getPlayerView(match: MatchState, userId: string): LoggedInPlayer
   };
 }
 
-// Port of the `Match.Scores` computed property:
-// `Games.ToDictionary(k => k.Key, g => g.Value.Sum(g => g.Value ?? 0))`.
+// Marks per team: the sum of the values of the hands each team has won.
 export function matchScores(match: MatchState): Partial<Record<Teams, number>> {
   const scores: Partial<Record<Teams, number>> = {};
 

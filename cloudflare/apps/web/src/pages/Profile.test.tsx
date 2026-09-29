@@ -3,13 +3,12 @@
 // `patchProfile()`. `apiClient` is mocked at the module level, matching Lobby.test.tsx's/
 // Match.test.tsx's established pattern (Profile.tsx calls `apiClient(getToken)` internally, so
 // tests control `getProfile`/`patchProfile`'s mocked return/behavior directly). `vitest.config.ts`
-// now has `test.globals: true` (Task 20's fix round), so RTL's automatic `afterEach(cleanup)`
-// self-registers - no explicit `cleanup()` call is needed here (unlike Lobby.test.tsx/
-// Match.test.tsx, which predate that fix).
+// has `test.globals: true`, so RTL's automatic `afterEach(cleanup)` self-registers - no explicit
+// `cleanup()` call is needed here.
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Auth0User } from '../api/client';
+import type { UserProfile } from '../api/client';
 import { Profile } from './Profile';
 
 const { getProfileMock, patchProfileMock } = vi.hoisted(() => ({
@@ -28,7 +27,7 @@ vi.mock('@auth0/auth0-react', () => ({
   useAuth0: () => ({ getAccessTokenSilently: vi.fn(async () => 'test-token') }),
 }));
 
-const PROFILE_FIXTURE: Auth0User = {
+const PROFILE_FIXTURE: UserProfile = {
   user_id: 'auth0|abc123',
   email: 'player@example.com',
   displayName: 'Old Name',

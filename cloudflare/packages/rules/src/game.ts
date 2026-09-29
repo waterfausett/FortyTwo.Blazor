@@ -17,7 +17,8 @@ export interface Game {
   tricks: Trick[];
 }
 
-// Port of C# `Game.Value`.
+// Marks the hand is worth: 1 for a points bid (up to 42), otherwise one per 42 bid. Null until
+// someone has bid.
 export function gameValue(g: Game): number | null {
   if (g.biddingPlayerId == null) return null;
 
@@ -25,18 +26,16 @@ export function gameValue(g: Game): number | null {
   return bid == null ? null : bid <= 42 ? 1 : Math.floor(bid / 42);
 }
 
-// Port of C# `Game.WinningTeam`. Kept structurally faithful to the original getter
-// (same four-way ternary shape) rather than flattened, so it stays auditable line-by-line
-// against FortyTwo/Shared/Models/Game.cs.
+// The team that has decided the hand, or null while it's still open. The bidders win by making
+// their bid, the other team by taking enough points that the bid can't be made. On a Low trump the
+// bidders must lose every trick instead, so they lose on the first trick they take.
 export function gameWinningTeam(g: Game): Teams | null {
   if (g.biddingPlayerId == null) return null;
 
   const biddingTeamId = g.hands.find((x) => x.playerId === g.biddingPlayerId)?.team ?? null;
   const otherTeamId = g.hands.find((x) => x.team !== biddingTeamId)?.team ?? null;
 
-  // teamPoints only has an entry for a team once they've won at least one trick
-  // (mirrors C#'s `Tricks.GroupBy(t => t.Team).ToDictionary(...)`: a team absent from
-  // Tricks is simply absent as a key, not present with value 0).
+  // A team has an entry only once it has taken a trick.
   const teamPoints = new Map<Teams, number>();
   for (const t of g.tricks) {
     if (t.team == null) continue;

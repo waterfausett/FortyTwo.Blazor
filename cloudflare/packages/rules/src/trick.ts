@@ -13,10 +13,8 @@ export function createTrick(): Trick {
   return { playerId: null, team: null, suit: null, dominoes: [null, null, null, null] };
 }
 
-// Port of C# `Trick.Value`: `Dominos?.Sum(x => x?.Value) + 1 ?? 0`.
-// LINQ's nullable Sum never returns null for an all-null/empty sequence — it returns 0 — so
-// the `+ 1` always applies and the `?? 0` fallback never actually fires. An empty trick's
-// value is therefore 1 (the trick's base point), not 0.
+// Points for taking the trick: its count dominoes plus 1 for the trick itself - so even an empty
+// trick is worth 1.
 export function trickValue(t: Trick): number {
   return t.dominoes.reduce((sum, d) => sum + (d ? dominoValue(d) : 0), 0) + 1;
 }
@@ -31,8 +29,7 @@ export function isTrickEmpty(t: Trick): boolean {
   return t.dominoes.every((x) => x === null);
 }
 
-// Deliberate deviation from the C# original's in-place `AddDomino`: returns a new Trick
-// rather than mutating, since TS/React state should be treated as immutable.
+// Returns a new Trick with `domino` in the next open slot; the first domino sets the led suit.
 export function addDominoToTrick(t: Trick, domino: Domino, trump: Suit): Trick {
   const index = t.dominoes.indexOf(null);
 

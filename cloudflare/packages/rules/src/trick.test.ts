@@ -14,8 +14,6 @@ describe('trick', () => {
   });
 
   it('an empty trick has value 1 (base point), not 0', () => {
-    // C# `Dominos?.Sum(x => x?.Value) + 1 ?? 0`: for an all-null Dominos array,
-    // Sum(...) returns 0 (never null), so Value = 0 + 1 = 1. The `?? 0` never fires.
     expect(trickValue(createTrick())).toBe(1);
   });
 

@@ -1,10 +1,8 @@
 // One team's pile of already-completed tricks at the side of the table, headed by that team's
-// running point total for the hand. Replaces the `player-team-tricks`/`opponent-tricks` halves of
-// FortyTwo/Client/Pages/Match.razor's `gameboard` block, which rendered every completed trick
-// belonging to a team as a row of vertical Dominoes next to a Points chip.
+// running point total for the hand. Each trick is a row of vertical Dominoes.
 //
-// `align="mine"` lists the newest trick first (Match.razor's `teamTricks.Reverse()`);
-// `align="opponent"` lists tricks in completion order. Both put the point total at the top.
+// `align="mine"` lists the newest trick first; `align="opponent"` lists tricks in completion
+// order. Both put the point total at the top.
 import type { JSX } from 'react';
 import type { Trick } from '@fortytwo/rules';
 import { Domino } from './Domino';

@@ -6,16 +6,14 @@ export interface MatchPlayerRef {
   position: Positions;
 }
 
-// Pure-function port of C# `MatchExtensions.SelectNextPlayer`
-// (FortyTwo.Entity/Models/Match.cs). Returns the next player's id instead of mutating
-// a Match in place.
+// The id of whoever plays after `currentPlayerId`, going round the table. On a Low trump the
+// bidder's partner sits out, so they're skipped.
 export function selectNextPlayer(
   currentPlayerId: string,
   biddingPlayerId: string | null,
   trump: Suit | null,
   players: MatchPlayerRef[]
 ): string {
-  // C#: `if (string.IsNullOrWhiteSpace(match.CurrentGame?.CurrentPlayerId)) return;` — a no-op.
   if (!currentPlayerId || currentPlayerId.trim() === '') return currentPlayerId;
 
   let nextPlayerPosition = nextPosition(players.find((x) => x.playerId === currentPlayerId)!.position);

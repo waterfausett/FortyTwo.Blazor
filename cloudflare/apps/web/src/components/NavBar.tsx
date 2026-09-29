@@ -1,7 +1,5 @@
-// The top-level nav bar (Lobby + Profile links), reachable from every page. Addresses CRITICAL
-// finding #4 from the final whole-branch review: before this, there was no way to reach ANY page
-// in the app except by typing a URL directly. Styled as the hall's dark rail, with a 4|2 bone
-// tile as the brand mark (NavBar.css).
+// The top-level nav bar (Lobby + Profile links), reachable from every page. Styled as the hall's
+// dark rail, with a 4|2 bone tile as the brand mark (NavBar.css).
 import type { JSX } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Suit } from '@fortytwo/rules';
