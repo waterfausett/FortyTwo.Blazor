@@ -1,0 +1,262 @@
+// The /api/users routes through the real Worker (Auth0 mocked via fetchMock), plus unit tests for
+// toUserResponse's two fallback chains (picture and displayName) and toPublicUser's trimmed shape.
+import { describe, it, expect, beforeAll } from 'vitest';
+import { fetchMock, SELF } from 'cloudflare:test';
+import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
+import { toPublicUser, toUserResponse } from '../src/routes/users';
+import type { Auth0User } from '../src/auth0Management';
+
+// Must match the AUTH0_DOMAIN/AUTH0_AUDIENCE test-pool bindings in vitest.config.ts, as in
+// routes.matches.test.ts.
+const AUTH0_DOMAIN = 'test-tenant.auth0.local';
+const AUTH0_AUDIENCE = 'https://api.test.local';
+const KEY_ID = 'routes-users-test-key';
+
+let privateKey: KeyLike;
+
+beforeAll(async () => {
+  const { publicKey, privateKey: generatedPrivateKey } = await generateKeyPair('RS256');
+  privateKey = generatedPrivateKey;
+
+  const publicJwk = await exportJWK(publicKey);
+  publicJwk.kid = KEY_ID;
+  publicJwk.alg = 'RS256';
+  publicJwk.use = 'sig';
+
+  fetchMock.activate();
+  fetchMock.disableNetConnect();
+  const auth0 = fetchMock.get(`https://${AUTH0_DOMAIN}`);
+  auth0
+    .intercept({ path: '/.well-known/jwks.json', method: 'GET' })
+    .reply(200, JSON.stringify({ keys: [publicJwk] }), { headers: { 'content-type': 'application/json' } })
+    .persist();
+  // The Management API token is cached per isolate, so a test can't count on asking for one.
+  auth0
+    .intercept({ path: '/oauth/token', method: 'POST' })
+    .reply(200, JSON.stringify({ access_token: 'mgmt-token', expires_in: 3600, token_type: 'Bearer' }), {
+      headers: { 'content-type': 'application/json' },
+    })
+    .persist();
+});
+
+async function signToken(sub: string): Promise<string> {
+  return new SignJWT({})
+    .setProtectedHeader({ alg: 'RS256', kid: KEY_ID })
+    .setSubject(sub)
+    .setIssuer(`https://${AUTH0_DOMAIN}/`)
+    .setAudience(AUTH0_AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(privateKey);
+}
+
+async function api(path: string, sub: string, init: RequestInit = {}): Promise<Response> {
+  return SELF.fetch(`https://example.com${path}`, {
+    ...init,
+    headers: {
+      ...(init.body ? { 'content-type': 'application/json' } : {}),
+      Authorization: `Bearer ${await signToken(sub)}`,
+    },
+  });
+}
+
+async function titleAndDetail(res: Response): Promise<{ title: string; detail: string }> {
+  return (await res.json()) as { title: string; detail: string };
+}
+
+// Answers the next Auth0 user search with `users`, recording the search it was sent.
+function mockUserSearch(users: Auth0User[]): { query?: string } {
+  const seen: { query?: string } = {};
+  fetchMock
+    .get(`https://${AUTH0_DOMAIN}`)
+    .intercept({ path: (path: string) => path.startsWith('/api/v2/users?'), method: 'GET' })
+    .reply((opts) => {
+      seen.query = new URL(String(opts.path), 'https://x').searchParams.get('q') ?? undefined;
+      return { statusCode: 200, data: JSON.stringify(users), responseOptions: { headers: { 'content-type': 'application/json' } } };
+    });
+  return seen;
+}
+
+// Answers the next Auth0 user PATCH, recording the body it was sent.
+function mockUserPatch(): { path?: string; body?: unknown } {
+  const seen: { path?: string; body?: unknown } = {};
+  fetchMock
+    .get(`https://${AUTH0_DOMAIN}`)
+    .intercept({ path: (path: string) => path.startsWith('/api/v2/users/'), method: 'PATCH' })
+    .reply((opts) => {
+      seen.path = String(opts.path);
+      seen.body = JSON.parse(String(opts.body));
+      return { statusCode: 200, data: '{}' };
+    });
+  return seen;
+}
+
+describe('user routes', () => {
+  it('does not list every user in the tenant', async () => {
+    const res = await api('/api/users', 'auth0|p1');
+    expect(res.status).toBe(404);
+  });
+
+  describe('POST /api/users/search', () => {
+    it("returns only other players' public fields", async () => {
+      mockUserSearch([
+        {
+          user_id: 'auth0|p2',
+          email: 'p2@example.com',
+          name: 'Pat Two',
+          given_name: 'Pat',
+          family_name: 'Two',
+          nickname: 'p2',
+          picture: 'https://example.com/p2.png',
+          user_metadata: { displayName: 'Player Two' },
+        },
+      ]);
+
+      const res = await api('/api/users/search', 'auth0|p1', { method: 'POST', body: JSON.stringify(['auth0|p2']) });
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([
+        { user_id: 'auth0|p2', displayName: 'Player Two', picture: 'https://example.com/p2.png' },
+      ]);
+    });
+
+    it('looks each id up once', async () => {
+      const seen = mockUserSearch([]);
+      await api('/api/users/search', 'auth0|p1', {
+        method: 'POST',
+        body: JSON.stringify(['auth0|p2', 'bot-1', 'auth0|p2']),
+      });
+      expect(seen.query).toBe('user_id:("auth0|p2","bot-1")');
+    });
+
+    it.each([
+      ['a quote', ['x") OR user_id:(*']],
+      ['whitespace', ['auth0|p2 OR *']],
+      ['a non-string', [42]],
+      ['an object body', { ids: ['auth0|p2'] }],
+    ])('rejects %s with a 400', async (_, body) => {
+      const res = await api('/api/users/search', 'auth0|p1', { method: 'POST', body: JSON.stringify(body) });
+      expect(res.status).toBe(400);
+      expect((await titleAndDetail(res)).title).toBe('Invalid request');
+    });
+
+    it('rejects more than 50 ids', async () => {
+      const ids = Array.from({ length: 51 }, (_, i) => `auth0|p${i}`);
+      const res = await api('/api/users/search', 'auth0|p1', { method: 'POST', body: JSON.stringify(ids) });
+      expect(res.status).toBe(400);
+      expect((await titleAndDetail(res)).detail).toMatch(/at most 50/);
+    });
+  });
+
+  describe('PATCH /api/users', () => {
+    it('stores only the known fields, trimmed, for the caller', async () => {
+      const seen = mockUserPatch();
+
+      const res = await api('/api/users', 'auth0|p1', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          displayName: '  Player One ',
+          picture: 'https://example.com/me.png',
+          theme: 'Dark',
+          admin: true,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(seen.path).toBe('/api/v2/users/auth0%7Cp1');
+      expect(seen.body).toEqual({
+        user_metadata: { displayName: 'Player One', picture: 'https://example.com/me.png' },
+      });
+    });
+
+    it('lets a blank picture clear the custom one', async () => {
+      const seen = mockUserPatch();
+      const res = await api('/api/users', 'auth0|p1', { method: 'PATCH', body: JSON.stringify({ picture: '' }) });
+      expect(res.status).toBe(200);
+      expect(seen.body).toEqual({ user_metadata: { picture: '' } });
+    });
+
+    it.each([
+      ['a blank display name', { displayName: '   ' }],
+      ['a display name over 50 characters', { displayName: 'x'.repeat(51) }],
+      ['a display name with control characters', { displayName: 'Bad\u0007Name' }],
+      ['a non-string display name', { displayName: 7 }],
+      ['a javascript: picture', { picture: 'javascript:alert(1)' }],
+      ['an http: picture', { picture: 'http://example.com/me.png' }],
+      ['a picture that is not a URL', { picture: 'me.png' }],
+      ['an over-long picture URL', { picture: `https://example.com/${'x'.repeat(2048)}` }],
+      ['an array body', ['displayName']],
+    ])('rejects %s with a 400', async (_, body) => {
+      const res = await api('/api/users', 'auth0|p1', { method: 'PATCH', body: JSON.stringify(body) });
+      expect(res.status).toBe(400);
+      expect((await titleAndDetail(res)).title).toBe('Invalid request');
+    });
+  });
+});
+
+describe('toPublicUser', () => {
+  it('keeps only the id, display name and picture', () => {
+    const u: Auth0User = {
+      user_id: 'u1',
+      email: 'e@example.com',
+      name: 'Real Name',
+      given_name: 'Real',
+      family_name: 'Name',
+      picture: 'raw.png',
+      user_metadata: { displayName: 'Meta Name', theme: 'Dark' },
+    };
+    expect(toPublicUser(u)).toEqual({ user_id: 'u1', displayName: 'Meta Name', picture: 'raw.png' });
+  });
+});
+
+describe('toUserResponse', () => {
+  describe('picture', () => {
+    it('prefers a non-blank user_metadata.picture over the raw top-level picture', () => {
+      const u: Auth0User = { user_id: 'u1', picture: 'raw.png', user_metadata: { picture: 'meta.png' } };
+      expect(toUserResponse(u).picture).toBe('meta.png');
+    });
+
+    it('falls back to the raw picture when user_metadata.picture is blank/whitespace', () => {
+      const u: Auth0User = { user_id: 'u1', picture: 'raw.png', user_metadata: { picture: '   ' } };
+      expect(toUserResponse(u).picture).toBe('raw.png');
+    });
+
+    it('falls back to the raw picture when user_metadata is absent entirely', () => {
+      const u: Auth0User = { user_id: 'u1', picture: 'raw.png' };
+      expect(toUserResponse(u).picture).toBe('raw.png');
+    });
+  });
+
+  describe('displayName', () => {
+    it('prefers user_metadata.displayName over everything else', () => {
+      const u: Auth0User = {
+        user_id: 'u1',
+        user_metadata: { displayName: 'Meta Name' },
+        nickname: 'nick',
+        name: 'Name',
+        email: 'e@example.com',
+      };
+      expect(toUserResponse(u).displayName).toBe('Meta Name');
+    });
+
+    it('falls back to nickname when user_metadata.displayName is absent', () => {
+      const u: Auth0User = { user_id: 'u1', nickname: 'nick', name: 'Name', email: 'e@example.com' };
+      expect(toUserResponse(u).displayName).toBe('nick');
+    });
+
+    it('falls back to name when nickname is also absent', () => {
+      const u: Auth0User = { user_id: 'u1', name: 'Name', email: 'e@example.com' };
+      expect(toUserResponse(u).displayName).toBe('Name');
+    });
+
+    it('falls back to email when name is also absent', () => {
+      const u: Auth0User = { user_id: 'u1', email: 'e@example.com' };
+      expect(toUserResponse(u).displayName).toBe('e@example.com');
+    });
+
+    it('falls back to the literal "Unknown User ({id})" when everything else is absent', () => {
+      const u: Auth0User = { user_id: 'u1' };
+      expect(toUserResponse(u).displayName).toBe('Unknown User (u1)');
+    });
+  });
+});

@@ -1,0 +1,5 @@
+# TS project-reference build output (apps/web's tsc -b build needs packages/rules to be a
+# composite project so it can consume compiled .d.ts instead of raw source - see
+# apps/web/tsconfig.app.json's "references"). Generated on demand; not committed.
+dist/
+*.tsbuildinfo

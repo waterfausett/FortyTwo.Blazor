@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- The nav bar's brand tile (NavBar.tsx/.css): a bone 4-2 domino lying on its side, tilted. -->
+  <g transform="rotate(-6 32 32)">
+    <rect x="3" y="18" width="60" height="32" rx="5" fill="#8f7f64"/>
+    <rect x="2" y="16" width="60" height="32" rx="5" fill="#b8a78a"/>
+    <rect x="4" y="18" width="27" height="28" rx="3" fill="#f2eadb"/>
+    <rect x="33" y="18" width="27" height="28" rx="3" fill="#f2eadb"/>
+    <g fill="#f4a460">
+      <circle cx="10.5" cy="24.5" r="3.4"/>
+      <circle cx="24.5" cy="24.5" r="3.4"/>
+      <circle cx="10.5" cy="39.5" r="3.4"/>
+      <circle cx="24.5" cy="39.5" r="3.4"/>
+    </g>
+    <g fill="#008000">
+      <circle cx="53.5" cy="24.5" r="3.4"/>
+      <circle cx="39.5" cy="39.5" r="3.4"/>
+    </g>
+  </g>
+</svg>

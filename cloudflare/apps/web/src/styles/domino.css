@@ -1,0 +1,156 @@
+﻿.horizontal {
+    transform: rotate(90deg);
+    -webkit-transform: rotate(90deg);
+    -o-transform: rotate(90deg);
+    -moz-transform: rotate(90deg);
+}
+
+.domino-container {
+    font-size: clamp(5px, 1.42vw, 20px);
+    font-size: min(.45rem, 1.42vw);
+}
+
+.domino {
+    float: left;
+    width: 6em;
+    height: 12em;
+    margin: 0.5em;
+    position: relative;
+    background-color: var(--domino-color);
+    -webkit-border-radius: .8em;
+    -moz-border-radius: .8em;
+    border-radius: .8em;
+    border-top: solid 1px var(--domino-border-color);
+    border-left: solid 1px var(--domino-border-color);
+    -moz-box-shadow: .3em .3em 0em .12em var(--domino-border-color);
+    -webkit-box-shadow: .3em .3em 0em .12em var(--domino-border-color);
+    box-shadow: .3em .3em 0em .12em var(--domino-border-color);
+    z-index: 400;
+}
+
+    .domino.horizontal {
+        margin: -2.4em 3.6em;
+    }
+
+    .domino span {
+        width: 1.2em;
+        height: 1.2em;
+        position: absolute;
+        -webkit-border-radius: 4em;
+        -moz-border-radius: 4em;
+        border-radius: 4em;
+        background-color: #000;
+    }
+
+        .domino div[data-value="1"] span {
+            background-color: var(--domino-1-color, lightblue);
+        }
+        .domino div[data-value="2"] span {
+            background-color: var(--domino-2-color, green);
+        }
+        .domino div[data-value="3"] span {
+            background-color: var(--domino-3-color, indianred);
+        }
+        .domino div[data-value="4"] span {
+            background-color: var(--domino-4-color, sandybrown);
+        }
+        .domino div[data-value="5"] span {
+            background-color: var(--domino-5-color, darkblue);
+        }
+        .domino div[data-value="6"] span {
+            background-color: var(--domino-6-color, gold);
+        }
+
+        .domino .line {
+            width: 5.5em;
+            height: .2em;
+            position: absolute;
+            top: 5.7em;
+            left: .25em;
+            background-color: var(--domino-border-color);
+        }
+
+        .domino .TL6 {
+            top: 2.4em;
+            left: 0.9em;
+        }
+
+        .domino .TL456 {
+            top: 0.8em;
+            left: 0.9em;
+        }
+
+        .domino .TL23456 {
+            top: 4.0em;
+            left: 0.9em;
+        }
+
+        .domino .TC135 {
+            top: 2.4em;
+            left: 2.45em;
+        }
+
+        .domino .TR6 {
+            top: 2.4em;
+            left: 4.0em;
+        }
+
+        .domino .TR456 {
+            top: 4.0em;
+            left: 4.0em;
+        }
+
+        .domino .TR23456 {
+            top: 0.8em;
+            left: 4.0em;
+        }
+
+        .domino .BL6 {
+            top: 8.3em;
+            left: 0.9em;
+        }
+
+        .domino .BL456 {
+            top: 6.7em;
+            left: 0.9em;
+        }
+
+        .domino .BL23456 {
+            top: 9.9em;
+            left: 0.9em;
+        }
+
+        .domino .BC135 {
+            top: 8.3em;
+            left: 2.45em;
+        }
+
+        .domino .BR6 {
+            top: 8.3em;
+            left: 4.0em;
+        }
+
+        .domino .BR456 {
+            top: 9.9em;
+            left: 4.0em;
+        }
+
+        .domino .BR23456 {
+            top: 6.7em;
+            left: 4.0em;
+        }
+
+    .sortable-chosen .domino,
+    .domino.clickable:hover {
+        -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
+        -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
+        box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
+        border: none;
+    }
+
+    .domino.preselected {
+        -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
+        -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
+        box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
+        border: none;
+    }
