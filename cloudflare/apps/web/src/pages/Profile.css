@@ -1,0 +1,136 @@
+/* Profile.tsx: one mat panel (hall.css) holding a name plate - how the table will show you - and
+   the fields that change it. Inputs are sunk into the mat like the table's own inset surfaces;
+   focus lights them in brass. */
+
+.profile {
+  width: 100%;
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 2rem 16px 3rem;
+}
+
+.profile .page-title {
+  margin-bottom: 1.5rem;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.5rem;
+}
+
+.profile-plate {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(242, 234, 219, 0.08);
+}
+
+.profile-picture-preview {
+  flex: none;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--walnut-deep);
+  box-shadow:
+    0 0 0 3px var(--bone),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.profile-picture-empty {
+  display: block;
+  box-shadow:
+    0 0 0 3px rgba(242, 234, 219, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.profile-plate-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-plate-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.profile-plate-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-group label {
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.form-group input {
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: rgba(20, 13, 9, 0.6);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(242, 234, 219, 0.1);
+  color: var(--bone);
+  font: 500 1rem var(--font-ui);
+}
+
+.form-group input::placeholder {
+  color: rgba(185, 165, 140, 0.6);
+}
+
+.form-group input:focus {
+  outline: none;
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 0 2px var(--brass);
+}
+
+.form-group input:disabled {
+  background: transparent;
+  color: var(--ink-muted);
+  box-shadow: 0 0 0 1px rgba(242, 234, 219, 0.08);
+  cursor: default;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.4rem;
+}
+
+.profile-saved {
+  color: var(--us);
+  font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .profile {
+    padding-top: 1.25rem;
+  }
+
+  .profile-card {
+    padding: 1.1rem;
+  }
+}

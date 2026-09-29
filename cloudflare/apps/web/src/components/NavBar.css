@@ -1,0 +1,90 @@
+/* NavBar.tsx: the hall's dark rail (the same walnut-deep the match page's hand rail uses), with
+   the brand tile on the left and the page links on the right. The current page's link carries a
+   brass underline, the same brass the table uses for "this one". */
+.app-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem max(16px, 1.5rem);
+  background: linear-gradient(#1b120d, var(--walnut-deep));
+  border-bottom: 1px solid rgba(242, 234, 219, 0.08);
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.7);
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--bone);
+  text-decoration: none;
+}
+
+.app-brand:hover {
+  color: var(--bone);
+}
+
+/* Two pip faces joined into one tile lying on its side: the 4-2, the game's namesake. */
+.brand-tile {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 0.3rem;
+  background: var(--bone-edge);
+  box-shadow:
+    1px 2px 0 #8f7f64,
+    0 3px 6px rgba(0, 0, 0, 0.45);
+  transform: rotate(-6deg);
+  transition: transform 180ms ease;
+}
+
+.brand-tile .pip-face {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 0.2rem;
+  box-shadow: none;
+}
+
+.app-brand:hover .brand-tile {
+  transform: rotate(0deg);
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.app-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.app-nav-links a {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+}
+
+.app-nav-links a:hover {
+  color: var(--bone);
+  background: rgba(242, 234, 219, 0.06);
+}
+
+.app-nav-links a.active {
+  color: var(--bone);
+  box-shadow: inset 0 -2px 0 var(--brass);
+  border-radius: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-tile {
+    transition: none;
+  }
+}

@@ -1,0 +1,64 @@
+name: Cloudflare
+
+# Tests every pull request and push. On a push to master (or a manual run), it then builds the web
+# app, applies any new D1 migrations, and deploys the Worker, which serves the web app too.
+on:
+  push:
+    branches: [master]
+    paths: ['cloudflare/**', '.github/workflows/cloudflare.yml']
+  pull_request:
+    paths: ['cloudflare/**', '.github/workflows/cloudflare.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: cloudflare-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: cloudflare
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: cloudflare/package-lock.json
+      - run: npm ci
+      - run: npm test -w @fortytwo/rules
+      - run: npm test -w @fortytwo/worker
+      - run: npm test -w @fortytwo/web
+      # Typechecks the web app and the packages it references.
+      - run: npm run build -w @fortytwo/web
+
+  deploy:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: cloudflare/package-lock.json
+      - run: npm ci
+      # Vite bakes these into the bundle, so they're repository variables, not secrets. The API and
+      # WebSocket origins are left unset: the Worker serves the app, so both are the page's origin.
+      - run: npm run build -w @fortytwo/web
+        env:
+          VITE_AUTH0_DOMAIN: ${{ vars.AUTH0_DOMAIN }}
+          VITE_AUTH0_CLIENT_ID: ${{ vars.AUTH0_CLIENT_ID }}
+          VITE_AUTH0_AUDIENCE: ${{ vars.AUTH0_AUDIENCE }}
+      - run: npx wrangler d1 migrations apply fortytwo --remote
+        working-directory: cloudflare/apps/worker
+      - run: npx wrangler deploy
+        working-directory: cloudflare/apps/worker
