@@ -23,5 +23,9 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  "references": [{ "path": "../../packages/rules" }, { "path": "../../packages/api-types" }]
+  "references": [
+    { "path": "../../packages/rules" },
+    { "path": "../../packages/api-types" },
+    { "path": "../../packages/client" }
+  ]
 }
