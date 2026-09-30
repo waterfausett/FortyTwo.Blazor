@@ -47,3 +47,33 @@ def test_old_checkpoint_is_refused_with_both_sizes(tmp_path):
     torch.save({"model": net.state_dict(), "hidden": 16, "layers": 1, "step": 5, "config": {}}, path)
     with pytest.raises(ValueError, match="353.*363"):
         load_checkpoint(path)
+
+
+def test_checkpoint_can_carry_raw_weights_and_optimizer_state(tmp_path):
+    from fortytwo_ml.model import load_training_state
+
+    torch.manual_seed(1)
+    ema, raw = QNet(hidden=16, layers=1), QNet(hidden=16, layers=1)
+    opt = torch.optim.Adam(raw.parameters(), lr=1e-3)
+    raw(torch.randn(3, INPUT_DIM)).sum().backward()
+    opt.step()
+    path = tmp_path / "c.pt"
+    save_checkpoint(path, ema, step=7, config={}, raw=raw, optimizer=opt)
+
+    played, _ = load_checkpoint(path)
+    x = torch.randn(2, INPUT_DIM)
+    assert torch.allclose(played(x), ema(x))
+    state = load_training_state(path)
+    assert state.step == 7 and torch.allclose(state.raw(x), raw(x))
+    assert state.optimizer is not None and state.optimizer["state"]
+
+
+def test_training_state_falls_back_to_the_played_weights(tmp_path):
+    from fortytwo_ml.model import load_training_state
+
+    net = QNet(hidden=16, layers=1)
+    path = tmp_path / "c.pt"
+    save_checkpoint(path, net, step=3, config={})
+    state = load_training_state(path)
+    x = torch.randn(2, INPUT_DIM)
+    assert state.optimizer is None and torch.allclose(state.raw(x), net(x))
