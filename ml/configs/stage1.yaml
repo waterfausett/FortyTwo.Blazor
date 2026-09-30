@@ -2,21 +2,26 @@
 device: cuda
 allow_cpu_fallback: false
 seed: 0
-actors: 0            # 0 = CPU cores - 2
+actors: 0            # 0 = physical cores - 1
 epsilon: 0.05
 hidden: 512
 layers: 4
-lr: 0.0003
-batch_size: 1024
+lr: 0.0001
+batch_size: 4096
 buffer_size: 200000
 min_buffer: 20000
 weight_sync_every: 50
-total_steps: 2000000
+total_steps: 200000
 alpha0: 0.25         # point-difference shaping, decayed linearly to 0
-alpha_decay_steps: 200000
+alpha_decay_steps: 20000
+ema_decay: 0.999     # actors, eval and checkpoints use the averaged weights
+max_replay_ratio: 4.0
+actor_send_hands: 16
+learner_threads: 2
+diag_decisions: 2000
 log_every: 100
 checkpoint_minutes: 15
-eval_every_steps: 20000
+eval_every_steps: 2000
 eval_deals: 500
 contract_mix:
   heuristic: 0.7
