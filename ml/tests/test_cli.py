@@ -25,3 +25,12 @@ def test_load_agent(tmp_path):
     assert isinstance(load_agent(str(path)), ModelAgent)
     with pytest.raises(FileNotFoundError):
         load_agent(str(tmp_path / "missing.pt"))
+
+
+def test_bench_train_reports_rates(capsys):
+    from pathlib import Path
+
+    smoke = Path(__file__).parent.parent / "configs" / "smoke.yaml"
+    assert main(["bench-train", "--config", str(smoke), "--seconds", "3"]) == 0
+    out = capsys.readouterr().out
+    assert "learner steps/s:" in out and "samples/s ingested:" in out

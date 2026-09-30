@@ -71,6 +71,10 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--agent", default="heuristic")
     d.add_argument("--seed", type=int, default=0)
 
+    b = sub.add_parser("bench-train", help="measure training throughput (no eval, no replay cap)")
+    b.add_argument("--config", required=True, type=Path)
+    b.add_argument("--seconds", type=float, default=60)
+
     args = parser.parse_args(argv)
     if args.command == "train":
         from .train.config import TrainConfig
@@ -84,6 +88,24 @@ def main(argv: list[str] | None = None) -> int:
         hands = evaluate_hands(a, b, args.deals, seed=args.seed)
         matches = evaluate_matches(a, b, args.matches, seed=args.seed) if args.matches else None
         print(format_report(hands, matches))
+    elif args.command == "bench-train":
+        import dataclasses
+        import tempfile
+
+        from .train.config import TrainConfig
+        from .train.run import train
+
+        cfg = dataclasses.replace(
+            TrainConfig.from_yaml(args.config),
+            eval_every_steps=0, checkpoint_minutes=1e9, max_replay_ratio=0.0,
+            max_seconds=args.seconds, total_steps=10**12,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = train(cfg, Path(tmp) / "bench")
+        seconds = summary.train_seconds or 1e-9
+        print(f"actors: {cfg.num_actors}  batch: {cfg.batch_size}  measured over {summary.train_seconds:.0f}s of training")
+        print(f"learner steps/s: {summary.steps / seconds:.1f}")
+        print(f"samples/s ingested: {summary.samples_while_training / seconds:.0f}")
     else:
         _play_demo(load_agent(args.agent), args.seed)
     return 0
