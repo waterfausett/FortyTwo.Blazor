@@ -89,9 +89,11 @@ dominoes never change the encoding becomes mandatory.
 - **Checkpoints carry both weight sets:**
   - `model` is the EMA, and is what plays.
   - `raw` holds the learner weights plus the Adam state. `--resume` uses it.
-  - Older checkpoints without `raw` still load and resume from `model`.
+  - Checkpoints record their input size (`input_dim`). Pre-change checkpoints (`stage1-a`, 353
+    inputs) can't be used with the new features: loading one raises a clear error naming both sizes.
 - **Replay cap:** a `max_replay_ratio` setting, default 4, makes the learner wait for fresh data
-  whenever it has consumed more than 4× what actors produced in the current window.
+  whenever it has consumed more than 4× what actors have produced since the run started
+  (samples consumed = learner steps × batch size).
 
 ### C. Learning diagnostics in TensorBoard
 
@@ -119,11 +121,12 @@ well above that.
   - Writes are vectorized slice writes that wrap around the ring.
 - **Publishing:** the EMA is published with one flat copy of the parameters, not a copy per
   parameter.
-- **Shutdown:** find out why each actor `join(5)` times out at shutdown. The profile shows about
-  70 s spent there. Fix the cause so shutdown takes a few seconds.
 - **Throughput target:** on this box (8 cores, RTX 2070 SUPER), a new `ml bench-train` command
   (60 s with `stage1.yaml`, no eval) should report ≥ 15k samples/s ingested and ≥ 60 learner
   steps/s at batch 4096.
+
+Shutdown was measured separately at 0.7 s in total for 7 actor joins, so it needs no fix. The
+wait time seen in the first profile was the learner blocking on the queue.
 
 ## Unchanged
 
