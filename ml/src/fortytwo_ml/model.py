@@ -30,7 +30,7 @@ def save_checkpoint(path: str | Path, model: QNet, step: int, config: dict) -> N
     path = Path(path)
     tmp = path.with_name(path.name + ".tmp")
     torch.save(
-        {"model": state, "hidden": model.hidden, "layers": model.layers, "step": step, "config": config},
+        {"model": state, "hidden": model.hidden, "layers": model.layers, "step": step, "config": config, "input_dim": INPUT_DIM},
         tmp,
     )
     os.replace(tmp, path)
@@ -38,6 +38,12 @@ def save_checkpoint(path: str | Path, model: QNet, step: int, config: dict) -> N
 
 def load_checkpoint(path: str | Path, device: str = "cpu") -> tuple[QNet, dict]:
     data = torch.load(path, map_location=device, weights_only=True)
+    found = data.get("input_dim", 353)  # checkpoints from before input_dim was recorded had 353 inputs
+    if found != INPUT_DIM:
+        raise ValueError(
+            f"{path} was trained with {found} model inputs but this code uses {INPUT_DIM}; "
+            "it predates a feature change and can't be loaded"
+        )
     model = QNet(data["hidden"], data["layers"])
     model.load_state_dict(data["model"])
     model.eval()

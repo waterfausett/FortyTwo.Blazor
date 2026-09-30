@@ -1,5 +1,6 @@
 import random
 
+import pytest
 import torch
 
 from fortytwo_ml.agents.base import run_hand
@@ -38,3 +39,11 @@ def test_model_agent_plays_legal_hands_even_untrained():
         assert len(agent.q_values(state, state.to_act)) == len(state.legal_actions())
         run_hand(state, [agent] * 4)
         assert state.phase is Phase.DONE
+
+
+def test_old_checkpoint_is_refused_with_both_sizes(tmp_path):
+    path = tmp_path / "old.pt"
+    net = QNet(hidden=16, layers=1)
+    torch.save({"model": net.state_dict(), "hidden": 16, "layers": 1, "step": 5, "config": {}}, path)
+    with pytest.raises(ValueError, match="353.*363"):
+        load_checkpoint(path)
