@@ -122,8 +122,13 @@ well above that.
 - **Publishing:** the EMA is published with one flat copy of the parameters, not a copy per
   parameter.
 - **Throughput target:** on this box (8 cores, RTX 2070 SUPER), a new `ml bench-train` command
-  (60 s with `stage1.yaml`, no eval) should report ≥ 15k samples/s ingested and ≥ 60 learner
-  steps/s at batch 4096.
+  runs 60 s with `stage1.yaml`, no eval, and the replay cap off so it measures raw capacity. It
+  should report ≥ 15k samples/s ingested and ≥ 60 learner steps/s at batch 4096.
+- **Step counts rescaled:** batch 4096 plus the replay cap make real training data-bound. At 15k
+  samples/s and a ratio of 4 that's about 15 steps/s, so `stage1.yaml` uses:
+  - `total_steps: 200000` (about 4 hours);
+  - `alpha_decay_steps: 20000`;
+  - `eval_every_steps: 2000` (about every 2–3 minutes).
 
 Shutdown was measured separately at 0.7 s in total for 7 actor joins, so it needs no fix. The
 wait time seen in the first profile was the learner blocking on the queue.
@@ -138,7 +143,7 @@ wait time seen in the first profile was the learner blocking on the queue.
 ## Success
 
 - **Stage 1 bar:** unchanged. A new run, `stage1-b`, must clear it.
-- **Early warning:** within the first 100k steps of `stage1-b`, `eval/action_stability` and
+- **Early warning:** within the first 20k steps (about 25 minutes) of `stage1-b`, `eval/action_stability` and
   `eval/agree_heuristic` should be clearly above `agree_chance`. If they aren't, the next step is
   the perfect-information (solved-hand) teacher, in a spec of its own. We don't launch a multi-hour
   run on a flat curve.
