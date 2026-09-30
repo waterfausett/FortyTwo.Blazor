@@ -83,13 +83,20 @@ def _save(run_dir: Path, step: int, ema: QNet, model: QNet, optimizer, cfg: Trai
 
 
 def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainSummary:
+    previous_threads = torch.get_num_threads()
+    torch.set_num_threads(cfg.learner_threads)  # the rest of the CPU belongs to the actors
+    try:
+        return _train(cfg, run_dir, resume)
+    finally:
+        torch.set_num_threads(previous_threads)
+
+
+def _train(cfg: TrainConfig, run_dir: Path, resume: Path | None) -> TrainSummary:
     run_dir = Path(run_dir)
     device = resolve_device(cfg)
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "config.yaml").write_text(yaml.safe_dump(cfg.to_dict(), sort_keys=False))
     torch.manual_seed(cfg.seed)
-    previous_threads = torch.get_num_threads()
-    torch.set_num_threads(cfg.learner_threads)  # the rest of the CPU belongs to the actors
 
     model = QNet(cfg.hidden, cfg.layers)
     step, optimizer_state, ema = 0, None, None
@@ -113,23 +120,25 @@ def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainS
     version = ctx.Value("i", 0)
     queue = ctx.Queue(maxsize=512)
     stop = ctx.Event()
+    writer = None
     actors = [
         ctx.Process(target=actor_main, args=(i, cfg, shared, version, queue, stop), name=f"actor-{i}", daemon=True)
         for i in range(cfg.num_actors)
     ]
-    for p in actors:
-        p.start()
-
-    buffer = ReplayBuffer(cfg.buffer_size, INPUT_DIM, device)
-    writer = SummaryWriter(str(run_dir / "tb"))
-    if diag is not None:
-        writer.add_scalar("eval/agree_chance", chance_agreement(diag), step)
-    last_checkpoint = time.monotonic()
-    window_start, window_samples, window_steps = time.monotonic(), 0, 0
-    added_total, consumed, samples_while_training = 0, 0, 0
-    train_start: float | None = None
-    loss_value = float("nan")
     try:
+        for p in actors:
+            p.start()
+
+        buffer = ReplayBuffer(cfg.buffer_size, INPUT_DIM, device)
+        writer = SummaryWriter(str(run_dir / "tb"))
+        if diag is not None:
+            writer.add_scalar("eval/agree_chance", chance_agreement(diag), step)
+        last_checkpoint = time.monotonic()
+        window_start, window_samples, window_steps = time.monotonic(), 0, 0
+        added_total, consumed, samples_while_training = 0, 0, 0
+        train_start: float | None = None
+        train_end: float | None = None
+        loss_value = float("nan")
         while step < cfg.total_steps:
             if cfg.max_seconds and train_start is not None and time.monotonic() - train_start >= cfg.max_seconds:
                 break
@@ -181,6 +190,7 @@ def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainS
             if time.monotonic() - last_checkpoint >= cfg.checkpoint_minutes * 60:
                 _save(run_dir, step, ema, model, optimizer, cfg)
                 last_checkpoint = time.monotonic()
+        train_end = time.monotonic()  # before shutdown work, so throughput numbers exclude it
     finally:
         if step > 0:  # keep the work done so far on Ctrl+C or an actor failure
             try:
@@ -189,14 +199,16 @@ def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainS
                 print(f"warning: could not save final checkpoint: {e}")
         stop.set()
         for p in actors:
+            if p.pid is None:  # never started
+                continue
             p.join(timeout=5)
             if p.is_alive():
                 p.terminate()
-        writer.close()
-        torch.set_num_threads(previous_threads)
+        if writer is not None:
+            writer.close()
 
     latest = run_dir / "ckpt-latest.pt"
     if step == 0:  # nothing trained (total_steps already reached or 0): still leave a checkpoint
         save_checkpoint(latest, ema, step, cfg.to_dict(), raw=model, optimizer=optimizer)
-    train_seconds = time.monotonic() - train_start if train_start is not None else 0.0
+    train_seconds = train_end - train_start if train_start is not None else 0.0
     return TrainSummary(step, loss_value, latest, train_seconds, samples_while_training)

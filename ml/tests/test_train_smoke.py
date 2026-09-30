@@ -120,5 +120,15 @@ def test_max_seconds_stops_training_early(tmp_path):
     cfg = TrainConfig(**{**TrainConfig.from_yaml(CONFIGS / "smoke.yaml").to_dict(),
                          "total_steps": 10**9, "max_seconds": 2.0, "eval_every_steps": 0})
     summary = train(cfg, tmp_path / "run")
-    assert 0 < summary.steps < 10**9 and 2.0 <= summary.train_seconds < 30
+    assert 0 < summary.steps < 10**9 and 2.0 <= summary.train_seconds < 5
     assert summary.samples_while_training > 0
+
+
+def test_failed_setup_restores_thread_count(tmp_path):
+    cfg = TrainConfig.from_yaml(CONFIGS / "smoke.yaml")
+    bad = tmp_path / "old.pt"
+    torch.save({"model": {}, "step": 0, "config": {}, "hidden": 16, "layers": 2, "input_dim": 353}, bad)
+    threads = torch.get_num_threads()
+    with pytest.raises(ValueError, match="353"):
+        train(cfg, tmp_path / "run", resume=bad)
+    assert torch.get_num_threads() == threads
