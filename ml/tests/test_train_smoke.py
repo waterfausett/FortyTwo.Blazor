@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 import torch
 import torch.multiprocessing as mp
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 from fortytwo_ml.agents.base import run_hand
 from fortytwo_ml.agents.model_agent import ModelAgent
@@ -75,3 +76,49 @@ def test_device_refusal_leaves_no_run_dir_files(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="CUDA"):
         train(cfg, tmp_path / "run")
     assert not (tmp_path / "run" / "config.yaml").exists()
+
+
+def test_publish_copies_in_place_into_shared_memory():
+    import multiprocessing as std_mp
+
+    from fortytwo_ml.model import QNet
+    from fortytwo_ml.train.run import _cpu_copy, _publish
+
+    src = QNet(hidden=16, layers=2)
+    shared = _cpu_copy(QNet(hidden=16, layers=2))
+    shared.share_memory()
+    pointers = [p.data_ptr() for p in shared.parameters()]
+    version = std_mp.Value("i", 0)
+    _publish(src, shared, version)
+    assert version.value == 1
+    assert [p.data_ptr() for p in shared.parameters()] == pointers  # same storage: actors still see it
+    for a, b in zip(shared.parameters(), src.parameters()):
+        assert torch.equal(a, b.detach())
+
+
+def test_smoke_run_logs_learning_diagnostics_and_restores_threads(tmp_path):
+    cfg = TrainConfig.from_yaml(CONFIGS / "smoke.yaml")
+    threads = torch.get_num_threads()
+    train(cfg, tmp_path / "run")
+    assert torch.get_num_threads() == threads
+    ea = EventAccumulator(str(tmp_path / "run" / "tb"))
+    ea.Reload()
+    tags = set(ea.Tags()["scalars"])
+    assert {"eval/agree_chance", "eval/agree_heuristic", "eval/action_stability"} <= tags
+
+
+def test_checkpoint_carries_raw_and_optimizer_and_resume_uses_them(tmp_path):
+    cfg = TrainConfig.from_yaml(CONFIGS / "smoke.yaml")
+    first = train(cfg, tmp_path / "a")
+    data = torch.load(first.checkpoint, weights_only=True)
+    assert {"model", "raw", "optimizer"} <= set(data) and data["optimizer"]["state"]
+    more = TrainConfig(**{**cfg.to_dict(), "total_steps": cfg.total_steps + 20})
+    assert train(more, tmp_path / "b", resume=first.checkpoint).steps == cfg.total_steps + 20
+
+
+def test_max_seconds_stops_training_early(tmp_path):
+    cfg = TrainConfig(**{**TrainConfig.from_yaml(CONFIGS / "smoke.yaml").to_dict(),
+                         "total_steps": 10**9, "max_seconds": 2.0, "eval_every_steps": 0})
+    summary = train(cfg, tmp_path / "run")
+    assert 0 < summary.steps < 10**9 and 2.0 <= summary.train_seconds < 30
+    assert summary.samples_while_training > 0
