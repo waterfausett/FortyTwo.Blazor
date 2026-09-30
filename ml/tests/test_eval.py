@@ -1,6 +1,6 @@
 from fortytwo_ml.agents.dumb_bot import DumbBot
 from fortytwo_ml.agents.heuristic_bot import HeuristicBot
-from fortytwo_ml.eval.arena import evaluate_hands, evaluate_matches
+from fortytwo_ml.eval.arena import HandEval, evaluate_hands, evaluate_matches
 from fortytwo_ml.eval.report import format_report, mean_ci, proportion_ci
 
 
@@ -13,7 +13,7 @@ class IllegalBot(HeuristicBot):
 
 def test_duplicate_deals_play_each_deal_from_both_sides():
     result = evaluate_hands(HeuristicBot(), DumbBot(), deals=30, seed=1)
-    assert len(result.records) == 60 and len(result.deal_scores) == 30
+    assert len(result.records) == 60 and len(result.deal_scores) == 30 == len(result.deal_kinds)
     assert sum(r.a_bidding for r in result.records) == 30
     assert result.illegal == {"a": 0, "b": 0}
 
@@ -49,3 +49,14 @@ def test_confidence_intervals():
     assert mean == 1 and lo < 1 < hi
     p, lo, hi = proportion_ci(50, 100)
     assert p == 0.5 and round(hi - lo, 3) == 0.196
+
+
+def test_report_shows_per_kind_ci_and_flags_worse_buckets():
+    hands = HandEval("A", "B")
+    hands.deal_scores = [-2, -2, -4, -2] + [2, 4, 2, 2]
+    hands.deal_kinds = ["low"] * 4 + ["marks"] * 4
+    text = format_report(hands)
+    low = next(l for l in text.splitlines() if l.strip().startswith("low"))
+    marks = next(l for l in text.splitlines() if l.strip().startswith("marks"))
+    assert "-2.500" in low and "WORSE" in low
+    assert "+2.500" in marks and "WORSE" not in marks

@@ -3,6 +3,7 @@ import random
 from pathlib import Path
 
 import pytest
+import torch
 import torch.multiprocessing as mp
 
 from fortytwo_ml.agents.base import run_hand
@@ -45,3 +46,32 @@ def test_resume_continues_from_the_checkpoint_step(tmp_path):
     more = TrainConfig(**{**cfg.to_dict(), "total_steps": cfg.total_steps + 40})
     second = train(more, tmp_path / "b", resume=first.checkpoint)
     assert second.steps == cfg.total_steps + 40
+
+
+def test_failed_run_still_saves_a_loadable_checkpoint(tmp_path, monkeypatch):
+    from fortytwo_ml.model import load_checkpoint
+    from fortytwo_ml.train import run as run_module
+
+    calls = {"n": 0}
+
+    def flaky(actors):
+        calls["n"] += 1
+        if calls["n"] > 150:
+            raise RuntimeError("actor-0 died")
+
+    monkeypatch.setattr(run_module, "check_actors", flaky)
+    cfg = TrainConfig.from_yaml(CONFIGS / "smoke.yaml")
+    cfg = TrainConfig(**{**cfg.to_dict(), "total_steps": 100_000})
+    with pytest.raises(RuntimeError, match="actor-0 died"):
+        train(cfg, tmp_path / "run")
+    _, meta = load_checkpoint(tmp_path / "run" / "ckpt-latest.pt")
+    assert meta["step"] > 0
+    assert not list((tmp_path / "run").glob("*.tmp"))
+
+
+def test_device_refusal_leaves_no_run_dir_files(tmp_path, monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    cfg = TrainConfig(device="cuda", allow_cpu_fallback=False)
+    with pytest.raises(RuntimeError, match="CUDA"):
+        train(cfg, tmp_path / "run")
+    assert not (tmp_path / "run" / "config.yaml").exists()

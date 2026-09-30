@@ -24,6 +24,7 @@ class HandEval:
     b_name: str
     records: list[HandRecord] = field(default_factory=list)
     deal_scores: list[int] = field(default_factory=list)  # A's net marks per duplicate deal
+    deal_kinds: list[str] = field(default_factory=list)  # contract kind of each deal, parallel to deal_scores
     illegal: dict[str, int] = field(default_factory=lambda: {"a": 0, "b": 0})
 
 
@@ -63,6 +64,7 @@ def evaluate_hands(
             result.records.append(HandRecord(kind, bidders == a_team, hand.winning_team == bidders, a_marks))
             score += a_marks
         result.deal_scores.append(score)
+        result.deal_kinds.append(kind)
     return result
 
 

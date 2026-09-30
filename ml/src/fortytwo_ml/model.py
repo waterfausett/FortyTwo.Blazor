@@ -1,4 +1,5 @@
 """Q(observation, candidate domino) -> expected final hand reward for the actor's team."""
+import os
 from pathlib import Path
 
 import torch
@@ -26,10 +27,13 @@ class QNet(nn.Module):
 
 def save_checkpoint(path: str | Path, model: QNet, step: int, config: dict) -> None:
     state = {k: v.detach().cpu() for k, v in model.state_dict().items()}
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
     torch.save(
         {"model": state, "hidden": model.hidden, "layers": model.layers, "step": step, "config": config},
-        path,
+        tmp,
     )
+    os.replace(tmp, path)
 
 
 def load_checkpoint(path: str | Path, device: str = "cpu") -> tuple[QNet, dict]:

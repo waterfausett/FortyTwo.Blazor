@@ -28,8 +28,12 @@ uv run ml play-demo --agent runs/first/ckpt-latest.pt --seed 3
 
 `--resume runs/first/ckpt-latest.pt` continues a run from its step count.
 
-Stage 1 is done when `ml eval` against `heuristic` over 5,000+ deals shows positive mean
-marks/deal with a 95% CI above zero, and zero illegal actions.
+Stage 1 is done when `ml eval` against `heuristic` shows all of:
+
+1. Mean marks/deal > 0 with a 95% CI excluding 0, over 5,000+ duplicate deals.
+2. No contract type significantly worse: no row in the per-contract table is flagged `WORSE`
+   (its marks/deal 95% CI upper bound below 0).
+3. Zero illegal actions.
 
 ## Layout
 

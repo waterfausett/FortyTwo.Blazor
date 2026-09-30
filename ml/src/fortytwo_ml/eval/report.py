@@ -31,17 +31,23 @@ def format_report(hands: HandEval, matches: MatchEval | None = None) -> str:
     lines = [
         f"A: {hands.a_name}  vs  B: {hands.b_name}  -  {len(hands.deal_scores)} duplicate deals",
         f"Mean marks/deal (A): {mean:+.3f}  [95% CI {lo:+.3f}, {hi:+.3f}]",
-        "By contract type:        A bidding: made        A defending: set",
+        "By contract type:        marks/deal (A) [95% CI]          A bidding: made   A defending: set",
     ]
     for kind in KIND_ORDER:
         recs = [r for r in hands.records if r.kind == kind]
-        if not recs:
+        if not recs and kind not in hands.deal_kinds:
             continue
         bidding = [r for r in recs if r.a_bidding]
         defending = [r for r in recs if not r.a_bidding]
         made = sum(r.bidders_won for r in bidding)
         set_ = sum(not r.bidders_won for r in defending)
-        lines.append(f"  {kind:<10}             {_rate(made, len(bidding))}      {_rate(set_, len(defending))}")
+        scores = [s for s, k in zip(hands.deal_scores, hands.deal_kinds) if k == kind]
+        kmean, klo, khi = mean_ci(scores)
+        flag = "WORSE" if khi < 0 else ""
+        lines.append(
+            f"  {kind:<10} {kmean:+.3f} [{klo:+.3f}, {khi:+.3f}] n={len(scores):<5} {flag:<5}"
+            f"  {_rate(made, len(bidding))}      {_rate(set_, len(defending))}"
+        )
     illegal = dict(hands.illegal)
     if matches is not None:
         p, plo, phi = proportion_ci(matches.a_wins, matches.matches)

@@ -7,6 +7,7 @@ import numpy as np
 import torch
 
 from ..contracts import ContractSampler
+from ..engine.enums import is_low
 from ..engine.hand_state import HandState, Phase, team_of
 from ..features import INPUT_DIM, encode_actions
 from ..model import QNet
@@ -40,6 +41,9 @@ def play_selfplay_hand(
 
     result = state.result
     marks = np.array([result.marks if t == result.winning_team else -result.marks for t in teams], np.float32)
-    pdiff = np.array([(result.points[t] - result.points[1 - t]) / 42 for t in teams], np.float32)
+    if is_low(state.trump):
+        pdiff = np.zeros(len(teams), np.float32)  # low bidders aim for ~0 points, so the shaping would mislead
+    else:
+        pdiff = np.array([(result.points[t] - result.points[1 - t]) / 42 for t in teams], np.float32)
     x = np.stack(rows) if rows else np.zeros((0, INPUT_DIM), np.float32)
     return x, marks, pdiff

@@ -65,3 +65,11 @@ def test_buffer_wraps_and_samples():
     x, marks, pdiff = buf.sample(6, np.random.default_rng(0))
     assert x.shape == (6, 3) and x.dtype == np.float32
     assert set(np.unique(marks)) <= {1.0, 2.0, 3.0}  # the first batch was overwritten
+
+
+def test_low_contract_selfplay_has_zero_point_shaping():
+    rng = random.Random(1)
+    model = QNet(hidden=32, layers=2)
+    for _ in range(5):
+        x, marks, pdiff = play_selfplay_hand(model, ContractSampler({"low": 1.0}, rng), rng, epsilon=0.1)
+        assert len(marks) > 0 and np.all(pdiff == 0)

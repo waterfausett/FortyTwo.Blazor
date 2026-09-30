@@ -12,6 +12,13 @@ from .selfplay import play_selfplay_hand
 
 
 def actor_main(actor_id: int, cfg: TrainConfig, shared: QNet, version, queue, stop) -> None:
+    try:
+        _actor_loop(actor_id, cfg, shared, version, queue, stop)
+    except KeyboardInterrupt:
+        pass  # Ctrl+C reaches every actor on Windows; the learner handles shutdown
+
+
+def _actor_loop(actor_id: int, cfg: TrainConfig, shared: QNet, version, queue, stop) -> None:
     torch.set_num_threads(1)
     # Don't block process exit on samples the learner will never read.
     queue.cancel_join_thread()

@@ -65,9 +65,9 @@ def _cpu_copy(model: QNet) -> QNet:
 
 def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainSummary:
     run_dir = Path(run_dir)
+    device = resolve_device(cfg)
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "config.yaml").write_text(yaml.safe_dump(cfg.to_dict(), sort_keys=False))
-    device = resolve_device(cfg)
     torch.manual_seed(cfg.seed)
 
     model = QNet(cfg.hidden, cfg.layers)
@@ -96,7 +96,7 @@ def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainS
     np_rng = np.random.default_rng(cfg.seed)
     writer = SummaryWriter(str(run_dir / "tb"))
     last_checkpoint = time.monotonic()
-    window_start, window_samples = time.monotonic(), 0
+    window_start, window_samples, window_steps = time.monotonic(), 0, 0
     loss_value = float("nan")
     try:
         while step < cfg.total_steps:
@@ -113,6 +113,7 @@ def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainS
             loss.backward()
             optimizer.step()
             step += 1
+            window_steps += 1
             loss_value = loss.item()
 
             if step % cfg.weight_sync_every == 0:
@@ -124,7 +125,8 @@ def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainS
                 writer.add_scalar("train/alpha", shaping_alpha(cfg, step), step)
                 writer.add_scalar("train/buffer", len(buffer), step)
                 writer.add_scalar("train/samples_per_sec", window_samples / elapsed, step)
-                window_start, window_samples = time.monotonic(), 0
+                writer.add_scalar("train/replay_ratio", window_steps * cfg.batch_size / max(window_samples, 1), step)
+                window_start, window_samples, window_steps = time.monotonic(), 0, 0
             if cfg.eval_every_steps and step % cfg.eval_every_steps == 0:
                 result = evaluate_hands(ModelAgent(_cpu_copy(model)), HeuristicBot(), cfg.eval_deals, seed=cfg.seed)
                 writer.add_scalar("eval/marks_per_deal_vs_heuristic", mean_ci(result.deal_scores)[0], step)
@@ -133,6 +135,12 @@ def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainS
                 save_checkpoint(run_dir / "ckpt-latest.pt", model, step, cfg.to_dict())
                 last_checkpoint = time.monotonic()
     finally:
+        if step > 0:  # keep the work done so far on Ctrl+C or an actor failure
+            try:
+                save_checkpoint(run_dir / f"ckpt-{step}.pt", model, step, cfg.to_dict())
+                save_checkpoint(run_dir / "ckpt-latest.pt", model, step, cfg.to_dict())
+            except Exception as e:  # best effort; never mask the original error
+                print(f"warning: could not save final checkpoint: {e}")
         stop.set()
         for p in actors:
             p.join(timeout=5)
@@ -141,5 +149,6 @@ def train(cfg: TrainConfig, run_dir: Path, resume: Path | None = None) -> TrainS
         writer.close()
 
     latest = run_dir / "ckpt-latest.pt"
-    save_checkpoint(latest, model, step, cfg.to_dict())
+    if step == 0:  # nothing trained (total_steps already reached or 0): still leave a checkpoint
+        save_checkpoint(latest, model, step, cfg.to_dict())
     return TrainSummary(step, loss_value, latest)
