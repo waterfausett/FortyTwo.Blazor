@@ -205,7 +205,8 @@ algorithm-agnostic.
 **Process layout (single machine):**
 - `N` actor processes (default: CPU cores − 2) each hold a CPU copy of the network. They play
   self-play hands, with all four seats using the current network, and push
-  `(observation, action, reward)` samples into a shared-memory buffer.
+  `(observation+action, reward)` samples onto a multiprocessing queue; the learner drains it into
+  a replay ring buffer.
 - The learner process samples batches on the GPU, minimizes MSE between `Q` and the reward, and
   publishes new weights to the actors every `K` steps.
 
@@ -221,7 +222,7 @@ Everything is from the acting seat's point of view, with seats rotated so the ac
 | Current trick: domino in each relative seat's slot (zero if not yet played) | 4 × 28 |
 | Led suit of the current trick (7 suits + Doubles + none) | 9 |
 | Trump (7 suits, follow-me, 3 Low variants) | 11 |
-| Bid level (one-hot over the 21 bids) | 21 |
+| Bid level (one-hot over the 20 non-pass bids) | 20 |
 | Bidder's relative seat; whether it's a plunge; whether my partner sits out | 4 + 1 + 1 |
 | Inferred voids: each other seat × each led suit they failed to follow | 3 × 8 |
 | Points taken so far per team, and tricks played (scaled) | 3 |
