@@ -23,11 +23,11 @@ On Windows, uv installs CUDA 12.8 PyTorch wheels; everywhere else it installs CP
 uv run ml bench-train --config configs/stage1.yaml               # ~1 min: throughput check
 uv run ml train --config configs/stage1.yaml --run-name stage1-b  # writes runs/stage1-b/
 uv run tensorboard --logdir runs                                  # watch loss and eval
-uv run ml eval --a runs/first/ckpt-latest.pt --b heuristic --deals 5000 --matches 500
-uv run ml play-demo --agent runs/first/ckpt-latest.pt --seed 3
+uv run ml eval --a runs/stage1-b/ckpt-latest.pt --b heuristic --deals 5000 --matches 500
+uv run ml play-demo --agent runs/stage1-b/ckpt-latest.pt --seed 3
 ```
 
-`--resume runs/first/ckpt-latest.pt` continues a run from its step count.
+`--resume runs/stage1-b/ckpt-latest.pt` continues a run from its step count.
 
 Stage 1 is done when `ml eval` against `heuristic` shows all of:
 
@@ -42,12 +42,23 @@ TensorBoard's `eval/` tab shows whether the model is learning *which domino to p
 good a hand is:
 
 - `eval/agree_chance`: how often a random pick would agree (the floor).
-- `eval/action_stability`: how often this eval's model picks the same domino as the previous eval's.
+- `eval/action_stability`: how often this eval's model picks the same domino as the previous eval's
+  (one eval, 2k steps, apart). Only a sanity check: EMA snapshots that close will read high even
+  when the ranking isn't meaningful.
+- `eval/action_stability_20k`: the same, against the eval 10 evals (20k steps) earlier. Logged once
+  10 earlier evals exist. Supporting evidence.
 - `eval/agree_heuristic`: how often it picks what the heuristic bot picks.
+- `eval/marks_per_deal_vs_heuristic`: marks/deal against the heuristic bot.
 
-Within the first ~20k steps (about 25 minutes), both `action_stability` and `agree_heuristic`
-should be clearly above `agree_chance`. If they aren't, stop: the run won't reach the Stage 1 bar
+The go/no-go signals are `agree_heuristic` clearly above `agree_chance` and
+`eval/marks_per_deal_vs_heuristic` trending up from about -0.5, with `action_stability_20k` above
+chance as supporting evidence. Check at ~20k steps, which is about 70 minutes at the measured ~4.7k
+samples/s (see `train/steps_per_sec`). If these are flat, don't spend the full run on a flat curve:
+the next step is the solved-hand teacher, a separate spec
 (see `docs/superpowers/specs/2026-09-30-ml-bots-stage1-learning-fixes-design.md`).
+
+A full 200k-step `stage1.yaml` run takes about 12 hours on this box (8 cores, RTX 2070 SUPER)
+because CPU self-play tops out at about 5k samples/s.
 
 Actors play with, the eval scores, and checkpoints save an exponential moving average of the
 learner's weights. Checkpoints also carry the raw weights and optimizer state for `--resume`.

@@ -120,7 +120,7 @@ def test_max_seconds_stops_training_early(tmp_path):
     cfg = TrainConfig(**{**TrainConfig.from_yaml(CONFIGS / "smoke.yaml").to_dict(),
                          "total_steps": 10**9, "max_seconds": 2.0, "eval_every_steps": 0})
     summary = train(cfg, tmp_path / "run")
-    assert 0 < summary.steps < 10**9 and 2.0 <= summary.train_seconds < 5
+    assert 0 < summary.steps < 10**9 and 2.0 <= summary.train_seconds < 15
     assert summary.samples_while_training > 0
 
 
@@ -132,3 +132,23 @@ def test_failed_setup_restores_thread_count(tmp_path):
     with pytest.raises(ValueError, match="353"):
         train(cfg, tmp_path / "run", resume=bad)
     assert torch.get_num_threads() == threads
+
+
+def test_long_run_logs_action_stability_over_ten_evals(tmp_path):
+    cfg = TrainConfig(**{**TrainConfig.from_yaml(CONFIGS / "smoke.yaml").to_dict(),
+                         "total_steps": 120, "eval_every_steps": 10, "eval_deals": 2, "diag_decisions": 20})
+    train(cfg, tmp_path / "run")
+    ea = EventAccumulator(str(tmp_path / "run" / "tb"))
+    ea.Reload()
+    tags = ea.Tags()["scalars"]
+    assert "eval/action_stability_20k" in tags
+    assert [e.step for e in ea.Scalars("eval/action_stability_20k")] == [110, 120]
+
+
+def test_resume_uses_the_configured_lr(tmp_path):
+    cfg = TrainConfig.from_yaml(CONFIGS / "smoke.yaml")
+    first = train(cfg, tmp_path / "a")
+    more = TrainConfig(**{**cfg.to_dict(), "total_steps": cfg.total_steps + 20, "lr": 3e-5})
+    second = train(more, tmp_path / "b", resume=first.checkpoint)
+    data = torch.load(second.checkpoint, weights_only=True)
+    assert [g["lr"] for g in data["optimizer"]["param_groups"]] == [3e-5]

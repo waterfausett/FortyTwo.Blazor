@@ -2,6 +2,7 @@
 publishes weights back, and writes checkpoints and TensorBoard logs."""
 import queue as queue_module
 import time
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -110,9 +111,11 @@ def _train(cfg: TrainConfig, run_dir: Path, resume: Path | None) -> TrainSummary
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
     if optimizer_state is not None:
         optimizer.load_state_dict(optimizer_state)
+        for group in optimizer.param_groups:  # the checkpoint's lr would otherwise override cfg.lr
+            group["lr"] = cfg.lr
 
-    diag = build_decision_set(cfg.diag_decisions, cfg.seed) if cfg.eval_every_steps and cfg.diag_decisions else None
-    previous_choices = None
+    diag = build_decision_set(cfg.diag_decisions, cfg.seed, cfg.contract_mix) if cfg.eval_every_steps and cfg.diag_decisions else None
+    past_choices: deque = deque(maxlen=10)  # the last 10 evals' choices; [0] is 10 evals back once full
 
     shared = _cpu_copy(ema)
     shared.share_memory()
@@ -184,9 +187,11 @@ def _train(cfg: TrainConfig, run_dir: Path, resume: Path | None) -> TrainSummary
                 if diag is not None:
                     choices = model_choices(ema, diag)
                     writer.add_scalar("eval/agree_heuristic", agreement(choices, diag.heuristic), step)
-                    if previous_choices is not None:
-                        writer.add_scalar("eval/action_stability", agreement(choices, previous_choices), step)
-                    previous_choices = choices
+                    if past_choices:
+                        writer.add_scalar("eval/action_stability", agreement(choices, past_choices[-1]), step)
+                    if len(past_choices) == past_choices.maxlen:
+                        writer.add_scalar("eval/action_stability_20k", agreement(choices, past_choices[0]), step)
+                    past_choices.append(choices)
             if time.monotonic() - last_checkpoint >= cfg.checkpoint_minutes * 60:
                 _save(run_dir, step, ema, model, optimizer, cfg)
                 last_checkpoint = time.monotonic()

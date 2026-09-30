@@ -32,3 +32,12 @@ def test_model_choices_and_agreement():
     assert choices.shape == (40,) and np.all(choices == 0)
     assert agreement(choices, choices) == 1.0
     assert agreement(choices, ds.heuristic) == np.mean(ds.heuristic == 0)
+
+
+def test_build_decision_set_honours_the_contract_mix():
+    from fortytwo_ml.contracts import DEFAULT_MIX
+    mix = {k: 0.0 for k in DEFAULT_MIX}
+    mix[next(iter(mix))] = 1.0
+    a = build_decision_set(30, 0, mix=mix)
+    b = build_decision_set(30, 0)
+    assert not (a.x.shape == b.x.shape and (a.x == b.x).all())

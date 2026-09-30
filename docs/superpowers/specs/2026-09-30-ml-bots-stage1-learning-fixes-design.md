@@ -143,7 +143,7 @@ wait time seen in the first profile was the learner blocking on the queue.
 ## Success
 
 - **Stage 1 bar:** unchanged. A new run, `stage1-b`, must clear it.
-- **Early warning:** within the first 20k steps (about 25 minutes) of `stage1-b`, `eval/action_stability` and
+- **Early warning:** within the first 20k steps (about 70 minutes at the measured ~4.7k samples/s; check `train/steps_per_sec`) of `stage1-b`, `eval/action_stability` and
   `eval/agree_heuristic` should be clearly above `agree_chance`. If they aren't, the next step is
   the perfect-information (solved-hand) teacher, in a spec of its own. We don't launch a multi-hour
   run on a flat curve.

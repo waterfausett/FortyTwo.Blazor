@@ -7,6 +7,7 @@ across a run:
 - chance: how often a uniformly random pick would agree (the floor for both)
 """
 import random
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -29,9 +30,9 @@ class DecisionSet:
         return len(self.heuristic)
 
 
-def build_decision_set(n: int, seed: int = 0) -> DecisionSet:
+def build_decision_set(n: int, seed: int = 0, mix: Mapping[str, float] | None = None) -> DecisionSet:
     rng = random.Random(f"diagnostics:{seed}")
-    sampler = ContractSampler(DEFAULT_MIX, rng)
+    sampler = ContractSampler(DEFAULT_MIX if mix is None else mix, rng)
     bot = HeuristicBot()
     rows: list[np.ndarray] = []
     starts = [0]
