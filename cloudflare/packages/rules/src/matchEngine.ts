@@ -179,15 +179,18 @@ export function hasHumanPlayers(match: MatchState): boolean {
 }
 
 // Takes a player's seat and hand back out of a match that hasn't been dealt yet. If they were
-// due to open (the creator always is), the lowest remaining seat opens instead. Removing the last
-// player is allowed; the caller deletes the empty match.
+// due to open (the creator always is), the lowest-seated remaining human opens instead - never a
+// bot, which would act on its turn before anything is dealt. Removing the last player is allowed;
+// the caller deletes a match with no human left.
 export function removePlayer(match: MatchState, playerId: string): MatchState {
   assertActive(match);
   assertIsMatchPlayer(match, playerId);
   if (hasBeenDealt(match)) throw new ValidationError("You can't leave once the dominoes are dealt");
 
   const players = match.players.filter((p) => p.playerId !== playerId);
-  const opener = [...players].sort((a, b) => a.position - b.position)[0]?.playerId;
+  const opener = players
+    .filter((p) => !isBot(p.playerId))
+    .sort((a, b) => a.position - b.position)[0]?.playerId;
   const replaceLeaver = (id: string | null) => (id === playerId && opener !== undefined ? opener : id);
 
   const currentGame: Game = {

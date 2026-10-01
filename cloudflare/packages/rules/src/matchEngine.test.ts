@@ -834,6 +834,17 @@ describe('leaving a match', () => {
       expect(next.currentGame.currentPlayerId).toBe('p2');
     });
 
+    it('skips bots when handing on the opening turn, so no bot acts before the deal', () => {
+      let match = createMatch('p1');
+      match = takeSeat(match, 'bot-1', Positions.Second);
+      match = takeSeat(match, 'p3', Positions.Third);
+
+      const next = removePlayer(match, 'p1');
+
+      expect(next.currentGame.firstActionBy).toBe('p3');
+      expect(next.currentGame.currentPlayerId).toBe('p3');
+    });
+
     it('leaves the opener alone when someone else leaves', () => {
       const next = removePlayer(threeSeated(), 'p3');
       expect(next.currentGame.firstActionBy).toBe('p1');
