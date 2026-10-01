@@ -89,6 +89,11 @@ export function apiClient(getToken: () => Promise<string>) {
         body: JSON.stringify({ position }),
       }),
 
+    // Leaves a match before its first deal; the last human out deletes it. The reply is the match
+    // (someone's still seated) or empty (deleted) - the caller navigates away either way.
+    leaveMatch: (id: string): Promise<void> =>
+      request<void>(getToken, `/api/matches/${id}/players`, { method: 'DELETE' }, false),
+
     readyUp: (id: string, ready: boolean): Promise<MatchState> =>
       request<MatchState>(getToken, `/api/matches/${id}/players`, {
         method: 'PATCH',

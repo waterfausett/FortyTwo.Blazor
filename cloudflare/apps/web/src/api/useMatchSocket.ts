@@ -8,10 +8,14 @@ import type { MatchState } from '@fortytwo/rules';
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
-// Close codes the server sends on purpose to say "don't come back" (e.g. a future "not a player"
-// code). Every other close - clean or not - is retried: a DO restart, a Worker deploy, and
-// webSocketClose echoing a 1000 all close cleanly without meaning the match is over.
-const NO_RECONNECT_CODES: ReadonlySet<number> = new Set();
+// The Worker closes every socket with this when their match is deleted (MatchDO's
+// MATCH_DELETED_CLOSE_CODE): the last human left, or it expired.
+export const MATCH_DELETED_CLOSE_CODE = 4404;
+
+// Close codes the server sends on purpose to say "don't come back". Every other close - clean or
+// not - is retried: a DO restart, a Worker deploy, and webSocketClose echoing a 1000 all close
+// cleanly without meaning the match is over.
+const NO_RECONNECT_CODES: ReadonlySet<number> = new Set([MATCH_DELETED_CLOSE_CODE]);
 
 interface MatchSocketMessage {
   type: 'match';
@@ -30,7 +34,7 @@ function isMatchSocketMessage(value: unknown): value is MatchSocketMessage {
 export function useMatchSocket(
   matchId: string,
   getToken: () => Promise<string>
-): { match: MatchState | null; connected: boolean; reconnecting: boolean } {
+): { match: MatchState | null; connected: boolean; reconnecting: boolean; deleted: boolean } {
   // Both are tagged with the matchId they belong to, so the very first render for a new matchId
   // never shows the previous match's state (or its "connected") while the new socket comes up.
   const [latest, setLatest] = useState<{ matchId: string; match: MatchState } | null>(null);
@@ -39,6 +43,8 @@ export function useMatchSocket(
   // when one opens. The initial connect doesn't count, so callers can tell "still coming up" apart
   // from "down, retrying".
   const [droppedFrom, setDroppedFrom] = useState<string | null>(null);
+  // Set when the server says this match was deleted - nothing more will ever arrive for it.
+  const [deletedId, setDeletedId] = useState<string | null>(null);
 
   // getToken is commonly a fresh closure every render (e.g. Auth0's getAccessTokenSilently
   // wrapped inline) - stash the latest in a ref so the connection effect below only depends on
@@ -106,6 +112,7 @@ export function useMatchSocket(
         if (cancelled) return;
         setConnectedTo(null);
         setDroppedFrom(matchId);
+        if (event.code === MATCH_DELETED_CLOSE_CODE) setDeletedId(matchId);
         if (NO_RECONNECT_CODES.has(event.code)) return;
         reconnectTimer = setTimeout(() => {
           reconnectTimer = null;
@@ -145,6 +152,7 @@ export function useMatchSocket(
       setLatest(null);
       setConnectedTo(null);
       setDroppedFrom(null);
+      setDeletedId(null);
     };
   }, [matchId]);
 
@@ -152,5 +160,6 @@ export function useMatchSocket(
     match: latest?.matchId === matchId ? latest.match : null,
     connected: connectedTo === matchId,
     reconnecting: droppedFrom === matchId,
+    deleted: deletedId === matchId,
   };
 }

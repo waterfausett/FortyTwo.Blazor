@@ -8,7 +8,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { Bid, createDomino, Positions, Suit, Teams, type Domino, type MatchState, type Trick } from '@fortytwo/rules';
 import { Match } from './Match';
 
@@ -37,6 +37,7 @@ const {
   toastErrorMock,
   toastInfoMock,
   rematchMock,
+  leaveMatchMock,
   navigateMock,
   currentUserId,
 } =
@@ -53,6 +54,7 @@ const {
     toastErrorMock: vi.fn(),
     toastInfoMock: vi.fn(),
     rematchMock: vi.fn(),
+    leaveMatchMock: vi.fn(),
     navigateMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
@@ -71,6 +73,7 @@ vi.mock('../api/client', () => ({
     getConfig: getConfigMock,
     addBots: addBotsMock,
     rematch: rematchMock,
+    leaveMatch: leaveMatchMock,
   }),
 }));
 
@@ -208,6 +211,67 @@ describe('Match', () => {
       await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
     });
 
+    describe('leaving', () => {
+      let confirmSpy: MockInstance<typeof window.confirm>;
+      beforeEach(() => {
+        confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+        leaveMatchMock.mockResolvedValue(undefined);
+      });
+      afterEach(() => confirmSpy.mockRestore());
+
+      it('leaves the table and goes back to the lobby', async () => {
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+
+        expect(confirmSpy).toHaveBeenCalledWith('Leave this table?');
+        await waitFor(() => expect(leaveMatchMock).toHaveBeenCalledWith('match-1'));
+        await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/'));
+      });
+
+      it('offers Cancel match when no other human is seated', async () => {
+        const withBot = waitingMatch();
+        withBot.players = [PLAYERS[0], { playerId: 'bot-1', position: Positions.Third, ready: true }];
+        useMatchSocketMock.mockReturnValue({ match: withBot, connected: true });
+        renderMatch();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel match' }));
+
+        expect(confirmSpy).toHaveBeenCalledWith('Cancel this match? It will be deleted.');
+        await waitFor(() => expect(leaveMatchMock).toHaveBeenCalled());
+      });
+
+      it('does nothing when the confirm is dismissed', () => {
+        confirmSpy.mockReturnValue(false);
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+
+        expect(leaveMatchMock).not.toHaveBeenCalled();
+      });
+
+      it('is not offered once the hand is dealt', () => {
+        useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+        renderMatch();
+        expect(screen.queryByRole('button', { name: /leave table|cancel match/i })).toBeNull();
+      });
+
+      it('does not announce the deletion to the player whose own leave caused it', async () => {
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+        // From the next render on, the socket reports the deletion - as it would once the leave
+        // lands and the DO closes every socket, this player's included.
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: false, deleted: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+
+        await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/'));
+        expect(toastInfoMock).not.toHaveBeenCalledWith('This match was deleted');
+      });
+    });
+
     it('has no open seats or bot controls once the table is full', async () => {
       getConfigMock.mockResolvedValue({ bots: true });
       useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
@@ -217,6 +281,23 @@ describe('Match', () => {
       expect(screen.queryAllByTestId('open-seat')).toHaveLength(0);
       expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
     });
+  });
+
+  it('sends everyone back to the lobby when the match is deleted under them', async () => {
+    useMatchSocketMock.mockReturnValue({ match: null, connected: false, deleted: true });
+    renderMatch();
+
+    await waitFor(() => expect(toastInfoMock).toHaveBeenCalledWith('This match was deleted'));
+    expect(navigateMock).toHaveBeenCalledWith('/', { replace: true });
+  });
+
+  it('shows why a match failed to load, instead of spinning forever', async () => {
+    getMatchMock.mockRejectedValue(new Error('Match not found!'));
+    useMatchSocketMock.mockReturnValue({ match: null, connected: false });
+    renderMatch();
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Match not found!');
+    expect(screen.getByRole('link', { name: /back to lobby/i }).getAttribute('href')).toBe('/');
   });
 
   it('shows BiddingPanel and hides Hand play interaction during the bidding phase', () => {
