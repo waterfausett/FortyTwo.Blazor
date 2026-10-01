@@ -4,7 +4,7 @@
 import { Hono, type Context } from 'hono';
 import type { AppEnv, Env } from '../index';
 import type { MatchResult } from '../matchDO';
-import { syncLobbyIndex, listActive, listCompleted, listJoinable, listMatchPlayers } from '../lobby';
+import { syncLobbyIndex, deleteFromLobbyIndex, listActive, listCompleted, listJoinable, listMatchPlayers } from '../lobby';
 import { isBot } from '../bots';
 import { getUsers, MAX_USER_IDS } from '../auth0Management';
 import { toUserResponse } from './users';
@@ -124,6 +124,20 @@ matches.patch('/:id/players', async (c) => {
   const ready = field.ready(await readBody(c));
   const result = await matchStub(c.env, c.req.param('id')).readyUp(c.get('user').sub, ready, shuffledDominoOrder());
   return replyWithMatch(c, result, { syncLobby: true });
+});
+
+// Leaves a match before its first deal. The last human out deletes it - which is how a creator
+// cancels a match nobody joined - so its lobby rows go too and the reply has no match to show.
+matches.delete('/:id/players', async (c) => {
+  const matchId = c.req.param('id');
+  const result = await matchStub(c.env, matchId).leave(c.get('user').sub);
+  if (!result.ok) return refusal(c, result);
+  if (result.value.deleted) {
+    await deleteFromLobbyIndex(c.env.DB, matchId);
+    return c.body(null, 204);
+  }
+  await syncLobbyIndex(c.env.DB, result.value.match);
+  return c.json(matchViewFor(result.value.match, c.get('user').sub));
 });
 
 // A vote to play the same four again once the match is over. The vote that completes the table

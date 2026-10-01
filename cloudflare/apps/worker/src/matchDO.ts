@@ -17,6 +17,8 @@ import {
   voteRematch,
   rematchAgreed,
   createRematch,
+  removePlayer,
+  hasHumanPlayers,
   assertIsMatchPlayer,
   shuffledDominoOrder,
   ValidationError,
@@ -35,6 +37,13 @@ import { BOT_IDS, decideBid, decideTrump, decideDomino, findNextBotAction, type 
 // resolving instantly the moment the human acts.
 const BOT_MOVE_DELAY_MS = 600;
 
+// Sent to every socket when its match is deleted, so clients stop reconnecting to it. In the
+// 4000-4999 range the WebSocket protocol leaves for applications; the web app's useMatchSocket
+// knows it by the same number.
+export const MATCH_DELETED_CLOSE_CODE = 4404;
+
+export type LeaveResult = { deleted: true } | { deleted: false; match: MatchState };
+
 // What a match action hands back: its result, or why it was refused - a broken rule (400) or no
 // match at this id (404) - in the { title, detail } shape the client shows. Returned rather than
 // thrown because an exception crossing RPC keeps only its message, not ValidationError's fields.
@@ -49,6 +58,16 @@ export class MatchDO extends DurableObject<Env> {
 
   private async save(match: MatchState): Promise<void> {
     await this.ctx.storage.put('match', match);
+  }
+
+  // Deletes this match for good: no bot move may fire afterwards, every client is told to stop
+  // reconnecting, and storage is wiped so a later call finds no match (404).
+  private async destroy(): Promise<void> {
+    await this.ctx.storage.deleteAlarm();
+    for (const ws of this.ctx.getWebSockets()) {
+      ws.close(MATCH_DELETED_CLOSE_CODE, 'Match deleted');
+    }
+    await this.ctx.storage.deleteAll();
   }
 
   // Only the WebSocket upgrade still arrives as a request; everything else is an RPC method below.
@@ -103,6 +122,23 @@ export class MatchDO extends DurableObject<Env> {
 
   takeSeat(playerId: string, position: number, dealOrder?: Domino[]): Promise<MatchResult<MatchState>> {
     return this.update((match) => takeSeat(match, playerId, position, dealOrder));
+  }
+
+  // Takes a player back out of a match that hasn't been dealt. When no human is left the match is
+  // deleted outright - that's also how a creator cancels a match nobody joined. The caller drops
+  // the lobby rows (routes/matches.ts), as routes already own D1 syncing.
+  leave(playerId: string): Promise<MatchResult<LeaveResult>> {
+    return this.read(async (match): Promise<LeaveResult> => {
+      const next = removePlayer(match, playerId);
+      if (!hasHumanPlayers(next)) {
+        await this.destroy();
+        return { deleted: true };
+      }
+      await this.save(next);
+      this.broadcast(next);
+      await this.scheduleBotsIfNeeded(next);
+      return { deleted: false, match: next };
+    });
   }
 
   // Seats a bot at each of `positions`, or at every open seat when none are given, so people

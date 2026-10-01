@@ -30,6 +30,14 @@ export async function upsertMatchSummary(db: D1Database, summary: MatchIndexRow)
     .run();
 }
 
+// Drops a deleted match from the lobby: its seats first, then the match row they reference.
+export async function deleteFromLobbyIndex(db: D1Database, matchId: string): Promise<void> {
+  await db.batch([
+    db.prepare('DELETE FROM match_players WHERE match_id = ?').bind(matchId),
+    db.prepare('DELETE FROM matches WHERE id = ?').bind(matchId),
+  ]);
+}
+
 export interface SeatedPlayer {
   playerId: string;
   team: Teams;
