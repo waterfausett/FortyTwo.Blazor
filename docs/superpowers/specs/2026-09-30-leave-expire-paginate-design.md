@@ -37,15 +37,17 @@ export function removePlayer(match: MatchState, playerId: string): MatchState;
 ```
 
 - Refuses (`ValidationError`) unless the match is active (`assertActive`), the caller is seated
-  (`assertIsMatchPlayer`), and no hand has been dealt - checked as "every hand in
-  `currentGame.hands` has no dominoes", not as `players.length < 4`, so a 4-seat table whose deal
+  (`assertIsMatchPlayer`), and `hasBeenDealt(match)` is false. "Every hand is empty" alone is not
+  enough - hands are empty again after a hand's last trick - so `hasBeenDealt` is true once any
+  hand holds a domino (counting `hiddenCount`, so it also works on a client's view), any trick has
+  been played, or any game has been filed. Not `players.length < 4`, so a 4-seat table whose deal
   was skipped (no `dealOrder`) is still leavable and a dealt table never is.
 - Removes the player from `players` and their hand from `currentGame.hands`; bumps `updatedOn`.
 - If `currentGame.firstActionBy` or `currentGame.currentPlayerId` was the leaver, both move to the
   remaining player in the lowest seat (that's who `createMatch` would have made opener had they
   created it). If nobody remains, they are left as-is - the caller deletes the match.
 
-A helper `hasHumanPlayers(match)` (bots per `isBot` / `botIds.ts`) tells the DO whether the match
+`hasBeenDealt` is exported for the web app. A helper `hasHumanPlayers(match)` (bots per `isBot` / `botIds.ts`) tells the DO whether the match
 should survive.
 
 ## Worker (`apps/worker`)
@@ -69,19 +71,20 @@ routes already own D1 syncing.
 MatchDO:
 
 ```ts
-leave(playerId: string): Promise<MatchResult<{ deleted: true } | MatchState>>;
+type LeaveResult = { deleted: true } | { deleted: false; match: MatchState };
+leave(playerId: string): Promise<MatchResult<LeaveResult>>;
 ```
 
 Runs `removePlayer` through the existing `read` wrapper (so a rule violation is a 400 and a missing
 match a 404). If the result still has a human, it is saved, broadcast, and handed to
 `scheduleBotsIfNeeded` exactly as `update` does; otherwise `destroy()` runs and the result is
-`{ deleted: true }`. DO input gating serializes this against a concurrent join: the join either
+`{ deleted: true }`; otherwise `{ deleted: false, match }`. DO input gating serializes this against a concurrent join: the join either
 lands first (and the leave still succeeds, or is refused if the join dealt) or finds no match (404).
 
 Route `DELETE /api/matches/:id/players`:
 
 - `{ deleted: true }` → `deleteFromLobbyIndex`, reply `204`.
-- A match → `syncLobbyIndex`, reply with `matchViewFor(match, caller)` (as `replyWithMatch` does).
+- `{ deleted: false, match }` → `syncLobbyIndex`, reply with `matchViewFor(match, caller)` (as `replyWithMatch` does).
 
 ### Expiry sweep
 
@@ -146,7 +149,7 @@ export interface MatchPage {
   `LIMIT LOBBY_PAGE_SIZE + 1`; a 21st row means there's a next page, and its cursor is built from
   the 20th row.
 - The cursor is base64url of `` `${updatedOn}|${id}` ``. One that doesn't decode to that shape is a
-  `BadRequestError` (400, `{ title: 'Invalid cursor' }`).
+  `BadRequestError('Invalid cursor')` (400, `{ title: 'Invalid request', detail: 'Invalid cursor' }`).
 - `listMatchPlayers` and `displayNames` now only see one page: at most 80 player ids, two Auth0
   calls at `MAX_USER_IDS = 50`.
 
@@ -164,13 +167,14 @@ both ship in one deploy.
   loads moves to page 1 and could otherwise appear twice).
 - A "Load more" button under the list while `hasNextPage`; shows "Loading…" and is disabled while
   `isFetchingNextPage`.
-- The refresh button refetches from the first page (`refetch()` on an infinite query refetches
-  loaded pages; reset with `queryClient.resetQueries({ queryKey: ['matches', activeTab] })` so a
-  refresh is one request).
+- The refresh button refetches from the first page only: it trims the cached data to its first
+  page (`queryClient.setQueryData`), then calls `refetch()`, so a refresh is one request and the
+  list stays on screen while it runs (`resetQueries` would blank it). The refresh icon spins for
+  `isFetching && !isFetchingNextPage`, not while "Load more" runs.
 
 ### Leaving from the Match page
 
-- In the waiting state (`.table-waiting`, shown while fewer than 4 are seated), a "Leave table"
+- In the waiting state (`.table-waiting`), while `hasBeenDealt(match)` is false, a "Leave table"
   button beside "Fill with bots". When the caller is the only human seated it reads "Cancel match".
 - Clicking it asks `window.confirm` ("Leave this table?" / "Cancel this match? It will be deleted."),
   then calls `client.leaveMatch(id)` (`DELETE`, empty 204 handled like the other bodyless calls),
@@ -182,7 +186,8 @@ both ship in one deploy.
 
 - `useMatchSocket` adds `4404` to `NO_RECONNECT_CODES` and reports it (e.g. a `deleted` flag in its
   return value).
-- On `deleted`, the Match page toasts "This match was deleted" and navigates to `/`.
+- On `deleted` - unless this player is the one leaving, whose own leave already navigates - the
+  Match page toasts "This match was deleted" and navigates to `/`.
 - Today a failed `getMatch` (e.g. 404) leaves the page on its loading spinner forever: the spinner
   branch renders whenever `match` is null. The page now renders `matchQuery.error` as a
   `.match-error` alert with a link back to the lobby when there's no match to show. This also
