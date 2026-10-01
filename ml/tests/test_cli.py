@@ -34,3 +34,9 @@ def test_bench_train_reports_rates(capsys):
     assert main(["bench-train", "--config", str(smoke), "--seconds", "3"]) == 0
     out = capsys.readouterr().out
     assert "learner steps/s:" in out and "samples/s ingested:" in out
+
+
+def test_eval_kind_restricts_the_contracts(capsys):
+    assert main(["eval", "--a", "heuristic", "--b", "dumb", "--deals", "10", "--kind", "low"]) == 0
+    out = capsys.readouterr().out
+    assert "  low " in out and "  points " not in out

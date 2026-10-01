@@ -4,7 +4,8 @@ import pytest
 
 from fortytwo_ml.agents.base import run_hand
 from fortytwo_ml.agents.heuristic_bot import HeuristicBot
-from fortytwo_ml.contracts import DEFAULT_MIX, ContractSampler, contract_kind
+from fortytwo_ml.contracts import DEFAULT_MIX, ContractSampler, best_low, contract_kind, low_risk
+from fortytwo_ml.engine.dominoes import doubles_in, index_of, to_mask
 from fortytwo_ml.engine.enums import LOW_TRUMPS, PLUNGE, Suit
 from fortytwo_ml.engine.hand_state import Contract, HandState, Phase
 
@@ -59,3 +60,48 @@ def test_heuristic_plays_every_sampled_contract_legally():
         state = HandState.from_contract(deal, c.bidder, c.bid, c.trump)
         run_hand(state, [HeuristicBot()] * 4)
         assert state.phase is Phase.DONE
+
+
+def test_low_risk_by_variant():
+    hand = [index_of(0, 0), index_of(1, 2), index_of(6, 6)]
+    assert low_risk(hand, Suit.LOW) == (0 + 3) + 2 + (6 + 3)
+    assert low_risk(hand, Suit.LOW_DOUBLES_LOW) == 0 + 2 + 0
+    assert low_risk(hand, Suit.LOW_DOUBLES_OWN_SUIT) == 0 + 2 + 6
+
+
+def test_best_low_picks_the_safest_seat_and_variant():
+    def pips(*ps):
+        return [index_of(a, b) for a, b in ps]
+    hands = [
+        pips((6, 6), (5, 6), (4, 6), (3, 6), (2, 6), (1, 6), (0, 6)),
+        pips((0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2), (0, 3)),  # low, doubles-heavy
+        pips((5, 5), (4, 5), (3, 5), (2, 5), (1, 5), (0, 5), (4, 4)),
+        pips((3, 3), (3, 4), (2, 4), (1, 4), (0, 4), (2, 3), (1, 3)),
+    ]
+    assert best_low(hands) == (1, Suit.LOW_DOUBLES_LOW)
+
+
+def test_sample_hand_plunge_always_has_a_four_double_plunger():
+    sampler = ContractSampler({"plunge": 1.0}, random.Random(5))
+    plunges = 0
+    for _ in range(200):
+        order, opener, c = sampler.sample_hand()
+        HandState.from_contract(order, c.bidder, c.bid, c.trump)
+        if contract_kind(c) == "plunge":
+            plunges += 1
+            assert doubles_in(to_mask(order[c.bidder * 7:(c.bidder + 1) * 7])) >= 4
+    assert plunges >= 195  # the 100-try cap almost never runs out
+
+
+def test_sample_hand_low_goes_to_the_best_low_hand():
+    sampler = ContractSampler({"low": 1.0}, random.Random(6))
+    for _ in range(50):
+        order, _, c = sampler.sample_hand()
+        hands = [order[p * 7:(p + 1) * 7] for p in range(4)]
+        assert (c.bidder, c.trump) == best_low(hands) and c.bid == 42
+
+
+def test_sample_hand_is_deterministic_for_a_seed():
+    a = [ContractSampler(DEFAULT_MIX, random.Random(9)).sample_hand() for _ in range(1)]
+    b = [ContractSampler(DEFAULT_MIX, random.Random(9)).sample_hand() for _ in range(1)]
+    assert a == b

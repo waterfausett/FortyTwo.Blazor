@@ -112,3 +112,8 @@ def test_low_contract_selfplay_has_zero_point_shaping():
     for _ in range(5):
         x, marks, pdiff = play_selfplay_hand(model, ContractSampler({"low": 1.0}, rng), rng, epsilon=0.1)
         assert len(marks) > 0 and np.all(pdiff == 0)
+
+
+def test_plunge_finetune_config_loads():
+    cfg = TrainConfig.from_yaml(CONFIGS / "stage1-plunge.yaml")
+    assert cfg.total_steps == 230_000 and cfg.contract_mix["plunge"] == 0.1 and cfg.contract_mix["heuristic"] == 0.65

@@ -16,9 +16,7 @@ from ..model import QNet
 def play_selfplay_hand(
     model: QNet, sampler: ContractSampler, rng: random.Random, epsilon: float
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    order = list(range(28))
-    rng.shuffle(order)
-    contract = sampler.sample(order, rng.randrange(4))
+    order, _, contract = sampler.sample_hand()
     state = HandState.from_contract(order, contract.bidder, contract.bid, contract.trump)
 
     rows: list[np.ndarray] = []

@@ -38,9 +38,7 @@ def build_decision_set(n: int, seed: int = 0, mix: Mapping[str, float] | None = 
     starts = [0]
     picks: list[int] = []
     while len(picks) < n:
-        order = list(range(28))
-        rng.shuffle(order)
-        contract = sampler.sample(order, rng.randrange(4))
+        order, _, contract = sampler.sample_hand()
         state = HandState.from_contract(order, contract.bidder, contract.bid, contract.trump)
         while state.phase is not Phase.DONE and len(picks) < n:
             seat, legal = state.to_act, state.legal_actions()

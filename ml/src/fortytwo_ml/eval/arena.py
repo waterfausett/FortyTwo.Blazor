@@ -51,9 +51,7 @@ def evaluate_hands(
     result = HandEval(a.name, b.name)
     for i in range(deals):
         rng = random.Random(f"{seed}:{i}")
-        order = list(range(28))
-        rng.shuffle(order)
-        contract = ContractSampler(mix or DEFAULT_MIX, rng).sample(order, rng.randrange(4))
+        order, _, contract = ContractSampler(mix or DEFAULT_MIX, rng).sample_hand()
         kind = contract_kind(contract)
         bidders = team_of(contract.bidder)
         score = 0

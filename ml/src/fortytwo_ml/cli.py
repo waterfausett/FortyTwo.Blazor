@@ -28,9 +28,7 @@ def load_agent(spec: str) -> Agent:
 
 def _play_demo(agent: Agent, seed: int) -> None:
     rng = random.Random(seed)
-    order = list(range(28))
-    rng.shuffle(order)
-    contract = ContractSampler(DEFAULT_MIX, rng).sample(order, rng.randrange(4))
+    order, _, contract = ContractSampler(DEFAULT_MIX, rng).sample_hand()
     state = HandState.from_contract(order, contract.bidder, contract.bid, contract.trump)
     print(f"Contract: seat {contract.bidder} bid {contract.bid}, trump {Suit(contract.trump).name} "
           f"({contract_kind(contract)})")
@@ -66,6 +64,7 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--deals", type=int, default=5000)
     e.add_argument("--matches", type=int, default=0)
     e.add_argument("--seed", type=int, default=0)
+    e.add_argument("--kind", choices=["plunge", "low"], help="only evaluate this contract type")
 
     d = sub.add_parser("play-demo", help="print one hand, decision by decision")
     d.add_argument("--agent", default="heuristic")
@@ -85,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"trained {summary.steps} steps, last loss {summary.last_loss:.4f}; checkpoint {summary.checkpoint}")
     elif args.command == "eval":
         a, b = load_agent(args.a), load_agent(args.b)
-        hands = evaluate_hands(a, b, args.deals, seed=args.seed)
+        hands = evaluate_hands(a, b, args.deals, seed=args.seed, mix={args.kind: 1.0} if args.kind else None)
         matches = evaluate_matches(a, b, args.matches, seed=args.seed) if args.matches else None
         print(format_report(hands, matches))
     elif args.command == "bench-train":
