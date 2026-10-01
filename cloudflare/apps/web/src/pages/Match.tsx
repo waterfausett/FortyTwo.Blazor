@@ -531,7 +531,7 @@ export function Match(): JSX.Element {
               <PipFace suit={game.trump} />
               <span className="contract-trump-name">{suitToPrettyString(game.trump)}</span>
               {isLow(game.trump) && (
-                <span className="contract-trump-rule">{lowDoublesToPrettyString(game.trump)}</span>
+                <span className="contract-trump-rule">Doubles {lowDoublesToPrettyString(game.trump)}</span>
               )}
             </span>
           )}
