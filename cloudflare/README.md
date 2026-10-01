@@ -113,10 +113,11 @@ SDK.
   Add `%ANDROID_HOME%\platform-tools` to `Path` too, so `adb devices` can see your phone.
 - **Short paths.** The native build writes object files at very deep paths, and the `ninja.exe`
   that comes with the SDK's CMake can't handle paths over Windows' 260-character limit
-  ("Filename longer than 260 characters"). Either build from a short path (clone to something
-  like `C:\ft`, or `subst F: C:\git\FortyTwo.Blazor` and build from `F:`), or turn on Windows long
-  paths (the `LongPathsEnabled` registry setting, then reboot) and replace
-  `%ANDROID_HOME%\cmake\<version>\bin\ninja.exe` with ninja 1.12 or later.
+  ("Filename longer than 260 characters"). Either clone the repo to a short path such as `C:\ft`,
+  or turn on Windows long paths (the `LongPathsEnabled` registry setting, then reboot) and
+  replace `%ANDROID_HOME%\cmake\<version>\bin\ninja.exe` with ninja 1.12 or later. Avoid a
+  `subst` drive: npm links the `@fortytwo/*` packages by their real `C:\` path, which Metro then
+  treats as outside the project ("Unable to resolve \"@fortytwo/rules\"").
 
 After changing any of these, open a new terminal. If Gradle still uses the old settings, stop
 its background process (`cd android && gradlew --stop`). After a failed native build, delete
