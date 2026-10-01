@@ -1,6 +1,6 @@
 // SweetAlert2 toasts for errors and notices: a small card in the bottom-right corner that times out on its own and pauses while hovered.
 // Styled to the hall palette in styles/toast.css.
-import Swal from 'sweetalert2';
+import Swal, { type SweetAlertPosition } from 'sweetalert2';
 import { ApiError } from '../api/client';
 import '../styles/toast.css';
 
@@ -48,6 +48,12 @@ export function toastError(error: unknown): void {
 
 // A heads-up rather than an error - e.g. the next hand being dealt while you looked away. Turn
 // notifications (#2) can build on this.
-export function toastInfo(title: string, text?: string): void {
-  void Toast.fire({ icon: 'info', title, text });
+export function toastInfo(title: string, text?: string, position: SweetAlertPosition = 'bottom-end'): void {
+  void Toast.fire({
+    icon: 'info',
+    title,
+    text,
+    position,
+    customClass: { popup: 'hall-toast hall-toast--info' },
+  });
 }
