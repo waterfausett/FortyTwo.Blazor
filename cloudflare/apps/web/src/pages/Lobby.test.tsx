@@ -11,7 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatchState } from '@fortytwo/rules';
-import type { MatchSummary } from '../api/client';
+import type { MatchPage, MatchSummary } from '../api/client';
 import { Lobby } from './Lobby';
 
 const { listMatchesMock, createMatchMock, joinMatchMock, mockNavigate } = vi.hoisted(() => ({
@@ -80,15 +80,17 @@ const ACTIVE_ROW = 'Alice & bot-2 vs bot-1 & bot-3';
 const JOINABLE_ROW = 'Bob vs Cara';
 const COMPLETED_ROW = 'Alice & Cara vs Bob & Dan';
 
+const page = (matches: MatchSummary[], nextCursor: string | null = null): MatchPage => ({ matches, nextCursor });
+
 function mockLists() {
   listMatchesMock.mockImplementation((filter: 'Active' | 'Completed' | 'Joinable') => {
     switch (filter) {
       case 'Active':
-        return Promise.resolve(ACTIVE_FIXTURE);
+        return Promise.resolve(page(ACTIVE_FIXTURE));
       case 'Joinable':
-        return Promise.resolve(JOINABLE_FIXTURE);
+        return Promise.resolve(page(JOINABLE_FIXTURE));
       case 'Completed':
-        return Promise.resolve(COMPLETED_FIXTURE);
+        return Promise.resolve(page(COMPLETED_FIXTURE));
     }
   });
 }
@@ -128,9 +130,9 @@ describe('Lobby', () => {
     await screen.findByText(ACTIVE_ROW);
 
     expect(screen.getByRole('tab', { name: /active games/i }).getAttribute('aria-selected')).toBe('true');
-    expect(listMatchesMock).toHaveBeenCalledWith('Active');
-    expect(listMatchesMock).not.toHaveBeenCalledWith('Joinable');
-    expect(listMatchesMock).not.toHaveBeenCalledWith('Completed');
+    expect(listMatchesMock).toHaveBeenCalledWith('Active', undefined);
+    expect(listMatchesMock).not.toHaveBeenCalledWith('Joinable', undefined);
+    expect(listMatchesMock).not.toHaveBeenCalledWith('Completed', undefined);
   });
 
   it('fetches a tab only once it is selected', async () => {
@@ -140,12 +142,12 @@ describe('Lobby', () => {
 
     switchTab(/find a game/i);
     await screen.findByText(JOINABLE_ROW);
-    expect(listMatchesMock).toHaveBeenCalledWith('Joinable');
-    expect(listMatchesMock).not.toHaveBeenCalledWith('Completed');
+    expect(listMatchesMock).toHaveBeenCalledWith('Joinable', undefined);
+    expect(listMatchesMock).not.toHaveBeenCalledWith('Completed', undefined);
 
     switchTab(/game history/i);
     await screen.findByText(COMPLETED_ROW);
-    expect(listMatchesMock).toHaveBeenCalledWith('Completed');
+    expect(listMatchesMock).toHaveBeenCalledWith('Completed', undefined);
   });
 
   it('does not refetch on a timer - only the initial fetch happens without a manual refresh', async () => {
@@ -170,7 +172,7 @@ describe('Lobby', () => {
     fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
 
     await waitFor(() => expect(listMatchesMock).toHaveBeenCalledTimes(2));
-    expect(listMatchesMock).toHaveBeenLastCalledWith('Active');
+    expect(listMatchesMock).toHaveBeenLastCalledWith('Active', undefined);
   });
 
   it('spins the refresh icon only while a refetch is in flight', async () => {
@@ -180,14 +182,14 @@ describe('Lobby', () => {
     const icon = document.querySelector('.lobby-refresh .oi') as HTMLElement;
     expect(icon.className).not.toMatch(/spinner-reverse/);
 
-    let resolveRefetch!: (matches: MatchSummary[]) => void;
+    let resolveRefetch!: (result: MatchPage) => void;
     listMatchesMock.mockReturnValueOnce(new Promise((resolve) => (resolveRefetch = resolve)));
 
     fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
 
     await waitFor(() => expect(icon.className).toMatch(/spinner-reverse/));
 
-    resolveRefetch(ACTIVE_FIXTURE);
+    resolveRefetch(page(ACTIVE_FIXTURE));
 
     await waitFor(() => expect(icon.className).not.toMatch(/spinner-reverse/));
   });
@@ -250,7 +252,7 @@ describe('Lobby', () => {
       fireEvent.click(within(picker).getByRole('button', { name: /with cara/i }));
 
       expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Seat is taken: Someone is already sitting there');
-      await waitFor(() => expect(listMatchesMock).toHaveBeenCalledWith('Joinable'));
+      await waitFor(() => expect(listMatchesMock).toHaveBeenCalledWith('Joinable', undefined));
       expect(mockNavigate).not.toHaveBeenCalled();
     });
   });
@@ -270,7 +272,7 @@ describe('Lobby', () => {
   });
 
   it('falls back to the match id for a row with no players listed', async () => {
-    listMatchesMock.mockResolvedValue([
+    listMatchesMock.mockResolvedValue(page([
       {
         id: 'no-players',
         status: 'active',
@@ -279,9 +281,54 @@ describe('Lobby', () => {
         teams: [[], []],
         seats: [null, null, null, null],
       },
-    ]);
+    ]));
     renderLobby();
 
     await screen.findByText('no-players');
+  });
+
+  describe('paging', () => {
+    const SECOND: MatchSummary = { ...ACTIVE_FIXTURE[0], id: 'active-2', teams: [['Erin'], ['Finn']], seats: ['Erin', 'Finn', null, null] };
+
+    beforeEach(() => {
+      listMatchesMock.mockImplementation((_filter: string, cursor?: string) =>
+        // Page 2 repeats active-1, as if it was updated (and moved up) between the two loads.
+        Promise.resolve(cursor === undefined ? page(ACTIVE_FIXTURE, 'c1') : page([ACTIVE_FIXTURE[0], SECOND]))
+      );
+    });
+
+    it('appends the next page on Load more, shows a repeated match once, and hides the button at the end', async () => {
+      renderLobby();
+      await screen.findByText(ACTIVE_ROW);
+
+      fireEvent.click(screen.getByRole('button', { name: /load more/i }));
+
+      await screen.findByText('Erin vs Finn');
+      expect(listMatchesMock).toHaveBeenLastCalledWith('Active', 'c1');
+      expect(screen.getAllByText(ACTIVE_ROW)).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: /load more/i })).toBeNull();
+    });
+
+    it('shows no Load more when the first page is the last', async () => {
+      mockLists();
+      renderLobby();
+      await screen.findByText(ACTIVE_ROW);
+      expect(screen.queryByRole('button', { name: /load more/i })).toBeNull();
+    });
+
+    it('refreshes only the first page', async () => {
+      renderLobby();
+      await screen.findByText(ACTIVE_ROW);
+      fireEvent.click(screen.getByRole('button', { name: /load more/i }));
+      await screen.findByText('Erin vs Finn');
+      expect(listMatchesMock).toHaveBeenCalledTimes(2);
+
+      fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
+
+      await waitFor(() => expect(listMatchesMock).toHaveBeenCalledTimes(3));
+      expect(listMatchesMock).toHaveBeenLastCalledWith('Active', undefined);
+      await waitFor(() => expect(screen.queryByText('Erin vs Finn')).toBeNull());
+      expect(screen.getByText(ACTIVE_ROW)).toBeTruthy();
+    });
   });
 });

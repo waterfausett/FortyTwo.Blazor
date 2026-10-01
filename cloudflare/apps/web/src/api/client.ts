@@ -9,13 +9,14 @@ import type { MatchState } from '@fortytwo/rules';
 import type {
   ApiErrorBody,
   ClientConfig,
+  MatchPage,
   MatchSummary,
   ProfilePatch,
   PublicUser,
   UserProfile,
 } from '@fortytwo/api-types';
 
-export type { MatchSummary, PublicUser, UserProfile };
+export type { MatchPage, MatchSummary, PublicUser, UserProfile };
 
 // Keeps the Worker's title and detail apart so a toast can show them as heading and body;
 // `message` still joins them for callers that just print it.
@@ -72,8 +73,12 @@ export function apiClient(getToken: () => Promise<string>) {
   return {
     createMatch: (): Promise<MatchState> => request<MatchState>(getToken, '/api/matches', { method: 'POST' }),
 
-    listMatches: (filter: 'Active' | 'Completed' | 'Joinable'): Promise<MatchSummary[]> =>
-      request<MatchSummary[]>(getToken, `/api/matches?filter=${filter}`),
+    // One page of a lobby list; pass the previous page's `nextCursor` for the next one.
+    listMatches: (filter: 'Active' | 'Completed' | 'Joinable', cursor?: string): Promise<MatchPage> =>
+      request<MatchPage>(
+        getToken,
+        `/api/matches?filter=${filter}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
+      ),
 
     getMatch: (id: string): Promise<MatchState> => request<MatchState>(getToken, `/api/matches/${id}`),
 
