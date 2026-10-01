@@ -16,19 +16,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { Domino as DominoType, Game, Trick } from '@fortytwo/rules';
+import type { Domino as DominoType, Game, Teams, Trick } from '@fortytwo/rules';
 import {
   Bid,
   Suit,
-  Teams,
   bidToPrettyString,
   suitToPrettyString,
-  getPlayerView,
   matchScores,
-  trickValue,
   gameWinningTeam,
   handSize,
-  assertValidDomino,
   isLow,
   lowDoublesToPrettyString,
   rematchAgreed,
@@ -46,7 +42,19 @@ import { Seat } from '../components/Seat';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
 import { toastError, toastInfo } from '../ui/toast';
-import { dealerId, isTrickStarted, openSeats, seatFor, trickLeaderId, trickPlayOrder } from '@fortytwo/client';
+import {
+  MARKS_TO_WIN,
+  describeMatch,
+  isHighBidder as holdsHighBid,
+  isTrickStarted,
+  isValidPlay as isLegalPlay,
+  matchStatus,
+  openSeats,
+  seatFor,
+  teamTrickPoints,
+  trickLeaderId,
+  trickPlayOrder,
+} from '@fortytwo/client';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
 import '../styles/match.css';
@@ -57,33 +65,6 @@ import '../styles/match.css';
 const TRICK_HOLD_MS = 1500;
 // The tail end of that hold is the sweep (match/sweep.ts's `sweepDurationMs`), during which the
 // trick leaves for the winning side rather than just blinking out.
-
-// A match is won at 7 marks (matchEngine.ts's WINNING_SCORE) - drawn as a 7-notch tally.
-const MARKS_TO_WIN = 7;
-
-// Every hand is always dealt exactly 7 dominoes (matchEngine.ts's dealHands: 28 dominoes / 4
-// players) - used to detect whether a player has already played into the current, still-in-
-// progress trick (see `haveIPlayedInCurrentTrick` below).
-const HAND_SIZE_DEALT = 7;
-// Every hand runs exactly 7 tricks, Low included (the bidder's partner just never plays theirs).
-const TRICKS_PER_HAND = 7;
-
-function otherTeam(team: Teams): Teams {
-  return team === Teams.TeamA ? Teams.TeamB : Teams.TeamA;
-}
-
-// A team's cumulative point value across a set of already-COMPLETED tricks (i.e. NOT the trick
-// still being played - that's TrickDisplay's job, and is a different, separate metric).
-// `trickValue()` already includes the +1 base point per trick (trick.ts), so it isn't added again
-// here.
-//
-// Takes the tricks list rather than `Game` directly so callers can pass either the true
-// `game.tricks` or the hold-delayed "revealed" subset (see `Match()`'s `revealedTrickCount`) -
-// the two diverge for ~`TRICK_HOLD_MS` right after a trick completes, while it's still being
-// shown center-board instead of having moved to the side pile.
-function teamTrickPoints(tricks: Trick[], team: Teams): number {
-  return tricks.filter((t) => t.team === team).reduce((sum, t) => sum + trickValue(t), 0);
-}
 
 // Once a hand's bid gets big enough (and isn't Plunge or
 // a Low-trump hand, both of which keep every trick meaningful to look back on), each side's trick
@@ -98,14 +79,7 @@ function teamTricksForDisplay(tricks: Trick[], team: Teams, stack: boolean): Tri
   return stack ? teamTricks.slice(Math.max(0, teamTricks.length - 2)) : teamTricks;
 }
 
-// The points a bidding team has to take to make its bid: the bid itself for 30-42, or all 42 for
-// any marks bid (84, 126, ... - gameWinningTeam's `adjustedBid`). Low has no point target at all
-// (the bidders simply must not take a trick), and there's no target until bidding closes.
-function bidTarget(game: Game): number | null {
-  if (game.bid == null || game.trump == null || isLow(game.trump)) return null;
-  return game.bid % 42 === 0 ? 42 : game.bid;
-}
-
+// MARKS_TO_WIN (@fortytwo/client) marks win the match - drawn as a tally.
 function MarkTally({ marks }: { marks: number }): JSX.Element {
   return (
     <span className="mark-tally" aria-hidden="true">
@@ -342,48 +316,26 @@ export function Match(): JSX.Element {
   }
 
   const game = match.currentGame;
-  const me = getPlayerView(match, myPlayerId);
+  // The phase of the hand, what I can do, and how the hand and match stand: @fortytwo/client's
+  // matchView.ts, shared with the mobile app.
+  const view = describeMatch(match, myPlayerId);
+  const {
+    me,
+    opponentTeam,
+    isTableReady,
+    isBiddingPhase,
+    isPlayingPhase,
+    canBid,
+    canSelectTrump,
+    isHandOver,
+    isHandPlayedOut,
+    isSittingOut,
+    iAmReady,
+    readyCount,
+    iVotedRematch,
+  } = view;
   const scores = matchScores(match);
-  const opponentTeam = otherTeam(me.team);
-
-  // The table must actually be full AND dealt before bidding can be considered "in progress" -
-  // otherwise the creator's solo 1-hand view (joined, but alone) satisfies `hands.some(bid==null)`
-  // trivially, "completing" bidding for a game that never really started; when players 2-4 join
-  // later, their fresh (bid: null) hands never re-trigger bidding since currentPlayerId already
-  // moved on, permanently deadlocking the match. Requiring all 4 seats AND a real deal closes that
-  // gap.
-  //
-  // "Dealt" must NOT be judged by any single hand (`hands[0].dominoes.length > 0`, a prior bug
-  // here): within the final trick, players play one at a time, so whichever player acts first
-  // empties their hand while the other 3 still hold one domino each - if that first-to-act player
-  // happens to be `hands[0]` (the match creator), a single-hand check flips false mid-trick and
-  // deadlocks a match that's still very much in progress. Checking across every hand, plus the
-  // trick history/in-progress trick, stays true for as long as ANY play could still legally happen.
-  const isTableReady =
-    match.players.length === 4 &&
-    game.hands.length === 4 &&
-    // handSize, not dominoes.length: other players' hands arrive hidden, as a count.
-    (game.hands.some((h) => handSize(h) > 0) ||
-      game.tricks.length > 0 ||
-      game.currentTrick.dominoes.some((d) => d !== null));
-  const isBiddingPhase = isTableReady && game.hands.some((h) => h.bid == null);
-  const isTrumpSelectPhase = isTableReady && !isBiddingPhase && game.trump == null;
-  const isPlayingPhase = isTableReady && !isBiddingPhase && game.trump != null;
-
-  const canBid = isBiddingPhase && me.isActive;
-  const canSelectTrump = isTrumpSelectPhase && me.isActive;
-  const canPlay = isPlayingPhase && me.isActive && connected && !playMutation.isPending && !awaitingTurnAdvance;
-
-  // Once the current hand has a winner, the ONLY way to continue is for all 4 players to
-  // explicitly ready up again (patchPlayerReady deals the next hand once everyone has) - with no
-  // UI for this, a match could play its first hand to completion and then simply never continue.
-  // Until then the hand can still be played out, up to its last trick.
-  const isHandOver = gameWinningTeam(game) !== null;
-  const isHandPlayedOut = game.tricks.length === TRICKS_PER_HAND;
-  const myReadyState = match.players.find((p) => p.playerId === myPlayerId);
-  const iAmReady = myReadyState?.ready ?? false;
-  const readyCount = match.players.filter((p) => p.ready).length;
-  const iVotedRematch = match.rematchVotes?.includes(myPlayerId) ?? false;
+  const canPlay = view.isMyTurnToPlay && connected && !playMutation.isPending && !awaitingTurnAdvance;
 
   // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
   // itself always reflects the true, immediate server state (used above for e.g. `isHandOver`,
@@ -416,21 +368,16 @@ export function Match(): JSX.Element {
     return pileLandingPoint(root, sweepTo);
   };
 
-  const dealer = isTableReady ? dealerId(match.players, game) : null;
-  const bidderTeam = game.hands.find((h) => h.playerId === game.biddingPlayerId)?.team ?? null;
-  const target = bidTarget(game);
-  const handWinner = gameWinningTeam(game);
-  const isMatchOver = match.winningTeam != null;
+  const { dealer, bidderTeam, target, handWinner, isMatchOver } = view;
 
   const nameFor = (playerId: string | null): string =>
     playerId === myPlayerId ? 'You' : playerId == null ? '' : (namesQuery.data?.get(playerId) ?? playerId);
-  const activeName = nameFor(game.currentPlayerId);
 
   // The markers every seat plate (mine included) shows, keyed off a player id.
   function seatPropsFor(playerId: string) {
     const player = match!.players.find((p) => p.playerId === playerId);
     const hand = game.hands.find((h) => h.playerId === playerId);
-    const isHighBidder = game.biddingPlayerId === playerId && game.bid != null && game.bid !== Bid.Pass;
+    const isHighBidder = holdsHighBid(game, playerId);
     // While bidding is open everyone's bid (Pass included) shows; once trump is named only the
     // winning bidder's does, alongside the trump they named.
     const bid = game.trump == null ? (hand?.bid ?? null) : isHighBidder ? game.bid : null;
@@ -455,49 +402,13 @@ export function Match(): JSX.Element {
     .map((p) => ({ player: p, seat: seatFor(match.players, myPlayerId, p.playerId)! }));
   const emptySeats = openSeats(match.players, myPlayerId);
 
-  // On a Low hand the bidder plays alone, so their partner never gets a turn (selectNextPlayer
-  // skips them) - tell them why rather than leaving them watching "X to play" all hand.
-  const isSittingOut =
-    isPlayingPhase &&
-    !isHandPlayedOut &&
-    isLow(game.trump) &&
-    game.biddingPlayerId !== myPlayerId &&
-    bidderTeam === me.team;
+  // One line on the rail saying what the table is waiting on.
+  const status = matchStatus(match, view, nameFor);
 
-  // One line on the rail saying what the table is waiting on. Once the last trick of a decided
-  // hand is down there's no play left to describe - the hand-over panel says what comes next.
-  let status: string | null;
-  if (!isTableReady)
-    status = match.players.length < 4 ? `Waiting for players: ${match.players.length} of 4 seated` : 'Dealing';
-  else if (isHandPlayedOut) status = null;
-  else if (isBiddingPhase) status = `${activeName} is bidding`;
-  else if (isTrumpSelectPhase) status = `${activeName} is naming trump`;
-  else if (isSittingOut)
-    status = `${nameFor(game.biddingPlayerId)} went Low and plays alone, so you sit this hand out. They need to lose every trick.`;
-  else if (me.isActive) status = isTrickStarted(game.currentTrick) ? 'Your play' : 'Your lead';
-  else status = `${activeName} to play`;
-
-  // A player plays exactly once per trick (dealHands deals HAND_SIZE_DEALT each) - so if this
-  // hand already holds fewer dominoes than "HAND_SIZE_DEALT minus completed tricks", they've
-  // already played into the CURRENT (still in-progress) trick and can't play again until the NEXT
-  // one starts. Any preselection made right now is therefore for that next, not-yet-started trick -
-  // `game.currentTrick.suit` (the trick they already played into) has no bearing on it.
-  const haveIPlayedInCurrentTrick = (me.dominoes?.length ?? 0) < HAND_SIZE_DEALT - game.tricks.length;
-
-  // Gates which dominoes Hand will let a player preselect (double-click before their turn) -
-  // reuses the same follow-suit rule the server enforces (`assertValidDomino`), so a preselection
-  // can only ever be queued for a move that's actually legal right now. When the trick hasn't
-  // started yet (`currentTrick.suit === null`) - or isn't even the trick this preselection is
-  // really for, per `haveIPlayedInCurrentTrick` above - anything can be preselected, since there's
-  // no known suit yet to violate.
+  // Gates which dominoes Hand will let a player preselect (double-click before their turn): only a
+  // play that's legal right now, by the same follow-suit rule the server enforces.
   function isValidPlay(domino: DominoType): boolean {
-    if (haveIPlayedInCurrentTrick) return true;
-    try {
-      assertValidDomino(game, me.playerId, domino);
-      return true;
-    } catch {
-      return false;
-    }
+    return isLegalPlay(match!, view, domino);
   }
 
   return (
