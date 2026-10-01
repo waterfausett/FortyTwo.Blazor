@@ -78,3 +78,27 @@ def test_evaluate_auctions_duplicates_deals_with_full_bidding():
     assert all((r.predicted is not None) == r.a_won_auction for r in ev.records)
     text = format_auction_report(ev)
     assert "Mean marks/deal" in text and "Calibration" in text and "Bid decision time" in text
+
+
+def test_auction_report_calibration_bands_auction_sides_and_p95():
+    from fortytwo_ml.eval.arena import AuctionEval, AuctionRecord
+    from fortytwo_ml.eval.report import format_auction_report
+
+    recs = [
+        AuctionRecord("points", 30, True, True, 2, 0.75),
+        AuctionRecord("points", 31, True, False, -2, 0.85),
+        AuctionRecord("points", 34, True, True, 1, 0.65),
+        AuctionRecord("points", 42, True, True, 3, 0.95),
+        AuctionRecord("points", 32, False, True, -1, None),
+        AuctionRecord("points", 30, False, False, 1, None),
+    ]
+    ev = AuctionEval("a", "b", records=recs, deal_scores=[1, 2, 3], decision_seconds=[float(i) for i in range(1, 21)])
+    text = format_auction_report(ev)
+    assert "0.7-0.8: predicted 0.75  actual 1.00  (n=1)" in text
+    assert "bid 30-31: predicted 0.80  actual 0.50  (n=2)" in text
+    assert "bid 32-35: predicted 0.65  actual 1.00  (n=1)" in text
+    assert "bid 36-41" not in text
+    assert "bid 42+: predicted 0.95  actual 1.00  (n=1)" in text
+    assert "A won: +1.000  (n=4)" in text
+    assert "B won: +0.000  (n=2)" in text
+    assert "median 11.0s  p95 20.0s  (n=20)" in text

@@ -80,6 +80,7 @@ def evaluate_matches(a: Agent, b: Agent, matches: int, seed: int = 0) -> MatchEv
 @dataclass(frozen=True)
 class AuctionRecord:
     kind: str
+    bid: int  # the winning bid (state.high_bid)
     a_won_auction: bool
     bidders_won: bool
     a_marks: int
@@ -116,7 +117,7 @@ def evaluate_auctions(a: Agent, b: Agent, deals: int, seed: int = 0) -> AuctionE
             predicted = predict(state, state.bidder) if predict else None
             a_marks = hand.marks if hand.winning_team == a_team else -hand.marks
             result.records.append(
-                AuctionRecord(contract_kind(state.contract), a_won, hand.winning_team == bidders, a_marks, predicted)
+                AuctionRecord(contract_kind(state.contract), state.high_bid, a_won, hand.winning_team == bidders, a_marks, predicted)
             )
             score += a_marks
         result.deal_scores.append(score)

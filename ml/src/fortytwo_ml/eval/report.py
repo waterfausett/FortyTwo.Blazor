@@ -60,6 +60,9 @@ def format_report(hands: HandEval, matches: MatchEval | None = None) -> str:
 _CALIBRATION_BINS = [(0.0, 0.5), (0.5, 0.6), (0.6, 0.7), (0.7, 0.8), (0.8, 0.9), (0.9, 1.01)]
 
 
+_BID_BANDS = [(30, 31, "30-31"), (32, 35, "32-35"), (36, 41, "36-41"), (42, 10**9, "42+")]
+
+
 def format_auction_report(ev: AuctionEval, matches: MatchEval | None = None) -> str:
     mean, lo, hi = mean_ci(ev.deal_scores)
     won = [r for r in ev.records if r.a_won_auction]
@@ -82,6 +85,18 @@ def format_auction_report(ev: AuctionEval, matches: MatchEval | None = None) -> 
             predicted = sum(r.predicted for r in hits) / len(hits)
             made = sum(r.bidders_won for r in hits) / len(hits)
             lines.append(f"  {low:.1f}-{min(high, 1.0):.1f}: predicted {predicted:.2f}  actual {made:.2f}  (n={len(hits)})")
+    lines.append("Calibration by bid level (A's winning bids; 42+ includes marks and plunge):")
+    for low, high, label in _BID_BANDS:
+        hits = [r for r in won if r.predicted is not None and low <= r.bid <= high]
+        if hits:
+            predicted = sum(r.predicted for r in hits) / len(hits)
+            made = sum(r.bidders_won for r in hits) / len(hits)
+            lines.append(f"  bid {label}: predicted {predicted:.2f}  actual {made:.2f}  (n={len(hits)})")
+    lines.append("A's marks/hand by who won the auction:")
+    for label, side in (("A won", True), ("B won", False)):
+        recs = [r for r in ev.records if r.a_won_auction == side]
+        if recs:
+            lines.append(f"  {label}: {sum(r.a_marks for r in recs) / len(recs):+.3f}  (n={len(recs)})")
     if ev.decision_seconds:
         times = sorted(ev.decision_seconds)
         p95 = times[min(len(times) - 1, int(0.95 * len(times)))]

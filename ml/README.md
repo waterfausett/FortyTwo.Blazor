@@ -99,6 +99,12 @@ actually made. If actual rates fall consistently below the predictions, the bidd
 overrating its best option (the "winner's curse"). It picks the trump from the same sample that
 justified the bid. The fix would be an independent confirmation sample before bidding.
 
+Before the overnight run, sanity-check the bid-level lines. The bidder's P(make b) for bids
+31–41 comes from playing deals as a 30 bid. The model was trained only up to the moment a hand is
+decided, so play after a 30 bid is decided is out of its training distribution. The calibration
+by bid band (30–31, 32–35, 36–41, 42+) shows whether higher points bids are made less often than
+predicted.
+
 ## Layout
 
 | Path | What it is |

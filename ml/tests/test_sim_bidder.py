@@ -1,6 +1,5 @@
 import random
 
-import pytest
 import torch
 
 from conftest import deal_with
@@ -48,10 +47,9 @@ def test_sim_agents_play_full_auctions_legally():
 
 def test_trump_reuses_the_bid_time_choice(monkeypatch):
     bidder = SimBidder(tiny(), n_deals=4)
-    state = HandState.deal(list(range(28)), opener=0)
+    state = HandState.deal(deal_with({0: [(6, 6), (5, 6), (4, 6), (3, 6), (2, 6), (1, 6), (0, 6)]}), opener=0)
     bid = bidder.bid(state, 0)
-    if bid == PASS:
-        pytest.skip("the tiny model passed; nothing to name")
+    assert bid != PASS
     planned = bidder.last_decision.trump
     state.apply(bid)
     for _ in range(3):

@@ -101,7 +101,13 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--model", required=True, help="path/to/checkpoint.pt")
     s.add_argument("--deals", type=int, default=1000)
     s.add_argument("--sim-deals", type=int, default=200)
-    s.add_argument("--matches", type=int, default=0)
+    s.add_argument(
+        "--matches",
+        type=int,
+        default=0,
+        help="also play full matches; each plays full SimAgent auctions (several simulated bid decisions "
+        "per hand), so even a few matches take a long time",
+    )
     s.add_argument("--seed", type=int, default=0)
 
     d = sub.add_parser("play-demo", help="print one hand, decision by decision")
