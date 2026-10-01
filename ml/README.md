@@ -82,8 +82,16 @@ The fine-tune passes if:
 - **Low:** A is at least even (CI lower bound ≥ −0.03), and Low bidders' made rate rises well above 16%;
 - **normal mix:** no regression (CI lower bound > −0.03).
 
-Then evaluate the simulation bidder against heuristic bidding with the same play model. This
-takes roughly 4–7 h:
+Since Stage 2, the sampler deals realistic plunges (about 5% of the default mix) and gives Low to
+the hand best placed to make it. So the normal-mix eval partly measures the plunge/Low gain; judge
+"no regression" on the points, marks and follow_me rows. Seeded eval and diagnostics numbers from
+before Stage 2 aren't comparable.
+
+Then evaluate the simulation bidder against heuristic bidding with the same play model. The model
+runs on CPU. A bid decision measured about 10 s median on the dev box while a training run was
+active, and with about 4 bid decisions per duplicate deal, 1,000 deals can take around 11 h.
+Re-time first on an idle machine with `uv run ml eval-bidding --model runs/stage1-c/ckpt-latest.pt --deals 5`.
+`--sim-deals` trades accuracy for speed.
 
 ```sh
 uv run ml eval-bidding --model runs/stage1-c/ckpt-latest.pt --deals 1000
@@ -94,15 +102,18 @@ Stage 2 passes if:
 - A's mean marks/deal is above 0, with the 95% CI excluding 0;
 - the bid decision's p95 time is ≤ 30 s.
 
+The reported bid decision time covers bidding only. Trump-naming simulations (a partner's plunge,
+or no bid-time plan) aren't included.
+
 The **calibration** table compares the bidder's predicted P(make) with how often those bids were
 actually made. If actual rates fall consistently below the predictions, the bidder is
 overrating its best option (the "winner's curse"). It picks the trump from the same sample that
 justified the bid. The fix would be an independent confirmation sample before bidding.
 
 Before the overnight run, sanity-check the bid-level lines. The bidder's P(make b) for bids
-31�41 comes from playing deals as a 30 bid. The model was trained only up to the moment a hand is
+31–41 comes from playing deals as a 30 bid. The model was trained only up to the moment a hand is
 decided, so play after a 30 bid is decided is out of its training distribution. The calibration
-by bid band (30�31, 32�35, 36�41, 42+) shows whether higher points bids are made less often than
+by bid band (30–31, 32–35, 36–41, 42+) shows whether higher points bids are made less often than
 predicted.
 
 ## Layout
