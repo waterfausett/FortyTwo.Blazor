@@ -374,6 +374,11 @@ export function Match(): JSX.Element {
   }
 
   if (!match.players.some((p) => p.playerId === myPlayerId)) {
+    // Having just left, the table's broadcast without this player usually arrives before the
+    // leave's own reply navigates away - that's not an error to show them.
+    if (leaveMutation.isPending || leaveMutation.isSuccess) {
+      return <div className="spinner" role="status" aria-label="Leaving match" />;
+    }
     return (
       <p role="alert" className="match-error">
         You aren&apos;t a part of this match!

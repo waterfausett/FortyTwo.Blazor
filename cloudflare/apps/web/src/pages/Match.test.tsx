@@ -275,6 +275,21 @@ describe('Match', () => {
         await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/', { replace: true }));
       });
 
+      it("doesn't flash 'not a part of this match' while the leave is going through", async () => {
+        leaveMatchMock.mockReturnValue(new Promise(() => {}));
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+        // The broadcast without this player usually beats the DELETE reply back.
+        const withoutMe = waitingMatch();
+        withoutMe.players = [PLAYERS[2]];
+        useMatchSocketMock.mockReturnValue({ match: withoutMe, connected: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+
+        await waitFor(() => expect(leaveMatchMock).toHaveBeenCalled());
+        expect(screen.queryByText(/aren.t a part of this match/i)).toBeNull();
+      });
+
       it('does not announce the deletion to the player whose own leave caused it', async () => {
         useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
         renderMatch();
