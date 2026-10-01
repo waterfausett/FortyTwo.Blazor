@@ -14,6 +14,7 @@ An npm workspace:
 | `packages/client` | `@fortytwo/client`: the client code that doesn't depend on how the app draws - the REST wrapper, the match socket's reconnect loop, and table-geometry and match-summary helpers. No browser-only APIs or React, so a native app can share it; each app passes in its API origin and wake-up signals. |
 | `apps/worker` | `@fortytwo/worker`: the Hono API (`/api/*`), the match WebSocket (`/matches/:id/ws`), and `MatchDO`, the Durable Object that holds each match. |
 | `apps/web` | `@fortytwo/web`: the Vite + React front end, signing in through Auth0. |
+| `apps/mobile` | `@fortytwo/mobile`: the Expo (React Native) app, talking to the same Worker. Early days: sign-in, the match list and a live read-only match view. See [Mobile app](#mobile-app). |
 
 How a move travels: the web app calls a REST route; the route validates the body and calls the
 match's `MatchDO` over Durable Object RPC; `MatchDO` applies the rule, saves the match, and
@@ -67,8 +68,37 @@ Each package runs its own suite with `npm test`:
 - `apps/worker`: runs inside workerd through `@cloudflare/vitest-pool-workers`, with real Durable
   Objects and D1. Auth0 is mocked.
 - `apps/web`: component and hook tests under jsdom.
+- `apps/mobile`: hook tests under `jest-expo`. `npm run typecheck` typechecks it.
 
 `cd apps/web && npm run build` typechecks the web app along with the packages it references.
+
+## Mobile app
+
+`apps/mobile` is an Expo app using Expo Router. It shares `@fortytwo/rules`, `@fortytwo/api-types`
+and `@fortytwo/client` with the web app, and calls the deployed (or a local) Worker. Tracking
+issue: #27.
+
+It signs in with `react-native-auth0`, which has native code, so it doesn't run in Expo Go. Run
+it as a development build instead: `npx expo run:android` / `npx expo run:ios` locally (Android
+Studio / Xcode), or `npx eas-cli build --profile development` in the cloud.
+
+Setup:
+
+1. In Auth0, create a **Native** application in the same tenant, authorized for the same API
+   audience, with refresh token rotation on. Its Allowed Callback and Logout URLs are
+   `com.waterfausett.fortytwo.auth0://<AUTH0_DOMAIN>/ios/com.waterfausett.fortytwo/callback` and
+   `com.waterfausett.fortytwo.auth0://<AUTH0_DOMAIN>/android/com.waterfausett.fortytwo/callback`.
+2. Copy `apps/mobile/.env.example` to `apps/mobile/.env.local` and fill it in: the Worker's
+   origin, and the Native application's Auth0 settings.
+3. `cd apps/mobile && npx expo run:android` (or `run:ios`). Rebuild after changing the Auth0
+   domain, since the login callback scheme is baked into the native project.
+
+The app needs React 19.2.3, the version React Native 0.86 was built against, while the web app is
+on a newer React. npm keeps the app's copy in `apps/mobile/node_modules`. Expo's Metro config
+bundles that copy, and `apps/mobile/jest.config.js` maps `react` to it for tests.
+
+Add native libraries with `npx expo install <package>`, which picks versions that match the Expo
+SDK.
 
 ## Deploying
 
