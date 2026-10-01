@@ -122,8 +122,7 @@ describe('leaving a match', () => {
 
   describe('hasHumanPlayers', () => {
     it('ignores bots', () => {
-      const botsOnly = { ...createMatch('bot-1'), players: [{ playerId: 'bot-1', position: Positions.First, ready: true }] };
-      expect(hasHumanPlayers(botsOnly)).toBe(false);
+      expect(hasHumanPlayers(createMatch('bot-1'))).toBe(false);
       expect(hasHumanPlayers(threeSeated())).toBe(true);
     });
   });
@@ -1234,7 +1233,13 @@ Add above `Lobby`:
 function uniqueMatches(pages: MatchPage[] | undefined): MatchSummary[] | undefined {
   if (pages === undefined) return undefined;
   const seen = new Set<string>();
-  return pages.flatMap((p) => p.matches).filter((match) => !seen.has(match.id) && seen.add(match.id) !== undefined);
+  return pages
+    .flatMap((p) => p.matches)
+    .filter((match) => {
+      if (seen.has(match.id)) return false;
+      seen.add(match.id);
+      return true;
+    });
 }
 ```
 
@@ -1438,25 +1443,19 @@ In `Match.test.tsx`: add `leaveMatchMock: vi.fn(),` to the `vi.hoisted` block (a
 
       it('does not announce the deletion to the player whose own leave caused it', async () => {
         useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
-        const { rerender } = renderMatch();
-        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
-        await waitFor(() => expect(leaveMatchMock).toHaveBeenCalled());
-
+        renderMatch();
+        // From the next render on, the socket reports the deletion - as it would once the leave
+        // lands and the DO closes every socket, this player's included.
         useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: false, deleted: true });
-        rerender(
-          <QueryClientProvider client={new QueryClient()}>
-            <MemoryRouter>
-              <Match />
-            </MemoryRouter>
-          </QueryClientProvider>
-        );
 
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+
+        await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/'));
         expect(toastInfoMock).not.toHaveBeenCalledWith('This match was deleted');
       });
     });
 ```
 
-> Note on the last test: `rerender` with a new `QueryClientProvider` keeps `Match` mounted only if the tree shape is identical - it is (same component types), so the `leavingRef` survives. If `renderMatch` is changed to keep its `queryClient` in a variable, reuse that instead.
 
 And at the top level of `describe('Match', ...)`:
 
@@ -1493,14 +1492,12 @@ After `addBotsMutation`, add:
 
 ```ts
   const queryClient = useQueryClient();
-  // Set while this player's own leave is in flight: if it deletes the match, their socket gets
-  // the same "deleted" close as everyone else's, and they shouldn't be told about it.
+  // Set (by the button, before the request goes out) while this player's own leave is in flight:
+  // if it deletes the match, their socket gets the same "deleted" close as everyone else's, and
+  // they shouldn't be told about it.
   const leavingRef = useRef(false);
   const leaveMutation = useMutation({
     mutationFn: () => client.leaveMatch(matchId!),
-    onMutate: () => {
-      leavingRef.current = true;
-    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['matches'] });
       navigate('/');
@@ -1547,6 +1544,7 @@ In `.table-waiting`, after the "Fill with bots" button:
                         disabled={leaveMutation.isPending}
                         onClick={() => {
                           if (window.confirm(onlyHumanSeated ? 'Cancel this match? It will be deleted.' : 'Leave this table?')) {
+                            leavingRef.current = true;
                             leaveMutation.mutate();
                           }
                         }}
