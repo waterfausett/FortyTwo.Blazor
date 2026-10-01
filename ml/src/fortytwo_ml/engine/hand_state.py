@@ -70,6 +70,7 @@ class HandState:
     points: list[int]
     voids: list[int]
     result: HandResult | None
+    play_to_end: bool
 
     @classmethod
     def deal(cls, deal_order: Sequence[int], opener: int) -> "HandState":
@@ -93,10 +94,12 @@ class HandState:
         s.points = [0, 0]
         s.voids = [0, 0, 0, 0]
         s.result = None
+        s.play_to_end = False
         return s
 
     @classmethod
-    def from_contract(cls, deal_order: Sequence[int], bidder: int, bid: int, trump: int) -> "HandState":
+    def from_contract(cls, deal_order: Sequence[int], bidder: int, bid: int, trump: int,
+                      play_to_end: bool = False) -> "HandState":
         """Skip bidding: `bidder` won with `bid` and trump is `trump`. Everyone else passed."""
         s = cls.deal(deal_order, opener=bidder)
         if bid not in CONTRACT_BIDS:
@@ -112,6 +115,7 @@ class HandState:
         s.trump = trump
         s.phase = Phase.PLAY
         s.to_act = s.trump_namer
+        s.play_to_end = play_to_end
         return s
 
     @property
@@ -203,21 +207,25 @@ class HandState:
         return (nxt + 1) % 4 if nxt == self.sits_out else nxt
 
     def _check_decided(self) -> None:
+        if self.result is None:
+            winner = self._decided_winner()
+            if winner is not None:
+                self.result = HandResult(winner, marks_for(self.high_bid), (self.points[0], self.points[1]))
+        # Normally a decided hand stops; in play-to-end mode (simulations) it runs all 7 tricks.
+        if self.result is not None and (not self.play_to_end or len(self.tricks) == 7):
+            self.phase = Phase.DONE
+
+    def _decided_winner(self) -> int | None:
         bidders = team_of(self.bidder)
         others = 1 - bidders
-        winner: int | None = None
         if is_low(self.trump):
             # The bidders must lose every trick.
             if any(team_of(t.winner) == bidders for t in self.tricks):
-                winner = others
-            elif len(self.tricks) == 7:
-                winner = bidders
-        else:
-            target = target_points(self.high_bid)
-            if self.points[bidders] >= target:
-                winner = bidders
-            elif self.points[others] > 42 - target:
-                winner = others
-        if winner is not None:
-            self.phase = Phase.DONE
-            self.result = HandResult(winner, marks_for(self.high_bid), (self.points[0], self.points[1]))
+                return others
+            return bidders if len(self.tricks) == 7 else None
+        target = target_points(self.high_bid)
+        if self.points[bidders] >= target:
+            return bidders
+        if self.points[others] > 42 - target:
+            return others
+        return None

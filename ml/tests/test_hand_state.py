@@ -117,3 +117,31 @@ def test_random_hands_always_finish_consistently():
         assert sum(state.points) <= 42
         if len(state.tricks) == 7 and state.sits_out is None:
             assert sum(state.points) == 42
+
+
+def _play_seeded(state, rng):
+    while state.phase is not Phase.DONE:
+        state.apply(rng.choice(state.legal_actions()))
+    return state
+
+
+def test_play_to_end_keeps_the_official_result_and_plays_seven_tricks():
+    rng = random.Random(11)
+    for _ in range(200):
+        order = list(range(28))
+        rng.shuffle(order)
+        bidder, trump = rng.randrange(4), rng.choice([0, 1, 2, 3, 4, 5, 6])
+        seed = rng.random()
+        normal = _play_seeded(HandState.from_contract(order, bidder, 30, trump), random.Random(seed))
+        full = _play_seeded(HandState.from_contract(order, bidder, 30, trump, play_to_end=True), random.Random(seed))
+        assert full.result == normal.result
+        assert len(full.tricks) == 7 and sum(full.points) == 42
+
+
+def test_play_to_end_low_keeps_three_domino_tricks():
+    state = HandState.from_contract(DEAL, bidder=0, bid=42, trump=Suit.LOW, play_to_end=True)
+    state.apply(d("6/6"))  # nothing beats the double six on a sixes lead, so the bidder takes trick one
+    _play_seeded(state, random.Random(2))
+    assert state.result.winning_team == 1  # decided (Low failed) after trick one...
+    assert len(state.tricks) == 7 and all(len(t.plays) == 3 for t in state.tricks)  # ...but played on
+    assert all(seat != 2 for t in state.tricks for seat, _ in t.plays)  # partner still sits out
