@@ -62,6 +62,13 @@ def choose_bid(options: Sequence[Option], ctx: BidContext, cfg: DecideConfig = D
         o = best[bid]
         return BidDecision(o.bid, o.trump, o.p_make, table)
 
+    def forced_bid() -> BidDecision:
+        """When forced to bid, return the lowest legal non-PASS bid."""
+        lowest_legal = min(b for b in ctx.legal if b != PASS)
+        if lowest_legal in best:
+            return take(lowest_legal)
+        return BidDecision(lowest_legal, None, None, table)
+
     passing = BidDecision(PASS, None, None, table)
     makeable = sorted(b for b, o in best.items() if o.p_make > cfg.make_threshold)
 
@@ -75,8 +82,8 @@ def choose_bid(options: Sequence[Option], ctx: BidContext, cfg: DecideConfig = D
             marks = [b for b in makeable if b >= MARKS_BID]
             richest = max(marks, key=lambda b: best[b].ev) if marks else None
             return take(richest) if richest is not None and best[richest].ev > best[lowest].ev else take(lowest)
-        return take(min(best)) if ctx.forced and best else passing
+        return forced_bid() if ctx.forced else passing
 
     if makeable:
         return take(makeable[-1])
-    return take(min(best)) if ctx.forced and best else passing
+    return forced_bid() if ctx.forced else passing

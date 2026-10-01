@@ -69,3 +69,21 @@ def test_plunge_is_a_marks_bid():
     legal = [PASS, *range(31, 43), 84, PLUNGE]
     d = choose_bid(table(b31=0.6) + [Option(PLUNGE, Suit.NONE, 0.8)], BidContext(legal, False, True))
     assert d.bid == PLUNGE  # EV 4*(0.6)=2.4 beats 0.2
+
+
+def test_forced_with_no_options_bids_lowest_legal():
+    forced = [*range(30, 43), 84]
+    d = choose_bid([], BidContext(forced, False, True))
+    assert d.bid == 30 and d.trump is None
+
+
+def test_forced_bids_lowest_legal_not_only_available():
+    forced = [*range(30, 43), 84]
+    d = choose_bid([Option(84, Suit.SIXES, 0.2)], BidContext(forced, False, True))
+    assert d.bid == 30 and d.trump is None
+
+
+def test_partner_holds_threshold_is_configurable():
+    legal = [PASS, *range(31, 43), 84]
+    d = choose_bid(table(b31=0.92), BidContext(legal, True, False), DecideConfig(overbid_partner_threshold=0.95))
+    assert d.bid == PASS
