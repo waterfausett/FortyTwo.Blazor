@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env, fetchMock, runInDurableObject, SELF } from 'cloudflare:test';
 import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
-import app, { type Env } from '../src/index';
+import { app, type Env } from '../src/index';
 
 const testEnv = env as unknown as Env;
 

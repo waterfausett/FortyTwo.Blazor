@@ -44,6 +44,10 @@ export const MATCH_DELETED_CLOSE_CODE = 4404;
 
 export type LeaveResult = { deleted: true } | { deleted: false; match: MatchState };
 
+// What the expiry sweep (expiry.ts) learns from one match: it was deleted, the lobby row that
+// pointed here was stale (here's the match to re-sync it from), or there was nothing here at all.
+export type ExpireOutcome = { outcome: 'expired' } | { outcome: 'missing' } | { outcome: 'fresh'; match: MatchState };
+
 // What a match action hands back: its result, or why it was refused - a broken rule (400) or no
 // match at this id (404) - in the { title, detail } shape the client shows. Returned rather than
 // thrown because an exception crossing RPC keeps only its message, not ValidationError's fields.
@@ -139,6 +143,16 @@ export class MatchDO extends DurableObject<Env> {
       await this.scheduleBotsIfNeeded(next);
       return { deleted: false, match: next };
     });
+  }
+
+  // Deletes this match if it is still active and was last changed before `cutoff`. This DO, not
+  // the D1 row that led the sweep here, decides - the row is only an index and can lag behind.
+  async expire(cutoff: string): Promise<ExpireOutcome> {
+    const match = await this.load();
+    if (match === null) return { outcome: 'missing' };
+    if (match.winningTeam !== null || match.updatedOn >= cutoff) return { outcome: 'fresh', match };
+    await this.destroy();
+    return { outcome: 'expired' };
   }
 
   // Seats a bot at each of `positions`, or at every open seat when none are given, so people
