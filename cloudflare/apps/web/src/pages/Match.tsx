@@ -318,7 +318,7 @@ export function Match(): JSX.Element {
     const opener = dealtGame.firstActionBy;
     const who =
       opener === myPlayerId ? 'You bid first' : `${(opener && namesQuery.data?.get(opener)) ?? opener} bids first`;
-    toastInfo(`${dealtGame.name} dealt`, who);
+    toastInfo(`${dealtGame.name} dealt`, who, 'center');
   }, [dealtGame, myPlayerId, namesQuery.data]);
 
   if (!matchId) {

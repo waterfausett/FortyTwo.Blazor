@@ -1454,7 +1454,7 @@ describe('Match', () => {
       });
       rerenderMatch(view);
 
-      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'p2 bids first');
+      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'p2 bids first', 'center');
     });
 
     it("says \"You bid first\" when it's me", () => {
@@ -1467,7 +1467,7 @@ describe('Match', () => {
       });
       rerenderMatch(view);
 
-      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'You bid first');
+      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'You bid first', 'center');
     });
   });
 });

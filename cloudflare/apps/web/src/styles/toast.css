@@ -57,3 +57,17 @@
   background: var(--danger);
   opacity: 0.6;
 }
+
+/* Info toasts (toastInfo) are a heads-up, not a failure - edged in brass instead of danger. */
+.swal2-popup.swal2-toast.hall-toast.hall-toast--info {
+  border-left-color: var(--brass);
+}
+
+.swal2-popup.swal2-toast.hall-toast.hall-toast--info .swal2-icon.swal2-info {
+  border-color: var(--brass);
+  color: var(--brass);
+}
+
+.swal2-popup.swal2-toast.hall-toast.hall-toast--info .swal2-timer-progress-bar {
+  background: var(--brass);
+}
