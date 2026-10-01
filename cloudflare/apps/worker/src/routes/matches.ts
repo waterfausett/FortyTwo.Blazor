@@ -127,11 +127,13 @@ matches.patch('/:id/players', async (c) => {
 
 // Leaves a match before its first deal. The last human out deletes it - which is how a creator
 // cancels a match nobody joined - so its lobby rows go too and the reply has no match to show.
+// Leaving a match that's already gone counts as done, and clears any lobby row it left behind (a
+// retry after a failed cleanup, or a row a slower sync re-inserted after the delete).
 matches.delete('/:id/players', async (c) => {
   const matchId = c.req.param('id');
   const result = await matchStub(c.env, matchId).leave(c.get('user').sub);
-  if (!result.ok) return refusal(c, result);
-  if (result.value.deleted) {
+  if (!result.ok && result.status !== 404) return refusal(c, result);
+  if (!result.ok || result.value.deleted) {
     await deleteFromLobbyIndex(c.env.DB, matchId);
     return c.body(null, 204);
   }

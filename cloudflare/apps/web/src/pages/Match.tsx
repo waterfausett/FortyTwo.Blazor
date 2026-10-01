@@ -229,12 +229,14 @@ export function Match(): JSX.Element {
   });
 
   // The match was deleted (its last human left, or it expired) - there's nothing left to show.
+  // Re-checked when this player's own leave fails, since by then the match may be gone anyway.
+  const leaveFailed = leaveMutation.isError;
   useEffect(() => {
     if (!deleted || leavingRef.current) return;
     toastInfo('This match was deleted');
     void queryClient.invalidateQueries({ queryKey: ['matches'] });
     navigate('/', { replace: true });
-  }, [deleted, navigate, queryClient]);
+  }, [deleted, leaveFailed, navigate, queryClient]);
 
   // Trick-hold state: `revealedTrickCount` is how many of `game.tricks` have finished their hold
   // (see TRICK_HOLD_MS above) and are allowed to appear in the side piles/point totals. Any trick

@@ -3,6 +3,7 @@ import { env, fetchMock, runInDurableObject, SELF } from 'cloudflare:test';
 import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { app, type Env } from '../src/index';
+import { upsertMatchSummary } from '../src/lobby';
 
 const testEnv = env as unknown as Env;
 
@@ -398,6 +399,17 @@ describe('match routes', () => {
 
       expect(res.status).toBe(400);
       expect(((await res.json()) as { title: string }).title).toBe("You can't leave once the dominoes are dealt");
+    });
+
+    it('treats leaving a match that is already gone as done, and clears any lobby row left behind', async () => {
+      const p1 = await signToken('p1');
+      await upsertMatchSummary(testEnv.DB, { id: 'zombie-match', status: 'active', playerCount: 1, updatedOn: '2026-09-01T00:00:00.000Z' });
+
+      const res = await api('/api/matches/zombie-match/players', p1, { method: 'DELETE' });
+
+      expect(res.status).toBe(204);
+      await res.arrayBuffer();
+      expect(await seatCount('zombie-match')).toBeNull();
     });
 
     it('refuses someone who is not seated', async () => {

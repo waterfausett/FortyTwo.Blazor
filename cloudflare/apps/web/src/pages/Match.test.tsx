@@ -258,6 +258,23 @@ describe('Match', () => {
         expect(screen.queryByRole('button', { name: /leave table|cancel match/i })).toBeNull();
       });
 
+      it('still sends the leaver to the lobby if their leave failed after the match was deleted', async () => {
+        // The DO deletes the match and closes the socket; only then does the request fail (e.g.
+        // the lobby-row cleanup after it).
+        let failLeave!: (error: Error) => void;
+        leaveMatchMock.mockReturnValue(new Promise((_resolve, reject) => (failLeave = reject)));
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: false, deleted: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+        await waitFor(() => expect(leaveMatchMock).toHaveBeenCalled());
+        expect(navigateMock).not.toHaveBeenCalled();
+        await act(async () => failLeave(new Error('Something went wrong')));
+
+        await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/', { replace: true }));
+      });
+
       it('does not announce the deletion to the player whose own leave caused it', async () => {
         useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
         renderMatch();
