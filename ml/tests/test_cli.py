@@ -40,3 +40,26 @@ def test_eval_kind_restricts_the_contracts(capsys):
     assert main(["eval", "--a", "heuristic", "--b", "dumb", "--deals", "10", "--kind", "low"]) == 0
     out = capsys.readouterr().out
     assert "  low " in out and "  points " not in out
+
+
+def test_eval_bidding_runs_on_a_tiny_checkpoint(tmp_path, capsys):
+    path = tmp_path / "m.pt"
+    save_checkpoint(path, QNet(hidden=16, layers=1), step=0, config={})
+    assert main(["eval-bidding", "--model", str(path), "--deals", "2", "--sim-deals", "4"]) == 0
+    assert "Calibration" in capsys.readouterr().out
+
+
+def test_load_agent_sim(tmp_path):
+    from fortytwo_ml.agents.sim_bidder import SimAgent
+
+    path = tmp_path / "m.pt"
+    save_checkpoint(path, QNet(hidden=16, layers=1), step=0, config={})
+    assert isinstance(load_agent(f"sim:{path}"), SimAgent)
+
+
+def test_play_demo_sim_runs_an_auction(tmp_path, capsys):
+    path = tmp_path / "m.pt"
+    save_checkpoint(path, QNet(hidden=16, layers=1), step=0, config={})
+    assert main(["play-demo", "--agent", f"sim:{path}", "--seed", "3"]) == 0
+    out = capsys.readouterr().out
+    assert "top options" in out and "Contract:" in out and "Result:" in out

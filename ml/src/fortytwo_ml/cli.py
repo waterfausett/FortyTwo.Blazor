@@ -1,4 +1,4 @@
-"""`ml train`, `ml eval`, and `ml play-demo`."""
+"""`ml train`, `ml eval`, `ml eval-bidding`, and `ml play-demo`."""
 import argparse
 import random
 from datetime import datetime
@@ -8,12 +8,13 @@ from .agents.base import Agent, choose
 from .agents.dumb_bot import DumbBot
 from .agents.heuristic_bot import HeuristicBot
 from .agents.model_agent import ModelAgent
+from .agents.sim_bidder import SimAgent
 from .contracts import DEFAULT_MIX, ContractSampler, contract_kind
 from .engine.dominoes import domino_id
 from .engine.enums import Suit
 from .engine.hand_state import HandState, Phase
-from .eval.arena import evaluate_hands, evaluate_matches
-from .eval.report import format_report
+from .eval.arena import evaluate_auctions, evaluate_hands, evaluate_matches
+from .eval.report import format_auction_report, format_report
 
 
 def load_agent(spec: str) -> Agent:
@@ -21,12 +22,42 @@ def load_agent(spec: str) -> Agent:
         return DumbBot()
     if spec == "heuristic":
         return HeuristicBot()
+    if spec.startswith("sim:"):
+        path = spec[len("sim:"):]
+        if not Path(path).is_file():
+            raise FileNotFoundError(f"no checkpoint at {path}")
+        return SimAgent.from_checkpoint(path)
     if not Path(spec).is_file():
         raise FileNotFoundError(f"no agent named {spec!r} and no checkpoint at that path")
     return ModelAgent.from_checkpoint(spec)
 
 
+def _auction_demo(agent: SimAgent, seed: int) -> None:
+    rng = random.Random(seed)
+    order = list(range(28))
+    rng.shuffle(order)
+    state = HandState.deal(order, rng.randrange(4))
+    for seat in range(4):
+        print(f"  seat {seat}: {' '.join(domino_id(d) for d in state.hand(seat))}")
+    while state.phase is Phase.BID:
+        seat = state.to_act
+        bid = agent.bid(state, seat)
+        top = sorted(agent.last_decision.options, key=lambda o: -o.ev)[:5]
+        print(f"  seat {seat} bids {bid}; top options: "
+              + ", ".join(f"{o.bid}/{Suit(o.trump).name} p={o.p_make:.2f} ev={o.ev:+.2f}" for o in top))
+        state.apply(bid)
+    trump = agent.trump(state, state.to_act)
+    print(f"Contract: seat {state.bidder} bid {state.high_bid}, trump {Suit(trump).name}")
+    state.apply(trump)
+    while state.phase is not Phase.DONE:
+        state.apply(choose(agent, state))
+    r = state.result
+    print(f"Result: team {r.winning_team} wins {r.marks} mark(s); points {r.points[0]}-{r.points[1]}")
+
+
 def _play_demo(agent: Agent, seed: int) -> None:
+    if isinstance(agent, SimAgent):
+        return _auction_demo(agent, seed)
     rng = random.Random(seed)
     order, _, contract = ContractSampler(DEFAULT_MIX, rng).sample_hand()
     state = HandState.from_contract(order, contract.bidder, contract.bid, contract.trump)
@@ -66,6 +97,13 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--seed", type=int, default=0)
     e.add_argument("--kind", choices=["plunge", "low"], help="only evaluate this contract type")
 
+    s = sub.add_parser("eval-bidding", help="Stage 2: simulation bidding vs heuristic bidding, same play model")
+    s.add_argument("--model", required=True, help="path/to/checkpoint.pt")
+    s.add_argument("--deals", type=int, default=1000)
+    s.add_argument("--sim-deals", type=int, default=200)
+    s.add_argument("--matches", type=int, default=0)
+    s.add_argument("--seed", type=int, default=0)
+
     d = sub.add_parser("play-demo", help="print one hand, decision by decision")
     d.add_argument("--agent", default="heuristic")
     d.add_argument("--seed", type=int, default=0)
@@ -87,6 +125,13 @@ def main(argv: list[str] | None = None) -> int:
         hands = evaluate_hands(a, b, args.deals, seed=args.seed, mix={args.kind: 1.0} if args.kind else None)
         matches = evaluate_matches(a, b, args.matches, seed=args.seed) if args.matches else None
         print(format_report(hands, matches))
+    elif args.command == "eval-bidding":
+        a = SimAgent.from_checkpoint(args.model, n_deals=args.sim_deals, seed=args.seed)
+        b = ModelAgent.from_checkpoint(args.model)
+        b.name = f"heuristic-bidding:{Path(args.model).name}"
+        ev = evaluate_auctions(a, b, args.deals, seed=args.seed)
+        matches = evaluate_matches(a, b, args.matches, seed=args.seed) if args.matches else None
+        print(format_auction_report(ev, matches))
     elif args.command == "bench-train":
         import dataclasses
         import tempfile

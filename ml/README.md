@@ -65,6 +65,40 @@ learner's weights. Checkpoints also carry the raw weights and optimizer state fo
 Checkpoints from before the candidate features (the `stage1-a` run, 353 inputs) can't be loaded by
 this code.
 
+## Stage 2: bidding by simulation
+
+First fine-tune the play model on realistic plunge and Low hands (about 1.7 h), then check it
+against `stage1-b`:
+
+```sh
+uv run ml train --config configs/stage1-plunge.yaml --run-name stage1-c --resume runs/stage1-b/ckpt-latest.pt
+uv run ml eval --a runs/stage1-c/ckpt-latest.pt --b runs/stage1-b/ckpt-latest.pt --deals 5000 --kind plunge
+uv run ml eval --a runs/stage1-c/ckpt-latest.pt --b runs/stage1-b/ckpt-latest.pt --deals 5000 --kind low
+uv run ml eval --a runs/stage1-c/ckpt-latest.pt --b runs/stage1-b/ckpt-latest.pt --deals 5000
+```
+
+The fine-tune passes if:
+- **plunge:** A wins, with the CI above 0;
+- **Low:** A is at least even (CI lower bound ≥ −0.03), and Low bidders' made rate rises well above 16%;
+- **normal mix:** no regression (CI lower bound > −0.03).
+
+Then evaluate the simulation bidder against heuristic bidding with the same play model. This
+takes roughly 4–7 h:
+
+```sh
+uv run ml eval-bidding --model runs/stage1-c/ckpt-latest.pt --deals 1000
+uv run ml play-demo --agent sim:runs/stage1-c/ckpt-latest.pt --seed 3   # one auction with its reasoning
+```
+
+Stage 2 passes if:
+- A's mean marks/deal is above 0, with the 95% CI excluding 0;
+- the bid decision's p95 time is ≤ 30 s.
+
+The **calibration** table compares the bidder's predicted P(make) with how often those bids were
+actually made. If actual rates fall consistently below the predictions, the bidder is
+overrating its best option (the "winner's curse"). It picks the trump from the same sample that
+justified the bid. The fix would be an independent confirmation sample before bidding.
+
 ## Layout
 
 | Path | What it is |

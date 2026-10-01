@@ -3,7 +3,7 @@ import statistics
 from collections.abc import Sequence
 
 from ..contracts import KIND_ORDER
-from .arena import HandEval, MatchEval
+from .arena import AuctionEval, HandEval, MatchEval
 
 Z95 = 1.96
 
@@ -49,6 +49,44 @@ def format_report(hands: HandEval, matches: MatchEval | None = None) -> str:
             f"  {_rate(made, len(bidding))}      {_rate(set_, len(defending))}"
         )
     illegal = dict(hands.illegal)
+    if matches is not None:
+        p, plo, phi = proportion_ci(matches.a_wins, matches.matches)
+        lines.append(f"Match win rate (A): {p:.1%}  [95% CI {plo:.1%}, {phi:.1%}] over {matches.matches} matches")
+        illegal = {k: illegal[k] + matches.illegal[k] for k in illegal}
+    lines.append(f"Illegal actions: A={illegal['a']} B={illegal['b']}")
+    return "\n".join(lines)
+
+
+_CALIBRATION_BINS = [(0.0, 0.5), (0.5, 0.6), (0.6, 0.7), (0.7, 0.8), (0.8, 0.9), (0.9, 1.01)]
+
+
+def format_auction_report(ev: AuctionEval, matches: MatchEval | None = None) -> str:
+    mean, lo, hi = mean_ci(ev.deal_scores)
+    won = [r for r in ev.records if r.a_won_auction]
+    lines = [
+        f"A: {ev.a_name}  vs  B: {ev.b_name}  -  {len(ev.deal_scores)} duplicate deals with auctions",
+        f"Mean marks/deal (A): {mean:+.3f}  [95% CI {lo:+.3f}, {hi:+.3f}]",
+        f"A won the auction: {len(won)}/{len(ev.records)}   made: {_rate(sum(r.bidders_won for r in won), len(won))}",
+        "By winning contract:     A's marks/hand   A bid / B bid",
+    ]
+    for kind in KIND_ORDER:
+        recs = [r for r in ev.records if r.kind == kind]
+        if recs:
+            a_bid = sum(r.a_won_auction for r in recs)
+            avg = sum(r.a_marks for r in recs) / len(recs)
+            lines.append(f"  {kind:<10}             {avg:+.3f} (n={len(recs)})   {a_bid} / {len(recs) - a_bid}")
+    lines.append("Calibration (A's winning bids): predicted P(make) -> actual made rate")
+    for low, high in _CALIBRATION_BINS:
+        hits = [r for r in won if r.predicted is not None and low <= r.predicted < high]
+        if hits:
+            predicted = sum(r.predicted for r in hits) / len(hits)
+            made = sum(r.bidders_won for r in hits) / len(hits)
+            lines.append(f"  {low:.1f}-{min(high, 1.0):.1f}: predicted {predicted:.2f}  actual {made:.2f}  (n={len(hits)})")
+    if ev.decision_seconds:
+        times = sorted(ev.decision_seconds)
+        p95 = times[min(len(times) - 1, int(0.95 * len(times)))]
+        lines.append(f"Bid decision time: median {times[len(times) // 2]:.1f}s  p95 {p95:.1f}s  (n={len(times)})")
+    illegal = dict(ev.illegal)
     if matches is not None:
         p, plo, phi = proportion_ci(matches.a_wins, matches.matches)
         lines.append(f"Match win rate (A): {p:.1%}  [95% CI {plo:.1%}, {phi:.1%}] over {matches.matches} matches")

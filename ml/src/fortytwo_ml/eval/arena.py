@@ -75,3 +75,50 @@ def evaluate_matches(a: Agent, b: Agent, matches: int, seed: int = 0) -> MatchEv
         result = play_match(_seats(a, b, a_team), rng, rng.randrange(4), _illegal_counter(illegal, a_team))
         wins += result.winning_team == a_team
     return MatchEval(wins, matches, illegal)
+
+
+@dataclass(frozen=True)
+class AuctionRecord:
+    kind: str
+    a_won_auction: bool
+    bidders_won: bool
+    a_marks: int
+    predicted: float | None  # A's simulated P(make) for its winning bid, when A won the auction
+
+
+@dataclass
+class AuctionEval:
+    a_name: str
+    b_name: str
+    records: list[AuctionRecord] = field(default_factory=list)
+    deal_scores: list[int] = field(default_factory=list)
+    illegal: dict[str, int] = field(default_factory=lambda: {"a": 0, "b": 0})
+    decision_seconds: list[float] = field(default_factory=list)
+
+
+def evaluate_auctions(a: Agent, b: Agent, deals: int, seed: int = 0) -> AuctionEval:
+    """Duplicate deals with real auctions: each deal is bid and played twice with the teams
+    swapped. For Stage 2, A and B share a play model and differ only in how they bid."""
+    result = AuctionEval(a.name, b.name)
+    for i in range(deals):
+        rng = random.Random(f"auction:{seed}:{i}")
+        order = list(range(28))
+        rng.shuffle(order)
+        opener = rng.randrange(4)
+        score = 0
+        for a_team in (0, 1):
+            seats = _seats(a, b, a_team)
+            state = HandState.deal(order, opener)
+            hand = run_hand(state, seats, _illegal_counter(result.illegal, a_team))
+            bidders = team_of(state.bidder)
+            a_won = bidders == a_team
+            predict = getattr(seats[state.bidder], "predicted_make", None) if a_won else None
+            predicted = predict(state, state.bidder) if predict else None
+            a_marks = hand.marks if hand.winning_team == a_team else -hand.marks
+            result.records.append(
+                AuctionRecord(contract_kind(state.contract), a_won, hand.winning_team == bidders, a_marks, predicted)
+            )
+            score += a_marks
+        result.deal_scores.append(score)
+    result.decision_seconds = list(getattr(a, "decision_seconds", []))
+    return result

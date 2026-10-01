@@ -60,3 +60,21 @@ def test_report_shows_per_kind_ci_and_flags_worse_buckets():
     marks = next(l for l in text.splitlines() if l.strip().startswith("marks"))
     assert "-2.500" in low and "WORSE" in low
     assert "+2.500" in marks and "WORSE" not in marks
+
+
+def test_evaluate_auctions_duplicates_deals_with_full_bidding():
+    import torch
+    from fortytwo_ml.agents.model_agent import ModelAgent
+    from fortytwo_ml.agents.sim_bidder import SimAgent
+    from fortytwo_ml.eval.arena import evaluate_auctions
+    from fortytwo_ml.eval.report import format_auction_report
+    from fortytwo_ml.model import QNet
+
+    torch.manual_seed(0)
+    net = QNet(hidden=16, layers=1).eval()
+    ev = evaluate_auctions(SimAgent(net, n_deals=4), ModelAgent(net), deals=3, seed=1)
+    assert len(ev.records) == 6 and len(ev.deal_scores) == 3 and ev.illegal == {"a": 0, "b": 0}
+    assert len(ev.decision_seconds) >= 3
+    assert all((r.predicted is not None) == r.a_won_auction for r in ev.records)
+    text = format_auction_report(ev)
+    assert "Mean marks/deal" in text and "Calibration" in text and "Bid decision time" in text
