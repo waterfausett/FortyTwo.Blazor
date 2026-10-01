@@ -102,7 +102,7 @@ describe('match routes', () => {
       // --- GET /api/matches?filter=Joinable from a second user's token ---
       const joinableRes = await api('/api/matches?filter=Joinable', p2);
       expect(joinableRes.status).toBe(200);
-      const joinable = (await joinableRes.json()) as { id: string; teams: string[][] }[];
+      const joinable = ((await joinableRes.json()) as { matches: { id: string; teams: string[][] }[] }).matches;
       expect(joinable.some((m) => m.id === matchId)).toBe(true);
       // No Auth0 mock here, so name lookup fails and players fall back to their raw ids rather
       // than failing the whole list.
@@ -299,7 +299,7 @@ describe('match routes', () => {
 
     const res = await api('/api/matches?filter=Joinable', p4);
     expect(res.status).toBe(200);
-    const rows = (await res.json()) as { id: string; teams: string[][] }[];
+    const rows = ((await res.json()) as { matches: { id: string; teams: string[][] }[] }).matches;
     expect(rows.find((row) => row.id === created.id)?.teams).toEqual([['Player One', 'three'], ['p2']]);
   });
 
@@ -321,8 +321,30 @@ describe('match routes', () => {
 
     // No Auth0 mock, so seats show raw ids.
     const res = await api('/api/matches?filter=Joinable', p3);
-    const rows = (await res.json()) as { id: string; seats: (string | null)[] }[];
+    const rows = ((await res.json()) as { matches: { id: string; seats: (string | null)[] }[] }).matches;
     expect(rows.find((row) => row.id === created.id)?.seats).toEqual(['p1', null, null, 'p2']);
+  });
+
+  describe('GET /api/matches paging', () => {
+    it('returns a page with a cursor that fetches the next page', async () => {
+      const p1 = await signToken('p1');
+      for (let i = 0; i < 21; i++) await (await api('/api/matches', p1, { method: 'POST' })).arrayBuffer();
+
+      const first = (await (await api('/api/matches?filter=Active', p1)).json()) as { matches: { id: string }[]; nextCursor: string | null };
+      expect(first.matches).toHaveLength(20);
+      expect(first.nextCursor).toEqual(expect.any(String));
+
+      const second = (await (await api(`/api/matches?filter=Active&cursor=${first.nextCursor}`, p1)).json()) as typeof first;
+      expect(second.matches).toHaveLength(1);
+      expect(second.nextCursor).toBeNull();
+      expect(first.matches.map((m) => m.id)).not.toContain(second.matches[0].id);
+    });
+
+    it('rejects a malformed cursor with a 400', async () => {
+      const res = await api('/api/matches?filter=Active&cursor=%25%25', await signToken('p1'));
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ title: 'Invalid request', detail: 'Invalid cursor' });
+    });
   });
 
   describe('DELETE /api/matches/:id/players', () => {

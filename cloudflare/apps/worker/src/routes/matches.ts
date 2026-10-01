@@ -11,7 +11,8 @@ import { toUserResponse } from './users';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
 import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
-import type { MatchSummary } from '@fortytwo/api-types';
+import { decodeCursor, encodeCursor } from '../cursor';
+import type { MatchPage, MatchSummary } from '@fortytwo/api-types';
 
 type AppContext = Context<AppEnv>;
 const matches = new Hono<AppEnv>();
@@ -43,25 +44,23 @@ matches.post('/', async (c) => {
 matches.get('/', async (c) => {
   const userId = c.get('user').sub;
   const filter = c.req.query('filter') ?? 'Active';
-  const rows =
-    filter === 'Completed' ? await listCompleted(c.env.DB, userId) :
-    filter === 'Joinable' ? await listJoinable(c.env.DB, userId) :
-    await listActive(c.env.DB, userId);
+  const cursor = decodeCursor(c.req.query('cursor'));
+  const list = filter === 'Completed' ? listCompleted : filter === 'Joinable' ? listJoinable : listActive;
+  const { rows, next } = await list(c.env.DB, userId, cursor);
   const playersByMatch = await listMatchPlayers(c.env.DB, rows.map((row) => row.id));
   const allPlayerIds = [...playersByMatch.values()].flat().map((p) => p.playerId);
   const names = await displayNames(c.env, [...new Set(allPlayerIds)]);
-  return c.json(
-    rows.map((row): MatchSummary => {
-      const seated = playersByMatch.get(row.id) ?? [];
-      const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
-      const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
-      const seats = [0, 1, 2, 3].map((position) => {
-        const player = seated.find((p) => p.position === position);
-        return player ? nameOf(player.playerId) : null;
-      });
-      return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
-    })
-  );
+  const summaries = rows.map((row): MatchSummary => {
+    const seated = playersByMatch.get(row.id) ?? [];
+    const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
+    const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
+    const seats = [0, 1, 2, 3].map((position) => {
+      const player = seated.find((p) => p.position === position);
+      return player ? nameOf(player.playerId) : null;
+    });
+    return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
+  });
+  return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });
 
 // Maps player ids to display names for the lobby list. Bots have no Auth0 account and keep their

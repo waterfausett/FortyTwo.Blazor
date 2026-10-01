@@ -9,6 +9,20 @@ import type { MatchSummary } from '@fortytwo/api-types';
 // full MatchSummary.
 export type MatchIndexRow = Omit<MatchSummary, 'teams' | 'seats'>;
 
+// Lobby lists come one page at a time, newest first. A page ends at its last row's
+// (updatedOn, id); the next page starts strictly after it.
+export const LOBBY_PAGE_SIZE = 20;
+
+export interface LobbyCursor {
+  updatedOn: string;
+  id: string;
+}
+
+export interface LobbyPage {
+  rows: MatchIndexRow[];
+  next: LobbyCursor | null;
+}
+
 // Brings a match's summary row and seated players up to date.
 export async function syncLobbyIndex(db: D1Database, match: MatchState): Promise<void> {
   await upsertMatchSummary(db, {
@@ -88,43 +102,57 @@ export async function listMatchPlayers(db: D1Database, matchIds: string[]): Prom
   return byMatch;
 }
 
-export async function listActive(db: D1Database, userId: string): Promise<MatchIndexRow[]> {
-  // NOTE: D1's `.all<MatchIndexRow>()` type parameter is compile-time only - it does not rename
-  // runtime columns. The underlying `matches` table is snake_case (player_count, updated_on), so
-  // every column that maps to a camelCase MatchIndexRow field must be explicitly aliased with AS,
-  // or `.playerCount`/`.updatedOn` would be undefined on every returned row at runtime.
+// One more row than a page is fetched; if it comes back, there's another page after this one.
+function toPage(results: MatchIndexRow[]): LobbyPage {
+  const rows = results.slice(0, LOBBY_PAGE_SIZE);
+  const last = rows[rows.length - 1];
+  const next = results.length > LOBBY_PAGE_SIZE ? { updatedOn: last.updatedOn, id: last.id } : null;
+  return { rows, next };
+}
+
+// Matches the user is seated in with the given status, a page at a time.
+//
+// NOTE: D1's `.all<MatchIndexRow>()` type parameter is compile-time only - it does not rename
+// runtime columns. The underlying `matches` table is snake_case (player_count, updated_on), so
+// every column that maps to a camelCase MatchIndexRow field must be explicitly aliased with AS,
+// or `.playerCount`/`.updatedOn` would be undefined on every returned row at runtime.
+async function listForPlayer(
+  db: D1Database,
+  userId: string,
+  status: 'active' | 'completed',
+  cursor: LobbyCursor | null
+): Promise<LobbyPage> {
   const { results } = await db
     .prepare(
       `SELECT m.id, m.status, m.player_count AS playerCount, m.updated_on AS updatedOn
        FROM matches m JOIN match_players mp ON mp.match_id = m.id
-       WHERE mp.player_id = ? AND m.status = 'active' ORDER BY m.updated_on DESC`
+       WHERE mp.player_id = ?1 AND m.status = ?2
+       AND (?3 IS NULL OR (m.updated_on, m.id) < (?3, ?4))
+       ORDER BY m.updated_on DESC, m.id DESC LIMIT ?5`
     )
-    .bind(userId)
+    .bind(userId, status, cursor?.updatedOn ?? null, cursor?.id ?? null, LOBBY_PAGE_SIZE + 1)
     .all<MatchIndexRow>();
-  return results;
+  return toPage(results);
 }
 
-export async function listCompleted(db: D1Database, userId: string): Promise<MatchIndexRow[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT m.id, m.status, m.player_count AS playerCount, m.updated_on AS updatedOn
-       FROM matches m JOIN match_players mp ON mp.match_id = m.id
-       WHERE mp.player_id = ? AND m.status = 'completed' ORDER BY m.updated_on DESC`
-    )
-    .bind(userId)
-    .all<MatchIndexRow>();
-  return results;
+export function listActive(db: D1Database, userId: string, cursor: LobbyCursor | null = null): Promise<LobbyPage> {
+  return listForPlayer(db, userId, 'active', cursor);
 }
 
-export async function listJoinable(db: D1Database, userId: string): Promise<MatchIndexRow[]> {
+export function listCompleted(db: D1Database, userId: string, cursor: LobbyCursor | null = null): Promise<LobbyPage> {
+  return listForPlayer(db, userId, 'completed', cursor);
+}
+
+export async function listJoinable(db: D1Database, userId: string, cursor: LobbyCursor | null = null): Promise<LobbyPage> {
   const { results } = await db
     .prepare(
       `SELECT id, status, player_count AS playerCount, updated_on AS updatedOn
        FROM matches WHERE status = 'active' AND player_count < 4
-       AND id NOT IN (SELECT match_id FROM match_players WHERE player_id = ?)
-       ORDER BY updated_on DESC, player_count DESC`
+       AND id NOT IN (SELECT match_id FROM match_players WHERE player_id = ?1)
+       AND (?2 IS NULL OR (updated_on, id) < (?2, ?3))
+       ORDER BY updated_on DESC, id DESC LIMIT ?4`
     )
-    .bind(userId)
+    .bind(userId, cursor?.updatedOn ?? null, cursor?.id ?? null, LOBBY_PAGE_SIZE + 1)
     .all<MatchIndexRow>();
-  return results;
+  return toPage(results);
 }
