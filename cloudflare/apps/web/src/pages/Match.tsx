@@ -318,7 +318,7 @@ export function Match(): JSX.Element {
     const opener = dealtGame.firstActionBy;
     const who =
       opener === myPlayerId ? 'You bid first' : `${(opener && namesQuery.data?.get(opener)) ?? opener} bids first`;
-    toastInfo(`${dealtGame.name} dealt`, who);
+    toastInfo(`${dealtGame.name} dealt`, who, 'center');
   }, [dealtGame, myPlayerId, namesQuery.data]);
 
   if (!matchId) {
@@ -531,7 +531,7 @@ export function Match(): JSX.Element {
               <PipFace suit={game.trump} />
               <span className="contract-trump-name">{suitToPrettyString(game.trump)}</span>
               {isLow(game.trump) && (
-                <span className="contract-trump-rule">{lowDoublesToPrettyString(game.trump)}</span>
+                <span className="contract-trump-rule">Doubles {lowDoublesToPrettyString(game.trump)}</span>
               )}
             </span>
           )}
