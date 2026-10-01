@@ -100,6 +100,29 @@ bundles that copy, and `apps/mobile/jest.config.js` maps `react` to it for tests
 Add native libraries with `npx expo install <package>`, which picks versions that match the Expo
 SDK.
 
+### Building for Android on Windows
+
+`npx expo run:android` needs Android Studio, plus three things set up on Windows:
+
+- **Java 17 or later.** Gradle refuses to run on an older JDK ("Gradle requires JVM 17 or later").
+  Use the one bundled with Android Studio: set `JAVA_HOME` to
+  `C:\Program Files\Android\Android Studio\jbr` and put `%JAVA_HOME%\bin` ahead of any older Java
+  on `Path`.
+- **The Android SDK.** Gradle fails with "SDK location not found" until `ANDROID_HOME` points at
+  it, by default `%LOCALAPPDATA%\Android\Sdk` (Android Studio → SDK Manager shows the location).
+  Add `%ANDROID_HOME%\platform-tools` to `Path` too, so `adb devices` can see your phone.
+- **Short paths.** The native build writes object files at very deep paths, and the `ninja.exe`
+  that comes with the SDK's CMake can't handle paths over Windows' 260-character limit
+  ("Filename longer than 260 characters"). Either build from a short path (clone to something
+  like `C:\ft`, or `subst F: C:\git\FortyTwo.Blazor` and build from `F:`), or turn on Windows long
+  paths (the `LongPathsEnabled` registry setting, then reboot) and replace
+  `%ANDROID_HOME%\cmake\<version>\bin\ninja.exe` with ninja 1.12 or later.
+
+After changing any of these, open a new terminal. If Gradle still uses the old settings, stop
+its background process (`cd android && gradlew --stop`). After a failed native build, delete
+`android\app\.cxx` before retrying. `android\` is generated and gitignored, so fix the machine's
+setup rather than editing files in it.
+
 ## Deploying
 
 The Worker serves the web app's build as static assets, so the whole game is one `wrangler deploy`
