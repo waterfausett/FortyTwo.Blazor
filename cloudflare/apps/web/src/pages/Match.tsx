@@ -46,7 +46,7 @@ import { Seat } from '../components/Seat';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
 import { toastError, toastInfo } from '../ui/toast';
-import { dealerId, isTrickStarted, openSeats, seatFor, trickLeaderId, trickPlayOrder } from '../match/table';
+import { dealerId, isTrickStarted, openSeats, seatFor, trickLeaderId, trickPlayOrder } from '@fortytwo/client';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
 import '../styles/match.css';

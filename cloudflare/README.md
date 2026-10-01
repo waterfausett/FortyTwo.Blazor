@@ -11,6 +11,7 @@ An npm workspace:
 | --- | --- |
 | `packages/rules` | `@fortytwo/rules`: the game's rules as pure functions over `MatchState`. The Worker enforces them; the web app uses them to show only legal bids, trumps and plays. |
 | `packages/api-types` | `@fortytwo/api-types`: the JSON shapes the REST API sends, shared by the Worker and the web app. Types only. |
+| `packages/client` | `@fortytwo/client`: the client code that doesn't depend on how the app draws - the REST wrapper, the match socket's reconnect loop, and table-geometry and match-summary helpers. No browser-only APIs or React, so a native app can share it; each app passes in its API origin and wake-up signals. |
 | `apps/worker` | `@fortytwo/worker`: the Hono API (`/api/*`), the match WebSocket (`/matches/:id/ws`), and `MatchDO`, the Durable Object that holds each match. |
 | `apps/web` | `@fortytwo/web`: the Vite + React front end, signing in through Auth0. |
 
@@ -61,6 +62,8 @@ Each package runs its own suite with `npm test`:
 
 - `packages/rules`: unit tests, plus `test/characterization.test.ts`, which replays games recorded
   from the original C# engine.
+- `packages/client`: unit tests for the shared client helpers. The match socket is exercised
+  through the web app's `useMatchSocket` tests.
 - `apps/worker`: runs inside workerd through `@cloudflare/vitest-pool-workers`, with real Durable
   Objects and D1. Auth0 is mocked.
 - `apps/web`: component and hook tests under jsdom.

@@ -33,8 +33,8 @@ const EMPTY_LABELS: Record<MatchFilter, string> = {
 };
 
 // A table seen from above, indexed by seat position: the creator's seat (0) nearest you, then
-// clockwise in turn order - the same layout the match screen uses (match/table.ts), so the seat
-// you pick here is where you'll sit relative to the others there. Partners sit across.
+// clockwise in turn order - the same layout the match screen uses (packages/client's table.ts), so
+// the seat you pick here is where you'll sit relative to the others there. Partners sit across.
 const SEAT_SIDES = ['bottom', 'left', 'top', 'right'] as const;
 
 function SeatGlyph({ seats }: { seats: (string | null)[] }): JSX.Element {

@@ -1,30 +1,22 @@
-// React hook wrapping the native WebSocket API to receive live MatchState updates from MatchDO's
-// broadcast socket (apps/worker/src/matchDO.ts - every change to a match broadcasts
-// `{ type: 'match', match }` to connected sockets). A dropped connection is retried with
-// exponential backoff.
+// React hook over @fortytwo/client's connectMatchSocket, which receives live MatchState updates
+// from MatchDO's broadcast socket and retries a dropped connection with exponential backoff. This
+// file adds the React state and the browser's wake-up signals.
 import { useEffect, useRef, useState } from 'react';
+import { connectMatchSocket } from '@fortytwo/client';
 import type { MatchState } from '@fortytwo/rules';
 
-const INITIAL_RECONNECT_DELAY_MS = 1000;
-const MAX_RECONNECT_DELAY_MS = 30000;
-
-// Close codes the server sends on purpose to say "don't come back" (e.g. a future "not a player"
-// code). Every other close - clean or not - is retried: a DO restart, a Worker deploy, and
-// webSocketClose echoing a 1000 all close cleanly without meaning the match is over.
-const NO_RECONNECT_CODES: ReadonlySet<number> = new Set();
-
-interface MatchSocketMessage {
-  type: 'match';
-  match: MatchState;
-}
-
-function isMatchSocketMessage(value: unknown): value is MatchSocketMessage {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as { type?: unknown }).type === 'match' &&
-    'match' in value
-  );
+// Mobile browsers kill sockets in background tabs, and a dropped network kills them anywhere. When
+// the tab comes back or the network returns, reconnect now rather than sitting out the backoff.
+function subscribeBrowserWake(wake: () => void): () => void {
+  function onVisibilityChange() {
+    if (document.visibilityState === 'visible') wake();
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('online', wake);
+  return () => {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('online', wake);
+  };
 }
 
 export function useMatchSocket(
@@ -51,95 +43,28 @@ export function useMatchSocket(
   }, [getToken]);
 
   useEffect(() => {
-    let cancelled = false;
-    let socket: WebSocket | null = null;
-    // True while awaiting the token, before `socket` exists - so a wake-up can't open a second one.
-    let connecting = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
-
-    async function connect() {
-      connecting = true;
-      let token: string;
-      try {
-        token = await getTokenRef.current();
-      } finally {
-        connecting = false;
-      }
-      // The effect may have been cleaned up (unmount, or matchId changing) while we were awaiting
-      // the token - bail out rather than opening a socket nobody will ever close.
-      if (cancelled) return;
-
+    const disconnect = connectMatchSocket({
+      matchId,
       // Unset (or empty) in production, where the Worker serves the web app, so the socket goes to
       // the same host.
-      const origin =
+      origin:
         import.meta.env.VITE_WS_ORIGIN ||
-        `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
-      const ws = new WebSocket(`${origin}/matches/${matchId}/ws?token=${token}`);
-      socket = ws;
-
-      ws.addEventListener('open', () => {
-        if (cancelled) return;
-        reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+        `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`,
+      getToken: () => getTokenRef.current(),
+      onOpen: () => {
         setConnectedTo(matchId);
         setDroppedFrom(null);
-      });
-
-      ws.addEventListener('message', (event: MessageEvent) => {
-        if (cancelled) return;
-        let data: unknown;
-        try {
-          data = JSON.parse(event.data as string);
-        } catch {
-          return; // Ignore malformed frames.
-        }
-        if (isMatchSocketMessage(data)) {
-          setLatest({ matchId, match: data.match });
-        }
-      });
-
-      ws.addEventListener('close', (event: CloseEvent) => {
-        socket = null;
-        // A cancelled effect means this close came from OUR OWN cleanup below (unmount, or
-        // matchId changing) - never reconnect in that case, regardless of the close event's
-        // wasClean flag.
-        if (cancelled) return;
+      },
+      onMatch: (match) => setLatest({ matchId, match }),
+      onDrop: () => {
         setConnectedTo(null);
         setDroppedFrom(matchId);
-        if (NO_RECONNECT_CODES.has(event.code)) return;
-        reconnectTimer = setTimeout(() => {
-          reconnectTimer = null;
-          reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
-          connect();
-        }, reconnectDelay);
-      });
-    }
-
-    // Mobile browsers kill sockets in background tabs, and a dropped network kills them anywhere.
-    // When the tab comes back or the network returns, reconnect now rather than sitting out the
-    // rest of a backoff delay that may have grown to 30s.
-    function reconnectNow() {
-      if (socket !== null || connecting || reconnectTimer === null) return;
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-      reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
-      connect();
-    }
-
-    function onVisibilityChange() {
-      if (document.visibilityState === 'visible') reconnectNow();
-    }
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('online', reconnectNow);
-    connect();
+      },
+      subscribeWake: subscribeBrowserWake,
+    });
 
     return () => {
-      cancelled = true;
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('online', reconnectNow);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      socket?.close();
+      disconnect();
       // Dropped too, so navigating A -> B -> A can't bring back A's old state before its new
       // socket delivers.
       setLatest(null);

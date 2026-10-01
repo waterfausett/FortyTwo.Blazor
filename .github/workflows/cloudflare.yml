@@ -30,6 +30,7 @@ jobs:
           cache-dependency-path: cloudflare/package-lock.json
       - run: npm ci
       - run: npm test -w @fortytwo/rules
+      - run: npm test -w @fortytwo/client
       - run: npm test -w @fortytwo/worker
       - run: npm test -w @fortytwo/web
       # Typechecks the web app and the packages it references.
