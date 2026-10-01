@@ -23,12 +23,15 @@ export type { MatchPage, MatchSummary, PublicUser, UserProfile };
 export class ApiError extends Error {
   readonly title: string;
   readonly detail?: string;
+  // The response's HTTP status, when the error came from one.
+  readonly status?: number;
 
-  constructor(title: string, detail?: string) {
+  constructor(title: string, detail?: string, status?: number) {
     super(detail ? `${title}: ${detail}` : title);
     this.name = 'ApiError';
     this.title = title;
     this.detail = detail;
+    this.status = status;
   }
 }
 
@@ -62,7 +65,7 @@ async function request<T>(
       // so the title/detail fallback below still produces a useful message.
     }
     const title = body.title?.trim() || res.statusText || `Request failed (${res.status})`;
-    throw new ApiError(title, body.detail || undefined);
+    throw new ApiError(title, body.detail || undefined, res.status);
   }
 
   if (!parseJson) return undefined as T;

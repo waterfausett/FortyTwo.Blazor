@@ -324,12 +324,28 @@ describe('Match', () => {
   });
 
   it('shows why a match failed to load, instead of spinning forever', async () => {
-    getMatchMock.mockRejectedValue(new Error('Match not found!'));
+    getMatchMock.mockRejectedValue(Object.assign(new Error('Match not found!'), { status: 404 }));
     useMatchSocketMock.mockReturnValue({ match: null, connected: false });
     renderMatch();
 
     expect((await screen.findByRole('alert')).textContent).toContain('Match not found!');
     expect(screen.getByRole('link', { name: /back to lobby/i }).getAttribute('href')).toBe('/');
+  });
+
+  it("shows a missing match's error straight away, without the default retries", async () => {
+    getMatchMock.mockRejectedValue(Object.assign(new Error('Match not found!'), { status: 404 }));
+    useMatchSocketMock.mockReturnValue({ match: null, connected: false });
+    // React Query's real defaults (3 retries with backoff), not renderMatch's retry-free client.
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <Match />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Match not found!');
+    expect(getMatchMock).toHaveBeenCalledTimes(1);
   });
 
   it('shows BiddingPanel and hides Hand play interaction during the bidding phase', () => {

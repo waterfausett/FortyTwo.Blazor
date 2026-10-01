@@ -142,6 +142,8 @@ export function Match(): JSX.Element {
     queryKey: ['match', matchId],
     queryFn: () => client.getMatch(matchId!),
     enabled: !!matchId,
+    // A match that doesn't exist (deleted, or a stale link) won't appear on a retry - say so now.
+    retry: (failureCount, error) => (error as { status?: number }).status !== 404 && failureCount < 3,
   });
 
   // Prefer the socket's state once it has ANY value (it's the live source of truth once connected);
