@@ -9,6 +9,10 @@ import { Domino } from './Domino';
 import { colors, fonts } from './theme';
 import { TRICK_SWEEP_MS } from '@/match/useTrickHold';
 
+// The mat's height while compact (bidding and naming trump), and how long it takes to resize.
+const COMPACT_MAT_HEIGHT = 44;
+const RESIZE_MS = 320;
+
 // Roughly how tall a seat plate is (two lines of text and padding), for aiming the sweep at it.
 const PLATE_HEIGHT = 46;
 const GAP = 6;
@@ -169,6 +173,10 @@ export interface TableProps {
   dropActive?: boolean;
   // While set, the trick leaves the table toward this seat: whoever won it.
   sweepTo?: Seat | null;
+  // Bidding and naming trump don't use the table, so the mat shrinks to a strip, leaving more of
+  // the screen for the hand and the choices; it opens back up as play starts, which also says
+  // that play is about to begin. The seat plates stay full size, since they show each bid.
+  compact?: boolean;
 }
 
 export function Table({
@@ -180,6 +188,7 @@ export function Table({
   dropRef,
   dropActive = false,
   sweepTo = null,
+  compact = false,
 }: TableProps) {
   const window = useWindowDimensions();
   const width = Math.min(window.width - 24, 480);
@@ -189,6 +198,19 @@ export function Table({
   const tileWidth = Math.min(30, Math.floor(matWidth / 5));
   const matHeight = tileWidth * 2 * 3 + 24;
   const rowHeight = tileWidth * 2 + 4;
+
+  // The mat's height, eased between full and compact. Animating height re-lays-out the screen each
+  // frame, which is fine for this one short, deliberate change.
+  const shownHeight = compact ? COMPACT_MAT_HEIGHT : matHeight;
+  const height = useRef(new Animated.Value(shownHeight)).current;
+  useEffect(() => {
+    Animated.timing(height, {
+      toValue: shownHeight,
+      duration: RESIZE_MS,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [shownHeight, height]);
 
   // Centres relative to the mat's centre: each slot's tile, and each seat's plate.
   const slotCentre: Record<Seat, Point> = {
@@ -218,12 +240,12 @@ export function Table({
       <SeatPlate info={seats.top} width={sideWidth + 20} />
       <View style={styles.middle}>
         <SeatPlate info={seats.left} width={sideWidth} />
-        <View
+        <Animated.View
           ref={dropRef}
           collapsable={false}
-          style={[styles.mat, { width: matWidth, height: matHeight }, dropActive && styles.matDrop]}
+          style={[styles.mat, { width: matWidth, height }, compact && styles.matCompact, dropActive && styles.matDrop]}
         >
-          {center ?? (
+          {center ?? (compact ? null : (
             // Keyed by the trick, so each trick gets fresh tiles: an animation run on the native
             // side can leave a reused view where it ended, and the next trick's domino in that slot
             // would flash there first.
@@ -235,8 +257,8 @@ export function Table({
               slotCentre={slotCentre}
               target={sweepTo ? seatCentre[sweepTo] : null}
             />
-          )}
-        </View>
+          ))}
+        </Animated.View>
         <SeatPlate info={seats.right} width={sideWidth} />
       </View>
       <SeatPlate info={seats.bottom} width={sideWidth + 20} />
@@ -272,6 +294,8 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     textTransform: 'uppercase',
   },
+  // Clipped only while compact: a full table lets a sweeping trick fly out to the seats.
+  matCompact: { overflow: 'hidden' },
   matDrop: { borderColor: colors.brass, backgroundColor: colors.matLight },
   trickRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
   plate: {

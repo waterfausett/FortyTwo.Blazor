@@ -234,6 +234,7 @@ export default function MatchScreen() {
         dropRef={tableRef}
         dropActive={drag.overDropZone}
         sweepTo={sweepTo}
+        compact={view.isBiddingPhase || view.isTrumpSelectPhase}
         center={
           view.isTableReady ? undefined : (
             <View style={styles.waiting}>
