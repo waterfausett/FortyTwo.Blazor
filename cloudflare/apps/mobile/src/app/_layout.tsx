@@ -9,8 +9,9 @@ import { useFonts } from '@expo-google-fonts/barlow/useFonts';
 import { ZillaSlab_700Bold } from '@expo-google-fonts/zilla-slab/700Bold';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, router, usePathname } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Auth0Provider, useAuth0 } from 'react-native-auth0';
 import { colors, fonts } from '@/components/theme';
 import { ToastHost } from '@/components/ToastHost';
@@ -18,6 +19,11 @@ import { config } from '@/config';
 import { setSignedIn, takePendingLink } from '@/linking/incomingLink';
 
 const queryClient = new QueryClient();
+
+// The splash (the domino on walnut, from app.json) stays up until the fonts are loaded and any
+// stored session is restored, so launching goes straight from it to the app with no spinner.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.setOptions({ duration: 200, fade: true });
 
 function RootStack() {
   const { user, isLoading } = useAuth0();
@@ -38,14 +44,14 @@ function RootStack() {
     if (link && link !== pathname) router.push(link);
   }, [ready, signedIn, pathname]);
 
-  // Auth0Provider restores a stored session on launch; wait for it rather than flashing sign-in.
-  if (!ready) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={colors.brass} />
-      </View>
-    );
-  }
+  // Auth0Provider restores a stored session on launch: the splash waits for it rather than
+  // flashing sign-in.
+  useEffect(() => {
+    if (ready) SplashScreen.hide();
+  }, [ready]);
+
+  // Behind the splash, which is the same walnut.
+  if (!ready) return <View style={styles.loading} />;
 
   return (
     <Stack
@@ -82,5 +88,5 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.walnut },
+  loading: { flex: 1, backgroundColor: colors.walnut },
 });
