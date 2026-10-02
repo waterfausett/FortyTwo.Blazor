@@ -1,6 +1,7 @@
 // Both teams' piles of taken tricks for the hand, side by side: each headed by the team's running
 // points (out of the target, for the bidding team), then its tricks, newest first, each with the
-// points it was worth.
+// points it was worth. On big bids a pile holds only its last two tricks, like tricks stacked on a
+// real table (the caller picks them: @fortytwo/client's shouldStackTricks).
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { trickValue, type Trick } from '@fortytwo/rules';
 import { Domino } from './Domino';
@@ -18,8 +19,6 @@ export interface TeamPile {
 export interface TrickHistoryProps {
   us: TeamPile;
   them: TeamPile;
-  // Only each team's last two tricks are shown (see @fortytwo/client's shouldStackTricks).
-  stacked: boolean;
 }
 
 // Keyed by the trick's dominoes: every domino is played once per hand, so they identify a trick.
@@ -62,7 +61,7 @@ function Pile({ pile, tileWidth }: { pile: TeamPile; tileWidth: number }) {
   );
 }
 
-export function TrickHistory({ us, them, stacked }: TrickHistoryProps) {
+export function TrickHistory({ us, them }: TrickHistoryProps) {
   const tileWidth = tileWidthFor(useWindowDimensions().width);
   return (
     <View style={styles.history} accessibilityLabel="Tricks taken">
@@ -70,7 +69,6 @@ export function TrickHistory({ us, them, stacked }: TrickHistoryProps) {
         <Pile pile={us} tileWidth={tileWidth} />
         <Pile pile={them} tileWidth={tileWidth} />
       </View>
-      {stacked && <Text style={styles.note}>Showing each side's last two tricks</Text>}
     </View>
   );
 }
@@ -87,5 +85,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   dominoes: { flexDirection: 'row', gap: 3 },
   value: { color: colors.inkMuted, fontFamily: fonts.uiMedium, fontSize: 12 },
-  note: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12, textAlign: 'center' },
 });
