@@ -43,7 +43,7 @@ import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
 import { Hand, type DragState } from '@/components/Hand';
 import { MatchSummary } from '@/components/MatchSummary';
-import { toastError, toastInfo } from '@/components/toast';
+import { toastError } from '@/components/toast';
 import { Table, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
 import { TrumpPicker } from '@/components/TrumpPicker';
@@ -124,21 +124,6 @@ export default function MatchScreen() {
     }
     if (rematchId && rematchId !== rematchIdAtLoad.current) router.replace(`/match/${rematchId}`);
   }, [match, rematchId]);
-
-  // A cue that the next hand is out, for anyone who readied up and looked away: bidding has started
-  // without them. Only on a change of hand - never for the one the screen opened on.
-  const seenGameId = useRef<string | null>(null);
-  useEffect(() => {
-    if (!game) return;
-    const previous = seenGameId.current;
-    seenGameId.current = game.id;
-    if (previous === null || previous === game.id) return;
-    const opener = game.firstActionBy;
-    const who =
-      opener === myPlayerId ? 'You bid first' : `${(opener && names.data?.get(opener)) ?? opener ?? 'Someone'} bids first`;
-    toastInfo(`${game.name} dealt`, who, 'center');
-    // Keyed on the hand alone: names arriving later shouldn't fire it again.
-  }, [game?.id]);
 
   if (!match || !game || !myPlayerId) {
     return (

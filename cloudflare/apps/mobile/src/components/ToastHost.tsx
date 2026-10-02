@@ -38,11 +38,13 @@ function ToastCard({ toast }: { toast: Toast }) {
   const timeLeft = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.timing(appear, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    // A transform, run on the native side: animating the bar's width instead would make every
+    // frame re-lay-out the whole screen, which shows as the hand at the bottom jiggling.
     Animated.timing(timeLeft, {
       toValue: 0,
       duration: TOAST_DURATION_MS,
       easing: Easing.linear,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   }, [appear, timeLeft]);
 
@@ -80,7 +82,8 @@ function ToastCard({ toast }: { toast: Toast }) {
       <Animated.View
         style={[
           styles.timer,
-          { backgroundColor: edge, width: timeLeft.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
+          // Shrinks toward the left edge as time runs out.
+          { backgroundColor: edge, transformOrigin: 'left', transform: [{ scaleX: timeLeft }] },
         ]}
       />
     </Animated.View>
@@ -110,5 +113,5 @@ const styles = StyleSheet.create({
   // The bid or suit a rule message names, picked out in brass as on the web.
   emphasis: { color: colors.brass, fontFamily: fonts.uiBold },
   close: { color: colors.inkMuted, fontSize: 20, lineHeight: 20 },
-  timer: { height: 3, opacity: 0.6 },
+  timer: { height: 3, width: '100%', opacity: 0.6 },
 });
