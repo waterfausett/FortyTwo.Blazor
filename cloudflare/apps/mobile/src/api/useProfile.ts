@@ -2,7 +2,7 @@
 // reads them under one query key, plus saving a change to them.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ProfilePatch, UserProfile } from '@fortytwo/api-types';
-import { showError } from '@/components/showError';
+import { toastError } from '@/components/toast';
 import { useApi } from './useApi';
 
 const PROFILE_KEY = ['profile'];
@@ -30,7 +30,7 @@ export function useSaveProfile() {
     },
     onError: (error, _patch, context) => {
       if (context?.previous) queryClient.setQueryData(PROFILE_KEY, context.previous);
-      showError(error);
+      toastError(error);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: PROFILE_KEY }),
   });

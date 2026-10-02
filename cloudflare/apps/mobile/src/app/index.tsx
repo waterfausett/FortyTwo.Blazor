@@ -9,7 +9,7 @@ import type { MatchSummary } from '@fortytwo/client';
 import { useApi } from '@/api/useApi';
 import { SeatPicker } from '@/components/SeatPicker';
 import { colors, fonts } from '@/components/theme';
-import { showError } from '@/components/showError';
+import { toastError } from '@/components/toast';
 
 type Filter = 'Active' | 'Joinable' | 'Completed';
 const FILTERS: { filter: Filter; label: string }[] = [
@@ -53,7 +53,7 @@ export default function Lobby() {
     },
     // Most likely someone took the seat first - refetch so the picker shows who.
     onError: (error) => {
-      showError(error);
+      toastError(error);
       queryClient.invalidateQueries({ queryKey: ['matches'] });
     },
   });

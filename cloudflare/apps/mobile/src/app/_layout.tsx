@@ -12,6 +12,7 @@ import { Stack } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Auth0Provider, useAuth0 } from 'react-native-auth0';
 import { colors, fonts } from '@/components/theme';
+import { ToastHost } from '@/components/ToastHost';
 import { config } from '@/config';
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ export default function RootLayout() {
     <Auth0Provider domain={config.auth0Domain} clientId={config.auth0ClientId} useDPoP={false}>
       <QueryClientProvider client={queryClient}>
         <RootStack />
+        <ToastHost />
       </QueryClientProvider>
     </Auth0Provider>
   );

@@ -43,7 +43,7 @@ import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
 import { Hand, type DragState } from '@/components/Hand';
 import { MatchSummary } from '@/components/MatchSummary';
-import { showError } from '@/components/showError';
+import { toastError, toastInfo } from '@/components/toast';
 import { Table, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
 import { TrumpPicker } from '@/components/TrumpPicker';
@@ -80,11 +80,11 @@ export default function MatchScreen() {
   // Bots are a dev-only testing aid (the Worker's AUTO_PLAY_BOTS).
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
 
-  const bid = useMutation({ mutationFn: (value: Bid) => api.bid(id, value), onError: showError });
-  const trump = useMutation({ mutationFn: (suit: Suit) => api.setTrump(id, suit), onError: showError });
-  const readyUp = useMutation({ mutationFn: () => api.readyUp(id, true), onError: showError });
-  const rematch = useMutation({ mutationFn: () => api.rematch(id), onError: showError });
-  const addBots = useMutation({ mutationFn: () => api.addBots(id), onError: showError });
+  const bid = useMutation({ mutationFn: (value: Bid) => api.bid(id, value), onError: toastError });
+  const trump = useMutation({ mutationFn: (suit: Suit) => api.setTrump(id, suit), onError: toastError });
+  const readyUp = useMutation({ mutationFn: () => api.readyUp(id, true), onError: toastError });
+  const rematch = useMutation({ mutationFn: () => api.rematch(id), onError: toastError });
+  const addBots = useMutation({ mutationFn: () => api.addBots(id), onError: toastError });
 
   // A play's response arrives before the broadcast that moves the turn on, and until then the
   // stale state would still say it's my turn. Hold play until the broadcast shows the domino I
@@ -93,7 +93,7 @@ export default function MatchScreen() {
   const play = useMutation({
     mutationFn: (domino: DominoType) => api.playDomino(id, { top: domino.top, bottom: domino.bottom }),
     onSuccess: (_data, domino) => setAwaitingPlay(domino.id),
-    onError: showError,
+    onError: toastError,
   });
   const game = match?.currentGame ?? null;
   useEffect(() => {
@@ -124,6 +124,21 @@ export default function MatchScreen() {
     }
     if (rematchId && rematchId !== rematchIdAtLoad.current) router.replace(`/match/${rematchId}`);
   }, [match, rematchId]);
+
+  // A cue that the next hand is out, for anyone who readied up and looked away: bidding has started
+  // without them. Only on a change of hand - never for the one the screen opened on.
+  const seenGameId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!game) return;
+    const previous = seenGameId.current;
+    seenGameId.current = game.id;
+    if (previous === null || previous === game.id) return;
+    const opener = game.firstActionBy;
+    const who =
+      opener === myPlayerId ? 'You bid first' : `${(opener && names.data?.get(opener)) ?? opener ?? 'Someone'} bids first`;
+    toastInfo(`${game.name} dealt`, who, 'center');
+    // Keyed on the hand alone: names arriving later shouldn't fire it again.
+  }, [game?.id]);
 
   if (!match || !game || !myPlayerId) {
     return (
