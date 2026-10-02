@@ -22,6 +22,7 @@ import {
   teamTricksForDisplay,
   trickLeaderId,
   trickPlayOrder,
+  type MatchView,
   type Seat,
 } from '@fortytwo/client';
 import {
@@ -51,6 +52,7 @@ import { Table, TABLE_RESIZE_MS, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
 import { TrumpPicker } from '@/components/TrumpPicker';
 import { colors, fonts } from '@/components/theme';
+import { useLatch } from '@/match/useLatch';
 import { useSettled } from '@/match/useSettled';
 import { useTrickHold } from '@/match/useTrickHold';
 
@@ -111,8 +113,14 @@ export default function MatchScreen() {
   // Bidding and naming trump don't use the table, so it folds down to a strip for them. On a new
   // deal the bids wait for it to finish folding: arriving while it's still full height, they'd
   // briefly push the hand down the screen.
-  const tableCompact = describeTableCompact(match, myPlayerId);
+  const early = seatedView(match, myPlayerId);
+  const tableCompact = early != null && (early.isBiddingPhase || early.isTrumpSelectPhase);
   const tableFolded = useSettled(tableCompact, TABLE_RESIZE_MS);
+  // The hand-over panel waits for the trick that decided the hand to leave the table, so the
+  // result doesn't land on top of it - then stays until the next deal, through any tricks played
+  // out after it, so a player can ready up at any time.
+  const isHandOver = early?.isHandOver ?? false;
+  const showHandOver = useLatch(isHandOver && heldTrick == null, isHandOver);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
@@ -209,9 +217,6 @@ export default function MatchScreen() {
   const emptySeatCount = openSeats(match.players, myPlayerId).length;
 
   const handWinnerIsUs = view.handWinner === myTeam;
-  // Once the hand is decided - and the trick that decided it has left the table, so the result
-  // doesn't land on top of it.
-  const showHandOver = view.isHandOver && heldTrick == null;
   const contractBid =
     game.bid != null && game.bid !== Bid.Pass && game.biddingPlayerId != null
       ? `${game.trump == null ? 'High bid' : 'Bid'} ${bidToPrettyString(game.bid)} · ${nameFor(game.biddingPlayerId)}`
@@ -411,12 +416,11 @@ export default function MatchScreen() {
   );
 }
 
-// Whether the table is folded down for bidding or naming trump. Worked out before the screen's
-// early returns, since it feeds a hook.
-function describeTableCompact(match: MatchState | null, myPlayerId: string | undefined): boolean {
-  if (!match || !myPlayerId || !match.players.some((p) => p.playerId === myPlayerId)) return false;
-  const view = describeMatch(match, myPlayerId);
-  return view.isBiddingPhase || view.isTrumpSelectPhase;
+// The match as this player sees it, or null before it loads or when they aren't seated. For the
+// hooks above the screen's early returns.
+function seatedView(match: MatchState | null, myPlayerId: string | undefined): MatchView | null {
+  if (!match || !myPlayerId || !match.players.some((p) => p.playerId === myPlayerId)) return null;
+  return describeMatch(match, myPlayerId);
 }
 
 // A team's marks as a tally of MARKS_TO_WIN notches, like the web scoreboard - no number, to save
