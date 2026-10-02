@@ -1,7 +1,7 @@
 // Both teams' piles of taken tricks for the hand, side by side: each headed by the team's running
 // points (out of the target, for the bidding team), then its tricks, newest first, each with the
 // points it was worth.
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { trickValue, type Trick } from '@fortytwo/rules';
 import { Domino } from './Domino';
 import { colors, fonts } from './theme';
@@ -27,7 +27,15 @@ function trickKey(trick: Trick): string {
   return trick.dominoes.map((d) => d?.id ?? 'x').join(',');
 }
 
-function Pile({ pile }: { pile: TeamPile }) {
+// Sizes a trick's four tiles to fill a pile's row beside the points label: the screen's padding
+// (12 a side), the gap between piles (8), each pile's padding (8 a side), three gaps between tiles
+// (3), the label (about 32), and each tile's shadow (about 2).
+function tileWidthFor(windowWidth: number): number {
+  const pileInner = (windowWidth - 24 - 8) / 2 - 16;
+  return Math.max(14, Math.min(26, Math.floor((pileInner - 9 - 32) / 4 - 2)));
+}
+
+function Pile({ pile, tileWidth }: { pile: TeamPile; tileWidth: number }) {
   const newestFirst = [...pile.tricks].reverse();
   return (
     <View style={styles.pile} accessibilityLabel={`${pile.label} tricks: ${pile.points} points`}>
@@ -44,7 +52,7 @@ function Pile({ pile }: { pile: TeamPile }) {
         newestFirst.map((trick) => (
           <View key={trickKey(trick)} style={styles.row}>
             <View style={styles.dominoes}>
-              {trick.dominoes.map((d) => d && <Domino key={d.id} top={d.top} bottom={d.bottom} width={14} />)}
+              {trick.dominoes.map((d) => d && <Domino key={d.id} top={d.top} bottom={d.bottom} width={tileWidth} />)}
             </View>
             <Text style={styles.value}>+{trickValue(trick)}</Text>
           </View>
@@ -55,11 +63,12 @@ function Pile({ pile }: { pile: TeamPile }) {
 }
 
 export function TrickHistory({ us, them, stacked }: TrickHistoryProps) {
+  const tileWidth = tileWidthFor(useWindowDimensions().width);
   return (
     <View style={styles.history} accessibilityLabel="Tricks taken">
       <View style={styles.piles}>
-        <Pile pile={us} />
-        <Pile pile={them} />
+        <Pile pile={us} tileWidth={tileWidth} />
+        <Pile pile={them} tileWidth={tileWidth} />
       </View>
       {stacked && <Text style={styles.note}>Showing each side's last two tricks</Text>}
     </View>
