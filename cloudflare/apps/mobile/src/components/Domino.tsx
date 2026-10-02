@@ -51,6 +51,8 @@ export interface DominoProps {
   // A brass outline: playable now, or the winning domino of a trick.
   highlighted?: boolean;
   accessibilityLabel?: string;
+  // False when a wrapping control already names the tile.
+  accessible?: boolean;
 }
 
 export function Domino({
@@ -62,6 +64,7 @@ export function Domino({
   dimmed = false,
   highlighted = false,
   accessibilityLabel,
+  accessible = true,
 }: DominoProps) {
   const horizontal = direction === 'horizontal';
   // The bone face is `width` x 2*width (or turned) with no border of its own: its outline is a
@@ -132,10 +135,12 @@ export function Domino({
 
   const label = accessibilityLabel ?? `${top}-${bottom}`;
   if (!onPress) {
-    return (
+    return accessible ? (
       <View accessible accessibilityLabel={label}>
         {tile}
       </View>
+    ) : (
+      tile
     );
   }
   return (

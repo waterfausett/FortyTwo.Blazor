@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
-import { Hand } from '../Hand';
+import { Hand, isInside } from '../Hand';
 import { SeatPicker } from '../SeatPicker';
 import { TrickHistory } from '../TrickHistory';
 
@@ -50,7 +50,8 @@ describe('Hand', () => {
 
     await fireEvent.press(screen.getByLabelText('6-6'));
     expect(onPlay).toHaveBeenCalledWith(dominoes[0]);
-    expect(screen.queryByRole('button', { name: '1-2' })).toBeNull();
+    await fireEvent.press(screen.getByLabelText('1-2'));
+    expect(onPlay).toHaveBeenCalledTimes(1);
   });
 
   it('with highlighting off (the default), lets any domino be tapped and leaves legality to the server', async () => {
@@ -59,12 +60,27 @@ describe('Hand', () => {
 
     await fireEvent.press(screen.getByLabelText('1-2'));
     expect(onPlay).toHaveBeenCalledWith(dominoes[1]);
-    expect(screen.getAllByRole('button')).toHaveLength(2);
   });
 
   it("can't be played from when it isn't the player's turn", async () => {
-    await render(<Hand dominoes={dominoes} canPlay={false} isValidPlay={() => true} onPlay={jest.fn()} />);
-    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    const onPlay = jest.fn();
+    const onDragChange = jest.fn();
+    await render(
+      <Hand dominoes={dominoes} canPlay={false} isValidPlay={() => true} onPlay={onPlay} dropZone={{ current: null }} onDragChange={onDragChange} />
+    );
+    await fireEvent.press(screen.getByLabelText('6-6'));
+    await fireEvent(screen.getByLabelText('6-6'), 'longPress');
+    expect(onPlay).not.toHaveBeenCalled();
+    expect(onDragChange).not.toHaveBeenCalled();
+  });
+
+  it('picks a domino up for dragging when it is held', async () => {
+    const onDragChange = jest.fn();
+    await render(
+      <Hand dominoes={dominoes} canPlay isValidPlay={() => true} onPlay={jest.fn()} dropZone={{ current: null }} onDragChange={onDragChange} />
+    );
+    await fireEvent(screen.getByLabelText('6-6'), 'longPress');
+    expect(onDragChange).toHaveBeenCalledWith({ dragging: true, overDropZone: false });
   });
 });
 
@@ -108,5 +124,17 @@ describe('TrickHistory', () => {
     // Each trick's worth: its count plus one. The newer trick (with the 5-5) is listed first.
     const values = screen.getAllByText(/^\+\d+$/).map((t) => t.props.children.join(''));
     expect(values).toEqual(['+11', '+1']);
+  });
+});
+
+describe('isInside', () => {
+  const rect = { x: 10, y: 20, width: 100, height: 50 };
+
+  it('is true inside the rectangle, edges included, and false outside or without one', () => {
+    expect(isInside(10, 20, rect)).toBe(true);
+    expect(isInside(110, 70, rect)).toBe(true);
+    expect(isInside(9, 40, rect)).toBe(false);
+    expect(isInside(50, 71, rect)).toBe(false);
+    expect(isInside(50, 40, null)).toBe(false);
   });
 });

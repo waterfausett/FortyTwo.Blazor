@@ -1,7 +1,7 @@
 // The table seen from the player's chair: the other three seats around the mat, the player at the
 // bottom, and the trick in progress in the middle, each domino in front of whoever played it.
 // Sized from the window width so it fills a phone screen.
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { Seat } from '@fortytwo/client';
 import type { Trick } from '@fortytwo/rules';
@@ -65,9 +65,14 @@ export interface TableProps {
   winningSlot: number | null;
   // Shown in the middle instead of a trick, e.g. while waiting for players.
   center?: ReactNode;
+  // The mat is where a dragged domino is dropped to play it: `dropRef` is measured for that, and
+  // `dropActive` lights the mat while a domino is over it. Only the mat, not the seat plates, so a
+  // short drag up from the hand over the player's own plate doesn't play anything.
+  dropRef?: RefObject<View | null>;
+  dropActive?: boolean;
 }
 
-export function Table({ seats, trick, slotSeats, winningSlot, center }: TableProps) {
+export function Table({ seats, trick, slotSeats, winningSlot, center, dropRef, dropActive = false }: TableProps) {
   const window = useWindowDimensions();
   const width = Math.min(window.width - 24, 480);
   const sideWidth = Math.round(width * 0.27);
@@ -106,7 +111,11 @@ export function Table({ seats, trick, slotSeats, winningSlot, center }: TablePro
       <SeatPlate info={seats.top} width={sideWidth + 20} />
       <View style={styles.middle}>
         <SeatPlate info={seats.left} width={sideWidth} />
-        <View style={[styles.mat, { width: matWidth, height: matHeight }]}>
+        <View
+          ref={dropRef}
+          collapsable={false}
+          style={[styles.mat, { width: matWidth, height: matHeight }, dropActive && styles.matDrop]}
+        >
           {center ?? (
             <>
               {tile('top')}
@@ -151,6 +160,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
+  matDrop: { borderColor: colors.brass, backgroundColor: colors.matLight },
   trickRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
   plate: {
     paddingVertical: 5,

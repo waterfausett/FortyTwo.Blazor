@@ -40,7 +40,7 @@ import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
-import { Hand } from '@/components/Hand';
+import { Hand, type DragState } from '@/components/Hand';
 import { showError } from '@/components/showError';
 import { Table, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
@@ -99,6 +99,11 @@ export default function MatchScreen() {
   }, [awaitingPlay, game, myPlayerId]);
 
   const heldTrick = useTrickHold(game);
+
+  // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
+  // domino is held, and the table lights up while one is over it.
+  const tableRef = useRef<View>(null);
+  const [drag, setDrag] = useState<DragState>({ dragging: false, overDropZone: false });
 
   // Follow the rematch once everyone has agreed - but only if it's created while this screen is
   // open. A finished match opened later stays viewable.
@@ -194,7 +199,7 @@ export default function MatchScreen() {
       : `Trump: ${suitToPrettyString(game.trump)}${isLow(game.trump) ? ` (doubles ${lowDoublesToPrettyString(game.trump)})` : ''}`;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container} scrollEnabled={!drag.dragging}>
       <Stack.Screen options={{ title: game.name }} />
       {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
 
@@ -213,6 +218,8 @@ export default function MatchScreen() {
         trick={view.isTableReady ? trick : null}
         slotSeats={slotSeats}
         winningSlot={winningSlot}
+        dropRef={tableRef}
+        dropActive={drag.overDropZone}
         center={
           view.isTableReady ? undefined : (
             <View style={styles.waiting}>
@@ -292,9 +299,13 @@ export default function MatchScreen() {
         isValidPlay={(domino) => isValidPlay(match, view, domino)}
         onPlay={(domino) => play.mutate(domino)}
         highlightPlayable={highlightPlayable}
+        dropZone={tableRef}
+        onDragChange={setDrag}
       />
       {canPlay && (
-        <Text style={styles.hint}>Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it.</Text>
+        <Text style={styles.hint}>
+          Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
+        </Text>
       )}
 
       {view.isPlayingPhase && (
@@ -308,12 +319,12 @@ export default function MatchScreen() {
   );
 }
 
-// A team's marks, with a tally of MARKS_TO_WIN notches like the web scoreboard.
+// A team's marks as a tally of MARKS_TO_WIN notches, like the web scoreboard - no number, to save
+// room on a phone.
 function Score({ label, marks, color }: { label: string; marks: number; color: string }) {
   return (
     <View style={styles.score} accessibilityLabel={`${label}: ${marks} of ${MARKS_TO_WIN} marks`}>
       <Text style={[styles.scoreLabel, { color }]}>{label}</Text>
-      <Text style={styles.scoreValue}>{marks}</Text>
       <View style={styles.tally}>
         {Array.from({ length: MARKS_TO_WIN }, (_, i) => (
           <View key={i} style={[styles.notch, i < marks && { backgroundColor: color, borderColor: color }]} />
@@ -350,11 +361,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: 'rgba(20, 13, 9, 0.45)',
   },
-  score: { alignItems: 'center', width: 76, gap: 2 },
+  score: { alignItems: 'center', gap: 5 },
   scoreLabel: { fontFamily: fonts.uiBold, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
-  scoreValue: { color: colors.bone, fontFamily: fonts.display, fontSize: 28, lineHeight: 32 },
-  tally: { flexDirection: 'row', gap: 2 },
-  notch: { width: 7, height: 10, borderRadius: 2, borderWidth: 1, borderColor: colors.inkMuted },
+  tally: { flexDirection: 'row', gap: 3 },
+  notch: { width: 9, height: 18, borderRadius: 2, borderWidth: 1.5, borderColor: colors.inkMuted },
   contract: { flex: 1, alignItems: 'center', gap: 2 },
   contractText: { color: colors.bone, fontFamily: fonts.uiMedium, textAlign: 'center' },
   contractDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12 },
