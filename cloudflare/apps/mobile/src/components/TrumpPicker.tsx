@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LOW_TRUMPS, Suit, availableTrumps, isLow, lowDoublesToPrettyString, suitToPrettyString, type Game } from '@fortytwo/rules';
-import { pickerStyles as styles } from './BiddingPanel';
+import { StyleSheet } from 'react-native';
+import { pickerStyles } from './BiddingPanel';
+import { colors, fonts } from './theme';
 
 const DOUBLES_DETAIL: Record<(typeof LOW_TRUMPS)[number], string> = {
   [Suit.Low]: 'Each double tops its suit',
@@ -30,19 +32,19 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
           {lowTrumps.map((suit) => (
             <Pressable
               key={suit}
-              style={[styles.option, disabled && styles.disabled]}
+              style={[styles.option, { width: '100%' }, disabled && styles.disabled]}
               disabled={disabled}
               onPress={() => onSelect(suit)}
               accessibilityRole="button"
             >
-              <Text style={styles.optionText}>{lowDoublesToPrettyString(suit)}</Text>
-              <Text style={[styles.optionText, { fontWeight: '400', fontSize: 12 }]}>
+              <Text style={styles.optionText}>Doubles {lowDoublesToPrettyString(suit)}</Text>
+              <Text style={styles.optionDetail}>
                 {DOUBLES_DETAIL[suit as (typeof LOW_TRUMPS)[number]]}
               </Text>
             </Pressable>
           ))}
-          <Pressable style={styles.option} onPress={() => setChoosingDoubles(false)} accessibilityRole="button">
-            <Text style={styles.optionText}>Back</Text>
+          <Pressable style={[styles.option, styles.back]} onPress={() => setChoosingDoubles(false)} accessibilityRole="button">
+            <Text style={styles.backText}>Back</Text>
           </Pressable>
         </View>
       </View>
@@ -80,3 +82,9 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  ...pickerStyles,
+  back: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.inkMuted },
+  backText: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 16 },
+});

@@ -40,7 +40,7 @@ import { Hand } from '@/components/Hand';
 import { showError } from '@/components/showError';
 import { Table, type SeatInfo } from '@/components/Table';
 import { TrumpPicker } from '@/components/TrumpPicker';
-import { colors } from '@/components/theme';
+import { colors, fonts } from '@/components/theme';
 import { useTrickHold } from '@/match/useTrickHold';
 
 export default function MatchScreen() {
@@ -109,14 +109,18 @@ export default function MatchScreen() {
   if (!match || !game || !myPlayerId) {
     return (
       <View style={styles.centered}>
-        {matchQuery.error ? <Text>{matchQuery.error.message}</Text> : <ActivityIndicator size="large" />}
+        {matchQuery.error ? (
+          <Text style={styles.text}>{matchQuery.error.message}</Text>
+        ) : (
+          <ActivityIndicator size="large" color={colors.brass} />
+        )}
       </View>
     );
   }
   if (!match.players.some((p) => p.playerId === myPlayerId)) {
     return (
       <View style={styles.centered}>
-        <Text>You aren't part of this match.</Text>
+        <Text style={styles.text}>You aren't part of this match.</Text>
       </View>
     );
   }
@@ -172,7 +176,7 @@ export default function MatchScreen() {
       : `Trump: ${suitToPrettyString(game.trump)}${isLow(game.trump) ? ` (doubles ${lowDoublesToPrettyString(game.trump)})` : ''}`;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <Stack.Screen options={{ title: game.name }} />
       {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
 
@@ -258,7 +262,7 @@ export default function MatchScreen() {
         <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected || trump.isPending} />
       ) : (
         status != null && (
-          <Text style={[styles.status, view.isSittingOut && styles.muted]} accessibilityRole="text">
+          <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
             {status}
           </Text>
         )
@@ -277,12 +281,17 @@ export default function MatchScreen() {
   );
 }
 
+// A team's marks, with a tally of MARKS_TO_WIN notches like the web scoreboard.
 function Score({ label, marks, color }: { label: string; marks: number; color: string }) {
   return (
-    <View style={styles.score}>
+    <View style={styles.score} accessibilityLabel={`${label}: ${marks} of ${MARKS_TO_WIN} marks`}>
       <Text style={[styles.scoreLabel, { color }]}>{label}</Text>
       <Text style={styles.scoreValue}>{marks}</Text>
-      <Text style={styles.muted}>of {MARKS_TO_WIN}</Text>
+      <View style={styles.tally}>
+        {Array.from({ length: MARKS_TO_WIN }, (_, i) => (
+          <View key={i} style={[styles.notch, i < marks && { backgroundColor: color, borderColor: color }]} />
+        ))}
+      </View>
     </View>
   );
 }
@@ -301,26 +310,45 @@ function ActionButton({ label, onPress, disabled = false }: { label: string; onP
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.walnut },
   container: { padding: 12, gap: 14 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  reconnecting: { color: colors.warn, fontWeight: '600', textAlign: 'center' },
-  scoreboard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  score: { alignItems: 'center', width: 64 },
-  scoreLabel: { fontWeight: '700' },
-  scoreValue: { fontSize: 24, fontWeight: '700' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.walnut },
+  text: { color: colors.bone, fontFamily: fonts.ui },
+  reconnecting: { color: colors.danger, fontFamily: fonts.uiBold, textAlign: 'center' },
+  scoreboard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(20, 13, 9, 0.45)',
+  },
+  score: { alignItems: 'center', width: 76, gap: 2 },
+  scoreLabel: { fontFamily: fonts.uiBold, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
+  scoreValue: { color: colors.bone, fontFamily: fonts.display, fontSize: 28, lineHeight: 32 },
+  tally: { flexDirection: 'row', gap: 2 },
+  notch: { width: 7, height: 10, borderRadius: 2, borderWidth: 1, borderColor: colors.inkMuted },
   contract: { flex: 1, alignItems: 'center', gap: 2 },
-  contractText: { fontWeight: '600', textAlign: 'center' },
-  contractDetail: { color: colors.muted, fontSize: 12 },
-  waiting: { alignItems: 'center', gap: 8 },
-  waitingText: { color: 'white', fontWeight: '600' },
-  smallButton: { borderWidth: 1, borderColor: 'white', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
-  smallButtonText: { color: 'white' },
-  handOver: { alignItems: 'center', gap: 8, padding: 12, borderRadius: 8, backgroundColor: '#f4f1e8' },
-  handOverTitle: { fontSize: 18, fontWeight: '700' },
-  status: { fontSize: 16, fontWeight: '600', textAlign: 'center' },
-  muted: { color: colors.muted, textAlign: 'center' },
-  hint: { color: colors.muted, textAlign: 'center', fontSize: 12 },
-  button: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 6 },
+  contractText: { color: colors.bone, fontFamily: fonts.uiMedium, textAlign: 'center' },
+  contractDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12 },
+  waiting: { alignItems: 'center', gap: 10, padding: 8 },
+  waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
+  smallButton: { borderWidth: 1, borderColor: colors.brass, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  smallButtonText: { color: colors.brass, fontFamily: fonts.uiBold },
+  handOver: {
+    alignItems: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.brass,
+    backgroundColor: 'rgba(20, 13, 9, 0.55)',
+  },
+  handOverTitle: { color: colors.bone, fontFamily: fonts.display, fontSize: 22 },
+  status: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
+  muted: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center' },
+  hint: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center', fontSize: 12 },
+  button: { backgroundColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 8 },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: 'white', fontWeight: '600', fontSize: 16 },
+  buttonText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 16 },
 });

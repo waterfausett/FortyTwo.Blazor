@@ -1,11 +1,12 @@
-// The table seen from the player's chair: the other three seats around the felt, the player at
-// the bottom, and the trick in progress in the middle, each domino in front of whoever played it.
+// The table seen from the player's chair: the other three seats around the mat, the player at the
+// bottom, and the trick in progress in the middle, each domino in front of whoever played it.
+// Sized from the window width so it fills a phone screen.
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { Seat } from '@fortytwo/client';
 import type { Trick } from '@fortytwo/rules';
 import { Domino } from './Domino';
-import { colors } from './theme';
+import { colors, fonts } from './theme';
 
 export interface SeatInfo {
   name: string;
@@ -19,31 +20,38 @@ export interface SeatInfo {
   dominoCount: number | null;
 }
 
-export function SeatPlate({ info }: { info: SeatInfo | null }) {
+export function SeatPlate({ info, width }: { info: SeatInfo | null; width: number }) {
   if (!info) {
     return (
-      <View style={[styles.plate, styles.open]}>
+      <View style={[styles.plate, styles.open, { width }]}>
         <Text style={styles.openText}>Open seat</Text>
       </View>
     );
   }
+  const team = info.side === 'us' ? colors.us : colors.them;
+  const details = [
+    info.bid,
+    info.dominoCount != null ? `${info.dominoCount} left` : null,
+    info.ready == null ? null : info.ready ? 'Ready' : 'Not ready',
+  ].filter(Boolean);
   return (
     <View
-      style={[styles.plate, { borderColor: info.side === 'us' ? colors.us : colors.them }, info.isActive && styles.active]}
+      style={[styles.plate, { width, borderColor: info.isActive ? colors.brass : team }, info.isActive && styles.active]}
       accessibilityLabel={`${info.name}${info.isActive ? ', to act' : ''}`}
     >
-      <Text style={styles.name} numberOfLines={1}>
-        {info.name}
-        {info.isDealer ? ' · D' : ''}
-      </Text>
+      <View style={styles.nameRow}>
+        <View style={[styles.teamDot, { backgroundColor: team }]} />
+        <Text style={styles.name} numberOfLines={1}>
+          {info.name}
+        </Text>
+        {info.isDealer && (
+          <View style={styles.dealer}>
+            <Text style={styles.dealerText}>D</Text>
+          </View>
+        )}
+      </View>
       <Text style={styles.detail} numberOfLines={1}>
-        {[
-          info.bid,
-          info.dominoCount != null ? `${info.dominoCount} left` : null,
-          info.ready == null ? null : info.ready ? 'Ready' : 'Not ready',
-        ]
-          .filter(Boolean)
-          .join(' · ') || ' '}
+        {details.length > 0 ? details.join(' · ') : ' '}
       </Text>
     </View>
   );
@@ -60,6 +68,14 @@ export interface TableProps {
 }
 
 export function Table({ seats, trick, slotSeats, winningSlot, center }: TableProps) {
+  const window = useWindowDimensions();
+  const width = Math.min(window.width - 24, 480);
+  const sideWidth = Math.round(width * 0.27);
+  const matWidth = width - sideWidth * 2 - 12;
+  // Trick tiles: three stacked vertically must fit the mat's height, two across beside the middle.
+  const tileWidth = Math.min(30, Math.floor(matWidth / 5));
+  const matHeight = tileWidth * 2 * 3 + 24;
+
   const played: Partial<Record<Seat, { top: number; bottom: number; winning: boolean }>> = {};
   trick?.dominoes.forEach((domino, slot) => {
     const seat = slotSeats[slot];
@@ -68,18 +84,18 @@ export function Table({ seats, trick, slotSeats, winningSlot, center }: TablePro
   const tile = (seat: Seat) => {
     const d = played[seat];
     return (
-      <View style={styles.slot}>
-        {d && <Domino top={d.top} bottom={d.bottom} size={18} highlighted={d.winning} />}
+      <View style={{ width: tileWidth + 4, height: tileWidth * 2 + 4, alignItems: 'center', justifyContent: 'center' }}>
+        {d && <Domino top={d.top} bottom={d.bottom} width={tileWidth} highlighted={d.winning} />}
       </View>
     );
   };
 
   return (
     <View style={styles.table} accessibilityLabel="Table">
-      <SeatPlate info={seats.top} />
+      <SeatPlate info={seats.top} width={sideWidth + 20} />
       <View style={styles.middle}>
-        <SeatPlate info={seats.left} />
-        <View style={styles.felt}>
+        <SeatPlate info={seats.left} width={sideWidth} />
+        <View style={[styles.mat, { width: matWidth, height: matHeight }]}>
           {center ?? (
             <>
               {tile('top')}
@@ -91,39 +107,39 @@ export function Table({ seats, trick, slotSeats, winningSlot, center }: TablePro
             </>
           )}
         </View>
-        <SeatPlate info={seats.right} />
+        <SeatPlate info={seats.right} width={sideWidth} />
       </View>
-      <SeatPlate info={seats.bottom} />
+      <SeatPlate info={seats.bottom} width={sideWidth + 20} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  table: { alignItems: 'center', gap: 6 },
+  table: { alignItems: 'center', gap: 8 },
   middle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  felt: {
-    width: 170,
-    height: 190,
-    borderRadius: 12,
-    backgroundColor: colors.felt,
+  mat: {
+    borderRadius: 14,
+    backgroundColor: colors.mat,
+    borderWidth: 2,
+    borderColor: colors.matLight,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 6,
   },
-  trickRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-  slot: { minWidth: 22, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  trickRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
   plate: {
-    width: 92,
-    paddingVertical: 4,
+    paddingVertical: 5,
     paddingHorizontal: 6,
-    borderRadius: 6,
+    borderRadius: 8,
     borderWidth: 2,
-    backgroundColor: 'white',
-    alignItems: 'center',
+    backgroundColor: 'rgba(20, 13, 9, 0.55)',
   },
-  active: { backgroundColor: '#fff4cc' },
-  open: { borderColor: colors.border, borderStyle: 'dashed' },
-  openText: { color: colors.muted },
-  name: { fontWeight: '700', fontSize: 13 },
-  detail: { fontSize: 11, color: colors.muted },
+  active: { backgroundColor: 'rgba(201, 164, 92, 0.18)' },
+  open: { borderColor: colors.inkMuted, borderStyle: 'dashed', alignItems: 'center' },
+  openText: { color: colors.inkMuted, fontFamily: fonts.ui },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  teamDot: { width: 8, height: 8, borderRadius: 4 },
+  name: { flex: 1, color: colors.bone, fontFamily: fonts.uiBold, fontSize: 14 },
+  dealer: { backgroundColor: colors.brass, borderRadius: 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
+  dealerText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 10 },
+  detail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12 },
 });

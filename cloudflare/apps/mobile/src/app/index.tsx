@@ -8,6 +8,7 @@ import { useAuth0 } from 'react-native-auth0';
 import type { MatchSummary } from '@fortytwo/client';
 import { useApi } from '@/api/useApi';
 import { SeatPicker } from '@/components/SeatPicker';
+import { colors, fonts } from '@/components/theme';
 import { showError } from '@/components/showError';
 
 type Filter = 'Active' | 'Joinable' | 'Completed';
@@ -77,7 +78,7 @@ export default function Lobby() {
             accessibilityRole="tab"
             accessibilityState={{ selected: f === filter }}
           >
-            <Text style={f === filter ? styles.filterTextSelected : undefined}>{label}</Text>
+            <Text style={f === filter ? styles.filterTextSelected : styles.filterText}>{label}</Text>
           </Pressable>
         ))}
       </View>
@@ -95,7 +96,14 @@ export default function Lobby() {
             onPick={(position) => join.mutate({ id: item.id, position })}
           />
         )}
-        refreshControl={<RefreshControl refreshing={matches.isFetching} onRefresh={() => matches.refetch()} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={matches.isFetching}
+            onRefresh={() => matches.refetch()}
+            tintColor={colors.brass}
+            colors={[colors.brass]}
+          />
+        }
         ListEmptyComponent={matches.isSuccess ? <Text style={styles.empty}>{EMPTY_LABELS[filter]}</Text> : null}
       />
       {create.error && <Text style={styles.error}>{create.error.message}</Text>}
@@ -162,21 +170,27 @@ function MatchRow({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, gap: 12 },
+  container: { flex: 1, padding: 16, gap: 12, backgroundColor: colors.walnut },
   filters: { flexDirection: 'row', gap: 8 },
-  filter: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#ccc' },
-  filterSelected: { backgroundColor: '#1b6ec2', borderColor: '#1b6ec2' },
-  filterTextSelected: { color: 'white' },
-  row: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#ccc' },
+  filter: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.inkMuted },
+  filterSelected: { backgroundColor: colors.brass, borderColor: colors.brass },
+  filterText: { color: colors.bone, fontFamily: fonts.uiMedium },
+  filterTextSelected: { color: colors.walnutDeep, fontFamily: fonts.uiBold },
+  row: {
+    padding: 12,
+    marginBottom: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(20, 13, 9, 0.45)',
+  },
   rowHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   rowText: { flex: 1 },
-  rowTitle: { fontSize: 16, fontWeight: '600' },
-  joinButton: { backgroundColor: '#1b6ec2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6 },
-  joinText: { color: 'white', fontWeight: '600' },
-  rowDetail: { color: '#666', marginTop: 2 },
-  empty: { textAlign: 'center', color: '#666', marginTop: 24 },
-  error: { color: '#b00020' },
-  link: { color: '#1b6ec2', fontSize: 16 },
-  button: { backgroundColor: '#1b6ec2', padding: 14, borderRadius: 6, alignItems: 'center' },
-  buttonText: { color: 'white', fontSize: 16, fontWeight: '600' },
+  rowTitle: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 16 },
+  joinButton: { backgroundColor: colors.brass, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  joinText: { color: colors.walnutDeep, fontFamily: fonts.uiBold },
+  rowDetail: { color: colors.inkMuted, fontFamily: fonts.ui, marginTop: 2 },
+  empty: { textAlign: 'center', color: colors.inkMuted, fontFamily: fonts.ui, marginTop: 24 },
+  error: { color: colors.danger, fontFamily: fonts.ui },
+  link: { color: colors.brass, fontFamily: fonts.uiMedium, fontSize: 16 },
+  button: { backgroundColor: colors.brass, padding: 14, borderRadius: 8, alignItems: 'center' },
+  buttonText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 16 },
 });

@@ -1,10 +1,26 @@
-// One domino tile drawn with Views: two square halves, each a 3x3 grid of pip cells laid out like a
-// die face. A `Domino` (packages/rules) only carries its canonical `top <= bottom` values, so a
-// tile has no orientation beyond vertical or horizontal.
+// One domino tile, drawn like the web's (apps/web/src/styles/domino.css): a bone tile twice as
+// tall as it is wide, a divider across the middle, and each half's pips placed like a die face,
+// coloured by count. Every pip is positioned absolutely from the tile's width, so the layout can't
+// shift with rounding the way a wrapped grid of fractional cells does.
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors } from './theme';
 
-// Which of the 9 grid cells (row-major, 0-8) carry a pip for each count.
+// Pip colours by count, as on the web.
+const PIP_COLORS: Record<number, string> = {
+  1: '#5fa8d3',
+  2: '#3f8f3a',
+  3: '#cd5c5c',
+  4: '#e0915a',
+  5: '#2b3f8f',
+  6: '#d4a514',
+};
+
+// Pip centres within one half, in units of a sixth of the tile's width (a half is 6 x 6 units):
+// columns at 1.5, 3, 4.5 and rows at 1.4, 3, 4.6, matching the web tile's layout.
+const COLS = [1.5, 3.05, 4.6];
+const ROWS = [1.4, 3, 4.6];
+// Which of the 9 grid cells (row-major) carry a pip for each count. 2 and 3 run corner to corner
+// from top-right, like the web tile.
 const PIP_CELLS: Record<number, number[]> = {
   0: [],
   1: [4],
@@ -14,30 +30,23 @@ const PIP_CELLS: Record<number, number[]> = {
   5: [0, 2, 4, 6, 8],
   6: [0, 2, 3, 5, 6, 8],
 };
+const PIP_DIAMETER = 1.2;
 
-export function Pips({ value, size }: { value: number; size: number }) {
-  const cells = PIP_CELLS[value] ?? [];
-  const pip = size / 5;
-  return (
-    <View style={[styles.half, { width: size, height: size, padding: pip / 2 }]}>
-      {Array.from({ length: 9 }, (_, i) => (
-        <View key={i} style={[styles.cell, { width: (size - pip) / 3, height: (size - pip) / 3 }]}>
-          {cells.includes(i) && <View style={{ width: pip, height: pip, borderRadius: pip / 2, backgroundColor: colors.pip }} />}
-        </View>
-      ))}
-    </View>
-  );
+// Pip centres for a half showing `value`, in units, relative to that half's top-left corner.
+export function pipCenters(value: number): { x: number; y: number }[] {
+  return (PIP_CELLS[value] ?? []).map((cell) => ({ x: COLS[cell % 3], y: ROWS[Math.floor(cell / 3)] }));
 }
 
 export interface DominoProps {
   top: number;
   bottom: number;
-  // The length of one half's side.
-  size?: number;
+  // The tile's width when vertical (its height is twice that). Horizontal tiles swap the two.
+  width?: number;
   direction?: 'vertical' | 'horizontal';
   onPress?: () => void;
   // Shown faded: can't be played right now.
   dimmed?: boolean;
+  // A brass outline: playable now, or the winning domino of a trick.
   highlighted?: boolean;
   accessibilityLabel?: string;
 }
@@ -45,25 +54,66 @@ export interface DominoProps {
 export function Domino({
   top,
   bottom,
-  size = 28,
+  width = 32,
   direction = 'vertical',
   onPress,
   dimmed = false,
   highlighted = false,
   accessibilityLabel,
 }: DominoProps) {
+  const unit = width / 6;
+  const horizontal = direction === 'horizontal';
+  const pip = PIP_DIAMETER * unit;
+
+  // Lay pips out on the vertical tile (top half 0-6 units, bottom half 6-12), then turn the tile
+  // a quarter clockwise for horizontal: the top half ends up on the right, as on the web.
+  const pips = [
+    ...pipCenters(top).map((p) => ({ ...p, value: top })),
+    ...pipCenters(bottom).map((p) => ({ x: p.x, y: p.y + 6, value: bottom })),
+  ].map(({ x, y, value }, i) => {
+    const cx = horizontal ? 12 - y : x;
+    const cy = horizontal ? x : y;
+    return (
+      <View
+        key={i}
+        style={{
+          position: 'absolute',
+          left: cx * unit - pip / 2,
+          top: cy * unit - pip / 2,
+          width: pip,
+          height: pip,
+          borderRadius: pip / 2,
+          backgroundColor: PIP_COLORS[value],
+        }}
+      />
+    );
+  });
+
   const tile = (
     <View
       style={[
         styles.tile,
-        direction === 'horizontal' ? styles.horizontal : null,
-        highlighted ? styles.highlighted : null,
-        dimmed ? styles.dimmed : null,
+        {
+          width: horizontal ? width * 2 : width,
+          height: horizontal ? width : width * 2,
+          borderRadius: unit * 0.8,
+          // The web tile's offset shadow, as a thicker bottom-right edge.
+          borderRightWidth: Math.max(1, unit * 0.35),
+          borderBottomWidth: Math.max(1, unit * 0.35),
+        },
+        highlighted && styles.highlighted,
+        dimmed && styles.dimmed,
       ]}
     >
-      <Pips value={top} size={size} />
-      <View style={direction === 'horizontal' ? [styles.divider, styles.dividerVertical] : styles.divider} />
-      <Pips value={bottom} size={size} />
+      <View
+        style={[
+          styles.divider,
+          horizontal
+            ? { left: 6 * unit - 1, top: unit * 0.4, bottom: unit * 0.4, width: Math.max(1, unit * 0.2) }
+            : { top: 6 * unit - 1, left: unit * 0.4, right: unit * 0.4, height: Math.max(1, unit * 0.2) },
+        ]}
+      />
+      {pips}
     </View>
   );
 
@@ -77,24 +127,20 @@ export function Domino({
   }
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={4}>
-      {tile}
+      {({ pressed }) => <View style={pressed ? styles.pressed : undefined}>{tile}</View>}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   tile: {
-    backgroundColor: colors.tile,
-    borderColor: colors.tileEdge,
-    borderWidth: 1,
-    borderRadius: 4,
-    alignItems: 'center',
+    backgroundColor: colors.bone,
+    borderColor: colors.boneEdge,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
   },
-  horizontal: { flexDirection: 'row' },
-  highlighted: { borderColor: '#f2b705', borderWidth: 2 },
-  dimmed: { opacity: 0.4 },
-  half: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { alignItems: 'center', justifyContent: 'center' },
-  divider: { alignSelf: 'stretch', height: 1, backgroundColor: colors.tileEdge, marginHorizontal: 3 },
-  dividerVertical: { width: 1, height: undefined, marginHorizontal: 0, marginVertical: 3 },
+  divider: { position: 'absolute', backgroundColor: colors.boneEdge },
+  highlighted: { borderColor: colors.brass, borderTopWidth: 2, borderLeftWidth: 2 },
+  dimmed: { opacity: 0.35 },
+  pressed: { transform: [{ translateY: -3 }] },
 });

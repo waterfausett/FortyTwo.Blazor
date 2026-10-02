@@ -3,7 +3,7 @@
 // layout the match screen uses. An open seat says who you'd partner with (the seat across), since
 // that's what picking a seat really decides.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from './theme';
+import { colors, fonts } from './theme';
 
 export interface SeatPickerProps {
   // The display name at each position 0-3, or null for an open seat (MatchSummary.seats).
@@ -57,12 +57,12 @@ export function SeatPicker({ seats, disabled, onPick }: SeatPickerProps) {
 const styles = StyleSheet.create({
   picker: { alignItems: 'center', gap: 6, paddingVertical: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  table: { width: 70, height: 70, borderRadius: 8, backgroundColor: colors.felt },
-  seat: { width: 96, paddingVertical: 6, paddingHorizontal: 4, borderRadius: 6, alignItems: 'center' },
-  taken: { backgroundColor: '#eee' },
-  takenText: { color: colors.muted },
-  open: { backgroundColor: colors.primary },
-  openText: { color: 'white', fontWeight: '700' },
-  hint: { color: 'white', fontSize: 11 },
+  table: { width: 70, height: 70, borderRadius: 10, backgroundColor: colors.mat, borderWidth: 2, borderColor: colors.matLight },
+  seat: { width: 100, paddingVertical: 6, paddingHorizontal: 4, borderRadius: 8, alignItems: 'center' },
+  taken: { borderWidth: 1, borderColor: colors.inkMuted },
+  takenText: { color: colors.inkMuted, fontFamily: fonts.ui },
+  open: { backgroundColor: colors.brass },
+  openText: { color: colors.walnutDeep, fontFamily: fonts.uiBold },
+  hint: { color: colors.walnutDeep, fontFamily: fonts.ui, fontSize: 11 },
   disabled: { opacity: 0.5 },
 });
