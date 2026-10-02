@@ -16,6 +16,9 @@ import {
   matchStatus,
   openSeats,
   seatFor,
+  shouldStackTricks,
+  teamTrickPoints,
+  teamTricksForDisplay,
   trickLeaderId,
   trickPlayOrder,
   type Seat,
@@ -39,6 +42,7 @@ import { BiddingPanel } from '@/components/BiddingPanel';
 import { Hand } from '@/components/Hand';
 import { showError } from '@/components/showError';
 import { Table, type SeatInfo } from '@/components/Table';
+import { TrickHistory } from '@/components/TrickHistory';
 import { TrumpPicker } from '@/components/TrumpPicker';
 import { colors, fonts } from '@/components/theme';
 import { useTrickHold } from '@/match/useTrickHold';
@@ -140,6 +144,17 @@ export default function MatchScreen() {
   const order = trickPlayOrder(match.players, game, leader);
   const slotSeats = order.map((pid) => (pid == null ? null : seatFor(match.players, myPlayerId, pid)));
   const winningSlot = trick.playerId == null ? null : order.indexOf(trick.playerId);
+
+  // Taken tricks join their team's pile once the hold lets them leave the table.
+  const pileTricks = heldTrick ? game.tricks.slice(0, -1) : game.tricks;
+  const stacked = shouldStackTricks(game);
+  const pile = (team: typeof myTeam, label: string, color: string) => ({
+    label,
+    color,
+    tricks: teamTricksForDisplay(pileTricks, team, stacked),
+    points: teamTrickPoints(pileTricks, team),
+    target: view.bidderTeam === team ? view.target : null,
+  });
 
   const myPosition = match.players.find((p) => p.playerId === myPlayerId)!.position;
   const showReady = view.isHandOver && !view.isMatchOver;
@@ -276,6 +291,14 @@ export default function MatchScreen() {
       />
       {canPlay && (
         <Text style={styles.hint}>Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it.</Text>
+      )}
+
+      {view.isPlayingPhase && (
+        <TrickHistory
+          us={pile(myTeam, 'Us', colors.us)}
+          them={pile(opponentTeam, 'Them', colors.them)}
+          stacked={stacked}
+        />
       )}
     </ScrollView>
   );

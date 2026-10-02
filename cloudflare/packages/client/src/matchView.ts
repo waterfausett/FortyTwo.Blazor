@@ -37,6 +37,20 @@ export function teamTrickPoints(tricks: Trick[], team: Teams): number {
   return tricks.filter((t) => t.team === team).reduce((sum, t) => sum + trickValue(t), 0);
 }
 
+// Once a hand's bid is past 42 - and isn't Plunge or a Low hand, both of which keep every trick
+// worth looking back on - each side's pile of taken tricks shows only its last two, so it doesn't
+// grow into a long run of tiny dominoes.
+export function shouldStackTricks(game: Game): boolean {
+  return game.bid != null && game.bid > Bid.FortyTwo && game.bid !== Bid.Plunge && !isLow(game.trump);
+}
+
+// A team's pile of taken tricks, in the order they were won: every one, or the last two when
+// stacked.
+export function teamTricksForDisplay(tricks: Trick[], team: Teams, stack: boolean): Trick[] {
+  const teamTricks = tricks.filter((t) => t.team === team);
+  return stack ? teamTricks.slice(Math.max(0, teamTricks.length - 2)) : teamTricks;
+}
+
 // The points a bidding team has to take to make its bid: the bid itself for 30-42, or all 42 for
 // any marks bid (84, 126, ... - gameWinningTeam's `adjustedBid`). Low has no point target at all
 // (the bidders simply must not take a trick), and there's no target until bidding closes.

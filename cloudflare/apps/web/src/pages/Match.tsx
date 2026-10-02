@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { Domino as DominoType, Game, Teams, Trick } from '@fortytwo/rules';
+import type { Domino as DominoType, Trick } from '@fortytwo/rules';
 import {
   Bid,
   Suit,
@@ -51,6 +51,8 @@ import {
   matchStatus,
   openSeats,
   seatFor,
+  shouldStackTricks,
+  teamTricksForDisplay,
   teamTrickPoints,
   trickLeaderId,
   trickPlayOrder,
@@ -65,19 +67,6 @@ import '../styles/match.css';
 const TRICK_HOLD_MS = 1500;
 // The tail end of that hold is the sweep (match/sweep.ts's `sweepDurationMs`), during which the
 // trick leaves for the winning side rather than just blinking out.
-
-// Once a hand's bid gets big enough (and isn't Plunge or
-// a Low-trump hand, both of which keep every trick meaningful to look back on), each side's trick
-// pile is trimmed to just the last 2 so it doesn't grow into an unbounded scroll of tiny dominoes.
-function shouldStackTricks(game: Game): boolean {
-  return game.bid != null && game.bid > Bid.FortyTwo && game.bid !== Bid.Plunge && !isLow(game.trump);
-}
-
-// A team's side pile: every trick it has taken, or only the last 2 when stacked.
-function teamTricksForDisplay(tricks: Trick[], team: Teams, stack: boolean): Trick[] {
-  const teamTricks = tricks.filter((t) => t.team === team);
-  return stack ? teamTricks.slice(Math.max(0, teamTricks.length - 2)) : teamTricks;
-}
 
 // MARKS_TO_WIN (@fortytwo/client) marks win the match - drawn as a tally.
 function MarkTally({ marks }: { marks: number }): JSX.Element {

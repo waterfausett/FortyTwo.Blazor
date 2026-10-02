@@ -1,8 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { Bid, createDomino, type Game } from '@fortytwo/rules';
+import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand } from '../Hand';
 import { SeatPicker } from '../SeatPicker';
+import { TrickHistory } from '../TrickHistory';
 
 function biddingGame(overrides: Partial<Game> = {}): Game {
   return {
@@ -69,5 +70,34 @@ describe('SeatPicker', () => {
     expect(onPick).toHaveBeenCalledWith(2);
     await fireEvent.press(screen.getByLabelText('Sit here, with Di'));
     expect(onPick).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('TrickHistory', () => {
+  const trick = (team: Teams, ...pairs: [number, number][]): Trick => ({
+    playerId: 'p1',
+    team,
+    suit: null,
+    dominoes: pairs.map(([a, b]) => createDomino(a, b)),
+  });
+
+  it("shows each team's points, the bidders' target, and tricks newest first", async () => {
+    const first = trick(Teams.TeamA, [0, 0], [0, 1], [0, 2], [0, 3]);
+    const second = trick(Teams.TeamA, [5, 5], [1, 1], [1, 2], [1, 3]);
+    await render(
+      <TrickHistory
+        us={{ label: 'Us', color: 'teal', tricks: [first, second], points: 12, target: 32 }}
+        them={{ label: 'Them', color: 'orange', tricks: [], points: 0, target: null }}
+        stacked={false}
+      />
+    );
+
+    expect(screen.getByLabelText('Us tricks: 12 points')).toBeTruthy();
+    expect(screen.getByText(' of 32')).toBeTruthy();
+    expect(screen.getByText(' pts')).toBeTruthy();
+    expect(screen.getByText('No tricks yet')).toBeTruthy();
+    // Each trick's worth: its count plus one. The newer trick (with the 5-5) is listed first.
+    const values = screen.getAllByText(/^\+\d+$/).map((t) => t.props.children.join(''));
+    expect(values).toEqual(['+11', '+1']);
   });
 });

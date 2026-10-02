@@ -76,16 +76,24 @@ export function Table({ seats, trick, slotSeats, winningSlot, center }: TablePro
   const tileWidth = Math.min(30, Math.floor(matWidth / 5));
   const matHeight = tileWidth * 2 * 3 + 24;
 
-  const played: Partial<Record<Seat, { top: number; bottom: number; winning: boolean }>> = {};
+  const played: Partial<Record<Seat, { top: number; bottom: number; winning: boolean; lead: boolean }>> = {};
   trick?.dominoes.forEach((domino, slot) => {
     const seat = slotSeats[slot];
-    if (domino && seat) played[seat] = { top: domino.top, bottom: domino.bottom, winning: slot === winningSlot };
+    // Slot 0 is always the leader's (trickPlayOrder starts from them).
+    if (domino && seat) {
+      played[seat] = { top: domino.top, bottom: domino.bottom, winning: slot === winningSlot, lead: slot === 0 };
+    }
   });
   const tile = (seat: Seat) => {
     const d = played[seat];
     return (
       <View style={{ width: tileWidth + 4, height: tileWidth * 2 + 4, alignItems: 'center', justifyContent: 'center' }}>
         {d && <Domino top={d.top} bottom={d.bottom} width={tileWidth} highlighted={d.winning} />}
+        {d?.lead && (
+          <View style={styles.leadTag}>
+            <Text style={styles.leadText}>Lead</Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -125,6 +133,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  leadTag: {
+    position: 'absolute',
+    bottom: -2,
+    paddingHorizontal: 4,
+    borderRadius: 4,
+    backgroundColor: colors.brass,
+  },
+  leadText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase' },
   trickRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
   plate: {
     paddingVertical: 5,

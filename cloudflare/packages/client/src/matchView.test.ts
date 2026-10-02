@@ -14,9 +14,19 @@ import {
   setTrump,
   takeSeat,
   type Domino,
+  type Game,
   type MatchState,
+  type Trick,
 } from '@fortytwo/rules';
-import { bidTarget, describeMatch, isValidPlay, matchStatus, otherTeam } from './matchView';
+import {
+  bidTarget,
+  describeMatch,
+  isValidPlay,
+  matchStatus,
+  otherTeam,
+  shouldStackTricks,
+  teamTricksForDisplay,
+} from './matchView';
 
 function deck(): Domino[] {
   const dominoes: Domino[] = [];
@@ -158,5 +168,25 @@ describe('helpers', () => {
   it('targets 42 for any marks bid', () => {
     const match = setTrump(bidAround(dealtMatch(), 'p1', Bid.EightyFour), 'p1', Suit.Sixes);
     expect(bidTarget(match.currentGame)).toBe(42);
+  });
+});
+
+describe('trick piles', () => {
+  const trick = (team: Teams, n: number) => ({ playerId: `p${n}`, team, suit: null, dominoes: [] }) as unknown as Trick;
+  const game = (bid: Bid | null, trump: Suit | null) => ({ bid, trump }) as unknown as Game;
+
+  it('stacks only on bids past 42 that are neither Plunge nor Low', () => {
+    expect(shouldStackTricks(game(Bid.FortyTwo, Suit.Sixes))).toBe(false);
+    expect(shouldStackTricks(game(Bid.EightyFour, Suit.Sixes))).toBe(true);
+    expect(shouldStackTricks(game(Bid.Plunge, Suit.Sixes))).toBe(false);
+    expect(shouldStackTricks(game(Bid.EightyFour, Suit.Low))).toBe(false);
+    expect(shouldStackTricks(game(null, null))).toBe(false);
+  });
+
+  it("shows a team's tricks in the order won, or only the last two when stacked", () => {
+    const tricks = [trick(Teams.TeamA, 1), trick(Teams.TeamB, 2), trick(Teams.TeamA, 3), trick(Teams.TeamA, 4)];
+    expect(teamTricksForDisplay(tricks, Teams.TeamA, false).map((t) => t.playerId)).toEqual(['p1', 'p3', 'p4']);
+    expect(teamTricksForDisplay(tricks, Teams.TeamA, true).map((t) => t.playerId)).toEqual(['p3', 'p4']);
+    expect(teamTricksForDisplay(tricks, Teams.TeamB, true).map((t) => t.playerId)).toEqual(['p2']);
   });
 });
