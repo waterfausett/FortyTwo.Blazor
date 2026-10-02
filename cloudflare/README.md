@@ -14,6 +14,7 @@ An npm workspace:
 | `packages/client` | `@fortytwo/client`: the client code that doesn't depend on how the app draws - the REST wrapper, the match socket's reconnect loop, and table-geometry and match-summary helpers. No browser-only APIs or React, so a native app can share it; each app passes in its API origin and wake-up signals. |
 | `apps/worker` | `@fortytwo/worker`: the Hono API (`/api/*`), the match WebSocket (`/matches/:id/ws`), and `MatchDO`, the Durable Object that holds each match. |
 | `apps/web` | `@fortytwo/web`: the Vite + React front end, signing in through Auth0. |
+| `apps/mobile` | `@fortytwo/mobile`: the Expo (React Native) app, talking to the same Worker. Early days: sign-in, the match list and a live read-only match view. See [Mobile app](#mobile-app). |
 
 How a move travels: the web app calls a REST route; the route validates the body and calls the
 match's `MatchDO` over Durable Object RPC; `MatchDO` applies the rule, saves the match, and
@@ -67,8 +68,61 @@ Each package runs its own suite with `npm test`:
 - `apps/worker`: runs inside workerd through `@cloudflare/vitest-pool-workers`, with real Durable
   Objects and D1. Auth0 is mocked.
 - `apps/web`: component and hook tests under jsdom.
+- `apps/mobile`: hook tests under `jest-expo`. `npm run typecheck` typechecks it.
 
 `cd apps/web && npm run build` typechecks the web app along with the packages it references.
+
+## Mobile app
+
+`apps/mobile` is an Expo app using Expo Router. It shares `@fortytwo/rules`, `@fortytwo/api-types`
+and `@fortytwo/client` with the web app, and calls the deployed (or a local) Worker. Tracking
+issue: #27.
+
+It signs in with `react-native-auth0`, which has native code, so it doesn't run in Expo Go. Run
+it as a development build instead: `npx expo run:android` / `npx expo run:ios` locally (Android
+Studio / Xcode), or `npx eas-cli build --profile development` in the cloud.
+
+Setup:
+
+1. In Auth0, create a **Native** application in the same tenant, authorized for the same API
+   audience, with refresh token rotation on. Its Allowed Callback and Logout URLs are
+   `com.waterfausett.fortytwo.auth0://<AUTH0_DOMAIN>/ios/com.waterfausett.fortytwo/callback` and
+   `com.waterfausett.fortytwo.auth0://<AUTH0_DOMAIN>/android/com.waterfausett.fortytwo/callback`.
+2. Copy `apps/mobile/.env.example` to `apps/mobile/.env.local` and fill it in: the Worker's
+   origin, and the Native application's Auth0 settings.
+3. `cd apps/mobile && npx expo run:android` (or `run:ios`). Rebuild after changing the Auth0
+   domain, since the login callback scheme is baked into the native project.
+
+The app needs React 19.2.3, the version React Native 0.86 was built against, while the web app is
+on a newer React. npm keeps the app's copy in `apps/mobile/node_modules`. Expo's Metro config
+bundles that copy, and `apps/mobile/jest.config.js` maps `react` to it for tests.
+
+Add native libraries with `npx expo install <package>`, which picks versions that match the Expo
+SDK.
+
+### Building for Android on Windows
+
+`npx expo run:android` needs Android Studio, plus three things set up on Windows:
+
+- **Java 17 or later.** Gradle refuses to run on an older JDK ("Gradle requires JVM 17 or later").
+  Use the one bundled with Android Studio: set `JAVA_HOME` to
+  `C:\Program Files\Android\Android Studio\jbr` and put `%JAVA_HOME%\bin` ahead of any older Java
+  on `Path`.
+- **The Android SDK.** Gradle fails with "SDK location not found" until `ANDROID_HOME` points at
+  it, by default `%LOCALAPPDATA%\Android\Sdk` (Android Studio → SDK Manager shows the location).
+  Add `%ANDROID_HOME%\platform-tools` to `Path` too, so `adb devices` can see your phone.
+- **Short paths.** The native build writes object files at very deep paths, and the `ninja.exe`
+  that comes with the SDK's CMake can't handle paths over Windows' 260-character limit
+  ("Filename longer than 260 characters"). Either clone the repo to a short path such as `C:\ft`,
+  or turn on Windows long paths (the `LongPathsEnabled` registry setting, then reboot) and
+  replace `%ANDROID_HOME%\cmake\<version>\bin\ninja.exe` with ninja 1.12 or later. Avoid a
+  `subst` drive: npm links the `@fortytwo/*` packages by their real `C:\` path, which Metro then
+  treats as outside the project ("Unable to resolve \"@fortytwo/rules\"").
+
+After changing any of these, open a new terminal. If Gradle still uses the old settings, stop
+its background process (`cd android && gradlew --stop`). After a failed native build, delete
+`android\app\.cxx` before retrying. `android\` is generated and gitignored, so fix the machine's
+setup rather than editing files in it.
 
 ## Deploying
 
