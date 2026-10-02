@@ -169,6 +169,11 @@ describe('helpers', () => {
     const match = setTrump(bidAround(dealtMatch(), 'p1', Bid.EightyFour), 'p1', Suit.Sixes);
     expect(bidTarget(match.currentGame)).toBe(42);
   });
+
+  it('targets 42 for Plunge, not its stored value of 169', () => {
+    const game = { bid: Bid.Plunge, trump: Suit.Sixes } as unknown as Game;
+    expect(bidTarget(game)).toBe(42);
+  });
 });
 
 describe('trick piles', () => {

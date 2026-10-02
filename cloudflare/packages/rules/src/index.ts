@@ -20,7 +20,7 @@ export { gameValue, gameWinningTeam } from './game';
 export type { MatchPlayerRef } from './match';
 export { selectNextPlayer } from './match';
 export { Suit, LOW_TRUMPS, isLow, suitToPrettyString, lowDoublesToPrettyString } from './suit';
-export { Bid, bidToPrettyString } from './bid';
+export { Bid, bidToPrettyString, pointsToMakeBid } from './bid';
 export { Teams, teamForPosition } from './teams';
 export { Positions, nextPosition } from './positions';
 export { ValidationError } from './errors';

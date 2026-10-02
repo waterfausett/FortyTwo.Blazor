@@ -11,6 +11,7 @@ import {
   getPlayerView,
   handSize,
   isLow,
+  pointsToMakeBid,
   trickValue,
   type Domino,
   type Game,
@@ -51,12 +52,13 @@ export function teamTricksForDisplay(tricks: Trick[], team: Teams, stack: boolea
   return stack ? teamTricks.slice(Math.max(0, teamTricks.length - 2)) : teamTricks;
 }
 
-// The points a bidding team has to take to make its bid: the bid itself for 30-42, or all 42 for
-// any marks bid (84, 126, ... - gameWinningTeam's `adjustedBid`). Low has no point target at all
-// (the bidders simply must not take a trick), and there's no target until bidding closes.
+// The points a bidding team has to take to make its bid (the rules' pointsToMakeBid, which the
+// engine judges hands by): the bid itself for 30-42, or all 42 for any marks bid or Plunge. Low
+// has no point target at all (the bidders simply must not take a trick), and there's no target
+// until bidding closes.
 export function bidTarget(game: Game): number | null {
   if (game.bid == null || game.trump == null || isLow(game.trump)) return null;
-  return game.bid % 42 === 0 ? 42 : game.bid;
+  return pointsToMakeBid(game.bid);
 }
 
 export interface MatchView {
