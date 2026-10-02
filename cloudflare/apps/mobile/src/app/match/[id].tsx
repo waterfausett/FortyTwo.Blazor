@@ -41,7 +41,7 @@ import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
-import { FadeIn, FADE_IN_MS } from '@/components/FadeIn';
+import { Fade, FADE_IN_MS } from '@/components/Fade';
 import { Hand, type DragState } from '@/components/Hand';
 import { MatchSummary } from '@/components/MatchSummary';
 import { PipFace } from '@/components/PipFace';
@@ -321,22 +321,24 @@ export default function MatchScreen() {
         )}
 
         {view.canBid ? (
-          <FadeIn key="bid">
-            <BiddingPanel game={game} myPlayerId={myPlayerId} onBid={(b) => bid.mutate(b)} disabled={!connected || bid.isPending} />
-          </FadeIn>
+          // Fades out as soon as a bid is picked (and back, should it be turned away), rather than
+          // dimming until the server answers and then vanishing.
+          <Fade key="bid" visible={!bid.isPending}>
+            <BiddingPanel game={game} myPlayerId={myPlayerId} onBid={(b) => bid.mutate(b)} disabled={!connected} />
+          </Fade>
         ) : view.canSelectTrump ? (
-          <FadeIn key="trump">
-            <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected || trump.isPending} />
-          </FadeIn>
+          <Fade key="trump" visible={!trump.isPending}>
+            <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected} />
+          </Fade>
         ) : (
           status != null && (
             // Keyed by phase rather than by the words, so a new phase eases in but each turn's
             // status doesn't flicker.
-            <FadeIn key={view.isPlayingPhase ? 'play' : 'wait'}>
+            <Fade key={view.isPlayingPhase ? 'play' : 'wait'}>
               <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
                 {status}
               </Text>
-            </FadeIn>
+            </Fade>
           )
         )}
 
@@ -370,13 +372,13 @@ export default function MatchScreen() {
       </View>
 
       {view.isPlayingPhase && (
-        <FadeIn delay={FADE_IN_MS}>
+        <Fade delay={FADE_IN_MS}>
           <TrickHistory
             us={pile(myTeam, 'Us', colors.us)}
             them={pile(opponentTeam, 'Them', colors.them)}
             stacked={stacked}
           />
-        </FadeIn>
+        </Fade>
       )}
       {view.isMatchOver && (
         <MatchSummary
