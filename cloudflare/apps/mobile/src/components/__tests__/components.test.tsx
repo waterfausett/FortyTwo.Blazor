@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
+import { JoinMatchPanel } from '../JoinMatchPanel';
 import { SeatPicker } from '../SeatPicker';
 import { TrickHistory } from '../TrickHistory';
 
@@ -169,5 +170,26 @@ describe('hand order', () => {
     const d = (id: string) => ({ id }) as never;
     expect(reconcileOrder(['c', 'a', 'b'], [d('a'), d('b'), d('c')].filter((x: { id: string }) => x.id !== 'a'))).toEqual(['c', 'b']);
     expect(reconcileOrder(['c', 'b'], [d('x'), d('y')])).toEqual(['x', 'y']);
+  });
+});
+
+describe('JoinMatchPanel', () => {
+  it('offers the open seats, saying who each would partner, and takes the one picked', async () => {
+    const onPick = jest.fn();
+    await render(<JoinMatchPanel seats={['Ann', 'Bo', null, 'Di']} joining={false} onPick={onPick} onLobby={jest.fn()} />);
+
+    expect(screen.getByText('Pick a seat to join')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Sit here, with Ann'));
+    expect(onPick).toHaveBeenCalledWith(2);
+  });
+
+  it('says when the match is full, with the way back', async () => {
+    const onLobby = jest.fn();
+    await render(<JoinMatchPanel seats={['Ann', 'Bo', 'Cy', 'Di']} joining={false} onPick={jest.fn()} onLobby={onLobby} />);
+
+    expect(screen.getByText('This match is full')).toBeTruthy();
+    expect(screen.queryByText('Sit here')).toBeNull();
+    await fireEvent.press(screen.getByText('Back to matches'));
+    expect(onLobby).toHaveBeenCalled();
   });
 });

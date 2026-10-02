@@ -10,10 +10,11 @@ workers_dev = true
 # The web app's build is served from this same Worker, so the API and the SPA share an origin. The
 # Worker runs first only for its own paths; any other path is a static file, or index.html so the
 # SPA's router can handle deep links like /match/:id. Build the web app before deploying.
+# /.well-known/* is the Worker's so a missing assetlinks.json is a 404, not the SPA's index.html.
 [assets]
 directory = "../web/dist"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/matches/*", "/health"]
+run_worker_first = ["/api/*", "/matches/*", "/health", "/.well-known/*"]
 
 [[durable_objects.bindings]]
 name = "MATCH_DO"

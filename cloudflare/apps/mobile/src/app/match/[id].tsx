@@ -3,7 +3,7 @@
 // state comes from the match socket; what the state allows comes from @fortytwo/client's
 // describeMatch, which the web match page uses too.
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth0 } from 'react-native-auth0';
@@ -47,6 +47,7 @@ import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
 import { Fade, FADE_IN_MS } from '@/components/Fade';
 import { Hand, type DragState } from '@/components/Hand';
+import { JoinMatchPanel } from '@/components/JoinMatchPanel';
 import { MatchSummary } from '@/components/MatchSummary';
 import { PipFace } from '@/components/PipFace';
 import { toastError } from '@/components/toast';
@@ -54,6 +55,7 @@ import { Table, TABLE_RESIZE_MS, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
 import { TrumpPicker } from '@/components/TrumpPicker';
 import { colors, fonts } from '@/components/theme';
+import { shareInvite } from '@/linking/invite';
 import { useLatch } from '@/match/useLatch';
 import { useSettled } from '@/match/useSettled';
 import { useTrickHold } from '@/match/useTrickHold';
@@ -93,6 +95,17 @@ export default function MatchScreen() {
   const readyUp = useMutation({ mutationFn: () => api.readyUp(id, true), onError: toastError });
   const rematch = useMutation({ mutationFn: () => api.rematch(id), onError: toastError });
   const addBots = useMutation({ mutationFn: () => api.addBots(id), onError: toastError });
+  // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
+  // then seats the player here; the lobby's lists change too.
+  const queryClient = useQueryClient();
+  const join = useMutation({
+    mutationFn: (position: number) => api.joinMatch(id, position),
+    onSuccess: (joined) => {
+      queryClient.setQueryData(['match', id], joined);
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
+    },
+    onError: toastError,
+  });
 
   // Plays are optimistic: a legal play shows on the table the moment it's made, and the screen
   // shows the match as it will be once the play lands (projectPlay) until the broadcast shows the
@@ -185,10 +198,20 @@ export default function MatchScreen() {
     );
   }
   if (!liveMatch.players.some((p) => p.playerId === myPlayerId)) {
+    const seats = [0, 1, 2, 3].map((position) => {
+      const player = liveMatch.players.find((p) => p.position === position);
+      return player ? (names.data?.get(player.playerId) ?? player.playerId) : null;
+    });
     return (
-      <View style={styles.centered}>
-        <Text style={styles.text}>You aren't part of this match.</Text>
-      </View>
+      <>
+        <Stack.Screen options={{ title: liveGame.name }} />
+        <JoinMatchPanel
+          seats={seats}
+          joining={join.isPending}
+          onPick={(position) => join.mutate(position)}
+          onLobby={() => router.dismissTo('/')}
+        />
+      </>
     );
   }
 
@@ -326,6 +349,15 @@ export default function MatchScreen() {
                 <Text style={styles.waitingText}>
                   {match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}
                 </Text>
+                {emptySeatCount > 0 && (
+                  <Pressable
+                    style={styles.smallButton}
+                    onPress={() => shareInvite(match.id).catch(toastError)}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.smallButtonText}>Invite friends</Text>
+                  </Pressable>
+                )}
                 {config.data?.bots && emptySeatCount > 0 && (
                   <Pressable
                     style={styles.smallButton}

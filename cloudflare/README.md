@@ -35,6 +35,7 @@ The Worker reads its settings from `apps/worker/.dev.vars` (gitignored):
 | `AUTH0_API_CLIENT_ID`, `AUTH0_API_CLIENT_SECRET`, `AUTH0_API_AUDIENCE` | Call Auth0's Management API for profiles and display names. |
 | `ALLOWED_ORIGIN` | The web app's origin, for CORS. Defaults to `http://localhost:5173`. |
 | `AUTO_PLAY_BOTS` | `true` lets players seat bots in open seats. Never set in a deployed environment. |
+| `ANDROID_APP_FINGERPRINTS` | The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links (see [Invite links](#invite-links)). Not secret. |
 
 The web app reads `apps/web/.env.local` (gitignored):
 
@@ -189,6 +190,39 @@ installs from that source the first time.
 - EAS picks its build image from the Expo SDK version. SDK 57's image has Node 22 and npm 10,
   while CI uses Node 24. If a cloud build fails at installing dependencies, try pinning Node to
   match with `"node": "<version>"` in the profile.
+
+### Invite links
+
+A match waiting for players has an **Invite friends** button, which shares
+`https://<worker>/match/<id>` through the phone's share sheet. Whoever opens it:
+
+- with the app installed on Android, gets the match in the app (an Android App Link);
+- otherwise, gets the web app, which signs them in and returns to the match.
+
+Either way, someone who isn't seated sees the open seats to pick from, or that the match is full.
+The app also opens `fortytwo://match/<id>`. A link opened while signed out opens once the player
+has signed in.
+
+Android only opens https links in the app once the Worker vouches for it:
+
+1. Get the signing certificate's SHA-256 fingerprint: `npx eas-cli@latest credentials -p android`,
+   then pick the build profile. Development builds made on your machine are signed with a
+   different (debug) key, so their https links open in the browser; `fortytwo://` links work in
+   every build.
+2. Give the Worker the fingerprint (several can be listed, comma-separated). It isn't secret, so
+   it can go in `apps/worker/wrangler.toml`:
+
+   ```toml
+   [vars]
+   ANDROID_APP_FINGERPRINTS = "AB:CD:..."
+   ```
+
+   The Worker then serves `/.well-known/assetlinks.json`; without it, that's a 404.
+3. Build the app with `EXPO_PUBLIC_API_ORIGIN` set to the Worker's https address.
+   `app.config.js` registers that host for App Links; with an http origin it registers none.
+   Android checks the Worker's file when the app is installed, so reinstall after changing it.
+
+iOS Universal Links aren't set up yet: they need an Apple Developer team ID.
 
 ## Deploying
 
