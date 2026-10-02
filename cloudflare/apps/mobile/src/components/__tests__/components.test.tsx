@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
@@ -73,6 +74,11 @@ describe('Hand', () => {
 
     await rerender(hand(null));
     expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['6-6', '1-2', '3-4']);
+  });
+
+  it('takes no room once empty', async () => {
+    await render(<Hand dominoes={[]} canPlay={false} isValidPlay={() => true} onPlay={jest.fn()} />);
+    expect(StyleSheet.flatten(screen.getByLabelText('Your hand').props.style).minHeight).toBeUndefined();
   });
 
   it("can't be played from when it isn't the player's turn, but can still be picked up to reorder", async () => {

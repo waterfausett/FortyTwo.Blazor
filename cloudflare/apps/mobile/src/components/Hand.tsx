@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Animated, Easing, PanResponder, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { Domino as DominoType } from '@fortytwo/rules';
 import { Domino } from './Domino';
+import { colors } from './theme';
 
 const PER_ROW = 4;
 const GAP = 8;
@@ -145,6 +146,15 @@ export function Hand({
     return canPlayDomino(domino) && isInside(x, y, zone.current);
   }
 
+  // The domino a held one would trade places with if let go here, if any.
+  function swapTarget(domino: DominoType, x: number, y: number): string | null {
+    if (overZone(domino, x, y)) return null;
+    return [...tileRects.current].find(([id, rect]) => id !== domino.id && isInside(x, y, rect))?.[0] ?? null;
+  }
+
+  // Ringed while a held domino is over it, to show where that one would go.
+  const [targetId, setTargetId] = useState<string | null>(null);
+
   async function drop(domino: DominoType, x: number, y: number): Promise<DropOutcome> {
     if (overZone(domino, x, y)) {
       try {
@@ -154,7 +164,7 @@ export function Hand({
         return 'spring';
       }
     }
-    const target = [...tileRects.current].find(([id, rect]) => id !== domino.id && isInside(x, y, rect))?.[0];
+    const target = swapTarget(domino, x, y);
     if (target) {
       setOrder((current) => moveBefore(current, domino.id, target));
       return 'reset';
@@ -163,7 +173,12 @@ export function Hand({
   }
 
   return (
-    <View style={[styles.hand, { width: rowWidth, minHeight: tileSize * 2 + GAP + 4 }]} accessibilityLabel="Your hand">
+    // Two rows tall while there's anything in it, so it doesn't shrink as the hand empties; nothing
+    // once it's empty.
+    <View
+      style={[styles.hand, { width: rowWidth }, ordered.length > 0 && { minHeight: tileSize * 2 + GAP + 4 }]}
+      accessibilityLabel="Your hand"
+    >
       {ordered.map((domino, index) => {
         const legal = !highlightPlayable || isValidPlay(domino);
         return (
@@ -179,7 +194,9 @@ export function Hand({
             // A tap's play reports its own errors; nothing here needs the outcome.
             onPlay={() => Promise.resolve(onPlay(domino)).catch(() => {})}
             onPickUp={pickUp}
+            isTarget={targetId === domino.id}
             isOverZone={(x, y) => overZone(domino, x, y)}
+            onHover={(point) => setTargetId(point ? swapTarget(domino, point.x, point.y) : null)}
             onDrop={(x, y) => drop(domino, x, y)}
             onDragChange={onDragChange}
             viewRef={(view) => {
@@ -197,6 +214,7 @@ function HandTile({
   domino,
   tileSize,
   dealDelay,
+  isTarget,
   playable,
   dimmed,
   highlighted,
@@ -204,6 +222,7 @@ function HandTile({
   onPlay,
   onPickUp,
   isOverZone,
+  onHover,
   onDrop,
   onDragChange,
   viewRef,
@@ -217,7 +236,10 @@ function HandTile({
   draggable: boolean;
   onPlay: () => unknown;
   onPickUp: () => void;
+  isTarget: boolean;
   isOverZone: (x: number, y: number) => boolean;
+  // Where the held domino is, or null once it's let go.
+  onHover: (point: { x: number; y: number } | null) => void;
   onDrop: (x: number, y: number) => Promise<DropOutcome>;
   onDragChange?: (state: DragState) => void;
   viewRef: (view: View | null) => void;
@@ -240,13 +262,14 @@ function HandTile({
   const armed = useRef(false);
   const granted = useRef(false);
   const over = useRef(false);
-  const latest = useRef({ isOverZone, onDrop, onDragChange });
-  latest.current = { isOverZone, onDrop, onDragChange };
+  const latest = useRef({ isOverZone, onHover, onDrop, onDragChange });
+  latest.current = { isOverZone, onHover, onDrop, onDragChange };
 
   function endDrag() {
     armed.current = false;
     granted.current = false;
     over.current = false;
+    latest.current.onHover(null);
     latest.current.onDragChange?.({ dragging: false, overDropZone: false });
   }
 
@@ -279,6 +302,7 @@ function HandTile({
         },
         onPanResponderMove: (_, gesture) => {
           offset.setValue({ x: gesture.dx, y: gesture.dy });
+          latest.current.onHover({ x: gesture.moveX, y: gesture.moveY });
           const isOver = latest.current.isOverZone(gesture.moveX, gesture.moveY);
           if (isOver !== over.current) {
             over.current = isOver;
@@ -311,6 +335,14 @@ function HandTile({
         lifted && styles.lifted,
       ]}
     >
+      {/* While held, a faded copy marks the domino's own place... */}
+      {lifted && (
+        <View style={styles.ghost} pointerEvents="none">
+          <Domino top={domino.top} bottom={domino.bottom} width={tileSize} direction="horizontal" accessible={false} />
+        </View>
+      )}
+      {/* ...and the domino it would trade places with is ringed. */}
+      {isTarget && <View style={styles.target} pointerEvents="none" />}
       <Animated.View
         ref={viewRef}
         collapsable={false}
@@ -365,4 +397,15 @@ const styles = StyleSheet.create({
   },
   // Drawn above the rest of the hand while dragged.
   lifted: { zIndex: 10, elevation: 8 },
+  ghost: { position: 'absolute', top: 0, left: 0, opacity: 0.3 },
+  target: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.brass,
+  },
 });

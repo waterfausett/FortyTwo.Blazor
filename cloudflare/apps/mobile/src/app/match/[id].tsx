@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -112,6 +112,29 @@ export default function MatchScreen() {
   useEffect(() => {
     if (playing != null && inFlight == null) setPlaying(null);
   }, [playing, inFlight]);
+
+  // With my hand played out (or not yet dealt) there's no hand to keep in place, so the play area
+  // stops filling the screen and eases down to its content, bringing the trick history up. On the
+  // next deal it opens straight back up: the old hand's trick history has gone by then, so that
+  // only puts the new hand back at the bottom of the screen.
+  const handEmpty = myLiveHand.length - (inFlight ? 1 : 0) === 0;
+  const loaded = liveMatch != null;
+  const pinned = useRef(new Animated.Value(handEmpty ? 0 : 1)).current;
+  const pinnedOnLoad = useRef(false);
+  useEffect(() => {
+    if (!loaded) return;
+    if (handEmpty && pinnedOnLoad.current) {
+      Animated.timing(pinned, {
+        toValue: 0,
+        duration: HAND_COLLAPSE_MS,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    } else {
+      pinned.setValue(handEmpty ? 0 : 1);
+    }
+    pinnedOnLoad.current = true;
+  }, [loaded, handEmpty, pinned]);
 
   const { heldTrick, sweeping } = useTrickHold(liveGame);
 
@@ -260,10 +283,15 @@ export default function MatchScreen() {
       {/* The play area fills the screen, less a peek at the trick history below, whatever the
           phase - so the hand sits in the same place from the deal to the last trick, and the
           table opening up as play starts only takes up the room between them. */}
-      <View
+      <Animated.View
         style={[
           styles.playArea,
-          { minHeight: viewportHeight - CONTAINER_PADDING - CONTAINER_GAP - HISTORY_PEEK - bottomInset },
+          {
+            minHeight: pinned.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, Math.max(0, viewportHeight - CONTAINER_PADDING - CONTAINER_GAP - HISTORY_PEEK - bottomInset)],
+            }),
+          },
         ]}
       >
         {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
@@ -392,18 +420,20 @@ export default function MatchScreen() {
           dropZone={tableRef}
           onDragChange={setDrag}
         />
-        {/* Always laid out, and only shown on the player's turn, so it coming and going doesn't move
-            anything. */}
-        <Text
-          style={[styles.hint, !canPlay && styles.hidden]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          accessibilityElementsHidden={!canPlay}
-          importantForAccessibility={canPlay ? 'auto' : 'no-hide-descendants'}
-        >
-          Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
-        </Text>
-      </View>
+        {/* Laid out whenever there's a hand, and only shown on the player's turn, so it coming and
+            going doesn't move anything. */}
+        {!handEmpty && (
+          <Text
+            style={[styles.hint, !canPlay && styles.hidden]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            accessibilityElementsHidden={!canPlay}
+            importantForAccessibility={canPlay ? 'auto' : 'no-hide-descendants'}
+          >
+            Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
+          </Text>
+        )}
+      </Animated.View>
 
       {view.isPlayingPhase && (
         <Fade delay={FADE_IN_MS}>
@@ -475,6 +505,7 @@ function ActionButton({ label, onPress, disabled = false }: { label: string; onP
 
 const CONTAINER_PADDING = 12;
 const CONTAINER_GAP = 14;
+const HAND_COLLAPSE_MS = 420;
 // How much of the trick history shows below the play area: the top of each pile, with its points.
 const HISTORY_PEEK = 40;
 
