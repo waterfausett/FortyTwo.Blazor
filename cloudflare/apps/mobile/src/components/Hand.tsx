@@ -1,12 +1,14 @@
-// The player's own dominoes, in one row sized to fit all seven across the screen. On their turn,
-// tapping a legal domino plays it; illegal ones are faded and do nothing.
+// The player's own dominoes, lying horizontally in up to two rows (four, then three), sized to
+// fill the screen's width. On their turn, tapping a legal domino plays it; illegal ones are faded
+// and do nothing.
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { Domino as DominoType } from '@fortytwo/rules';
 import { Domino } from './Domino';
 
-const HAND_SIZE = 7;
-const GAP = 6;
-const MAX_TILE_WIDTH = 46;
+const PER_ROW = 4;
+const GAP = 8;
+// The tile's short side, at most.
+const MAX_TILE_SIZE = 42;
 
 export interface HandProps {
   dominoes: DominoType[];
@@ -20,11 +22,14 @@ export interface HandProps {
 export function Hand({ dominoes, canPlay, isValidPlay, onPlay, availableWidth }: HandProps) {
   const window = useWindowDimensions();
   const width = availableWidth ?? window.width - 24;
-  // Sized for a full hand, so tiles don't grow as the hand empties.
-  const tileWidth = Math.min(MAX_TILE_WIDTH, Math.floor((width - GAP * (HAND_SIZE - 1)) / HAND_SIZE));
+  // A horizontal tile is twice as long as its short side, plus a little for its shadow. Sized for
+  // a full row, so tiles don't grow as the hand empties.
+  const tileSize = Math.min(MAX_TILE_SIZE, Math.floor((width - GAP * (PER_ROW - 1)) / (PER_ROW * 2.12)));
+  const tileLength = tileSize * 2 + Math.max(1.5, tileSize * 0.06);
+  const rowWidth = tileLength * PER_ROW + GAP * (PER_ROW - 1);
 
   return (
-    <View style={[styles.hand, { minHeight: tileWidth * 2 + 6 }]} accessibilityLabel="Your hand">
+    <View style={[styles.hand, { width: rowWidth, minHeight: tileSize * 2 + GAP + 4 }]} accessibilityLabel="Your hand">
       {dominoes.map((domino) => {
         const playable = canPlay && isValidPlay(domino);
         return (
@@ -32,7 +37,8 @@ export function Hand({ dominoes, canPlay, isValidPlay, onPlay, availableWidth }:
             key={domino.id}
             top={domino.top}
             bottom={domino.bottom}
-            width={tileWidth}
+            width={tileSize}
+            direction="horizontal"
             onPress={playable ? () => onPlay(domino) : undefined}
             dimmed={canPlay && !playable}
             highlighted={playable}
@@ -44,5 +50,12 @@ export function Hand({ dominoes, canPlay, isValidPlay, onPlay, availableWidth }:
 }
 
 const styles = StyleSheet.create({
-  hand: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: GAP },
+  hand: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignContent: 'flex-start',
+    gap: GAP,
+  },
 });
