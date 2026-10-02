@@ -20,6 +20,8 @@ export function PipFace({ suit, size = 26 }: { suit: Suit; size?: number }) {
     );
   }
 
+  // Placed from the face's centre, on a face with no border of its own (the outline is drawn over
+  // it), so the pips sit dead centre - a border would shift where they start, as with the tiles.
   const unit = size / 6;
   const pip = unit * 1.2;
   return (
@@ -29,8 +31,8 @@ export function PipFace({ suit, size = 26 }: { suit: Suit; size?: number }) {
           key={i}
           style={{
             position: 'absolute',
-            left: x * unit - pip / 2,
-            top: y * unit - pip / 2,
+            left: size / 2 + (x - 3) * unit - pip / 2,
+            top: size / 2 + (y - 3) * unit - pip / 2,
             width: pip,
             height: pip,
             borderRadius: pip / 2,
@@ -38,12 +40,14 @@ export function PipFace({ suit, size = 26 }: { suit: Suit; size?: number }) {
           }}
         />
       ))}
+      <View pointerEvents="none" style={[styles.outline, { borderRadius: size * 0.18 }]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  face: { backgroundColor: colors.bone, borderWidth: 1, borderColor: colors.boneEdge },
-  word: { alignItems: 'center', justifyContent: 'center' },
+  face: { backgroundColor: colors.bone },
+  outline: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderWidth: 1, borderColor: colors.boneEdge },
+  word: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.boneEdge },
   wordText: { color: colors.walnutDeep, fontFamily: fonts.display },
 });
