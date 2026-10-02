@@ -7,6 +7,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth0 } from 'react-native-auth0';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   MARKS_TO_WIN,
   describeMatch,
@@ -54,6 +55,8 @@ export default function MatchScreen() {
   const myPlayerId = user?.sub;
   const api = useApi();
   const getToken = useGetToken();
+  // Room at the bottom of the scroll, above the phone's gesture bar or navigation buttons.
+  const bottomInset = useSafeAreaInsets().bottom;
 
   const { match: socketMatch, connected, reconnecting } = useMatchSocket(id, getToken);
   // The socket sends the match as soon as it connects; this fills the moment before that, and
@@ -201,7 +204,11 @@ export default function MatchScreen() {
       : `Trump: ${suitToPrettyString(game.trump)}${isLow(game.trump) ? ` (doubles ${lowDoublesToPrettyString(game.trump)})` : ''}`;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container} scrollEnabled={!drag.dragging}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[styles.container, { paddingBottom: 32 + bottomInset }]}
+      scrollEnabled={!drag.dragging}
+    >
       <Stack.Screen options={{ title: game.name }} />
       {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
 
