@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <!-- Android's notification icon: an all-white silhouette on transparency, which Android tints.
+       The brand's 4-2 domino (as in apps/web/public/favicon.svg), tilted, with its pips and centre
+       line cut out. Rendered to notification-icon.png at 96x96. -->
+  <defs>
+    <mask id="cut">
+      <rect width="96" height="96" fill="white"/>
+      <g fill="black" transform="rotate(-12 48 48)">
+        <rect x="46.5" y="27" width="3" height="42" rx="1.5"/>
+        <circle cx="21" cy="36" r="5"/>
+        <circle cx="37" cy="36" r="5"/>
+        <circle cx="21" cy="60" r="5"/>
+        <circle cx="37" cy="60" r="5"/>
+        <circle cx="75" cy="36" r="5"/>
+        <circle cx="59" cy="60" r="5"/>
+      </g>
+    </mask>
+  </defs>
+  <rect x="8" y="22" width="80" height="52" rx="9" fill="white" transform="rotate(-12 48 48)" mask="url(#cut)"/>
+</svg>

@@ -108,13 +108,16 @@ export function profilePatch(body: Body): ProfilePatch {
   const patch: ProfilePatch = {};
   if (body.displayName !== undefined) patch.displayName = displayName(body.displayName);
   if (body.picture !== undefined) patch.picture = picture(body.picture);
-  if (body.highlightPlayable !== undefined) {
-    if (typeof body.highlightPlayable !== 'boolean') {
-      throw new BadRequestError('`highlightPlayable` must be true or false.');
-    }
-    patch.highlightPlayable = body.highlightPlayable;
-  }
+  if (body.highlightPlayable !== undefined) patch.highlightPlayable = setting(body, 'highlightPlayable');
+  if (body.pushNotifications !== undefined) patch.pushNotifications = setting(body, 'pushNotifications');
   return patch;
+}
+
+// An on/off setting.
+function setting(body: Body, field: string): boolean {
+  const value = body[field];
+  if (typeof value !== 'boolean') throw new BadRequestError(`\`${field}\` must be true or false.`);
+  return value;
 }
 
 // Trimmed, 1 to MAX_DISPLAY_NAME_LENGTH characters, and no control characters.

@@ -10,6 +10,7 @@ import { useApi } from '@/api/useApi';
 import { SeatPicker } from '@/components/SeatPicker';
 import { colors, fonts } from '@/components/theme';
 import { toastError } from '@/components/toast';
+import { unregisterDevice } from '@/notifications/push';
 
 type Filter = 'Active' | 'Joinable' | 'Completed';
 const FILTERS: { filter: Filter; label: string }[] = [
@@ -26,6 +27,12 @@ const EMPTY_LABELS: Record<Filter, string> = {
 export default function Lobby() {
   const api = useApi();
   const { clearSession } = useAuth0();
+  // This device stops getting the player's notifications before the session goes, while the
+  // request can still be signed as them.
+  const signOut = async () => {
+    await unregisterDevice(api).catch(() => {});
+    await clearSession();
+  };
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>('Active');
   // The Find a game row whose seat picker is open, if any.
@@ -67,7 +74,7 @@ export default function Lobby() {
               <Pressable onPress={() => router.push('/profile')} accessibilityRole="button">
                 <Text style={styles.link}>Profile</Text>
               </Pressable>
-              <Pressable onPress={() => clearSession()} accessibilityRole="button">
+              <Pressable onPress={() => void signOut()} accessibilityRole="button">
                 <Text style={styles.link}>Sign out</Text>
               </Pressable>
             </View>

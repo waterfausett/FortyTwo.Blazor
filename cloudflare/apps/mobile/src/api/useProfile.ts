@@ -7,9 +7,10 @@ import { useApi } from './useApi';
 
 const PROFILE_KEY = ['profile'];
 
-export function useProfile() {
+// `enabled: false` holds off while signed out.
+export function useProfile({ enabled = true }: { enabled?: boolean } = {}) {
   const api = useApi();
-  return useQuery({ queryKey: PROFILE_KEY, queryFn: () => api.getProfile(), staleTime: Infinity });
+  return useQuery({ queryKey: PROFILE_KEY, queryFn: () => api.getProfile(), staleTime: Infinity, enabled });
 }
 
 // Shows a new name or setting straight away, and puts it back if the save fails. A picture waits

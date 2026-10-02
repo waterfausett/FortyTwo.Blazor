@@ -1,6 +1,7 @@
 // The connect/backoff loop itself is covered by apps/web's useMatchSocket tests (it lives in
 // @fortytwo/client). These cover what's native: the URL built from config, the React state, and
-// reconnecting straight away when the app returns to the foreground or the network comes back.
+// closing the socket in the background and reopening it in the foreground, and reconnecting
+// straight away when the network comes back.
 import { act, renderHook } from '@testing-library/react-native';
 import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
@@ -36,7 +37,10 @@ class MockWebSocket {
     (this.listeners[type] ??= []).push(listener);
   }
 
+  closed = false;
+
   close() {
+    this.closed = true;
     this.emit('close', { code: 1000 });
   }
 
@@ -89,20 +93,33 @@ describe('useMatchSocket', () => {
     expect(result.current.match).toEqual(MATCH);
   });
 
-  it('reconnects immediately when the app returns to the foreground', async () => {
+  it('closes the socket in the background, so the Worker sends notifications, and reopens it on return', async () => {
     const { result } = await renderHook(() => useMatchSocket('match-1', async () => 'tok'));
     await flush();
-    await act(async () => MockWebSocket.instances[0].emit('close', { code: 1006 }));
-    expect(result.current.reconnecting).toBe(true);
+    await act(async () => {
+      MockWebSocket.instances[0].emit('open');
+      MockWebSocket.instances[0].emit('message', { data: JSON.stringify({ type: 'match', match: MATCH }) });
+    });
 
-    // Backgrounding does nothing; coming back skips the rest of the backoff.
     await act(async () => appStateListener!('background'));
-    await flush();
+    await flush(60_000);
+    expect(MockWebSocket.instances[0].closed).toBe(true);
     expect(MockWebSocket.instances).toHaveLength(1);
+    expect(result.current.connected).toBe(false);
+    // The last state stays on screen, ready for coming back.
+    expect(result.current.match).toEqual(MATCH);
 
     await act(async () => appStateListener!('active'));
     await flush();
     expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it('stays connected through a brief inactive moment', async () => {
+    await renderHook(() => useMatchSocket('match-1', async () => 'tok'));
+    await flush();
+    await act(async () => appStateListener!('inactive'));
+    await flush();
+    expect(MockWebSocket.instances[0].closed).toBe(false);
   });
 
   it('reconnects immediately when the network comes back', async () => {
@@ -126,6 +143,7 @@ describe('useMatchSocket', () => {
 
     expect(removeAppStateListener).toHaveBeenCalled();
     expect(mockUnsubscribeNetInfo).toHaveBeenCalled();
+    expect(MockWebSocket.instances[0].closed).toBe(true);
     await flush(60_000);
     expect(MockWebSocket.instances).toHaveLength(1);
   });

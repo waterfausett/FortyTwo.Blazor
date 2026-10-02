@@ -17,14 +17,29 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useApi } from '@/api/useApi';
 import { useProfile, useSaveProfile } from '@/api/useProfile';
 import { MAX_DISPLAY_NAME_LENGTH, profileErrors } from '@/components/profileErrors';
 import { colors, fonts } from '@/components/theme';
+import { toastInfo } from '@/components/toast';
+import { registerDevice } from '@/notifications/push';
 
 export default function Profile() {
   const profile = useProfile();
   const save = useSaveProfile();
+  const api = useApi();
   const insets = useSafeAreaInsets();
+
+  // Turning notifications on asks for the OS permission if it hasn't been asked yet. Off, the
+  // device is unregistered as the setting saves (usePushNotifications).
+  async function setPushNotifications(value: boolean) {
+    save.mutate({ pushNotifications: value });
+    if (!value) return;
+    const registered = await registerDevice(api, { ask: true }).catch(() => false);
+    if (!registered) {
+      toastInfo('Notifications are blocked', "Allow them for Forty-Two in your phone's settings.");
+    }
+  }
 
   const [displayName, setDisplayName] = useState('');
   const [picture, setPicture] = useState('');
@@ -148,6 +163,22 @@ export default function Profile() {
             trackColor={{ true: colors.brass, false: colors.mat }}
             thumbColor={colors.bone}
             accessibilityLabel="Highlight playable dominoes"
+          />
+        </View>
+
+        <View style={[styles.section, styles.row]}>
+          <View style={styles.rowText}>
+            <Text style={styles.settingLabel}>Notifications</Text>
+            <Text style={styles.hint}>
+              When it's your turn, a hand ends or a game starts, while you're away from that match.
+            </Text>
+          </View>
+          <Switch
+            value={profile.data.pushNotifications}
+            onValueChange={(value) => void setPushNotifications(value)}
+            trackColor={{ true: colors.brass, false: colors.mat }}
+            thumbColor={colors.bone}
+            accessibilityLabel="Notifications"
           />
         </View>
 

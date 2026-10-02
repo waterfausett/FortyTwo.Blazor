@@ -22,7 +22,15 @@
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#c9a45c",
+          "defaultChannel": "game"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
