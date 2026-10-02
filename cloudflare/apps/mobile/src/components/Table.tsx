@@ -4,7 +4,8 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { Seat } from '@fortytwo/client';
-import type { Trick } from '@fortytwo/rules';
+import type { Suit, Trick } from '@fortytwo/rules';
+import { PipFace } from './PipFace';
 import { Domino } from './Domino';
 import { colors, fonts } from './theme';
 import { TRICK_SWEEP_MS } from '@/match/useTrickHold';
@@ -23,6 +24,10 @@ export interface SeatInfo {
   isActive: boolean;
   isDealer: boolean;
   bid: string | null;
+  // Holds the winning bid: their bid chip is filled in their team's colour, and once trump is
+  // named it carries the trump's pip face, as on the web.
+  isHighBidder: boolean;
+  trump: Suit | null;
   // Shown while everyone readies up for the next hand; null otherwise.
   ready: boolean | null;
   // Dominoes left in hand; null for the player's own seat, whose hand is shown below the table.
@@ -39,7 +44,6 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
   }
   const team = info.side === 'us' ? colors.us : colors.them;
   const details = [
-    info.bid,
     info.dominoCount != null ? `${info.dominoCount} left` : null,
     info.ready == null ? null : info.ready ? 'Ready' : 'Not ready',
   ].filter(Boolean);
@@ -59,9 +63,22 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
           </View>
         )}
       </View>
-      <Text style={styles.detail} numberOfLines={1}>
-        {details.length > 0 ? details.join(' · ') : ' '}
-      </Text>
+      <View style={styles.detailRow}>
+        {info.bid != null && (
+          <View
+            style={[styles.bid, info.isHighBidder && { backgroundColor: team, borderColor: team }]}
+            accessibilityLabel={`Bid ${info.bid}`}
+          >
+            <Text style={[styles.bidText, info.isHighBidder && styles.bidTextHigh]} maxFontSizeMultiplier={1.2}>
+              {info.bid}
+            </Text>
+            {info.isHighBidder && info.trump != null && <PipFace suit={info.trump} size={14} />}
+          </View>
+        )}
+        <Text style={styles.detail} numberOfLines={1}>
+          {details.join(' · ')}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -313,5 +330,19 @@ const styles = StyleSheet.create({
   name: { flex: 1, color: colors.bone, fontFamily: fonts.uiBold, fontSize: 14 },
   dealer: { backgroundColor: colors.brass, borderRadius: 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
   dealerText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 10 },
-  detail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12 },
+  // Fixed height, so a plate doesn't change size as a bid chip comes and goes.
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 20 },
+  detail: { flexShrink: 1, color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12 },
+  bid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(242, 234, 219, 0.25)',
+  },
+  bidText: { color: colors.inkMuted, fontFamily: fonts.display, fontSize: 12 },
+  bidTextHigh: { color: colors.walnutDeep },
 });

@@ -43,6 +43,7 @@ import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
 import { Hand, type DragState } from '@/components/Hand';
 import { MatchSummary } from '@/components/MatchSummary';
+import { PipFace } from '@/components/PipFace';
 import { toastError } from '@/components/toast';
 import { Table, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
@@ -187,6 +188,8 @@ export default function MatchScreen() {
       isActive: view.isTableReady && !view.isHandPlayedOut && game!.currentPlayerId === playerId,
       isDealer: view.dealer === playerId,
       bid: view.isTableReady && shownBid != null ? bidToPrettyString(shownBid) : null,
+      isHighBidder: highBidder,
+      trump: game!.trump,
       ready: showReady ? player.ready : null,
       dominoCount: playerId === myPlayerId || !hand ? null : handSize(hand),
     };
@@ -205,7 +208,7 @@ export default function MatchScreen() {
   const trumpLine =
     game.trump == null
       ? null
-      : `Trump: ${suitToPrettyString(game.trump)}${isLow(game.trump) ? ` (doubles ${lowDoublesToPrettyString(game.trump)})` : ''}`;
+      : `${suitToPrettyString(game.trump)}${isLow(game.trump) ? ` (doubles ${lowDoublesToPrettyString(game.trump)})` : ''}`;
 
   return (
     <ScrollView
@@ -221,7 +224,12 @@ export default function MatchScreen() {
         <Score label="Us" marks={scores[myTeam] ?? 0} color={colors.us} />
         <View style={styles.contract}>
           {contractBid && <Text style={styles.contractText}>{contractBid}</Text>}
-          {trumpLine && <Text style={styles.contractText}>{trumpLine}</Text>}
+          {trumpLine && game.trump != null && (
+            <View style={styles.trumpRow} accessibilityLabel={`Trump: ${trumpLine}`}>
+              <PipFace suit={game.trump} size={20} />
+              <Text style={styles.contractText}>{trumpLine}</Text>
+            </View>
+          )}
         </View>
         <Score label="Them" marks={scores[opponentTeam] ?? 0} color={colors.them} />
       </View>
@@ -419,6 +427,7 @@ const styles = StyleSheet.create({
   tally: { flexDirection: 'row', gap: 3 },
   notch: { width: 9, height: 18, borderRadius: 2, borderWidth: 1.5, borderColor: colors.inkMuted },
   contract: { flex: 1, alignItems: 'center', gap: 2 },
+  trumpRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   contractText: { color: colors.bone, fontFamily: fonts.uiMedium, textAlign: 'center' },
   waiting: { alignItems: 'center', gap: 10, padding: 8 },
   waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },

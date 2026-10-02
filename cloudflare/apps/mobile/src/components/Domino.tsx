@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { colors } from './theme';
 
 // Pip colours by count, as on the web.
-const PIP_COLORS: Record<number, string> = {
+export const PIP_COLORS: Record<number, string> = {
   1: '#5fa8d3',
   2: '#3f8f3a',
   3: '#cd5c5c',

@@ -5,6 +5,7 @@ import { Pressable, Text, View } from 'react-native';
 import { LOW_TRUMPS, Suit, availableTrumps, isLow, lowDoublesToPrettyString, suitToPrettyString, type Game } from '@fortytwo/rules';
 import { StyleSheet } from 'react-native';
 import { pickerStyles } from './BiddingPanel';
+import { PipFace } from './PipFace';
 import { colors, fonts } from './theme';
 
 const DOUBLES_DETAIL: Record<(typeof LOW_TRUMPS)[number], string> = {
@@ -65,7 +66,10 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
               onPress={() => onSelect(suit)}
               accessibilityRole="button"
             >
-              <Text style={styles.optionText}>{suitToPrettyString(suit)}</Text>
+              <View style={styles.trumpOption}>
+                <PipFace suit={suit} size={22} />
+                <Text style={styles.optionText}>{suitToPrettyString(suit)}</Text>
+              </View>
             </Pressable>
           ))}
         {lowTrumps.length > 0 && (
@@ -75,7 +79,10 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
             onPress={() => setChoosingDoubles(true)}
             accessibilityRole="button"
           >
-            <Text style={styles.optionText}>Low</Text>
+            <View style={styles.trumpOption}>
+              <PipFace suit={Suit.Low} size={22} />
+              <Text style={styles.optionText}>Low</Text>
+            </View>
           </Pressable>
         )}
       </View>
@@ -85,6 +92,7 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
 
 const styles = StyleSheet.create({
   ...pickerStyles,
+  trumpOption: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   back: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.inkMuted },
   backText: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 16 },
 });
