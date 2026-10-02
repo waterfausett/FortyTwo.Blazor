@@ -44,12 +44,14 @@ import { TrickHistory } from '../components/TrickHistory';
 import { toastError, toastInfo } from '../ui/toast';
 import {
   MARKS_TO_WIN,
+  assertPlayable,
   describeMatch,
   isHighBidder as holdsHighBid,
   isTrickStarted,
   isValidPlay as isLegalPlay,
   matchStatus,
   openSeats,
+  projectPlay,
   seatFor,
   shouldStackTricks,
   teamTricksForDisplay,
@@ -108,12 +110,12 @@ export function Match(): JSX.Element {
   // Prefer the socket's state once it has ANY value (it's the live source of truth once connected);
   // fall back to the REST query's data before that (first paint, or while the socket is still
   // (re)connecting).
-  const match = socketMatch ?? matchQuery.data ?? null;
+  const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
   // Display names for everyone seated. Keyed on the sorted id list so it refetches only when
   // someone joins, not on every broadcast. Until it resolves (or if it fails), and for bots, which
   // have no Auth0 account, `nameFor` below falls back to the raw player id.
-  const seatedIds = (match?.players.map((p) => p.playerId) ?? []).sort();
+  const seatedIds = (liveMatch?.players.map((p) => p.playerId) ?? []).sort();
   const namesQuery = useQuery({
     queryKey: ['playerNames', seatedIds],
     queryFn: async () => {
@@ -132,23 +134,20 @@ export function Match(): JSX.Element {
     mutationFn: (suit: Suit) => client.setTrump(matchId!, suit),
     onError: toastError,
   });
-  // `client.playDomino` resolves with the fresh MatchState too, but Match.tsx never reads
-  // `playMutation.data` - the live `match` below only ever updates from `useMatchSocket`'s
-  // broadcast. That leaves a real gap between MY OWN play resolving (isPending flips back to
-  // false) and the broadcast confirming the turn actually moved on - during which the still-stale
-  // `match` would otherwise let `canPlay` read true again. `awaitingTurnAdvance` (set here, cleared
-  // by the effect below once the broadcast shows the played domino actually gone from my hand)
-  // closes that gap. `lastPlayedDominoIdRef` records WHICH domino to watch for, since the clearing
-  // condition can't key off `currentPlayerId` changing (see that effect's comment for why).
-  const [awaitingTurnAdvance, setAwaitingTurnAdvance] = useState(false);
-  const lastPlayedDominoIdRef = useRef<string | null>(null);
+  // Plays are optimistic: a legal play shows on the table the moment it's made, and the page
+  // shows the match as it will be once the play lands (@fortytwo/client's projectPlay) until a
+  // broadcast shows the domino gone from my hand. If the play is turned away, the domino goes back
+  // to its place in my hand. Waiting for that broadcast, not just the request, also keeps a
+  // second play from going out before the first has landed: the REST response arrives before the
+  // broadcast, and `match` only ever updates from the broadcast. (Not "until the turn changes":
+  // whoever wins the trick they complete leads the next one, so the turn can stay with me.)
+  const [playing, setPlaying] = useState<DominoType | null>(null);
   const playMutation = useMutation({
     mutationFn: (domino: DominoType) => client.playDomino(matchId!, { top: domino.top, bottom: domino.bottom }),
-    onSuccess: (_data, domino) => {
-      lastPlayedDominoIdRef.current = domino.id;
-      setAwaitingTurnAdvance(true);
+    onError: (error) => {
+      setPlaying(null);
+      toastError(error);
     },
-    onError: toastError,
   });
   const readyUpMutation = useMutation({
     mutationFn: () => client.readyUp(matchId!, true),
@@ -181,7 +180,7 @@ export function Match(): JSX.Element {
   // past that count is still being shown center-board - `heldTrick` below. Derived from
   // `match?.currentGame` rather than the `game` constant below since hooks must run
   // unconditionally, ahead of this function's early-return guards.
-  const holdGame = match?.currentGame ?? null;
+  const holdGame = liveMatch?.currentGame ?? null;
   const [isSweeping, setIsSweeping] = useState(false);
   const [sweepMode] = useState(() => readSweepMode());
   const matchRootRef = useRef<HTMLDivElement>(null);
@@ -237,24 +236,12 @@ export function Match(): JSX.Element {
     };
   }, []);
 
-  // Closes `awaitingTurnAdvance`'s gap. This does NOT key off `currentPlayerId` changing -
-  // whoever wins the trick they just completed leads the NEXT trick too (matchEngine.ts's
-  // `playDomino`: `currentPlayerId = currentTrick.playerId` when the trick is full), so a player
-  // who plays the trick-winning domino keeps `currentPlayerId === myPlayerId` straight through the
-  // broadcast. A "wait for it to change" check would then never clear, permanently disabling
-  // `canPlay` until a full page reload reset this component's state (the actual bug reported: a
-  // player unable to play - even their last domino - right after winning the trick that emptied
-  // their hand). Instead, wait for the concrete, unambiguous fact that MY play landed: the domino
-  // I just submitted is no longer in my hand per the latest broadcast.
+  // My hand as the server last sent it, and the play in flight while that hand still holds it.
+  const myLiveHand = holdGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
+  const inFlight = playing != null && myLiveHand.some((d) => d.id === playing.id) ? playing : null;
   useEffect(() => {
-    if (!awaitingTurnAdvance || !holdGame) return;
-    const myHand = holdGame.hands.find((h) => h.playerId === myPlayerId);
-    const playedDominoStillInHand =
-      myHand?.dominoes.some((d) => d.id === lastPlayedDominoIdRef.current) ?? false;
-    if (!playedDominoStillInHand) {
-      setAwaitingTurnAdvance(false);
-    }
-  }, [awaitingTurnAdvance, holdGame, myPlayerId]);
+    if (playing != null && inFlight == null) setPlaying(null);
+  }, [playing, inFlight]);
 
   // Everyone asked for a rematch and it now exists (MatchDO creates it before recording the id),
   // so take this player there - but only when that happens while they're on the page. A match
@@ -262,20 +249,20 @@ export function Match(): JSX.Element {
   // rematch) stays put and links to it instead; following it then would make the finished match
   // unviewable and trap the Back button. `replace` keeps the finished match out of history for
   // the same reason. MatchRoute keys the page by match id, so the rematch starts fresh.
-  const rematchId = match?.rematchId;
+  const rematchId = liveMatch?.rematchId;
   const rematchIdAtLoadRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (!match) return;
+    if (!liveMatch) return;
     if (rematchIdAtLoadRef.current === undefined) {
       rematchIdAtLoadRef.current = rematchId ?? null;
       return;
     }
     if (rematchId && rematchId !== rematchIdAtLoadRef.current) navigate(`/match/${rematchId}`, { replace: true });
-  }, [match, rematchId, navigate]);
+  }, [liveMatch, rematchId, navigate]);
 
   // A cue that the next hand is out, for anyone who readied up and looked away: bidding has
   // started without them. Only on a change of hand - never for the one the page opened on.
-  const dealtGame = match?.currentGame ?? null;
+  const dealtGame = liveMatch?.currentGame ?? null;
   const seenGameIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!dealtGame) return;
@@ -296,11 +283,11 @@ export function Match(): JSX.Element {
     );
   }
 
-  if (!match || !myPlayerId) {
+  if (!liveMatch || !myPlayerId) {
     return <div className="spinner" role="status" aria-label="Loading match" />;
   }
 
-  if (!match.players.some((p) => p.playerId === myPlayerId)) {
+  if (!liveMatch.players.some((p) => p.playerId === myPlayerId)) {
     return (
       <p role="alert" className="match-error">
         You aren&apos;t a part of this match!
@@ -308,6 +295,8 @@ export function Match(): JSX.Element {
     );
   }
 
+  // Everything below reads the match as it will be once a play in flight lands.
+  const match = inFlight ? projectPlay(liveMatch, myPlayerId, inFlight) : liveMatch;
   const game = match.currentGame;
   // The phase of the hand, what I can do, and how the hand and match stand: @fortytwo/client's
   // matchView.ts, shared with the mobile app.
@@ -328,7 +317,7 @@ export function Match(): JSX.Element {
     iVotedRematch,
   } = view;
   const scores = matchScores(match);
-  const canPlay = view.isMyTurnToPlay && connected && !playMutation.isPending && !awaitingTurnAdvance;
+  const canPlay = view.isMyTurnToPlay && connected && playing == null;
 
   // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
   // itself always reflects the true, immediate server state (used above for e.g. `isHandOver`,
@@ -401,7 +390,21 @@ export function Match(): JSX.Element {
   // Gates which dominoes Hand will let a player preselect (double-click before their turn): only a
   // play that's legal right now, by the same follow-suit rule the server enforces.
   function isValidPlay(domino: DominoType): boolean {
-    return isLegalPlay(match!, view, domino);
+    return isLegalPlay(match, view, domino);
+  }
+
+  // Checked here first, by the same rule the server applies, so an illegal play never leaves the
+  // hand: it's refused at once with the rule's toast, and nothing is sent. A legal one leaves for
+  // the table straight away.
+  function playDomino(domino: DominoType): void {
+    try {
+      assertPlayable(liveMatch!, myPlayerId!, domino);
+    } catch (error) {
+      toastError(error);
+      return;
+    }
+    setPlaying(domino);
+    playMutation.mutate(domino);
   }
 
   return (
@@ -615,9 +618,12 @@ export function Match(): JSX.Element {
             )}
 
             <Hand
-              dominoes={me.dominoes ?? []}
+              // My hand as the server last sent it, with a domino in flight hidden but keeping its
+              // place, in case the play is turned away.
+              dominoes={myLiveHand}
+              playingId={inFlight?.id ?? null}
               selectable={canPlay}
-              onPlay={(domino) => playMutation.mutate(domino)}
+              onPlay={playDomino}
               isValidPlay={isValidPlay}
               highlightPlayable={highlightPlayable}
             />
