@@ -27,6 +27,13 @@
     "experiments": {
       "typedRoutes": true
     },
-    "backgroundColor": "#3a2a20"
+    "backgroundColor": "#3a2a20",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f80bd1ef-6aaa-4f06-86d3-9301f55d2835"
+      }
+    },
+    "owner": "fausett-apps"
   }
 }
