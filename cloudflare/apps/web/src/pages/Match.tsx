@@ -9,8 +9,8 @@
 // soon as all four players ready up, whether or not they finished playing.
 //
 // Rejected actions (an illegal play, a stale bid) pop a SweetAlert2 toast (ui/toast.ts). When the
-// match ends, a summary dialog (components/MatchSummary.tsx) offers a rematch; a toast marks each
-// new hand.
+// match ends, the hand-over rail offers a rematch and a summary dialog (components/MatchSummary.tsx)
+// for anyone who wants it; a toast marks each new hand.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -158,9 +158,9 @@ export function Match(): JSX.Element {
     mutationFn: () => client.rematch(matchId!),
     onError: toastError,
   });
-  // The summary opens by itself when the match ends; closing it uncovers the final table, and
-  // the rail keeps a button to bring it back.
-  const [summaryOpen, setSummaryOpen] = useState(true);
+  // The summary only opens when asked for, from the rail's button: the end of the match plays out
+  // on the table like any other hand.
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const navigate = useNavigate();
   // The player's own settings - here, whether to outline their playable dominoes. Shared with the
   // profile page's query, so a change saved there shows up here.

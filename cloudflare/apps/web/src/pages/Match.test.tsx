@@ -1382,10 +1382,20 @@ describe('Match', () => {
       return { ...base, games: { [Teams.TeamA]: [base.currentGame] }, ...overrides };
     }
 
-    it('opens the summary dialog once the match is over', () => {
+    // The summary waits to be asked for, from the hand-over rail.
+    function openSummary() {
+      const rail = screen.getByRole('region', { name: /hand over/i });
+      fireEvent.click(within(rail).getByRole('button', { name: /match summary/i }));
+    }
+
+    it("doesn't open the summary by itself when the match is over, but opens it from the rail", () => {
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
 
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(within(screen.getByRole('region', { name: /hand over/i })).getByText(/you won the match/i)).not.toBeNull();
+
+      openSummary();
       const dialog = screen.getByRole('dialog', { name: /you won the match/i });
       expect(within(dialog).getByText('Game 1')).not.toBeNull();
     });
@@ -1401,6 +1411,7 @@ describe('Match', () => {
       rematchMock.mockResolvedValue(finishedMatch());
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
+      openSummary();
 
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^rematch/i }));
 
@@ -1410,6 +1421,7 @@ describe('Match', () => {
     it('shows my vote as waiting, with the count', () => {
       useMatchSocketMock.mockReturnValue({ match: finishedMatch({ rematchVotes: ['p1', 'p2'] }), connected: true });
       renderMatch();
+      openSummary();
 
       expect(
         within(screen.getByRole('dialog')).getByRole('button', { name: /waiting for rematch \(2 of 4\)/i })
@@ -1419,6 +1431,7 @@ describe('Match', () => {
     it('closes to the table, leaving a way back to the summary', () => {
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
+      openSummary();
 
       fireEvent.click(screen.getByRole('button', { name: /close/i }));
       expect(screen.queryByRole('dialog')).toBeNull();
@@ -1429,12 +1442,11 @@ describe('Match', () => {
       expect(screen.getByRole('dialog')).not.toBeNull();
     });
 
-    it('can vote from the rail with the dialog closed', async () => {
+    it('can vote from the rail without opening the summary', async () => {
       rematchMock.mockResolvedValue(finishedMatch());
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
 
-      fireEvent.click(screen.getByRole('button', { name: /close/i }));
       const rail = screen.getByRole('region', { name: /hand over/i });
       fireEvent.click(within(rail).getByRole('button', { name: /^rematch/i }));
 
