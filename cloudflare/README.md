@@ -80,7 +80,7 @@ issue: #27.
 
 It signs in with `react-native-auth0`, which has native code, so it doesn't run in Expo Go. Run
 it as a development build instead: `npx expo run:android` / `npx expo run:ios` locally (Android
-Studio / Xcode), or `npx eas-cli build --profile development` in the cloud.
+Studio / Xcode), or in the cloud with EAS (see [Cloud builds with EAS](#cloud-builds-with-eas)).
 
 Setup:
 
@@ -123,6 +123,71 @@ After changing any of these, open a new terminal. If Gradle still uses the old s
 its background process (`cd android && gradlew --stop`). After a failed native build, delete
 `android\app\.cxx` before retrying. `android\` is generated and gitignored, so fix the machine's
 setup rather than editing files in it.
+
+### Cloud builds with EAS
+
+EAS Build compiles the app on Expo's servers instead of your machine. That gives you a build
+anyone can install from a link, and iOS builds without a Mac. `apps/mobile/eas.json` has three
+profiles:
+
+| Profile | What it builds | For |
+| --- | --- | --- |
+| `development` | A development build, like `expo run:android`, served by `npx expo start` | Working on the app without Android Studio |
+| `preview` | A release build; on Android, an APK installable from a link | Testers and playing with friends |
+| `production` | Store builds: an Android App Bundle and an iOS IPA, with the build number raised each time | Google Play and the App Store |
+
+Builds don't see `.env.local`: it's gitignored, so it never leaves your machine. Each profile
+reads its settings from the EAS environment of the same name (`development`, `preview` or
+`production`), stored on expo.dev.
+
+One-time setup, from `apps/mobile`:
+
+1. Sign in with a free Expo account: `npx eas-cli@latest login`.
+2. Link the project: `npx eas-cli@latest init`. This creates the project on expo.dev and writes
+   its ID into `app.json` (`extra.eas.projectId`, and `owner`). Commit that.
+3. Give each environment you'll build the app's settings, with the same names as in
+   `.env.example`. Use plain-text visibility: `EXPO_PUBLIC_*` values are built into the app,
+   so they're not secret. Either push a filled-in copy of `.env.example` (name it
+   `.env.<environment>.local`, so git ignores it):
+
+   ```sh
+   npx eas-cli@latest env:push --environment preview --path .env.preview.local
+   ```
+
+   or set them one at a time:
+
+   ```sh
+   npx eas-cli@latest env:set --environment preview --visibility plaintext \
+     --name EXPO_PUBLIC_API_ORIGIN --value https://<your worker>
+   ```
+
+   A preview or production build should point `EXPO_PUBLIC_API_ORIGIN` at the deployed Worker:
+   a phone can't reach `wrangler dev` on your machine, except over your LAN.
+
+Then build:
+
+```sh
+npx eas-cli@latest build --profile preview --platform android
+```
+
+The first Android build offers to create the app's signing key. Let EAS create and keep it, so
+every build is signed with the same key: Android only installs an update over an app signed with
+the same key. When the build finishes, the CLI
+prints a link and a QR code; open it on the phone to install the APK. Android asks to allow
+installs from that source the first time.
+
+- The Auth0 Native application's callback URLs depend only on the package name and the Auth0
+  domain, so release builds use the same ones as a development build.
+- iOS builds need an Apple Developer account, and EAS asks to sign in to it to manage the
+  certificates. To install an iOS preview build, the phone must be registered first:
+  `npx eas-cli@latest device:create`.
+- App versions: `version` in `app.json` is the version people see. The build number (Android's
+  `versionCode`, iOS's `buildNumber`) is kept by EAS (`appVersionSource: remote`), and
+  production builds raise it by one each time.
+- EAS uploads the whole git repository, and installs the npm workspace from `cloudflare/`.
+  Uncommitted changes are included; gitignored files aren't.
+- If a cloud build fails at installing dependencies, check the Node version first. CI and
+  local development use Node 24, and `eas.json` can pin a version with `"node"` in a profile.
 
 ## Deploying
 
