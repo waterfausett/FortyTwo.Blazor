@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
-import { Hand, isInside } from '../Hand';
+import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
 import { SeatPicker } from '../SeatPicker';
 import { TrickHistory } from '../TrickHistory';
 
@@ -62,16 +62,16 @@ describe('Hand', () => {
     expect(onPlay).toHaveBeenCalledWith(dominoes[1]);
   });
 
-  it("can't be played from when it isn't the player's turn", async () => {
+  it("can't be played from when it isn't the player's turn, but can still be picked up to reorder", async () => {
     const onPlay = jest.fn();
     const onDragChange = jest.fn();
     await render(
       <Hand dominoes={dominoes} canPlay={false} isValidPlay={() => true} onPlay={onPlay} dropZone={{ current: null }} onDragChange={onDragChange} />
     );
     await fireEvent.press(screen.getByLabelText('6-6'));
-    await fireEvent(screen.getByLabelText('6-6'), 'longPress');
     expect(onPlay).not.toHaveBeenCalled();
-    expect(onDragChange).not.toHaveBeenCalled();
+    await fireEvent(screen.getByLabelText('6-6'), 'longPress');
+    expect(onDragChange).toHaveBeenCalledWith({ dragging: true, overDropZone: false });
   });
 
   it('picks a domino up for dragging when it is held', async () => {
@@ -136,5 +136,19 @@ describe('isInside', () => {
     expect(isInside(9, 40, rect)).toBe(false);
     expect(isInside(50, 71, rect)).toBe(false);
     expect(isInside(50, 40, null)).toBe(false);
+  });
+});
+
+describe('hand order', () => {
+  it('moves a domino to where another one is', () => {
+    expect(moveBefore(['a', 'b', 'c', 'd'], 'd', 'b')).toEqual(['a', 'd', 'b', 'c']);
+    expect(moveBefore(['a', 'b', 'c', 'd'], 'a', 'c')).toEqual(['b', 'c', 'a', 'd']);
+    expect(moveBefore(['a', 'b'], 'a', 'a')).toEqual(['a', 'b']);
+  });
+
+  it("keeps the player's arrangement across a play, and adds a new deal in the order dealt", () => {
+    const d = (id: string) => ({ id }) as never;
+    expect(reconcileOrder(['c', 'a', 'b'], [d('a'), d('b'), d('c')].filter((x: { id: string }) => x.id !== 'a'))).toEqual(['c', 'b']);
+    expect(reconcileOrder(['c', 'b'], [d('x'), d('y')])).toEqual(['x', 'y']);
   });
 });

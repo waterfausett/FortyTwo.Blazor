@@ -1,12 +1,17 @@
 // The table seen from the player's chair: the other three seats around the mat, the player at the
 // bottom, and the trick in progress in the middle, each domino in front of whoever played it.
 // Sized from the window width so it fills a phone screen.
-import type { ReactNode, RefObject } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { Seat } from '@fortytwo/client';
 import type { Trick } from '@fortytwo/rules';
 import { Domino } from './Domino';
 import { colors, fonts } from './theme';
+import { TRICK_SWEEP_MS } from '@/match/useTrickHold';
+
+// Roughly how tall a seat plate is (two lines of text and padding), for aiming the sweep at it.
+const PLATE_HEIGHT = 46;
+const GAP = 6;
 
 export interface SeatInfo {
   name: string;
@@ -70,9 +75,20 @@ export interface TableProps {
   // short drag up from the hand over the player's own plate doesn't play anything.
   dropRef?: RefObject<View | null>;
   dropActive?: boolean;
+  // While set, the trick leaves the table toward this seat: whoever won it.
+  sweepTo?: Seat | null;
 }
 
-export function Table({ seats, trick, slotSeats, winningSlot, center, dropRef, dropActive = false }: TableProps) {
+export function Table({
+  seats,
+  trick,
+  slotSeats,
+  winningSlot,
+  center,
+  dropRef,
+  dropActive = false,
+  sweepTo = null,
+}: TableProps) {
   const window = useWindowDimensions();
   const width = Math.min(window.width - 24, 480);
   const sideWidth = Math.round(width * 0.27);
@@ -80,6 +96,50 @@ export function Table({ seats, trick, slotSeats, winningSlot, center, dropRef, d
   // Trick tiles: three stacked vertically must fit the mat's height, two across beside the middle.
   const tileWidth = Math.min(30, Math.floor(matWidth / 5));
   const matHeight = tileWidth * 2 * 3 + 24;
+  const rowHeight = tileWidth * 2 + 4;
+
+  // The sweep: 0 while the trick sits on the table, running to 1 as it leaves for the winner.
+  const sweep = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (sweepTo == null) {
+      sweep.setValue(0);
+      return;
+    }
+    sweep.setValue(0);
+    Animated.timing(sweep, {
+      toValue: 1,
+      duration: TRICK_SWEEP_MS,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [sweepTo, sweep]);
+
+  // Centres relative to the mat's centre: each slot's tile, and each seat's plate.
+  const slotCentre: Record<Seat, { x: number; y: number }> = {
+    top: { x: 0, y: -rowHeight },
+    bottom: { x: 0, y: rowHeight },
+    left: { x: -matWidth / 4, y: 0 },
+    right: { x: matWidth / 4, y: 0 },
+  };
+  const seatCentre: Record<Seat, { x: number; y: number }> = {
+    top: { x: 0, y: -(matHeight / 2 + GAP + PLATE_HEIGHT / 2) },
+    bottom: { x: 0, y: matHeight / 2 + GAP + PLATE_HEIGHT / 2 },
+    left: { x: -(matWidth / 2 + GAP + sideWidth / 2), y: 0 },
+    right: { x: matWidth / 2 + GAP + sideWidth / 2, y: 0 },
+  };
+  function sweepStyle(from: Seat) {
+    if (sweepTo == null) return null;
+    const to = seatCentre[sweepTo];
+    const at = slotCentre[from];
+    return {
+      opacity: sweep.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 1, 0] }),
+      transform: [
+        { translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [0, to.x - at.x] }) },
+        { translateY: sweep.interpolate({ inputRange: [0, 1], outputRange: [0, to.y - at.y] }) },
+        { scale: sweep.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45] }) },
+      ],
+    };
+  }
 
   const played: Partial<Record<Seat, { top: number; bottom: number; winning: boolean; lead: boolean }>> = {};
   trick?.dominoes.forEach((domino, slot) => {
@@ -92,7 +152,12 @@ export function Table({ seats, trick, slotSeats, winningSlot, center, dropRef, d
   const tile = (seat: Seat) => {
     const d = played[seat];
     return (
-      <View style={{ width: tileWidth + 4, height: tileWidth * 2 + 4, alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.View
+        style={[
+          { width: tileWidth + 4, height: rowHeight, alignItems: 'center', justifyContent: 'center' },
+          d ? sweepStyle(seat) : null,
+        ]}
+      >
         {d && <Domino top={d.top} bottom={d.bottom} width={tileWidth} highlighted={d.winning} />}
         {d?.lead && (
           <View style={styles.leadTag}>
@@ -102,7 +167,7 @@ export function Table({ seats, trick, slotSeats, winningSlot, center, dropRef, d
             </Text>
           </View>
         )}
-      </View>
+      </Animated.View>
     );
   };
 
@@ -147,17 +212,19 @@ const styles = StyleSheet.create({
   },
   leadTag: {
     position: 'absolute',
-    bottom: 0,
-    paddingHorizontal: 3,
-    borderRadius: 3,
+    bottom: 1,
+    paddingHorizontal: 2,
+    borderRadius: 2,
     backgroundColor: colors.brass,
   },
+  // Android pads text above and below by default, which makes a tiny tag much taller.
   leadText: {
     color: colors.walnutDeep,
     fontFamily: fonts.uiBold,
-    fontSize: 7,
-    lineHeight: 9,
-    letterSpacing: 0.3,
+    fontSize: 6,
+    lineHeight: 7,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
     textTransform: 'uppercase',
   },
   matDrop: { borderColor: colors.brass, backgroundColor: colors.matLight },

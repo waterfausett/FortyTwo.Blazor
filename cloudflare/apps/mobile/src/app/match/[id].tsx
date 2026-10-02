@@ -98,7 +98,7 @@ export default function MatchScreen() {
     if (!myHand?.dominoes.some((d) => d.id === awaitingPlay)) setAwaitingPlay(null);
   }, [awaitingPlay, game, myPlayerId]);
 
-  const heldTrick = useTrickHold(game);
+  const { heldTrick, sweeping } = useTrickHold(game);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
@@ -152,6 +152,8 @@ export default function MatchScreen() {
   const order = trickPlayOrder(match.players, game, leader);
   const slotSeats = order.map((pid) => (pid == null ? null : seatFor(match.players, myPlayerId, pid)));
   const winningSlot = trick.playerId == null ? null : order.indexOf(trick.playerId);
+  // A held trick sweeps off toward whoever won it.
+  const sweepTo = sweeping && winningSlot != null && winningSlot >= 0 ? slotSeats[winningSlot] : null;
 
   // Taken tricks join their team's pile once the hold lets them leave the table.
   const pileTricks = heldTrick ? game.tricks.slice(0, -1) : game.tricks;
@@ -220,6 +222,7 @@ export default function MatchScreen() {
         winningSlot={winningSlot}
         dropRef={tableRef}
         dropActive={drag.overDropZone}
+        sweepTo={sweepTo}
         center={
           view.isTableReady ? undefined : (
             <View style={styles.waiting}>
@@ -297,7 +300,9 @@ export default function MatchScreen() {
         dominoes={me.dominoes ?? []}
         canPlay={canPlay}
         isValidPlay={(domino) => isValidPlay(match, view, domino)}
-        onPlay={(domino) => play.mutate(domino)}
+        // mutateAsync, so a domino dropped on the table returns to the hand if the play is turned
+        // away (the mutation's onError still shows why).
+        onPlay={(domino) => play.mutateAsync(domino)}
         highlightPlayable={highlightPlayable}
         dropZone={tableRef}
         onDragChange={setDrag}
