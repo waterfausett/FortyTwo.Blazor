@@ -101,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--model", required=True, help="path/to/checkpoint.pt")
     s.add_argument("--deals", type=int, default=1000)
     s.add_argument("--sim-deals", type=int, default=200)
+    s.add_argument("--make-threshold", type=float, default=0.5, help="bid only when P(make) is above this")
     s.add_argument(
         "--matches",
         type=int,
@@ -132,7 +133,9 @@ def main(argv: list[str] | None = None) -> int:
         matches = evaluate_matches(a, b, args.matches, seed=args.seed) if args.matches else None
         print(format_report(hands, matches))
     elif args.command == "eval-bidding":
-        a = SimAgent.from_checkpoint(args.model, n_deals=args.sim_deals, seed=args.seed)
+        a = SimAgent.from_checkpoint(
+            args.model, n_deals=args.sim_deals, make_threshold=args.make_threshold, seed=args.seed
+        )
         b = ModelAgent.from_checkpoint(args.model)
         b.name = f"heuristic-bidding:{Path(args.model).name}"
         ev = evaluate_auctions(a, b, args.deals, seed=args.seed)

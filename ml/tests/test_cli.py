@@ -49,6 +49,23 @@ def test_eval_bidding_runs_on_a_tiny_checkpoint(tmp_path, capsys):
     assert "Calibration" in capsys.readouterr().out
 
 
+def test_eval_bidding_passes_the_make_threshold(tmp_path, monkeypatch):
+    from fortytwo_ml import cli
+
+    path = tmp_path / "m.pt"
+    save_checkpoint(path, QNet(hidden=16, layers=1), step=0, config={})
+    seen = {}
+
+    def fake_evaluate_auctions(a, b, deals, seed=0):
+        seen["threshold"] = a.bidder.config.make_threshold
+        raise SystemExit(0)
+
+    monkeypatch.setattr(cli, "evaluate_auctions", fake_evaluate_auctions)
+    with pytest.raises(SystemExit):
+        main(["eval-bidding", "--model", str(path), "--deals", "1", "--make-threshold", "0.6"])
+    assert seen["threshold"] == 0.6
+
+
 def test_load_agent_sim(tmp_path):
     from fortytwo_ml.agents.sim_bidder import SimAgent
 

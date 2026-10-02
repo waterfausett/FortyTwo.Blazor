@@ -88,10 +88,10 @@ the hand best placed to make it. So the normal-mix eval partly measures the plun
 before Stage 2 aren't comparable.
 
 Then evaluate the simulation bidder against heuristic bidding with the same play model. The model
-runs on CPU. A bid decision measured about 10 s median on the dev box while a training run was
-active, and with about 4 bid decisions per duplicate deal, 1,000 deals can take around 11 h.
-Re-time first on an idle machine with `uv run ml eval-bidding --model runs/stage1-c/ckpt-latest.pt --deals 5`.
-`--sim-deals` trades accuracy for speed.
+runs on CPU. On the idle dev box a bid decision takes about 6 s (median 5.8 s, p95 6.7 s), and
+there are about 4 per duplicate deal, so 1,000 deals take about 6.5 h. A concurrent training run
+nearly doubles that. `--sim-deals` trades accuracy for speed, and `--make-threshold` (default 0.5)
+sets how sure the bidder must be before it bids.
 
 ```sh
 uv run ml eval-bidding --model runs/stage1-c/ckpt-latest.pt --deals 1000
