@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Game, Trick } from '@fortytwo/rules';
 
 export const TRICK_HOLD_MS = 1500;
-export const TRICK_SWEEP_MS = 450;
+export const TRICK_SWEEP_MS = 500;
 
 export interface TrickHold {
   heldTrick: Trick | null;

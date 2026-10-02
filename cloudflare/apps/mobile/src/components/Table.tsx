@@ -62,6 +62,98 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
   );
 }
 
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface PlayedTile {
+  top: number;
+  bottom: number;
+  winning: boolean;
+  lead: boolean;
+}
+
+// The sweep runs a little shorter than the hold's sweeping window, so the trick has fully faded
+// before it's taken off the table - a hold timer and an animation started from it don't finish in
+// step on a device.
+const SWEEP_ANIMATION_MS = TRICK_SWEEP_MS - 120;
+
+function trickKey(trick: Trick): string {
+  return trick.dominoes.map((d) => d?.id ?? 'x').join(',');
+}
+
+// One trick's tiles, in front of whoever played each, and their sweep toward `target` (the
+// winner's seat) once it's set.
+function TrickTiles({
+  played,
+  tileWidth,
+  rowHeight,
+  slotCentre,
+  target,
+}: {
+  played: Partial<Record<Seat, PlayedTile>>;
+  tileWidth: number;
+  rowHeight: number;
+  slotCentre: Record<Seat, Point>;
+  target: Point | null;
+}) {
+  const sweep = useRef(new Animated.Value(0)).current;
+  const sweeping = target != null;
+  useEffect(() => {
+    if (!sweeping) return;
+    Animated.timing(sweep, {
+      toValue: 1,
+      duration: SWEEP_ANIMATION_MS,
+      easing: Easing.in(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [sweeping, sweep]);
+
+  const tile = (seat: Seat) => {
+    const d = played[seat];
+    const from = slotCentre[seat];
+    const sweepStyle =
+      d && target
+        ? {
+            // Fades the whole way, so it's gone by the time it reaches the seat.
+            opacity: sweep.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0.9, 0] }),
+            transform: [
+              { translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [0, target.x - from.x] }) },
+              { translateY: sweep.interpolate({ inputRange: [0, 1], outputRange: [0, target.y - from.y] }) },
+              { scale: sweep.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45] }) },
+            ],
+          }
+        : null;
+    return (
+      <Animated.View
+        style={[{ width: tileWidth + 4, height: rowHeight, alignItems: 'center', justifyContent: 'center' }, sweepStyle]}
+      >
+        {d && <Domino top={d.top} bottom={d.bottom} width={tileWidth} highlighted={d.winning} />}
+        {d?.lead && (
+          <View style={styles.leadTag}>
+            {/* A tag on a small tile: kept from growing with the system font size. */}
+            <Text style={styles.leadText} maxFontSizeMultiplier={1}>
+              Lead
+            </Text>
+          </View>
+        )}
+      </Animated.View>
+    );
+  };
+
+  return (
+    <>
+      {tile('top')}
+      <View style={styles.trickRow}>
+        {tile('left')}
+        {tile('right')}
+      </View>
+      {tile('bottom')}
+    </>
+  );
+}
+
 export interface TableProps {
   seats: Record<Seat, SeatInfo | null>;
   trick: Trick | null;
@@ -98,50 +190,21 @@ export function Table({
   const matHeight = tileWidth * 2 * 3 + 24;
   const rowHeight = tileWidth * 2 + 4;
 
-  // The sweep: 0 while the trick sits on the table, running to 1 as it leaves for the winner.
-  const sweep = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (sweepTo == null) {
-      sweep.setValue(0);
-      return;
-    }
-    sweep.setValue(0);
-    Animated.timing(sweep, {
-      toValue: 1,
-      duration: TRICK_SWEEP_MS,
-      easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [sweepTo, sweep]);
-
   // Centres relative to the mat's centre: each slot's tile, and each seat's plate.
-  const slotCentre: Record<Seat, { x: number; y: number }> = {
+  const slotCentre: Record<Seat, Point> = {
     top: { x: 0, y: -rowHeight },
     bottom: { x: 0, y: rowHeight },
     left: { x: -matWidth / 4, y: 0 },
     right: { x: matWidth / 4, y: 0 },
   };
-  const seatCentre: Record<Seat, { x: number; y: number }> = {
+  const seatCentre: Record<Seat, Point> = {
     top: { x: 0, y: -(matHeight / 2 + GAP + PLATE_HEIGHT / 2) },
     bottom: { x: 0, y: matHeight / 2 + GAP + PLATE_HEIGHT / 2 },
     left: { x: -(matWidth / 2 + GAP + sideWidth / 2), y: 0 },
     right: { x: matWidth / 2 + GAP + sideWidth / 2, y: 0 },
   };
-  function sweepStyle(from: Seat) {
-    if (sweepTo == null) return null;
-    const to = seatCentre[sweepTo];
-    const at = slotCentre[from];
-    return {
-      opacity: sweep.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 1, 0] }),
-      transform: [
-        { translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [0, to.x - at.x] }) },
-        { translateY: sweep.interpolate({ inputRange: [0, 1], outputRange: [0, to.y - at.y] }) },
-        { scale: sweep.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45] }) },
-      ],
-    };
-  }
 
-  const played: Partial<Record<Seat, { top: number; bottom: number; winning: boolean; lead: boolean }>> = {};
+  const played: Partial<Record<Seat, PlayedTile>> = {};
   trick?.dominoes.forEach((domino, slot) => {
     const seat = slotSeats[slot];
     // Slot 0 is always the leader's (trickPlayOrder starts from them).
@@ -149,27 +212,6 @@ export function Table({
       played[seat] = { top: domino.top, bottom: domino.bottom, winning: slot === winningSlot, lead: slot === 0 };
     }
   });
-  const tile = (seat: Seat) => {
-    const d = played[seat];
-    return (
-      <Animated.View
-        style={[
-          { width: tileWidth + 4, height: rowHeight, alignItems: 'center', justifyContent: 'center' },
-          d ? sweepStyle(seat) : null,
-        ]}
-      >
-        {d && <Domino top={d.top} bottom={d.bottom} width={tileWidth} highlighted={d.winning} />}
-        {d?.lead && (
-          <View style={styles.leadTag}>
-            {/* A tag on a small tile: kept from growing with the system font size. */}
-            <Text style={styles.leadText} maxFontSizeMultiplier={1}>
-              Lead
-            </Text>
-          </View>
-        )}
-      </Animated.View>
-    );
-  };
 
   return (
     <View style={styles.table} accessibilityLabel="Table">
@@ -182,14 +224,17 @@ export function Table({
           style={[styles.mat, { width: matWidth, height: matHeight }, dropActive && styles.matDrop]}
         >
           {center ?? (
-            <>
-              {tile('top')}
-              <View style={styles.trickRow}>
-                {tile('left')}
-                {tile('right')}
-              </View>
-              {tile('bottom')}
-            </>
+            // Keyed by the trick, so each trick gets fresh tiles: an animation run on the native
+            // side can leave a reused view where it ended, and the next trick's domino in that slot
+            // would flash there first.
+            <TrickTiles
+              key={trick ? trickKey(trick) : 'none'}
+              played={played}
+              tileWidth={tileWidth}
+              rowHeight={rowHeight}
+              slotCentre={slotCentre}
+              target={sweepTo ? seatCentre[sweepTo] : null}
+            />
           )}
         </View>
         <SeatPlate info={seats.right} width={sideWidth} />
