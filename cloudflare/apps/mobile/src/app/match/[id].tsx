@@ -150,19 +150,9 @@ export default function MatchScreen() {
   const isHandOver = early?.isHandOver ?? false;
   const showHandOver = useLatch(isHandOver && heldTrick == null, isHandOver);
 
-  // The match summary opens by itself once the match is over - but only after the trick that
-  // ended it has played out and the result has had a moment on screen, so it doesn't cover what
-  // happened. Closing it uncovers the final table, and the hand-over panel keeps a button to bring
-  // it back.
+  // The match summary only opens when asked for, from the hand-over panel's button: the end of
+  // the match plays out on the table like any other hand.
   const [summaryOpen, setSummaryOpen] = useState(false);
-  const recapDue = useSettled(showHandOver && (early?.isMatchOver ?? false), RECAP_DELAY_MS);
-  const recapShown = useRef(false);
-  useEffect(() => {
-    if (recapDue && !recapShown.current) {
-      recapShown.current = true;
-      setSummaryOpen(true);
-    }
-  }, [recapDue]);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
@@ -517,8 +507,6 @@ function ActionButton({ label, onPress, disabled = false }: { label: string; onP
 const CONTAINER_PADDING = 12;
 const CONTAINER_GAP = 14;
 const HAND_COLLAPSE_MS = 420;
-// How long the result stays in view before the match summary opens over it.
-const RECAP_DELAY_MS = 1800;
 // How much of the trick history shows below the play area: the top of each pile, with its points.
 const HISTORY_PEEK = 40;
 
