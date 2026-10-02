@@ -46,6 +46,9 @@ export interface HandProps {
   // The player's "highlight playable dominoes" setting: on their turn, outline the legal plays
   // (per `isValidPlay`) and fade the rest. Off by default - it's a help a player opts into.
   highlightPlayable?: boolean;
+  // A domino on its way to the table: not drawn, but its place is kept, so if the play is turned
+  // away it comes back where it was.
+  playingId?: string | null;
 }
 
 // How long a preselected domino "flashes" as pending once it's actually this player's turn,
@@ -144,6 +147,7 @@ export function Hand({
   onPlay,
   isValidPlay = () => true,
   highlightPlayable = false,
+  playingId = null,
 }: HandProps): JSX.Element {
   const [order, setOrder] = useState<DominoType[]>(dominoes);
   const [syncedSignature, setSyncedSignature] = useState<string>(() => handSignature(dominoes));
@@ -260,7 +264,7 @@ export function Hand({
 
   return (
     <div className="hand domino-container" data-testid="hand">
-      {order.map((domino) => (
+      {order.filter((domino) => domino.id !== playingId).map((domino) => (
         <DraggableDomino
           key={domino.id}
           domino={domino}

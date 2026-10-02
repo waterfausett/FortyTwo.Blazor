@@ -388,14 +388,11 @@ describe('Match', () => {
     await waitFor(() => expect(playDominoMock).toHaveBeenCalledWith('match-1', { top: domino.top, bottom: domino.bottom }));
   });
 
-  // Regression test: after MY OWN play mutation resolves successfully, there's a real gap before
-  // the WebSocket broadcast confirming the new turn actually arrives - `useMatchSocket` only ever
-  // updates `match` from a broadcast, never from the mutation's own REST response (client.ts's
-  // playDomino DOES return the fresh MatchState, but Match.tsx never reads `playMutation.data`).
-  // Without accounting for that gap, `canPlay` briefly reads true again the instant
-  // `playMutation.isPending` flips back to false but the (stale) `match` still shows ME as
-  // `currentPlayerId` - letting a second play/preselect attempt fire immediately and get rejected
-  // server-side with "It's not your turn!".
+  // Regression test: after MY OWN play's request resolves, there's a real gap before the WebSocket
+  // broadcast confirming it arrives - `useMatchSocket` only ever updates `match` from a broadcast,
+  // never from the request's own REST response. The play stays in flight until that broadcast
+  // shows the domino gone from my hand; ending it when the request resolved would let a second
+  // play fire against the stale `match`, which the server turns away with "It's not your turn!".
   it("keeps a player's hand non-clickable after their own play resolves, even before the match broadcast confirms the turn moved on", async () => {
     playDominoMock.mockResolvedValue({} as MatchState);
     const domino: Domino = createDomino(1, 2);
@@ -423,22 +420,21 @@ describe('Match', () => {
 
     fireEvent.click(tiles[0]);
     await waitFor(() => expect(playDominoMock).toHaveBeenCalled());
+    await act(async () => {});
 
-    // The mutation has resolved, but `match` (from the still-unmoved mock above) hasn't - the
+    // The request has resolved, but `match` (from the still-unmoved mock above) hasn't - the
     // remaining tile must NOT be clickable/playable again yet.
-    await waitFor(() => {
-      expect(screen.getAllByTestId('domino')[0].classList.contains('clickable')).toBe(false);
-    });
+    const handTiles = within(screen.getByTestId('hand')).getAllByTestId('domino');
+    expect(handTiles).toHaveLength(1);
+    expect(handTiles[0].classList.contains('clickable')).toBe(false);
   });
 
-  // Regression test: `awaitingTurnAdvance`'s clearing condition used to be
-  // `holdGame?.currentPlayerId !== myPlayerId` - sound for normal turn rotation, but false
-  // whenever the mover ALSO wins the trick they just completed: the engine then sets
-  // `currentPlayerId` right back to that same player as leader of the next trick
-  // (matchEngine.ts's `playDomino`: `currentPlayerId = currentTrick.playerId` on a full trick),
-  // so `currentPlayerId` never actually changes across the broadcast. That stuck
-  // `awaitingTurnAdvance` at `true` forever, permanently disabling `canPlay` until a full page
-  // refresh reset the component's state from scratch.
+  // Regression test: the wait for my play to land once ended when `currentPlayerId` moved off me -
+  // sound for normal turn rotation, but never true when the mover ALSO wins the trick they just
+  // completed: the engine then sets `currentPlayerId` right back to that same player as leader of
+  // the next trick (matchEngine.ts's `playDomino`: `currentPlayerId = currentTrick.playerId` on a
+  // full trick). That left `canPlay` disabled until a full page refresh. A play in flight now
+  // ends when the broadcast shows the domino gone from my hand.
   it("lets a player who wins a trick they completed play again once the broadcast confirms it, even though currentPlayerId never changes", async () => {
     playDominoMock.mockResolvedValue({} as MatchState);
     const winningDomino: Domino = createDomino(6, 6); // highest trump - guaranteed trick winner.
@@ -564,6 +560,121 @@ describe('Match', () => {
     fireEvent.doubleClick(handTiles[0]); // (4,0)
 
     expect(handTiles[0].classList.contains('preselected')).toBe(true);
+  });
+
+  describe('optimistic play', () => {
+    // p1 to play on Sixes, holding `mine`; the others' hands don't matter to the page.
+    function playingMatch(mine: Domino[], gameOverrides: Partial<MatchState['currentGame']> = {}): MatchState {
+      return baseMatch(
+        {},
+        {
+          bid: Bid.Thirty,
+          biddingPlayerId: 'p1',
+          trump: Suit.Sixes,
+          currentPlayerId: 'p1',
+          hands: [
+            { playerId: 'p1', team: Teams.TeamA, dominoes: mine, bid: Bid.Thirty },
+            { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+            { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+            { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          ],
+          ...gameOverrides,
+        }
+      );
+    }
+    // A tile's halves, lower first (the table may draw a domino either way up).
+    const labelOf = (tile: HTMLElement) =>
+      [...tile.querySelectorAll<HTMLElement>('[data-value]')]
+        .map((half) => Number(half.dataset.value))
+        .sort((a, b) => a - b)
+        .join('-');
+    const hand = () => within(screen.getByTestId('hand')).queryAllByTestId('domino').map(labelOf);
+    const trick = () => within(screen.getByLabelText(/current trick/i)).queryAllByTestId('domino').map(labelOf);
+
+    it('puts a legal play on the table and moves the turn on before the server answers', async () => {
+      // Never resolves: the server hasn't answered.
+      playDominoMock.mockReturnValue(new Promise(() => {}));
+      useMatchSocketMock.mockReturnValue({ match: playingMatch([createDomino(1, 2), createDomino(3, 4)]), connected: true });
+      renderMatch();
+
+      fireEvent.click(within(screen.getByTestId('hand')).getAllByTestId('domino')[0]);
+
+      expect(hand()).toEqual(['3-4']);
+      expect(trick()).toEqual(['1-2']);
+      expect(screen.getByText('p2 to play')).not.toBeNull();
+      await waitFor(() => expect(playDominoMock).toHaveBeenCalledWith('match-1', { top: 1, bottom: 2 }));
+    });
+
+    it("refuses an illegal play on the spot with the rule's toast, sending nothing", () => {
+      // A six was led, and I hold one, so the 1-2 doesn't follow.
+      const match = playingMatch([createDomino(1, 2), createDomino(6, 3)], {
+        currentPlayerId: 'p1',
+        currentTrick: { playerId: 'p4', team: Teams.TeamB, suit: Suit.Sixes, dominoes: [createDomino(6, 5), null, null, null] },
+      });
+      useMatchSocketMock.mockReturnValue({ match, connected: true });
+      renderMatch();
+
+      fireEvent.click(within(screen.getByTestId('hand')).getAllByTestId('domino')[0]);
+
+      expect(playDominoMock).not.toHaveBeenCalled();
+      expect(toastErrorMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'You must follow suit!' }));
+      expect(hand()).toEqual(['1-2', '3-6']);
+      expect(trick()).toEqual(['5-6']);
+    });
+
+    it('puts a play the server turns away back in its place in the hand', async () => {
+      let refuse: (error: Error) => void = () => {};
+      playDominoMock.mockReturnValue(new Promise((_, reject) => (refuse = reject)));
+      useMatchSocketMock.mockReturnValue({
+        match: playingMatch([createDomino(1, 2), createDomino(3, 4), createDomino(5, 5)]),
+        connected: true,
+      });
+      renderMatch();
+
+      fireEvent.click(within(screen.getByTestId('hand')).getAllByTestId('domino')[1]);
+      expect(hand()).toEqual(['1-2', '5-5']);
+
+      const error = new Error("It's not your turn!");
+      await act(async () => refuse(error));
+
+      expect(toastErrorMock).toHaveBeenCalledWith(error);
+      expect(hand()).toEqual(['1-2', '3-4', '5-5']);
+      expect(trick()).toEqual([]);
+      expect(within(screen.getByTestId('hand')).getAllByTestId('domino')[0].classList.contains('clickable')).toBe(true);
+    });
+
+    it('holds a trick my play completes on the table, through the broadcast that files it', () => {
+      playDominoMock.mockReturnValue(new Promise(() => {}));
+      const played = [createDomino(6, 1), createDomino(6, 2), createDomino(6, 3)];
+      const before = playingMatch([createDomino(6, 6), createDomino(3, 4)], {
+        currentTrick: { playerId: 'p4', team: Teams.TeamB, suit: Suit.Sixes, dominoes: [...played, null] },
+      });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      const ui = () => (
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      useMatchSocketMock.mockReturnValue({ match: before, connected: true });
+      const { rerender } = render(ui());
+
+      fireEvent.click(within(screen.getByTestId('hand')).getAllByTestId('domino')[0]);
+      expect(trick()).toEqual(['1-6', '2-6', '3-6', '6-6']);
+      const tilesBefore = within(screen.getByLabelText(/current trick/i)).getAllByTestId('domino');
+
+      // The server files the trick, which the 6-6 won, and I lead the next.
+      const after = playingMatch([createDomino(3, 4)], {
+        tricks: [{ playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [...played, createDomino(6, 6)] }],
+      });
+      useMatchSocketMock.mockReturnValue({ match: after, connected: true });
+      act(() => rerender(ui()));
+
+      expect(trick()).toEqual(['1-6', '2-6', '3-6', '6-6']);
+      for (const tile of tilesBefore) expect(tile.isConnected).toBe(true);
+      expect(hand()).toEqual(['3-4']);
+    });
   });
 
   it('calls bid with the right Bid value when a bid button is clicked', async () => {
