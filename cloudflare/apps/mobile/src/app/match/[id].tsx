@@ -222,7 +222,6 @@ export default function MatchScreen() {
         <View style={styles.contract}>
           {contractBid && <Text style={styles.contractText}>{contractBid}</Text>}
           {trumpLine && <Text style={styles.contractText}>{trumpLine}</Text>}
-          {view.target != null && <Text style={styles.contractDetail}>Bidders need {view.target}</Text>}
         </View>
         <Score label="Them" marks={scores[opponentTeam] ?? 0} color={colors.them} />
       </View>
@@ -421,7 +420,6 @@ const styles = StyleSheet.create({
   notch: { width: 9, height: 18, borderRadius: 2, borderWidth: 1.5, borderColor: colors.inkMuted },
   contract: { flex: 1, alignItems: 'center', gap: 2 },
   contractText: { color: colors.bone, fontFamily: fonts.uiMedium, textAlign: 'center' },
-  contractDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12 },
   waiting: { alignItems: 'center', gap: 10, padding: 8 },
   waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   smallButton: { borderWidth: 1, borderColor: colors.brass, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
