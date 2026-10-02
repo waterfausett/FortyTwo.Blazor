@@ -210,7 +210,8 @@ export default function MatchScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.container, { paddingBottom: 32 + bottomInset }]}
+      // flexGrow: so the spacer below can push the hand to the bottom of the screen.
+      contentContainerStyle={[styles.container, { flexGrow: 1, paddingBottom: 32 + bottomInset }]}
       scrollEnabled={!drag.dragging}
     >
       <Stack.Screen options={{ title: game.name }} />
@@ -313,6 +314,11 @@ export default function MatchScreen() {
         )
       )}
 
+      {/* Takes up whatever room is left, keeping the hand at the bottom of the screen: when the
+          choices above grow or shrink (a status line, the bids, the trumps), only this changes,
+          so nothing else moves. */}
+      <View style={styles.spacer} />
+
       <Hand
         dominoes={me.dominoes ?? []}
         canPlay={canPlay}
@@ -324,11 +330,17 @@ export default function MatchScreen() {
         dropZone={tableRef}
         onDragChange={setDrag}
       />
-      {canPlay && (
-        <Text style={styles.hint}>
-          Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
-        </Text>
-      )}
+      {/* Always laid out, and only shown on the player's turn, so it coming and going doesn't move
+          anything. */}
+      <Text
+        style={[styles.hint, !canPlay && styles.hidden]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        accessibilityElementsHidden={!canPlay}
+        importantForAccessibility={canPlay ? 'auto' : 'no-hide-descendants'}
+      >
+        Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
+      </Text>
 
       {view.isPlayingPhase && (
         <TrickHistory
@@ -426,6 +438,8 @@ const styles = StyleSheet.create({
   handOverTitle: { color: colors.bone, fontFamily: fonts.display, fontSize: 22 },
   status: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   muted: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center' },
+  spacer: { flexGrow: 1 },
+  hidden: { opacity: 0 },
   hint: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center', fontSize: 12 },
   button: { backgroundColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 8 },
   buttonDisabled: { opacity: 0.5 },
