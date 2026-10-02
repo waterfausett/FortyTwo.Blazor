@@ -41,6 +41,7 @@ import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
+import { FadeIn, FADE_IN_MS } from '@/components/FadeIn';
 import { Hand, type DragState } from '@/components/Hand';
 import { MatchSummary } from '@/components/MatchSummary';
 import { PipFace } from '@/components/PipFace';
@@ -112,6 +113,7 @@ export default function MatchScreen() {
   // hand-over panel keeps a button to bring it back.
   const [summaryOpen, setSummaryOpen] = useState(true);
   const [drag, setDrag] = useState<DragState>({ dragging: false, overDropZone: false });
+  const [viewportHeight, setViewportHeight] = useState(0);
 
   // Follow the rematch once everyone has agreed - but only if it's created while this screen is
   // open. A finished match opened later stays viewable.
@@ -213,148 +215,168 @@ export default function MatchScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      // flexGrow: so the spacer below can push the hand to the bottom of the screen.
-      contentContainerStyle={[styles.container, { flexGrow: 1, paddingBottom: 32 + bottomInset }]}
+      contentContainerStyle={[styles.container, { paddingBottom: 32 + bottomInset }]}
       scrollEnabled={!drag.dragging}
+      onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
     >
       <Stack.Screen options={{ title: game.name }} />
-      {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
+      {/* The play area fills the screen, less a peek at the trick history below, whatever the
+          phase - so the hand sits in the same place from the deal to the last trick, and the
+          table opening up as play starts only takes up the room between them. */}
+      <View
+        style={[
+          styles.playArea,
+          { minHeight: viewportHeight - CONTAINER_PADDING - CONTAINER_GAP - HISTORY_PEEK - bottomInset },
+        ]}
+      >
+        {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
 
-      <View style={styles.scoreboard} accessibilityLabel="Scores">
-        <Score label="Us" marks={scores[myTeam] ?? 0} color={colors.us} />
-        <View style={styles.contract}>
-          {contractBid && <Text style={styles.contractText}>{contractBid}</Text>}
-          {trumpLine && game.trump != null && (
-            <View style={styles.trumpRow} accessibilityLabel={`Trump: ${trumpLine}`}>
-              <PipFace suit={game.trump} size={20} />
-              <Text style={styles.contractText}>{trumpLine}</Text>
-            </View>
-          )}
+        <View style={styles.scoreboard} accessibilityLabel="Scores">
+          <Score label="Us" marks={scores[myTeam] ?? 0} color={colors.us} />
+          <View style={styles.contract}>
+            {contractBid && <Text style={styles.contractText}>{contractBid}</Text>}
+            {trumpLine && game.trump != null && (
+              <View style={styles.trumpRow} accessibilityLabel={`Trump: ${trumpLine}`}>
+                <PipFace suit={game.trump} size={20} />
+                <Text style={styles.contractText}>{trumpLine}</Text>
+              </View>
+            )}
+          </View>
+          <Score label="Them" marks={scores[opponentTeam] ?? 0} color={colors.them} />
         </View>
-        <Score label="Them" marks={scores[opponentTeam] ?? 0} color={colors.them} />
+
+        <Table
+          seats={seats}
+          trick={view.isTableReady ? trick : null}
+          slotSeats={slotSeats}
+          winningSlot={winningSlot}
+          dropRef={tableRef}
+          dropActive={drag.overDropZone}
+          sweepTo={sweepTo}
+          compact={view.isBiddingPhase || view.isTrumpSelectPhase}
+          center={
+            view.isTableReady ? undefined : (
+              <View style={styles.waiting}>
+                <Text style={styles.waitingText}>
+                  {match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}
+                </Text>
+                {config.data?.bots && emptySeatCount > 0 && (
+                  <Pressable
+                    style={styles.smallButton}
+                    disabled={!connected || addBots.isPending}
+                    onPress={() => addBots.mutate()}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.smallButtonText}>Fill with bots</Text>
+                  </Pressable>
+                )}
+              </View>
+            )
+          }
+        />
+
+        {view.isHandOver && (
+          <View style={styles.handOver} accessibilityLabel="Hand over">
+            <Text style={styles.handOverTitle}>
+              {view.isMatchOver
+                ? match.winningTeam === myTeam
+                  ? 'You won the match'
+                  : 'They won the match'
+                : handWinnerIsUs
+                  ? 'We took the hand'
+                  : 'They took the hand'}
+            </Text>
+            {view.isMatchOver && (
+              <Pressable style={styles.smallButton} onPress={() => setSummaryOpen(true)} accessibilityRole="button">
+                <Text style={styles.smallButtonText}>Match summary</Text>
+              </Pressable>
+            )}
+            {view.isMatchOver ? (
+              match.rematchId ? (
+                <ActionButton label="Go to rematch" onPress={() => router.replace(`/match/${match.rematchId}`)} />
+              ) : (
+                <ActionButton
+                  label={view.iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
+                  disabled={view.iVotedRematch || !connected || rematch.isPending}
+                  onPress={() => rematch.mutate()}
+                />
+              )
+            ) : (
+              <>
+                <Text style={styles.muted}>
+                  {view.iAmReady
+                    ? `Waiting for everyone to ready up (${view.readyCount} of 4)`
+                    : view.isHandPlayedOut
+                      ? 'Ready up for the next hand'
+                      : 'Play it out, or ready up for the next hand'}
+                </Text>
+                <ActionButton
+                  label={view.iAmReady ? "You're ready" : 'Ready up'}
+                  disabled={view.iAmReady || !connected || readyUp.isPending}
+                  onPress={() => readyUp.mutate()}
+                />
+              </>
+            )}
+          </View>
+        )}
+
+        {view.canBid ? (
+          <FadeIn key="bid">
+            <BiddingPanel game={game} myPlayerId={myPlayerId} onBid={(b) => bid.mutate(b)} disabled={!connected || bid.isPending} />
+          </FadeIn>
+        ) : view.canSelectTrump ? (
+          <FadeIn key="trump">
+            <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected || trump.isPending} />
+          </FadeIn>
+        ) : (
+          status != null && (
+            // Keyed by phase rather than by the words, so a new phase eases in but each turn's
+            // status doesn't flicker.
+            <FadeIn key={view.isPlayingPhase ? 'play' : 'wait'}>
+              <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
+                {status}
+              </Text>
+            </FadeIn>
+          )
+        )}
+
+        {/* Takes up whatever room is left, keeping the hand at the bottom of the screen: when the
+            choices above grow or shrink (a status line, the bids, the trumps), only this changes,
+            so nothing else moves. */}
+        <View style={styles.spacer} />
+
+        <Hand
+          dominoes={me.dominoes ?? []}
+          canPlay={canPlay}
+          isValidPlay={(domino) => isValidPlay(match, view, domino)}
+          // mutateAsync, so a domino dropped on the table returns to the hand if the play is turned
+          // away (the mutation's onError still shows why).
+          onPlay={(domino) => play.mutateAsync(domino)}
+          highlightPlayable={highlightPlayable}
+          dropZone={tableRef}
+          onDragChange={setDrag}
+        />
+        {/* Always laid out, and only shown on the player's turn, so it coming and going doesn't move
+            anything. */}
+        <Text
+          style={[styles.hint, !canPlay && styles.hidden]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          accessibilityElementsHidden={!canPlay}
+          importantForAccessibility={canPlay ? 'auto' : 'no-hide-descendants'}
+        >
+          Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
+        </Text>
       </View>
 
-      <Table
-        seats={seats}
-        trick={view.isTableReady ? trick : null}
-        slotSeats={slotSeats}
-        winningSlot={winningSlot}
-        dropRef={tableRef}
-        dropActive={drag.overDropZone}
-        sweepTo={sweepTo}
-        compact={view.isBiddingPhase || view.isTrumpSelectPhase}
-        center={
-          view.isTableReady ? undefined : (
-            <View style={styles.waiting}>
-              <Text style={styles.waitingText}>
-                {match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}
-              </Text>
-              {config.data?.bots && emptySeatCount > 0 && (
-                <Pressable
-                  style={styles.smallButton}
-                  disabled={!connected || addBots.isPending}
-                  onPress={() => addBots.mutate()}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.smallButtonText}>Fill with bots</Text>
-                </Pressable>
-              )}
-            </View>
-          )
-        }
-      />
-
-      {view.isHandOver && (
-        <View style={styles.handOver} accessibilityLabel="Hand over">
-          <Text style={styles.handOverTitle}>
-            {view.isMatchOver
-              ? match.winningTeam === myTeam
-                ? 'You won the match'
-                : 'They won the match'
-              : handWinnerIsUs
-                ? 'We took the hand'
-                : 'They took the hand'}
-          </Text>
-          {view.isMatchOver && (
-            <Pressable style={styles.smallButton} onPress={() => setSummaryOpen(true)} accessibilityRole="button">
-              <Text style={styles.smallButtonText}>Match summary</Text>
-            </Pressable>
-          )}
-          {view.isMatchOver ? (
-            match.rematchId ? (
-              <ActionButton label="Go to rematch" onPress={() => router.replace(`/match/${match.rematchId}`)} />
-            ) : (
-              <ActionButton
-                label={view.iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
-                disabled={view.iVotedRematch || !connected || rematch.isPending}
-                onPress={() => rematch.mutate()}
-              />
-            )
-          ) : (
-            <>
-              <Text style={styles.muted}>
-                {view.iAmReady
-                  ? `Waiting for everyone to ready up (${view.readyCount} of 4)`
-                  : view.isHandPlayedOut
-                    ? 'Ready up for the next hand'
-                    : 'Play it out, or ready up for the next hand'}
-              </Text>
-              <ActionButton
-                label={view.iAmReady ? "You're ready" : 'Ready up'}
-                disabled={view.iAmReady || !connected || readyUp.isPending}
-                onPress={() => readyUp.mutate()}
-              />
-            </>
-          )}
-        </View>
-      )}
-
-      {view.canBid ? (
-        <BiddingPanel game={game} myPlayerId={myPlayerId} onBid={(b) => bid.mutate(b)} disabled={!connected || bid.isPending} />
-      ) : view.canSelectTrump ? (
-        <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected || trump.isPending} />
-      ) : (
-        status != null && (
-          <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
-            {status}
-          </Text>
-        )
-      )}
-
-      {/* Takes up whatever room is left, keeping the hand at the bottom of the screen: when the
-          choices above grow or shrink (a status line, the bids, the trumps), only this changes,
-          so nothing else moves. */}
-      <View style={styles.spacer} />
-
-      <Hand
-        dominoes={me.dominoes ?? []}
-        canPlay={canPlay}
-        isValidPlay={(domino) => isValidPlay(match, view, domino)}
-        // mutateAsync, so a domino dropped on the table returns to the hand if the play is turned
-        // away (the mutation's onError still shows why).
-        onPlay={(domino) => play.mutateAsync(domino)}
-        highlightPlayable={highlightPlayable}
-        dropZone={tableRef}
-        onDragChange={setDrag}
-      />
-      {/* Always laid out, and only shown on the player's turn, so it coming and going doesn't move
-          anything. */}
-      <Text
-        style={[styles.hint, !canPlay && styles.hidden]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        accessibilityElementsHidden={!canPlay}
-        importantForAccessibility={canPlay ? 'auto' : 'no-hide-descendants'}
-      >
-        Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
-      </Text>
-
       {view.isPlayingPhase && (
-        <TrickHistory
-          us={pile(myTeam, 'Us', colors.us)}
-          them={pile(opponentTeam, 'Them', colors.them)}
-          stacked={stacked}
-        />
+        <FadeIn delay={FADE_IN_MS}>
+          <TrickHistory
+            us={pile(myTeam, 'Us', colors.us)}
+            them={pile(opponentTeam, 'Them', colors.them)}
+            stacked={stacked}
+          />
+        </FadeIn>
       )}
       {view.isMatchOver && (
         <MatchSummary
@@ -408,9 +430,16 @@ function ActionButton({ label, onPress, disabled = false }: { label: string; onP
   );
 }
 
+const CONTAINER_PADDING = 12;
+const CONTAINER_GAP = 14;
+// How much of the trick history shows below the play area: the top of each pile, with its points.
+const HISTORY_PEEK = 40;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.walnut },
-  container: { padding: 12, gap: 14 },
+  container: { padding: CONTAINER_PADDING, gap: CONTAINER_GAP },
+  // Fills its minimum height through the spacer above the hand.
+  playArea: { gap: CONTAINER_GAP },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.walnut },
   text: { color: colors.bone, fontFamily: fonts.ui },
   reconnecting: { color: colors.danger, fontFamily: fonts.uiBold, textAlign: 'center' },

@@ -12,7 +12,7 @@ import { TRICK_SWEEP_MS } from '@/match/useTrickHold';
 
 // The mat's height while compact (bidding and naming trump), and how long it takes to resize.
 const COMPACT_MAT_HEIGHT = 44;
-const RESIZE_MS = 320;
+const RESIZE_MS = 480;
 
 // Roughly how tall a seat plate is (two lines of text and padding), for aiming the sweep at it.
 const PLATE_HEIGHT = 46;
@@ -217,14 +217,15 @@ export function Table({
   const rowHeight = tileWidth * 2 + 4;
 
   // The mat's height, eased between full and compact. Animating height re-lays-out the screen each
-  // frame, which is fine for this one short, deliberate change.
+  // frame, which is fine for this one short, deliberate change. Opening starts gently and settles
+  // slowly, so the table seems to unfold rather than snap open.
   const shownHeight = compact ? COMPACT_MAT_HEIGHT : matHeight;
   const height = useRef(new Animated.Value(shownHeight)).current;
   useEffect(() => {
     Animated.timing(height, {
       toValue: shownHeight,
       duration: RESIZE_MS,
-      easing: Easing.inOut(Easing.cubic),
+      easing: Easing.bezier(0.33, 0, 0.2, 1),
       useNativeDriver: false,
     }).start();
   }, [shownHeight, height]);
