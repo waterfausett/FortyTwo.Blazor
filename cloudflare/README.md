@@ -186,8 +186,9 @@ installs from that source the first time.
   production builds raise it by one each time.
 - EAS uploads the whole git repository, and installs the npm workspace from `cloudflare/`.
   Uncommitted changes are included; gitignored files aren't.
-- If a cloud build fails at installing dependencies, check the Node version first. CI and
-  local development use Node 24, and `eas.json` can pin a version with `"node"` in a profile.
+- EAS picks its build image from the Expo SDK version. SDK 57's image has Node 22 and npm 10,
+  while CI uses Node 24. If a cloud build fails at installing dependencies, try pinning Node to
+  match with `"node": "<version>"` in the profile.
 
 ## Deploying
 
