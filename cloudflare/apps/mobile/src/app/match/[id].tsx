@@ -10,12 +10,14 @@ import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   MARKS_TO_WIN,
+  assertPlayable,
   describeMatch,
   isHighBidder,
   isTrickStarted,
   isValidPlay,
   matchStatus,
   openSeats,
+  projectPlay,
   seatFor,
   shouldStackTricks,
   teamTrickPoints,
@@ -69,9 +71,9 @@ export default function MatchScreen() {
   // The socket sends the match as soon as it connects; this fills the moment before that, and
   // stands in while the socket is down.
   const matchQuery = useQuery({ queryKey: ['match', id], queryFn: () => api.getMatch(id) });
-  const match = socketMatch ?? matchQuery.data ?? null;
+  const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
-  const seatedIds = (match?.players.map((p) => p.playerId) ?? []).sort();
+  const seatedIds = (liveMatch?.players.map((p) => p.playerId) ?? []).sort();
   const names = useQuery({
     queryKey: ['playerNames', seatedIds],
     queryFn: async () => {
@@ -92,28 +94,31 @@ export default function MatchScreen() {
   const rematch = useMutation({ mutationFn: () => api.rematch(id), onError: toastError });
   const addBots = useMutation({ mutationFn: () => api.addBots(id), onError: toastError });
 
-  // A play's response arrives before the broadcast that moves the turn on, and until then the
-  // stale state would still say it's my turn. Hold play until the broadcast shows the domino I
-  // played gone from my hand. (Not "until the turn changes": winning a trick keeps the turn.)
-  const [awaitingPlay, setAwaitingPlay] = useState<string | null>(null);
+  // Plays are optimistic: a legal play shows on the table the moment it's made, and the screen
+  // shows the match as it will be once the play lands (projectPlay) until the broadcast shows the
+  // domino gone from my hand. If the play is turned away, the domino goes back to my hand.
+  const [playing, setPlaying] = useState<DominoType | null>(null);
   const play = useMutation({
     mutationFn: (domino: DominoType) => api.playDomino(id, { top: domino.top, bottom: domino.bottom }),
-    onSuccess: (_data, domino) => setAwaitingPlay(domino.id),
-    onError: toastError,
+    onError: (error) => {
+      setPlaying(null);
+      toastError(error);
+    },
   });
-  const game = match?.currentGame ?? null;
+  const liveGame = liveMatch?.currentGame ?? null;
+  const myLiveHand = liveGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
+  // Still in my hand, as far as the server has said - so still to be shown as played.
+  const inFlight = playing != null && myLiveHand.some((d) => d.id === playing.id) ? playing : null;
   useEffect(() => {
-    if (awaitingPlay == null || !game) return;
-    const myHand = game.hands.find((h) => h.playerId === myPlayerId);
-    if (!myHand?.dominoes.some((d) => d.id === awaitingPlay)) setAwaitingPlay(null);
-  }, [awaitingPlay, game, myPlayerId]);
+    if (playing != null && inFlight == null) setPlaying(null);
+  }, [playing, inFlight]);
 
-  const { heldTrick, sweeping } = useTrickHold(game);
+  const { heldTrick, sweeping } = useTrickHold(liveGame);
 
   // Bidding and naming trump don't use the table, so it folds down to a strip for them. On a new
   // deal the bids wait for it to finish folding: arriving while it's still full height, they'd
   // briefly push the hand down the screen.
-  const early = seatedView(match, myPlayerId);
+  const early = seatedView(liveMatch, myPlayerId);
   const tableCompact = early != null && (early.isBiddingPhase || early.isTrumpSelectPhase);
   const tableFolded = useSettled(tableCompact, TABLE_RESIZE_MS);
   // The hand-over panel waits for the trick that decided the hand to leave the table, so the
@@ -133,18 +138,18 @@ export default function MatchScreen() {
 
   // Follow the rematch once everyone has agreed - but only if it's created while this screen is
   // open. A finished match opened later stays viewable.
-  const rematchId = match?.rematchId;
+  const rematchId = liveMatch?.rematchId;
   const rematchIdAtLoad = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (!match) return;
+    if (!liveMatch) return;
     if (rematchIdAtLoad.current === undefined) {
       rematchIdAtLoad.current = rematchId ?? null;
       return;
     }
     if (rematchId && rematchId !== rematchIdAtLoad.current) router.replace(`/match/${rematchId}`);
-  }, [match, rematchId]);
+  }, [liveMatch, rematchId]);
 
-  if (!match || !game || !myPlayerId) {
+  if (!liveMatch || !liveGame || !myPlayerId) {
     return (
       <View style={styles.centered}>
         {matchQuery.error ? (
@@ -155,7 +160,7 @@ export default function MatchScreen() {
       </View>
     );
   }
-  if (!match.players.some((p) => p.playerId === myPlayerId)) {
+  if (!liveMatch.players.some((p) => p.playerId === myPlayerId)) {
     return (
       <View style={styles.centered}>
         <Text style={styles.text}>You aren't part of this match.</Text>
@@ -163,10 +168,26 @@ export default function MatchScreen() {
     );
   }
 
+  // Everything below reads the match as it will be once a play in flight lands.
+  const match = inFlight ? projectPlay(liveMatch, myPlayerId, inFlight) : liveMatch;
+  const game = match.currentGame;
   const view = describeMatch(match, myPlayerId);
-  const { me, myTeam, opponentTeam } = view;
+  const { myTeam, opponentTeam } = view;
   const scores = matchScores(match);
-  const canPlay = view.isMyTurnToPlay && connected && !play.isPending && awaitingPlay == null;
+  const canPlay = view.isMyTurnToPlay && connected && playing == null;
+
+  // Checked here first, by the same rule the server applies, so an illegal play never leaves the
+  // hand: it's refused at once (a dragged domino springs back). A legal one leaves for the table.
+  function playDomino(domino: DominoType): Promise<unknown> {
+    try {
+      assertPlayable(liveMatch!, myPlayerId!, domino);
+    } catch (error) {
+      toastError(error);
+      return Promise.reject(error);
+    }
+    setPlaying(domino);
+    return play.mutateAsync(domino);
+  }
   const nameFor = (playerId: string | null) =>
     playerId === myPlayerId ? 'You' : playerId == null ? '' : (names.data?.get(playerId) ?? playerId);
   const status = matchStatus(match, view, nameFor);
@@ -360,12 +381,13 @@ export default function MatchScreen() {
         <View style={styles.spacer} />
 
         <Hand
-          dominoes={me.dominoes ?? []}
+          // My live hand, with any domino in flight held back in place (see `playingId`).
+          dominoes={myLiveHand}
+          playingId={inFlight?.id ?? null}
           canPlay={canPlay}
           isValidPlay={(domino) => isValidPlay(match, view, domino)}
-          // mutateAsync, so a domino dropped on the table returns to the hand if the play is turned
-          // away (the mutation's onError still shows why).
-          onPlay={(domino) => play.mutateAsync(domino)}
+          // Rejects when the play is refused, so a domino dropped on the table returns to the hand.
+          onPlay={playDomino}
           highlightPlayable={highlightPlayable}
           dropZone={tableRef}
           onDragChange={setDrag}

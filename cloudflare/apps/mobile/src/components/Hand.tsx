@@ -64,7 +64,7 @@ export interface DragState {
 }
 
 // What happens to a dragged tile when it's let go: stay where it was dropped (it's being played,
-// and leaves the hand once the play lands), jump straight to its new slot (reordered), or spring
+// and leaves the hand for the table), jump straight to its new slot (reordered), or spring
 // back to where it was.
 type DropOutcome = 'stay' | 'reset' | 'spring';
 
@@ -82,6 +82,9 @@ export interface HandProps {
   onDragChange?: (state: DragState) => void;
   // Horizontal space the hand may use; defaults to the window width less the screen's padding.
   availableWidth?: number;
+  // A domino on its way to the table: not drawn, but its place is kept, so if the play is turned
+  // away it comes back where it was.
+  playingId?: string | null;
 }
 
 export function Hand({
@@ -93,6 +96,7 @@ export function Hand({
   dropZone,
   onDragChange,
   availableWidth,
+  playingId = null,
 }: HandProps) {
   const window = useWindowDimensions();
   const width = availableWidth ?? window.width - 24;
@@ -112,7 +116,10 @@ export function Hand({
     setOrder(reconcileOrder(order, dominoes));
   }
   const byId = new Map(dominoes.map((d) => [d.id, d]));
-  const ordered = order.map((id) => byId.get(id)).filter((d): d is DominoType => d != null);
+  const ordered = order
+    .filter((id) => id !== playingId)
+    .map((id) => byId.get(id))
+    .filter((d): d is DominoType => d != null);
 
   // Where each tile and the drop zone are on screen, measured when a drag starts (the screen
   // holds still while a domino is held, so they stay put).
@@ -251,7 +258,7 @@ function HandTile({
   async function release(x: number, y: number) {
     endDrag();
     const outcome = await latest.current.onDrop(x, y);
-    if (outcome === 'stay') return; // played: it leaves the hand once the play lands
+    if (outcome === 'stay') return; // played: it leaves the hand for the table
     if (outcome === 'reset') {
       setLifted(false);
       offset.setValue({ x: 0, y: 0 });

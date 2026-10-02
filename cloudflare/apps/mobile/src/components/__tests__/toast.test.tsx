@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiError } from '@fortytwo/client';
+import { ValidationError } from '@fortytwo/rules';
 import { ToastHost } from '../ToastHost';
 import { TOAST_DURATION_MS, parseDetail, resetToasts, subscribeToasts, toastError, toastInfo, type Toast } from '../toast';
 
@@ -42,6 +43,16 @@ describe('toasts', () => {
   it('keeps at most three, dropping the oldest', () => {
     for (const n of [1, 2, 3, 4]) toastError(new Error(`Error ${n}`));
     expect(shown.map((t) => t.title)).toEqual(['Error 2', 'Error 3', 'Error 4']);
+  });
+
+  it("shows a rule caught on the phone the same as the server's", () => {
+    toastError(new ValidationError('You must follow suit!', 'If you have a <code>Six</code>, you must play it'));
+    expect(shown[0].title).toBe('You must follow suit!');
+    expect(shown[0].detail).toEqual([
+      { text: 'If you have a ', emphasis: false },
+      { text: 'Six', emphasis: true },
+      { text: ', you must play it', emphasis: false },
+    ]);
   });
 });
 

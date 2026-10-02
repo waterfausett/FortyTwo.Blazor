@@ -54,12 +54,25 @@ describe('Hand', () => {
     expect(onPlay).toHaveBeenCalledTimes(1);
   });
 
-  it('with highlighting off (the default), lets any domino be tapped and leaves legality to the server', async () => {
+  it('with highlighting off (the default), lets any domino be tapped and leaves the rules to the caller', async () => {
     const onPlay = jest.fn();
     await render(<Hand dominoes={dominoes} canPlay isValidPlay={(d) => d.top === 6} onPlay={onPlay} />);
 
     await fireEvent.press(screen.getByLabelText('1-2'));
     expect(onPlay).toHaveBeenCalledWith(dominoes[1]);
+  });
+
+  it('hides a domino on its way to the table, and puts it back in its place if the play is refused', async () => {
+    const three = [createDomino(6, 6), createDomino(1, 2), createDomino(3, 4)];
+    const hand = (playingId: string | null) => (
+      <Hand dominoes={three} canPlay isValidPlay={() => true} onPlay={jest.fn()} playingId={playingId} />
+    );
+    const { rerender } = await render(hand(three[0].id));
+    expect(screen.queryByLabelText('6-6')).toBeNull();
+    expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['1-2', '3-4']);
+
+    await rerender(hand(null));
+    expect(screen.getAllByRole('button').map((b) => b.props.accessibilityLabel)).toEqual(['6-6', '1-2', '3-4']);
   });
 
   it("can't be played from when it isn't the player's turn, but can still be picked up to reorder", async () => {

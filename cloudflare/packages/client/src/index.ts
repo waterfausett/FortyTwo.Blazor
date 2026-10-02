@@ -7,5 +7,6 @@
 export * from './api';
 export * from './matchSocket';
 export * from './matchView';
+export * from './optimistic';
 export * from './summary';
 export * from './table';

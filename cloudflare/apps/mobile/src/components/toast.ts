@@ -2,6 +2,7 @@
 // out on its own. Callable from anywhere - a mutation's onError, say - and shown by the ToastHost
 // in the root layout, which subscribes here.
 import { ApiError } from '@fortytwo/client';
+import { ValidationError } from '@fortytwo/rules';
 
 export const TOAST_DURATION_MS = 3000;
 // Older toasts are dropped once this many are showing.
@@ -76,7 +77,8 @@ function show(toast: Omit<Toast, 'id'>): number {
 }
 
 export function toastError(error: unknown): void {
-  if (error instanceof ApiError) {
+  // A rule broken on the server, or caught here first by the same rules.
+  if (error instanceof ApiError || error instanceof ValidationError) {
     show({ kind: 'error', title: error.title, detail: parseDetail(error.detail), position: 'top' });
   } else {
     show({
