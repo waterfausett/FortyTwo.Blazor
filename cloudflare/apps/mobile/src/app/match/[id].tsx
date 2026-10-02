@@ -42,6 +42,7 @@ import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
 import { Hand, type DragState } from '@/components/Hand';
+import { MatchSummary } from '@/components/MatchSummary';
 import { showError } from '@/components/showError';
 import { Table, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
@@ -106,6 +107,9 @@ export default function MatchScreen() {
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
   const tableRef = useRef<View>(null);
+  // The summary opens by itself when the match ends; closing it uncovers the final table, and the
+  // hand-over panel keeps a button to bring it back.
+  const [summaryOpen, setSummaryOpen] = useState(true);
   const [drag, setDrag] = useState<DragState>({ dragging: false, overDropZone: false });
 
   // Follow the rematch once everyone has agreed - but only if it's created while this screen is
@@ -262,6 +266,11 @@ export default function MatchScreen() {
                 ? 'We took the hand'
                 : 'They took the hand'}
           </Text>
+          {view.isMatchOver && (
+            <Pressable style={styles.smallButton} onPress={() => setSummaryOpen(true)} accessibilityRole="button">
+              <Text style={styles.smallButtonText}>Match summary</Text>
+            </Pressable>
+          )}
           {view.isMatchOver ? (
             match.rematchId ? (
               <ActionButton label="Go to rematch" onPress={() => router.replace(`/match/${match.rematchId}`)} />
@@ -325,6 +334,26 @@ export default function MatchScreen() {
           us={pile(myTeam, 'Us', colors.us)}
           them={pile(opponentTeam, 'Them', colors.them)}
           stacked={stacked}
+        />
+      )}
+      {view.isMatchOver && (
+        <MatchSummary
+          visible={summaryOpen}
+          match={match}
+          myTeam={myTeam}
+          nameFor={nameFor}
+          iVoted={view.iVotedRematch}
+          rematchDisabled={!connected || rematch.isPending}
+          onRematch={() => rematch.mutate()}
+          onGoToRematch={() => {
+            setSummaryOpen(false);
+            router.replace(`/match/${match.rematchId}`);
+          }}
+          onLobby={() => {
+            setSummaryOpen(false);
+            router.dismissTo('/');
+          }}
+          onClose={() => setSummaryOpen(false)}
         />
       )}
     </ScrollView>

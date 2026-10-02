@@ -64,8 +64,8 @@ export default function Lobby() {
         options={{
           headerRight: () => (
             <View style={styles.headerLinks}>
-              <Pressable onPress={() => router.push('/settings')} accessibilityRole="button">
-                <Text style={styles.link}>Settings</Text>
+              <Pressable onPress={() => router.push('/profile')} accessibilityRole="button">
+                <Text style={styles.link}>Profile</Text>
               </Pressable>
               <Pressable onPress={() => clearSession()} accessibilityRole="button">
                 <Text style={styles.link}>Sign out</Text>

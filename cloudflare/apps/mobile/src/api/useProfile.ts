@@ -12,7 +12,8 @@ export function useProfile() {
   return useQuery({ queryKey: PROFILE_KEY, queryFn: () => api.getProfile(), staleTime: Infinity });
 }
 
-// Applies the change on screen straight away, and puts it back if the save fails.
+// Shows a new name or setting straight away, and puts it back if the save fails. A picture waits
+// for the server, which works out what to show when the custom one is cleared.
 export function useSaveProfile() {
   const api = useApi();
   const queryClient = useQueryClient();
@@ -21,7 +22,10 @@ export function useSaveProfile() {
     onMutate: async (patch) => {
       await queryClient.cancelQueries({ queryKey: PROFILE_KEY });
       const previous = queryClient.getQueryData<UserProfile>(PROFILE_KEY);
-      if (previous) queryClient.setQueryData<UserProfile>(PROFILE_KEY, { ...previous, ...patch });
+      if (previous) {
+        const { picture: _picture, ...shown } = patch;
+        queryClient.setQueryData<UserProfile>(PROFILE_KEY, { ...previous, ...shown });
+      }
       return { previous };
     },
     onError: (error, _patch, context) => {
