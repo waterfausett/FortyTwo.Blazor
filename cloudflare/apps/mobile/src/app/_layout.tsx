@@ -8,12 +8,14 @@ import { Barlow_600SemiBold } from '@expo-google-fonts/barlow/600SemiBold';
 import { useFonts } from '@expo-google-fonts/barlow/useFonts';
 import { ZillaSlab_700Bold } from '@expo-google-fonts/zilla-slab/700Bold';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
+import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Auth0Provider, useAuth0 } from 'react-native-auth0';
 import { colors, fonts } from '@/components/theme';
 import { ToastHost } from '@/components/ToastHost';
 import { config } from '@/config';
+import { setSignedIn, takePendingLink } from '@/linking/incomingLink';
 
 const queryClient = new QueryClient();
 
@@ -22,9 +24,22 @@ function RootStack() {
   // The web app's fonts (components/theme.ts). A font that fails to load falls back to the
   // system font rather than blocking the app.
   const [fontsLoaded, fontError] = useFonts({ Barlow_400Regular, Barlow_500Medium, Barlow_600SemiBold, ZillaSlab_700Bold });
+  const signedIn = user != null;
+  const ready = !isLoading && (fontsLoaded || fontError != null);
+  const pathname = usePathname();
+
+  // A match link that arrived while signed out (src/linking/incomingLink.ts) opens once the
+  // player has signed in - unless the router already opened it, as it does at launch when the
+  // stored session turns out to be signed in.
+  setSignedIn(signedIn);
+  useEffect(() => {
+    if (!ready || !signedIn) return;
+    const link = takePendingLink();
+    if (link && link !== pathname) router.push(link);
+  }, [ready, signedIn, pathname]);
 
   // Auth0Provider restores a stored session on launch; wait for it rather than flashing sign-in.
-  if (isLoading || (!fontsLoaded && !fontError)) {
+  if (!ready) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.brass} />
@@ -32,7 +47,6 @@ function RootStack() {
     );
   }
 
-  const signedIn = user != null;
   return (
     <Stack
       screenOptions={{

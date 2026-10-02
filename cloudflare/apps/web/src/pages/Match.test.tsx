@@ -39,6 +39,7 @@ const {
   toastInfoMock,
   rematchMock,
   navigateMock,
+  joinMatchMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -56,6 +57,7 @@ const {
     toastInfoMock: vi.fn(),
     rematchMock: vi.fn(),
     navigateMock: vi.fn(),
+    joinMatchMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -74,6 +76,7 @@ vi.mock('../api/client', () => ({
     getProfile: getProfileMock,
     addBots: addBotsMock,
     rematch: rematchMock,
+    joinMatch: joinMatchMock,
   }),
 }));
 
@@ -560,6 +563,33 @@ describe('Match', () => {
     fireEvent.doubleClick(handTiles[0]); // (4,0)
 
     expect(handTiles[0].classList.contains('preselected')).toBe(true);
+  });
+
+  describe("someone who isn't seated", () => {
+    it('offers the open seats, saying who each would partner, and takes the one picked', async () => {
+      joinMatchMock.mockResolvedValue(baseMatch());
+      currentUserId.value = 'p5';
+      const players = PLAYERS.filter((p) => p.playerId !== 'p3');
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ players }), connected: true });
+      renderMatch();
+
+      const picker = screen.getByRole('group', { name: /pick a seat/i });
+      const seat = within(picker).getByRole('button', { name: /sit here/i });
+      expect(seat.textContent).toContain('with p1');
+      fireEvent.click(seat);
+
+      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('match-1', 2));
+    });
+
+    it('says when the match is full', () => {
+      currentUserId.value = 'p5';
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+
+      expect(screen.getByRole('heading', { name: /this match is full/i })).not.toBeNull();
+      expect(screen.queryByRole('group', { name: /pick a seat/i })).toBeNull();
+      expect(screen.getByRole('link', { name: /back to matches/i }).getAttribute('href')).toBe('/');
+    });
   });
 
   describe('optimistic play', () => {

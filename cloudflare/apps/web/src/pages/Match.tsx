@@ -13,7 +13,7 @@
 // for anyone who wants it; a toast marks each new hand.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Domino as DominoType, Trick } from '@fortytwo/rules';
@@ -39,6 +39,7 @@ import { PipFace } from '../components/PipFace';
 import { PlayDndContext, PlayDropZone } from '../components/PlayDnd';
 import { TrumpPicker } from '../components/TrumpPicker';
 import { Seat } from '../components/Seat';
+import { SeatPicker } from '../components/SeatPicker';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
 import { toastError, toastInfo } from '../ui/toast';
@@ -148,6 +149,17 @@ export function Match(): JSX.Element {
       setPlaying(null);
       toastError(error);
     },
+  });
+  // Taking a seat from this page - opened from an invite link, say. The match's broadcast then
+  // seats the player here; the lobby's lists change too.
+  const queryClient = useQueryClient();
+  const joinMutation = useMutation({
+    mutationFn: (position: number) => client.joinMatch(matchId!, position),
+    onSuccess: (joined) => {
+      queryClient.setQueryData(['match', matchId], joined);
+      void queryClient.invalidateQueries({ queryKey: ['matches'] });
+    },
+    onError: toastError,
   });
   const readyUpMutation = useMutation({
     mutationFn: () => client.readyUp(matchId!, true),
@@ -287,11 +299,26 @@ export function Match(): JSX.Element {
     return <div className="spinner" role="status" aria-label="Loading match" />;
   }
 
+  // Someone who isn't seated - typically arriving from an invite link - picks a seat, or learns
+  // the match is full.
   if (!liveMatch.players.some((p) => p.playerId === myPlayerId)) {
+    const seats = [0, 1, 2, 3].map((position) => {
+      const player = liveMatch.players.find((p) => p.position === position);
+      return player ? (namesQuery.data?.get(player.playerId) ?? player.playerId) : null;
+    });
+    const open = seats.some((name) => name == null);
     return (
-      <p role="alert" className="match-error">
-        You aren&apos;t a part of this match!
-      </p>
+      <section className="match-join mat-panel" aria-label="Join this match">
+        <h1 className="match-join-title">{open ? 'Pick a seat to join' : 'This match is full'}</h1>
+        {open ? (
+          <SeatPicker seats={seats} disabled={joinMutation.isPending} onPick={(position) => joinMutation.mutate(position)} />
+        ) : (
+          <p className="match-join-note">All four seats are taken.</p>
+        )}
+        <Link to="/" className="match-join-back">
+          Back to matches
+        </Link>
+      </section>
     );
   }
 
