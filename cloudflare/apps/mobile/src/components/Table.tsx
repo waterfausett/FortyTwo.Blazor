@@ -91,7 +91,10 @@ export function Table({ seats, trick, slotSeats, winningSlot, center }: TablePro
         {d && <Domino top={d.top} bottom={d.bottom} width={tileWidth} highlighted={d.winning} />}
         {d?.lead && (
           <View style={styles.leadTag}>
-            <Text style={styles.leadText}>Lead</Text>
+            {/* A tag on a small tile: kept from growing with the system font size. */}
+            <Text style={styles.leadText} maxFontSizeMultiplier={1}>
+              Lead
+            </Text>
           </View>
         )}
       </View>
@@ -135,12 +138,19 @@ const styles = StyleSheet.create({
   },
   leadTag: {
     position: 'absolute',
-    bottom: -2,
-    paddingHorizontal: 4,
-    borderRadius: 4,
+    bottom: 0,
+    paddingHorizontal: 3,
+    borderRadius: 3,
     backgroundColor: colors.brass,
   },
-  leadText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase' },
+  leadText: {
+    color: colors.walnutDeep,
+    fontFamily: fonts.uiBold,
+    fontSize: 7,
+    lineHeight: 9,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
   trickRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
   plate: {
     paddingVertical: 5,

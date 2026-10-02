@@ -278,3 +278,27 @@ describe('Hand', () => {
     });
   });
 });
+
+describe('highlightPlayable', () => {
+  const dominoes = [createDomino(6, 6), createDomino(1, 2)];
+  const onlySixes = (d: { top: number }) => d.top === 6;
+  const classesOf = () => screen.getAllByTestId('domino').map((el) => el.className);
+
+  it('marks legal and illegal plays on the player\'s turn when turned on', () => {
+    render(<Hand dominoes={dominoes} selectable onPlay={vi.fn()} isValidPlay={onlySixes} highlightPlayable />);
+    const [six, other] = classesOf();
+    expect(six).toContain('playable');
+    expect(six).not.toContain('unplayable');
+    expect(other).toContain('unplayable');
+  });
+
+  it('marks nothing when turned off, the default', () => {
+    render(<Hand dominoes={dominoes} selectable onPlay={vi.fn()} isValidPlay={onlySixes} />);
+    for (const cls of classesOf()) expect(cls).not.toMatch(/playable/);
+  });
+
+  it("marks nothing when it isn't the player's turn", () => {
+    render(<Hand dominoes={dominoes} selectable={false} onPlay={vi.fn()} isValidPlay={onlySixes} highlightPlayable />);
+    for (const cls of classesOf()) expect(cls).not.toMatch(/playable/);
+  });
+});

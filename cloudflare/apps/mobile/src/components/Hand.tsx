@@ -1,6 +1,8 @@
 // The player's own dominoes, lying horizontally in up to two rows (four, then three), sized to
-// fill the screen's width. On their turn, tapping a legal domino plays it; illegal ones are faded
-// and do nothing.
+// fill the screen's width. On their turn, tapping a domino plays it. With the player's "highlight
+// playable dominoes" setting on, legal plays are outlined and the rest are faded and can't be
+// tapped; with it off (the default) every domino looks the same, and the server turns away an
+// illegal play.
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { Domino as DominoType } from '@fortytwo/rules';
 import { Domino } from './Domino';
@@ -15,11 +17,12 @@ export interface HandProps {
   canPlay: boolean;
   isValidPlay: (domino: DominoType) => boolean;
   onPlay: (domino: DominoType) => void;
+  highlightPlayable?: boolean;
   // Horizontal space the hand may use; defaults to the window width less the screen's padding.
   availableWidth?: number;
 }
 
-export function Hand({ dominoes, canPlay, isValidPlay, onPlay, availableWidth }: HandProps) {
+export function Hand({ dominoes, canPlay, isValidPlay, onPlay, highlightPlayable = false, availableWidth }: HandProps) {
   const window = useWindowDimensions();
   const width = availableWidth ?? window.width - 24;
   // A horizontal tile is twice as long as its short side, plus a little for its shadow. Sized for
@@ -31,7 +34,8 @@ export function Hand({ dominoes, canPlay, isValidPlay, onPlay, availableWidth }:
   return (
     <View style={[styles.hand, { width: rowWidth, minHeight: tileSize * 2 + GAP + 4 }]} accessibilityLabel="Your hand">
       {dominoes.map((domino) => {
-        const playable = canPlay && isValidPlay(domino);
+        const legal = !highlightPlayable || isValidPlay(domino);
+        const playable = canPlay && legal;
         return (
           <Domino
             key={domino.id}
@@ -40,8 +44,8 @@ export function Hand({ dominoes, canPlay, isValidPlay, onPlay, availableWidth }:
             width={tileSize}
             direction="horizontal"
             onPress={playable ? () => onPlay(domino) : undefined}
-            dimmed={canPlay && !playable}
-            highlighted={playable}
+            dimmed={highlightPlayable && canPlay && !legal}
+            highlighted={highlightPlayable && playable}
           />
         );
       })}

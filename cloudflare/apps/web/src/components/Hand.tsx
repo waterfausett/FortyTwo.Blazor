@@ -43,6 +43,9 @@ export interface HandProps {
   // queuing up as an auto-play - see `PRESELECT_AUTO_PLAY_DELAY_MS` below. Defaults to "anything
   // goes" so callers that don't care about follow-suit/etc. validation aren't forced to supply one.
   isValidPlay?: (domino: DominoType) => boolean;
+  // The player's "highlight playable dominoes" setting: on their turn, outline the legal plays
+  // (per `isValidPlay`) and fade the rest. Off by default - it's a help a player opts into.
+  highlightPlayable?: boolean;
 }
 
 // How long a preselected domino "flashes" as pending once it's actually this player's turn,
@@ -69,12 +72,14 @@ function DraggableDomino({
   domino,
   selectable,
   preselected,
+  hint,
   onClick,
   onDoubleClick,
 }: {
   domino: DominoType;
   selectable: boolean;
   preselected: boolean;
+  hint?: 'playable' | 'unplayable';
   onClick: () => void;
   onDoubleClick: () => void;
 }): JSX.Element {
@@ -99,6 +104,7 @@ function DraggableDomino({
         bottom={domino.bottom}
         selectable={selectable}
         preselected={preselected}
+        hint={hint}
         onClick={selectable ? onClick : undefined}
         onDoubleClick={onDoubleClick}
       />
@@ -132,7 +138,13 @@ function reconcileHandOrder(previousOrder: DominoType[], dominoes: DominoType[])
   return [...kept, ...added];
 }
 
-export function Hand({ dominoes, selectable, onPlay, isValidPlay = () => true }: HandProps): JSX.Element {
+export function Hand({
+  dominoes,
+  selectable,
+  onPlay,
+  isValidPlay = () => true,
+  highlightPlayable = false,
+}: HandProps): JSX.Element {
   const [order, setOrder] = useState<DominoType[]>(dominoes);
   const [syncedSignature, setSyncedSignature] = useState<string>(() => handSignature(dominoes));
   // The single domino (by id) queued to auto-play once it becomes this player's turn - set by
@@ -254,6 +266,7 @@ export function Hand({ dominoes, selectable, onPlay, isValidPlay = () => true }:
           domino={domino}
           selectable={selectable}
           preselected={domino.id === preselectedId}
+          hint={highlightPlayable && selectable ? (isValidPlay(domino) ? 'playable' : 'unplayable') : undefined}
           onClick={() => playDomino(domino)}
           onDoubleClick={() => handleDoubleClick(domino)}
         />

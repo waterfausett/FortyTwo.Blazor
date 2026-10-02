@@ -36,6 +36,7 @@ import {
   type Suit,
 } from '@fortytwo/rules';
 import { useApi } from '@/api/useApi';
+import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
@@ -70,6 +71,8 @@ export default function MatchScreen() {
     enabled: seatedIds.length > 0,
     staleTime: Infinity,
   });
+  // Whether to outline the playable dominoes - a setting the player opts into.
+  const highlightPlayable = useProfile().data?.highlightPlayable ?? false;
   // Bots are a dev-only testing aid (the Worker's AUTO_PLAY_BOTS).
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
 
@@ -288,6 +291,7 @@ export default function MatchScreen() {
         canPlay={canPlay}
         isValidPlay={(domino) => isValidPlay(match, view, domino)}
         onPlay={(domino) => play.mutate(domino)}
+        highlightPlayable={highlightPlayable}
       />
       {canPlay && (
         <Text style={styles.hint}>Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it.</Text>

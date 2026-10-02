@@ -63,9 +63,14 @@ export default function Lobby() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable onPress={() => clearSession()} accessibilityRole="button">
-              <Text style={styles.link}>Sign out</Text>
-            </Pressable>
+            <View style={styles.headerLinks}>
+              <Pressable onPress={() => router.push('/settings')} accessibilityRole="button">
+                <Text style={styles.link}>Settings</Text>
+              </Pressable>
+              <Pressable onPress={() => clearSession()} accessibilityRole="button">
+                <Text style={styles.link}>Sign out</Text>
+              </Pressable>
+            </View>
           ),
         }}
       />
@@ -190,6 +195,7 @@ const styles = StyleSheet.create({
   rowDetail: { color: colors.inkMuted, fontFamily: fonts.ui, marginTop: 2 },
   empty: { textAlign: 'center', color: colors.inkMuted, fontFamily: fonts.ui, marginTop: 24 },
   error: { color: colors.danger, fontFamily: fonts.ui },
+  headerLinks: { flexDirection: 'row', gap: 16 },
   link: { color: colors.brass, fontFamily: fonts.uiMedium, fontSize: 16 },
   button: { backgroundColor: colors.brass, padding: 14, borderRadius: 8, alignItems: 'center' },
   buttonText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 16 },

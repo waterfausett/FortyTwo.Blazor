@@ -42,15 +42,24 @@ describe('BiddingPanel', () => {
 describe('Hand', () => {
   const dominoes = [createDomino(6, 6), createDomino(1, 2)];
 
-  it('plays a legal domino on tap and leaves an illegal one inert', async () => {
+  it('with highlighting on, plays a legal domino on tap and leaves an illegal one inert', async () => {
     const onPlay = jest.fn();
     await render(
-      <Hand dominoes={dominoes} canPlay isValidPlay={(d) => d.top === 6} onPlay={onPlay} />
+      <Hand dominoes={dominoes} canPlay isValidPlay={(d) => d.top === 6} onPlay={onPlay} highlightPlayable />
     );
 
     await fireEvent.press(screen.getByLabelText('6-6'));
     expect(onPlay).toHaveBeenCalledWith(dominoes[0]);
     expect(screen.queryByRole('button', { name: '1-2' })).toBeNull();
+  });
+
+  it('with highlighting off (the default), lets any domino be tapped and leaves legality to the server', async () => {
+    const onPlay = jest.fn();
+    await render(<Hand dominoes={dominoes} canPlay isValidPlay={(d) => d.top === 6} onPlay={onPlay} />);
+
+    await fireEvent.press(screen.getByLabelText('1-2'));
+    expect(onPlay).toHaveBeenCalledWith(dominoes[1]);
+    expect(screen.getAllByRole('button')).toHaveLength(2);
   });
 
   it("can't be played from when it isn't the player's turn", async () => {

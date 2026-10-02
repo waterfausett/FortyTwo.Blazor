@@ -162,6 +162,10 @@ export function Match(): JSX.Element {
   // the rail keeps a button to bring it back.
   const [summaryOpen, setSummaryOpen] = useState(true);
   const navigate = useNavigate();
+  // The player's own settings - here, whether to outline their playable dominoes. Shared with the
+  // profile page's query, so a change saved there shows up here.
+  const profileQuery = useQuery({ queryKey: ['profile'], queryFn: () => client.getProfile(), staleTime: Infinity });
+  const highlightPlayable = profileQuery.data?.highlightPlayable ?? false;
   // Bots are a dev-only testing aid (the Worker's AUTO_PLAY_BOTS), so the controls for them only
   // show when the Worker says they're available.
   const configQuery = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig(), staleTime: Infinity });
@@ -615,6 +619,7 @@ export function Match(): JSX.Element {
               selectable={canPlay}
               onPlay={(domino) => playMutation.mutate(domino)}
               isValidPlay={isValidPlay}
+              highlightPlayable={highlightPlayable}
             />
           </div>
         </PlayDndContext>

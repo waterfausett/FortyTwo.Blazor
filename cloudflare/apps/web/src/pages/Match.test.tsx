@@ -32,6 +32,7 @@ const {
   getMatchMock,
   searchUsersMock,
   getConfigMock,
+  getProfileMock,
   addBotsMock,
   useMatchSocketMock,
   toastErrorMock,
@@ -48,6 +49,7 @@ const {
     getMatchMock: vi.fn(),
     searchUsersMock: vi.fn(),
     getConfigMock: vi.fn(),
+    getProfileMock: vi.fn(),
     addBotsMock: vi.fn(),
     useMatchSocketMock: vi.fn(),
     toastErrorMock: vi.fn(),
@@ -69,6 +71,7 @@ vi.mock('../api/client', () => ({
     getMatch: getMatchMock,
     searchUsers: searchUsersMock,
     getConfig: getConfigMock,
+    getProfile: getProfileMock,
     addBots: addBotsMock,
     rematch: rematchMock,
   }),
@@ -105,6 +108,7 @@ beforeEach(() => {
   searchUsersMock.mockResolvedValue([]);
   // Bots are a dev-only aid, so off unless a test turns them on.
   getConfigMock.mockResolvedValue({ bots: false });
+  getProfileMock.mockResolvedValue({ user_id: 'p1', displayName: 'Me', highlightPlayable: false });
 });
 
 afterEach(() => {

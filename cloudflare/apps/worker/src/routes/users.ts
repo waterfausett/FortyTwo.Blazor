@@ -7,14 +7,15 @@ import type { PublicUser, UserProfile } from '@fortytwo/api-types';
 
 const users = new Hono<AppEnv>();
 
-// An Auth0 user plus what to show them as:
+// An Auth0 user plus what to show them as, and their settings:
 //   picture: their own user_metadata.picture when it isn't blank, else Auth0's.
 //   displayName: user_metadata.displayName ?? nickname ?? name ?? email ?? "Unknown User ({id})".
+//   highlightPlayable: off unless they've turned it on.
 export function toUserResponse(u: Auth0User): UserProfile {
   const effectivePicture = u.user_metadata?.picture?.trim() ? u.user_metadata.picture : u.picture;
   const displayName =
     u.user_metadata?.displayName ?? u.nickname ?? u.name ?? u.email ?? `Unknown User (${u.user_id})`;
-  return { ...u, picture: effectivePicture, displayName };
+  return { ...u, picture: effectivePicture, displayName, highlightPlayable: u.user_metadata?.highlightPlayable === true };
 }
 
 // What any player may see of another: enough to show them at the table, and nothing that
