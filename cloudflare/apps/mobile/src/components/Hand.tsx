@@ -11,8 +11,8 @@
 // the server turns away an illegal play.
 //
 // Dragging uses React Native's own PanResponder and Animated, so it needs no native library.
-import { useMemo, useRef, useState, type RefObject } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { Animated, Easing, PanResponder, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { Domino as DominoType } from '@fortytwo/rules';
 import { Domino } from './Domino';
 
@@ -22,6 +22,9 @@ const GAP = 8;
 const MAX_TILE_SIZE = 42;
 // How long a domino must be held before it can be dragged.
 export const HOLD_TO_DRAG_MS = 250;
+// Dealing: each domino rises into place, one after another.
+const DEAL_MS = 280;
+const DEAL_STAGGER_MS = 45;
 
 export interface Rect {
   x: number;
@@ -154,13 +157,14 @@ export function Hand({
 
   return (
     <View style={[styles.hand, { width: rowWidth, minHeight: tileSize * 2 + GAP + 4 }]} accessibilityLabel="Your hand">
-      {ordered.map((domino) => {
+      {ordered.map((domino, index) => {
         const legal = !highlightPlayable || isValidPlay(domino);
         return (
           <HandTile
             key={domino.id}
             domino={domino}
             tileSize={tileSize}
+            dealDelay={index * DEAL_STAGGER_MS}
             playable={canPlay && legal}
             dimmed={highlightPlayable && canPlay && !legal}
             highlighted={highlightPlayable && canPlay && legal}
@@ -185,6 +189,7 @@ export function Hand({
 function HandTile({
   domino,
   tileSize,
+  dealDelay,
   playable,
   dimmed,
   highlighted,
@@ -198,6 +203,7 @@ function HandTile({
 }: {
   domino: DominoType;
   tileSize: number;
+  dealDelay: number;
   playable: boolean;
   dimmed: boolean;
   highlighted: boolean;
@@ -210,6 +216,18 @@ function HandTile({
   viewRef: (view: View | null) => void;
 }) {
   const offset = useRef(new Animated.ValueXY()).current;
+  // A tile mounts when its domino is dealt (it then stays, keyed by the domino, until played).
+  const dealt = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(dealt, {
+      toValue: 1,
+      duration: DEAL_MS,
+      delay: dealDelay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    // Only on mount: a tile moved by a reorder isn't dealt again.
+  }, []);
   const [lifted, setLifted] = useState(false);
   // Gesture state lives in refs: the PanResponder is created once, and reads the latest of these.
   const armed = useRef(false);
@@ -281,46 +299,50 @@ function HandTile({
 
   return (
     <Animated.View
-      ref={viewRef}
-      collapsable={false}
-      {...responder.panHandlers}
       style={[
-        { transform: [...offset.getTranslateTransform(), { scale: lifted ? 1.08 : 1 }] },
+        { opacity: dealt, transform: [{ translateY: dealt.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] },
         lifted && styles.lifted,
       ]}
     >
-      <Pressable
-        onPress={playable ? onPlay : undefined}
-        onLongPress={draggable ? pickUp : undefined}
-        delayLongPress={HOLD_TO_DRAG_MS}
-        // Held and let go without moving: put it back. (When a drag takes over the touch, this
-        // fires first, so wait a tick to see whether the drag was granted.)
-        onPressOut={() =>
-          setTimeout(() => {
-            if (armed.current && !granted.current) {
-              endDrag();
-              springBack();
-            }
-          }, 0)
-        }
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !playable }}
-        accessibilityLabel={`${domino.top}-${domino.bottom}`}
-        accessibilityHint={
-          draggable ? (playable ? 'Tap to play, or hold and drag it to the table' : 'Hold and drag to move it') : undefined
-        }
-        hitSlop={4}
+      <Animated.View
+        ref={viewRef}
+        collapsable={false}
+        {...responder.panHandlers}
+        style={{ transform: [...offset.getTranslateTransform(), { scale: lifted ? 1.08 : 1 }] }}
       >
-        <Domino
-          top={domino.top}
-          bottom={domino.bottom}
-          width={tileSize}
-          direction="horizontal"
-          dimmed={dimmed}
-          highlighted={highlighted}
-          accessible={false}
-        />
-      </Pressable>
+        <Pressable
+          onPress={playable ? onPlay : undefined}
+          onLongPress={draggable ? pickUp : undefined}
+          delayLongPress={HOLD_TO_DRAG_MS}
+          // Held and let go without moving: put it back. (When a drag takes over the touch, this
+          // fires first, so wait a tick to see whether the drag was granted.)
+          onPressOut={() =>
+            setTimeout(() => {
+              if (armed.current && !granted.current) {
+                endDrag();
+                springBack();
+              }
+            }, 0)
+          }
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !playable }}
+          accessibilityLabel={`${domino.top}-${domino.bottom}`}
+          accessibilityHint={
+            draggable ? (playable ? 'Tap to play, or hold and drag it to the table' : 'Hold and drag to move it') : undefined
+          }
+          hitSlop={4}
+        >
+          <Domino
+            top={domino.top}
+            bottom={domino.bottom}
+            width={tileSize}
+            direction="horizontal"
+            dimmed={dimmed}
+            highlighted={highlighted}
+            accessible={false}
+          />
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 }

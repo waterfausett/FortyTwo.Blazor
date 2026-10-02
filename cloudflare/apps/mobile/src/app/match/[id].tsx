@@ -34,6 +34,7 @@ import {
   rematchAgreed,
   suitToPrettyString,
   type Domino as DominoType,
+  type MatchState,
   type Suit,
 } from '@fortytwo/rules';
 import { useApi } from '@/api/useApi';
@@ -46,10 +47,11 @@ import { Hand, type DragState } from '@/components/Hand';
 import { MatchSummary } from '@/components/MatchSummary';
 import { PipFace } from '@/components/PipFace';
 import { toastError } from '@/components/toast';
-import { Table, type SeatInfo } from '@/components/Table';
+import { Table, TABLE_RESIZE_MS, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
 import { TrumpPicker } from '@/components/TrumpPicker';
 import { colors, fonts } from '@/components/theme';
+import { useSettled } from '@/match/useSettled';
 import { useTrickHold } from '@/match/useTrickHold';
 
 export default function MatchScreen() {
@@ -105,6 +107,12 @@ export default function MatchScreen() {
   }, [awaitingPlay, game, myPlayerId]);
 
   const { heldTrick, sweeping } = useTrickHold(game);
+
+  // Bidding and naming trump don't use the table, so it folds down to a strip for them. On a new
+  // deal the bids wait for it to finish folding: arriving while it's still full height, they'd
+  // briefly push the hand down the screen.
+  const tableCompact = describeTableCompact(match, myPlayerId);
+  const tableFolded = useSettled(tableCompact, TABLE_RESIZE_MS);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
@@ -201,6 +209,9 @@ export default function MatchScreen() {
   const emptySeatCount = openSeats(match.players, myPlayerId).length;
 
   const handWinnerIsUs = view.handWinner === myTeam;
+  // Once the hand is decided - and the trick that decided it has left the table, so the result
+  // doesn't land on top of it.
+  const showHandOver = view.isHandOver && heldTrick == null;
   const contractBid =
     game.bid != null && game.bid !== Bid.Pass && game.biddingPlayerId != null
       ? `${game.trump == null ? 'High bid' : 'Bid'} ${bidToPrettyString(game.bid)} · ${nameFor(game.biddingPlayerId)}`
@@ -253,7 +264,7 @@ export default function MatchScreen() {
           dropRef={tableRef}
           dropActive={drag.overDropZone}
           sweepTo={sweepTo}
-          compact={view.isBiddingPhase || view.isTrumpSelectPhase}
+          compact={tableCompact}
           center={
             view.isTableReady ? undefined : (
               <View style={styles.waiting}>
@@ -275,52 +286,48 @@ export default function MatchScreen() {
           }
         />
 
-        {view.isHandOver && (
-          <View style={styles.handOver} accessibilityLabel="Hand over">
-            <Text style={styles.handOverTitle}>
-              {view.isMatchOver
-                ? match.winningTeam === myTeam
-                  ? 'You won the match'
-                  : 'They won the match'
-                : handWinnerIsUs
-                  ? 'We took the hand'
-                  : 'They took the hand'}
-            </Text>
-            {view.isMatchOver && (
-              <Pressable style={styles.smallButton} onPress={() => setSummaryOpen(true)} accessibilityRole="button">
-                <Text style={styles.smallButtonText}>Match summary</Text>
-              </Pressable>
-            )}
+        {tableCompact && !tableFolded ? null : showHandOver ? (
+          // Takes the status line's place, so it fits above the hand without moving it.
+          <Fade key="handOver">
             {view.isMatchOver ? (
-              match.rematchId ? (
-                <ActionButton label="Go to rematch" onPress={() => router.replace(`/match/${match.rematchId}`)} />
-              ) : (
-                <ActionButton
-                  label={view.iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
-                  disabled={view.iVotedRematch || !connected || rematch.isPending}
-                  onPress={() => rematch.mutate()}
-                />
-              )
-            ) : (
-              <>
-                <Text style={styles.muted}>
-                  {view.iAmReady
-                    ? `Waiting for everyone to ready up (${view.readyCount} of 4)`
-                    : view.isHandPlayedOut
-                      ? 'Ready up for the next hand'
-                      : 'Play it out, or ready up for the next hand'}
+              <View style={styles.matchOver} accessibilityLabel="Match over">
+                <Text style={styles.handOverTitle}>
+                  {match.winningTeam === myTeam ? 'You won the match' : 'They won the match'}
                 </Text>
+                <Pressable style={styles.smallButton} onPress={() => setSummaryOpen(true)} accessibilityRole="button">
+                  <Text style={styles.smallButtonText}>Match summary</Text>
+                </Pressable>
+                {match.rematchId ? (
+                  <ActionButton label="Go to rematch" onPress={() => router.replace(`/match/${match.rematchId}`)} />
+                ) : (
+                  <ActionButton
+                    label={view.iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
+                    disabled={view.iVotedRematch || !connected || rematch.isPending}
+                    onPress={() => rematch.mutate()}
+                  />
+                )}
+              </View>
+            ) : (
+              <View style={styles.handOver} accessibilityLabel="Hand over">
+                <View style={styles.handOverText}>
+                  <Text style={styles.handOverTitle}>{handWinnerIsUs ? 'We took the hand' : 'They took the hand'}</Text>
+                  <Text style={styles.handOverDetail}>
+                    {view.iAmReady
+                      ? `Waiting for everyone (${view.readyCount} of 4 ready)`
+                      : view.isHandPlayedOut
+                        ? 'Ready up for the next hand'
+                        : 'Play it out, or ready up'}
+                  </Text>
+                </View>
                 <ActionButton
-                  label={view.iAmReady ? "You're ready" : 'Ready up'}
+                  label={view.iAmReady ? 'Ready' : 'Ready up'}
                   disabled={view.iAmReady || !connected || readyUp.isPending}
                   onPress={() => readyUp.mutate()}
                 />
-              </>
+              </View>
             )}
-          </View>
-        )}
-
-        {view.canBid ? (
+          </Fade>
+        ) : view.canBid ? (
           // Fades out as soon as a bid is picked (and back, should it be turned away), rather than
           // dimming until the server answers and then vanishing.
           <Fade key="bid" visible={!bid.isPending}>
@@ -404,6 +411,14 @@ export default function MatchScreen() {
   );
 }
 
+// Whether the table is folded down for bidding or naming trump. Worked out before the screen's
+// early returns, since it feeds a hook.
+function describeTableCompact(match: MatchState | null, myPlayerId: string | undefined): boolean {
+  if (!match || !myPlayerId || !match.players.some((p) => p.playerId === myPlayerId)) return false;
+  const view = describeMatch(match, myPlayerId);
+  return view.isBiddingPhase || view.isTrumpSelectPhase;
+}
+
 // A team's marks as a tally of MARKS_TO_WIN notches, like the web scoreboard - no number, to save
 // room on a phone.
 function Score({ label, marks, color }: { label: string; marks: number; color: string }) {
@@ -464,7 +479,7 @@ const styles = StyleSheet.create({
   waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   smallButton: { borderWidth: 1, borderColor: colors.brass, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   smallButtonText: { color: colors.brass, fontFamily: fonts.uiBold },
-  handOver: {
+  matchOver: {
     alignItems: 'center',
     gap: 8,
     padding: 14,
@@ -473,7 +488,21 @@ const styles = StyleSheet.create({
     borderColor: colors.brass,
     backgroundColor: 'rgba(20, 13, 9, 0.55)',
   },
-  handOverTitle: { color: colors.bone, fontFamily: fonts.display, fontSize: 22 },
+  // One row - the result, then the button - so it takes little more room than a status line.
+  handOver: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.brass,
+    backgroundColor: 'rgba(20, 13, 9, 0.55)',
+  },
+  handOverText: { flex: 1, gap: 2 },
+  handOverTitle: { color: colors.bone, fontFamily: fonts.display, fontSize: 20 },
+  handOverDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
   status: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   muted: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center' },
   spacer: { flexGrow: 1 },

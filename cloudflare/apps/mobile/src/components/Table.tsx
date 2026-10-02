@@ -12,7 +12,7 @@ import { TRICK_SWEEP_MS } from '@/match/useTrickHold';
 
 // The mat's height while compact (bidding and naming trump), and how long it takes to resize.
 const COMPACT_MAT_HEIGHT = 44;
-const RESIZE_MS = 480;
+export const TABLE_RESIZE_MS = 480;
 
 // Roughly how tall a seat plate is (two lines of text and padding), for aiming the sweep at it.
 const PLATE_HEIGHT = 46;
@@ -224,7 +224,7 @@ export function Table({
   useEffect(() => {
     Animated.timing(height, {
       toValue: shownHeight,
-      duration: RESIZE_MS,
+      duration: TABLE_RESIZE_MS,
       easing: Easing.bezier(0.33, 0, 0.2, 1),
       useNativeDriver: false,
     }).start();
