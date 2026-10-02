@@ -1,7 +1,7 @@
 // Both teams' piles of taken tricks for the hand, side by side: each headed by the team's running
 // points (out of the target, for the bidding team), then its tricks, newest first, each with the
-// points it was worth. On big bids a pile holds only its last two tricks, like tricks stacked on a
-// real table (the caller picks them: @fortytwo/client's shouldStackTricks).
+// points it was worth. On big bids only the hand's last two tricks stay in view, like tricks
+// stacked on a real table (the caller picks them: @fortytwo/client's teamTricksForDisplay).
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { trickValue, type Trick } from '@fortytwo/rules';
 import { Domino } from './Domino';
@@ -19,6 +19,8 @@ export interface TeamPile {
 export interface TrickHistoryProps {
   us: TeamPile;
   them: TeamPile;
+  // Only the hand's last two tricks are in view - say so, so it's clear why the rest are gone.
+  stacked: boolean;
 }
 
 // Keyed by the trick's dominoes: every domino is played once per hand, so they identify a trick.
@@ -61,7 +63,7 @@ function Pile({ pile, tileWidth }: { pile: TeamPile; tileWidth: number }) {
   );
 }
 
-export function TrickHistory({ us, them }: TrickHistoryProps) {
+export function TrickHistory({ us, them, stacked }: TrickHistoryProps) {
   const tileWidth = tileWidthFor(useWindowDimensions().width);
   return (
     <View style={styles.history} accessibilityLabel="Tricks taken">
@@ -69,11 +71,13 @@ export function TrickHistory({ us, them }: TrickHistoryProps) {
         <Pile pile={us} tileWidth={tileWidth} />
         <Pile pile={them} tileWidth={tileWidth} />
       </View>
+      {stacked && <Text style={styles.note}>Tricks are stacked: only the last two taken are shown</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  note: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12, textAlign: 'center' },
   history: { gap: 6 },
   piles: { flexDirection: 'row', gap: 8 },
   pile: { flex: 1, gap: 6, padding: 8, borderRadius: 10, backgroundColor: 'rgba(20, 13, 9, 0.45)' },

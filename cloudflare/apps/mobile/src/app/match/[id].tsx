@@ -324,6 +324,7 @@ export default function MatchScreen() {
         <TrickHistory
           us={pile(myTeam, 'Us', colors.us)}
           them={pile(opponentTeam, 'Them', colors.them)}
+          stacked={stacked}
         />
       )}
     </ScrollView>

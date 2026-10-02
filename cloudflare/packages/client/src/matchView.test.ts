@@ -188,10 +188,15 @@ describe('trick piles', () => {
     expect(shouldStackTricks(game(null, null))).toBe(false);
   });
 
-  it("shows a team's tricks in the order won, or only the last two when stacked", () => {
+  it("shows a team's tricks in the order won, or when stacked only those among the hand's last two", () => {
     const tricks = [trick(Teams.TeamA, 1), trick(Teams.TeamB, 2), trick(Teams.TeamA, 3), trick(Teams.TeamA, 4)];
     expect(teamTricksForDisplay(tricks, Teams.TeamA, false).map((t) => t.playerId)).toEqual(['p1', 'p3', 'p4']);
     expect(teamTricksForDisplay(tricks, Teams.TeamA, true).map((t) => t.playerId)).toEqual(['p3', 'p4']);
-    expect(teamTricksForDisplay(tricks, Teams.TeamB, true).map((t) => t.playerId)).toEqual(['p2']);
+    // Team B's trick is older than the last two, so it's out of view.
+    expect(teamTricksForDisplay(tricks, Teams.TeamB, true)).toEqual([]);
+
+    const split = [trick(Teams.TeamA, 1), trick(Teams.TeamA, 2), trick(Teams.TeamB, 3), trick(Teams.TeamA, 4)];
+    expect(teamTricksForDisplay(split, Teams.TeamA, true).map((t) => t.playerId)).toEqual(['p4']);
+    expect(teamTricksForDisplay(split, Teams.TeamB, true).map((t) => t.playerId)).toEqual(['p3']);
   });
 });

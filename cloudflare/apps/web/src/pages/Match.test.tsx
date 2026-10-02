@@ -1179,7 +1179,7 @@ describe('Match', () => {
       expect(container.querySelector('.player-team-tricks .badge')?.textContent).toBe('1');
     });
 
-    it('trims each side to its last 2 tricks once the bid is big enough (so a big hand keeps a short pile)', () => {
+    it('keeps only the last 2 tricks taken in view, split between the sides, once the bid is big enough', () => {
       const tricksFor = (team: Teams, count: number): Trick[] =>
         Array.from({ length: count }, () => ({
           playerId: 'p1',
@@ -1192,6 +1192,40 @@ describe('Match', () => {
         {},
         {
           bid: Bid.EightyFour, // > FortyTwo (42), not Plunge -> stacking kicks in.
+          biddingPlayerId: 'p1',
+          trump: Suit.Sixes,
+          // Alternating, so the last two taken are one each.
+          tricks: [Teams.TeamA, Teams.TeamB, Teams.TeamA, Teams.TeamB, Teams.TeamA, Teams.TeamB].flatMap((t) =>
+            tricksFor(t, 1)
+          ),
+        }
+      );
+      useMatchSocketMock.mockReturnValue({ match, connected: true });
+
+      const { container } = render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+
+      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(1);
+      expect(container.querySelectorAll('.opponent-tricks .trick-history-row')).toHaveLength(1);
+    });
+
+    it('shows nothing of a side whose tricks are all older than the last 2 taken', () => {
+      const tricksFor = (team: Teams, count: number): Trick[] =>
+        Array.from({ length: count }, () => ({
+          playerId: 'p1',
+          team,
+          suit: Suit.Sixes,
+          dominoes: [createDomino(0, 0), createDomino(0, 0), createDomino(0, 0), createDomino(0, 0)],
+        }));
+      const match = baseMatch(
+        {},
+        {
+          bid: Bid.EightyFour,
           biddingPlayerId: 'p1',
           trump: Suit.Sixes,
           tricks: [...tricksFor(Teams.TeamA, 3), ...tricksFor(Teams.TeamB, 3)],
@@ -1207,7 +1241,7 @@ describe('Match', () => {
         </QueryClientProvider>
       );
 
-      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(2);
+      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(0);
       expect(container.querySelectorAll('.opponent-tricks .trick-history-row')).toHaveLength(2);
     });
   });

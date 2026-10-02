@@ -113,6 +113,7 @@ describe('TrickHistory', () => {
       <TrickHistory
         us={{ label: 'Us', color: 'teal', tricks: [first, second], points: 12, target: 32 }}
         them={{ label: 'Them', color: 'orange', tricks: [], points: 0, target: null }}
+        stacked={false}
       />
     );
 
