@@ -169,6 +169,16 @@ describe('user routes', () => {
       });
     });
 
+    it('stores the highlight-playable setting', async () => {
+      const seen = mockUserPatch();
+      const res = await api('/api/users', 'auth0|p1', {
+        method: 'PATCH',
+        body: JSON.stringify({ highlightPlayable: true }),
+      });
+      expect(res.status).toBe(200);
+      expect(seen.body).toEqual({ user_metadata: { highlightPlayable: true } });
+    });
+
     it('lets a blank picture clear the custom one', async () => {
       const seen = mockUserPatch();
       const res = await api('/api/users', 'auth0|p1', { method: 'PATCH', body: JSON.stringify({ picture: '' }) });
@@ -186,6 +196,7 @@ describe('user routes', () => {
       ['a picture that is not a URL', { picture: 'me.png' }],
       ['an over-long picture URL', { picture: `https://example.com/${'x'.repeat(2048)}` }],
       ['an array body', ['displayName']],
+      ['a non-boolean highlight setting', { highlightPlayable: 'yes' }],
     ])('rejects %s with a 400', async (_, body) => {
       const res = await api('/api/users', 'auth0|p1', { method: 'PATCH', body: JSON.stringify(body) });
       expect(res.status).toBe(400);
@@ -224,6 +235,19 @@ describe('toUserResponse', () => {
     it('falls back to the raw picture when user_metadata is absent entirely', () => {
       const u: Auth0User = { user_id: 'u1', picture: 'raw.png' };
       expect(toUserResponse(u).picture).toBe('raw.png');
+    });
+  });
+
+  describe('highlightPlayable', () => {
+    it('is off unless the player turned it on', () => {
+      expect(toUserResponse({ user_id: 'u1' }).highlightPlayable).toBe(false);
+      expect(toUserResponse({ user_id: 'u1', user_metadata: { highlightPlayable: false } }).highlightPlayable).toBe(false);
+      expect(toUserResponse({ user_id: 'u1', user_metadata: { highlightPlayable: true } }).highlightPlayable).toBe(true);
+    });
+
+    it('is not shown to other players', () => {
+      const u: Auth0User = { user_id: 'u1', user_metadata: { highlightPlayable: true } };
+      expect(toPublicUser(u)).not.toHaveProperty('highlightPlayable');
     });
   });
 

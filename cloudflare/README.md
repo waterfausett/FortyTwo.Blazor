@@ -11,10 +11,10 @@ An npm workspace:
 | --- | --- |
 | `packages/rules` | `@fortytwo/rules`: the game's rules as pure functions over `MatchState`. The Worker enforces them; the web app uses them to show only legal bids, trumps and plays. |
 | `packages/api-types` | `@fortytwo/api-types`: the JSON shapes the REST API sends, shared by the Worker and the web app. Types only. |
-| `packages/client` | `@fortytwo/client`: the client code that doesn't depend on how the app draws - the REST wrapper, the match socket's reconnect loop, and table-geometry and match-summary helpers. No browser-only APIs or React, so a native app can share it; each app passes in its API origin and wake-up signals. |
+| `packages/client` | `@fortytwo/client`: the client code that doesn't depend on how the app draws - the REST wrapper, the match socket's reconnect loop, what a seated player can see and do in a match (`describeMatch`), and table-geometry and match-summary helpers. No browser-only APIs or React, so a native app can share it; each app passes in its API origin and wake-up signals. |
 | `apps/worker` | `@fortytwo/worker`: the Hono API (`/api/*`), the match WebSocket (`/matches/:id/ws`), and `MatchDO`, the Durable Object that holds each match. |
 | `apps/web` | `@fortytwo/web`: the Vite + React front end, signing in through Auth0. |
-| `apps/mobile` | `@fortytwo/mobile`: the Expo (React Native) app, talking to the same Worker. Early days: sign-in, the match list and a live read-only match view. See [Mobile app](#mobile-app). |
+| `apps/mobile` | `@fortytwo/mobile`: the Expo (React Native) app, talking to the same Worker. Sign in, find or create a match, pick a seat, and play a full game by tap. See [Mobile app](#mobile-app). |
 
 How a move travels: the web app calls a REST route; the route validates the body and calls the
 match's `MatchDO` over Durable Object RPC; `MatchDO` applies the rule, saves the match, and

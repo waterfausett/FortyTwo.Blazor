@@ -108,6 +108,12 @@ export function profilePatch(body: Body): ProfilePatch {
   const patch: ProfilePatch = {};
   if (body.displayName !== undefined) patch.displayName = displayName(body.displayName);
   if (body.picture !== undefined) patch.picture = picture(body.picture);
+  if (body.highlightPlayable !== undefined) {
+    if (typeof body.highlightPlayable !== 'boolean') {
+      throw new BadRequestError('`highlightPlayable` must be true or false.');
+    }
+    patch.highlightPlayable = body.highlightPlayable;
+  }
   return patch;
 }
 

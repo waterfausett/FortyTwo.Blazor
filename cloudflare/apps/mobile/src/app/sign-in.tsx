@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth0 } from 'react-native-auth0';
 import { config } from '@/config';
+import { colors, fonts } from '@/components/theme';
 
 export default function SignIn() {
   const { authorize } = useAuth0();
@@ -30,9 +31,9 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24, padding: 24 },
-  title: { fontSize: 36, fontWeight: '700' },
-  button: { backgroundColor: '#1b6ec2', paddingHorizontal: 32, paddingVertical: 12, borderRadius: 6 },
-  buttonText: { color: 'white', fontSize: 18, fontWeight: '600' },
-  error: { color: '#b00020', textAlign: 'center' },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24, padding: 24, backgroundColor: colors.walnut },
+  title: { color: colors.bone, fontFamily: fonts.display, fontSize: 44 },
+  button: { backgroundColor: colors.brass, paddingHorizontal: 36, paddingVertical: 14, borderRadius: 8 },
+  buttonText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 18 },
+  error: { color: colors.danger, fontFamily: fonts.ui, textAlign: 'center' },
 });

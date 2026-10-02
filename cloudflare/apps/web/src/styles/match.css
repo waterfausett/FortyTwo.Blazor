@@ -880,6 +880,17 @@
   border: none;
 }
 
+.hand .domino.playable {
+  box-shadow:
+    0 0 0 0.3em var(--brass),
+    0.4em 0.7em 1.2em rgba(0, 0, 0, 0.45);
+  border: none;
+}
+
+.hand .domino.unplayable {
+  opacity: 0.4;
+}
+
 .hand .domino.preselected {
   box-shadow:
     0 0 0 0.4em var(--danger),

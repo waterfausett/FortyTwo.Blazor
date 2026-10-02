@@ -32,6 +32,7 @@ const {
   getMatchMock,
   searchUsersMock,
   getConfigMock,
+  getProfileMock,
   addBotsMock,
   useMatchSocketMock,
   toastErrorMock,
@@ -48,6 +49,7 @@ const {
     getMatchMock: vi.fn(),
     searchUsersMock: vi.fn(),
     getConfigMock: vi.fn(),
+    getProfileMock: vi.fn(),
     addBotsMock: vi.fn(),
     useMatchSocketMock: vi.fn(),
     toastErrorMock: vi.fn(),
@@ -69,6 +71,7 @@ vi.mock('../api/client', () => ({
     getMatch: getMatchMock,
     searchUsers: searchUsersMock,
     getConfig: getConfigMock,
+    getProfile: getProfileMock,
     addBots: addBotsMock,
     rematch: rematchMock,
   }),
@@ -105,6 +108,7 @@ beforeEach(() => {
   searchUsersMock.mockResolvedValue([]);
   // Bots are a dev-only aid, so off unless a test turns them on.
   getConfigMock.mockResolvedValue({ bots: false });
+  getProfileMock.mockResolvedValue({ user_id: 'p1', displayName: 'Me', highlightPlayable: false });
 });
 
 afterEach(() => {
@@ -1175,7 +1179,7 @@ describe('Match', () => {
       expect(container.querySelector('.player-team-tricks .badge')?.textContent).toBe('1');
     });
 
-    it('trims each side to its last 2 tricks once the bid is big enough (so a big hand keeps a short pile)', () => {
+    it('keeps only the last 2 tricks taken in view, split between the sides, once the bid is big enough', () => {
       const tricksFor = (team: Teams, count: number): Trick[] =>
         Array.from({ length: count }, () => ({
           playerId: 'p1',
@@ -1188,6 +1192,40 @@ describe('Match', () => {
         {},
         {
           bid: Bid.EightyFour, // > FortyTwo (42), not Plunge -> stacking kicks in.
+          biddingPlayerId: 'p1',
+          trump: Suit.Sixes,
+          // Alternating, so the last two taken are one each.
+          tricks: [Teams.TeamA, Teams.TeamB, Teams.TeamA, Teams.TeamB, Teams.TeamA, Teams.TeamB].flatMap((t) =>
+            tricksFor(t, 1)
+          ),
+        }
+      );
+      useMatchSocketMock.mockReturnValue({ match, connected: true });
+
+      const { container } = render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+
+      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(1);
+      expect(container.querySelectorAll('.opponent-tricks .trick-history-row')).toHaveLength(1);
+    });
+
+    it('shows nothing of a side whose tricks are all older than the last 2 taken', () => {
+      const tricksFor = (team: Teams, count: number): Trick[] =>
+        Array.from({ length: count }, () => ({
+          playerId: 'p1',
+          team,
+          suit: Suit.Sixes,
+          dominoes: [createDomino(0, 0), createDomino(0, 0), createDomino(0, 0), createDomino(0, 0)],
+        }));
+      const match = baseMatch(
+        {},
+        {
+          bid: Bid.EightyFour,
           biddingPlayerId: 'p1',
           trump: Suit.Sixes,
           tricks: [...tricksFor(Teams.TeamA, 3), ...tricksFor(Teams.TeamB, 3)],
@@ -1203,7 +1241,7 @@ describe('Match', () => {
         </QueryClientProvider>
       );
 
-      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(2);
+      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(0);
       expect(container.querySelectorAll('.opponent-tricks .trick-history-row')).toHaveLength(2);
     });
   });
@@ -1344,10 +1382,20 @@ describe('Match', () => {
       return { ...base, games: { [Teams.TeamA]: [base.currentGame] }, ...overrides };
     }
 
-    it('opens the summary dialog once the match is over', () => {
+    // The summary waits to be asked for, from the hand-over rail.
+    function openSummary() {
+      const rail = screen.getByRole('region', { name: /hand over/i });
+      fireEvent.click(within(rail).getByRole('button', { name: /match summary/i }));
+    }
+
+    it("doesn't open the summary by itself when the match is over, but opens it from the rail", () => {
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
 
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(within(screen.getByRole('region', { name: /hand over/i })).getByText(/you won the match/i)).not.toBeNull();
+
+      openSummary();
       const dialog = screen.getByRole('dialog', { name: /you won the match/i });
       expect(within(dialog).getByText('Game 1')).not.toBeNull();
     });
@@ -1363,6 +1411,7 @@ describe('Match', () => {
       rematchMock.mockResolvedValue(finishedMatch());
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
+      openSummary();
 
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^rematch/i }));
 
@@ -1372,6 +1421,7 @@ describe('Match', () => {
     it('shows my vote as waiting, with the count', () => {
       useMatchSocketMock.mockReturnValue({ match: finishedMatch({ rematchVotes: ['p1', 'p2'] }), connected: true });
       renderMatch();
+      openSummary();
 
       expect(
         within(screen.getByRole('dialog')).getByRole('button', { name: /waiting for rematch \(2 of 4\)/i })
@@ -1381,6 +1431,7 @@ describe('Match', () => {
     it('closes to the table, leaving a way back to the summary', () => {
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
+      openSummary();
 
       fireEvent.click(screen.getByRole('button', { name: /close/i }));
       expect(screen.queryByRole('dialog')).toBeNull();
@@ -1391,12 +1442,11 @@ describe('Match', () => {
       expect(screen.getByRole('dialog')).not.toBeNull();
     });
 
-    it('can vote from the rail with the dialog closed', async () => {
+    it('can vote from the rail without opening the summary', async () => {
       rematchMock.mockResolvedValue(finishedMatch());
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
 
-      fireEvent.click(screen.getByRole('button', { name: /close/i }));
       const rail = screen.getByRole('region', { name: /hand over/i });
       fireEvent.click(within(rail).getByRole('button', { name: /^rematch/i }));
 
