@@ -29,3 +29,7 @@ binding = "DB"
 #binding = "fortytwo"
 database_name = "fortytwo"
 database_id = "6a67995e-c52b-4c25-aa7a-7a07964fc5a3"
+
+[vars]
+# preview build SHA256 Fingerprint
+ANDROID_APP_FINGERPRINTS = "F5:66:A5:52:7F:C5:F8:AC:F9:25:EB:89:56:1B:2E:8E:EA:76:97:62:AD:6C:1B:D6:EB:43:3F:08:15:77:31:3E"
