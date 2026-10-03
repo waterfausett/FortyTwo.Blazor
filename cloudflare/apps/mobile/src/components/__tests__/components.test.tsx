@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
 import { JoinMatchPanel } from '../JoinMatchPanel';
 import { SeatPicker } from '../SeatPicker';
+import { Table } from '../Table';
 import { TrickHistory } from '../TrickHistory';
 
 function biddingGame(overrides: Partial<Game> = {}): Game {
@@ -191,5 +192,39 @@ describe('JoinMatchPanel', () => {
     expect(screen.queryByText('Sit here')).toBeNull();
     await fireEvent.press(screen.getByText('Back to matches'));
     expect(onLobby).toHaveBeenCalled();
+  });
+});
+
+describe('Table', () => {
+  const seats = { top: null, left: null, right: null, bottom: null };
+  const slotSeats = ['left', 'bottom', null, null] as const;
+
+  it('shows a spinner on my unconfirmed play once it has waited a moment', async () => {
+    jest.useFakeTimers();
+    try {
+      const mine = createDomino(4, 5);
+      const trick: Trick = { playerId: null, team: null, suit: null, dominoes: [createDomino(1, 2), mine, null, null] };
+      await render(<Table seats={seats} trick={trick} slotSeats={[...slotSeats]} winningSlot={null} pendingId={mine.id} />);
+
+      // A play that lands promptly never flashes the spinner.
+      expect(screen.queryByLabelText('Sending your play')).toBeNull();
+      await act(() => jest.advanceTimersByTime(500));
+      expect(screen.getByLabelText('Sending your play')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('shows no spinner when nothing is pending', async () => {
+    jest.useFakeTimers();
+    try {
+      const trick: Trick = { playerId: null, team: null, suit: null, dominoes: [createDomino(1, 2), createDomino(4, 5), null, null] };
+      await render(<Table seats={seats} trick={trick} slotSeats={[...slotSeats]} winningSlot={null} />);
+
+      await act(() => jest.advanceTimersByTime(500));
+      expect(screen.queryByLabelText('Sending your play')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
