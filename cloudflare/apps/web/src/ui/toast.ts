@@ -1,6 +1,7 @@
 // SweetAlert2 toasts for errors and notices: a small card in the bottom-right corner that times out on its own and pauses while hovered.
 // Styled to the hall palette in styles/toast.css.
 import Swal, { type SweetAlertPosition } from 'sweetalert2';
+import { ValidationError } from '@fortytwo/rules';
 import { ApiError } from '../api/client';
 import '../styles/toast.css';
 
@@ -36,7 +37,8 @@ function formatDetail(detail: string): HTMLElement {
 }
 
 export function toastError(error: unknown): void {
-  if (error instanceof ApiError) {
+  // A rule broken on the server, or caught here first by the same rules.
+  if (error instanceof ApiError || error instanceof ValidationError) {
     void Toast.fire({ icon: 'error', title: error.title, html: error.detail && formatDetail(error.detail) });
   } else {
     void Toast.fire({

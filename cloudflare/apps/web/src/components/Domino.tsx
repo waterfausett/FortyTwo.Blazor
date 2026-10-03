@@ -17,6 +17,8 @@ export interface DominoProps {
   // margin hack means a wrapper div's own layout box doesn't line up with where the domino
   // actually renders, so styling has to live on the domino element itself to be visible at all.
   preselected?: boolean;
+  // With the "highlight playable dominoes" setting on, whether this tile may be played right now.
+  hint?: 'playable' | 'unplayable';
   direction?: 'horizontal' | 'vertical';
 }
 
@@ -59,6 +61,7 @@ export function Domino({
   onDoubleClick,
   selectable = false,
   preselected = false,
+  hint,
   direction = 'horizontal',
 }: DominoProps): JSX.Element {
   const classNames = [
@@ -66,6 +69,7 @@ export function Domino({
     direction === 'horizontal' ? 'horizontal' : null,
     selectable ? 'clickable' : null,
     preselected ? 'preselected' : null,
+    hint ?? null,
   ]
     .filter((c): c is string => Boolean(c))
     .join(' ');

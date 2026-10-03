@@ -220,78 +220,6 @@
   right: 0;
 }
 
-/* ---------- Seat picker: the same table, big enough to sit at ---------- */
-
-.seat-picker {
-  flex-basis: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
-  grid-template-areas:
-    '. top .'
-    'left table right'
-    '. bottom .';
-  gap: 0.5rem;
-  max-width: 24rem;
-  margin: 0 auto;
-  padding: 0.25rem 0 0.9rem 0.75rem;
-}
-
-.seat-picker-table {
-  grid-area: table;
-  min-height: 4rem;
-  border-radius: 0.5rem;
-  background: var(--mat);
-  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.5);
-}
-
-.seat-picker-top { grid-area: top; }
-.seat-picker-bottom { grid-area: bottom; }
-.seat-picker-left { grid-area: left; }
-.seat-picker-right { grid-area: right; }
-
-.seat-picker-seat {
-  appearance: none;
-  align-self: center;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0.4rem 0.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  font: 600 0.9rem var(--font-ui);
-  line-height: 1.25;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-
-.seat-picker-seat.is-seated {
-  color: var(--ink-muted);
-}
-
-button.seat-picker-seat {
-  color: var(--bone);
-  background: rgba(242, 234, 219, 0.06);
-  box-shadow: inset 0 0 0 1px var(--brass);
-  cursor: pointer;
-  transition: background-color 150ms ease;
-}
-
-button.seat-picker-seat:hover:not(:disabled) {
-  background: rgba(242, 234, 219, 0.14);
-}
-
-button.seat-picker-seat:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.seat-picker-hint {
-  color: var(--ink-muted);
-  font-size: 0.8rem;
-  font-weight: 400;
-}
-
 @media (max-width: 520px) {
   .lobby {
     padding-top: 1.25rem;
@@ -307,8 +235,7 @@ button.seat-picker-seat:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lobby-match-row,
-  button.seat-picker-seat {
+  .lobby-match-row {
     transition: none;
   }
 }
