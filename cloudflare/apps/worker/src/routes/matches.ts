@@ -4,7 +4,14 @@
 import { Hono, type Context } from 'hono';
 import type { AppEnv, Env } from '../index';
 import type { MatchResult } from '../matchDO';
-import { syncLobbyIndex, listActive, listCompleted, listJoinable, listMatchPlayers } from '../lobby';
+import {
+  syncLobbyIndex,
+  refreshMatchSummary,
+  listActive,
+  listCompleted,
+  listJoinable,
+  listMatchPlayers,
+} from '../lobby';
 import { isBot } from '../bots';
 import { getUsers, MAX_USER_IDS } from '../auth0Management';
 import { toUserResponse } from './users';
@@ -26,10 +33,16 @@ function refusal(c: AppContext, result: Extract<MatchResult<unknown>, { ok: fals
 }
 
 // Replies with a match action's result - the match as the caller may see it (their own hand, and
-// only a count of everyone else's) - after syncing the lobby index when `syncLobby` is set.
-async function replyWithMatch(c: AppContext, result: MatchResult<MatchState>, { syncLobby = false } = {}) {
+// only a count of everyone else's) - after syncing the lobby index when `syncLobby` is set:
+// 'seats' for a change to who's seated, 'summary' for one that only moves the match along.
+async function replyWithMatch(
+  c: AppContext,
+  result: MatchResult<MatchState>,
+  { syncLobby }: { syncLobby?: 'seats' | 'summary' } = {}
+) {
   if (!result.ok) return refusal(c, result);
-  if (syncLobby) await syncLobbyIndex(c.env.DB, result.value);
+  if (syncLobby === 'seats') await syncLobbyIndex(c.env.DB, result.value);
+  if (syncLobby === 'summary') await refreshMatchSummary(c.env.DB, result.value);
   return c.json(matchViewFor(result.value, c.get('user').sub));
 }
 
@@ -105,7 +118,7 @@ matches.post('/:id/players', async (c) => {
     body.position !== undefined
       ? await match.takeSeat(userId, field.position(body), shuffledDominoOrder())
       : await match.addPlayer(userId, field.team(body), shuffledDominoOrder());
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { syncLobby: 'seats' });
 });
 
 // Dev-only (AUTO_PLAY_BOTS): seats a bot at `{ position }`, or at every open seat when no position
@@ -116,14 +129,14 @@ matches.post('/:id/bots', async (c) => {
   const body = await readBody(c);
   const positions = body.position !== undefined ? [field.position(body)] : undefined;
   const result = await matchStub(c.env, c.req.param('id')).addBots(c.get('user').sub, positions);
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { syncLobby: 'seats' });
 });
 
 // Readying up can finish a hand's wait and deal the next one, so it always carries a deck.
 matches.patch('/:id/players', async (c) => {
   const ready = field.ready(await readBody(c));
   const result = await matchStub(c.env, c.req.param('id')).readyUp(c.get('user').sub, ready, shuffledDominoOrder());
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { syncLobby: 'summary' });
 });
 
 // A vote to play the same four again once the match is over. The vote that completes the table
@@ -131,7 +144,7 @@ matches.patch('/:id/players', async (c) => {
 // syncs the finished match.
 matches.post('/:id/rematch', async (c) => {
   const result = await matchStub(c.env, c.req.param('id')).rematch(c.get('user').sub);
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { syncLobby: 'summary' });
 });
 
 matches.patch('/:id/games/current', async (c) => {
@@ -147,7 +160,7 @@ matches.post('/:id/games/current/bids', async (c) => {
 matches.post('/:id/games/current/moves', async (c) => {
   const domino = field.domino(await readBody(c));
   const result = await matchStub(c.env, c.req.param('id')).playDomino(c.get('user').sub, domino);
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { syncLobby: 'summary' });
 });
 
 export default matches;
