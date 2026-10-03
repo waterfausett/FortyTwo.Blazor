@@ -15,8 +15,13 @@ import { Lobby } from './pages/Lobby.tsx'
 import { MatchRoute } from './pages/Match.tsx'
 import { NotFound } from './pages/NotFound.tsx'
 import { Profile } from './pages/Profile.tsx'
+import { unlockChimeOnGesture } from './ui/chime.ts'
 
 const queryClient = new QueryClient()
+
+// Browsers hold audio until the page gets a click or key press - catch the first one, so the turn
+// chime can play later while the player is away.
+unlockChimeOnGesture()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -38,6 +38,7 @@ const {
   toastInfoMock,
   rematchMock,
   navigateMock,
+  turnAlertsMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -54,6 +55,7 @@ const {
     toastInfoMock: vi.fn(),
     rematchMock: vi.fn(),
     navigateMock: vi.fn(),
+    turnAlertsMock: vi.fn(() => null),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -77,6 +79,10 @@ vi.mock('../api/client', () => ({
 vi.mock('../ui/toast', () => ({
   toastError: toastErrorMock,
   toastInfo: toastInfoMock,
+}));
+
+vi.mock('../match/TurnAlerts', () => ({
+  TurnAlerts: turnAlertsMock,
 }));
 
 vi.mock('../api/useMatchSocket', () => ({
@@ -1468,6 +1474,45 @@ describe('Match', () => {
       rerenderMatch(view);
 
       expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'You bid first', 'center');
+    });
+  });
+
+  describe('turn alerts', () => {
+    function lastTurnAlerts() {
+      const calls = turnAlertsMock.mock.calls as unknown as [{ isMyTurn: boolean; detail: string; tag: string }][];
+      return calls[calls.length - 1][0];
+    }
+
+    it('flags my bid', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+      expect(lastTurnAlerts()).toEqual({ isMyTurn: true, detail: 'Game 1 · your bid', tag: 'match-1' });
+    });
+
+    it("stays down while it's someone else's turn", () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({}, { currentPlayerId: 'p2' }), connected: true });
+      renderMatch();
+      expect(lastTurnAlerts().isMyTurn).toBe(false);
+    });
+
+    it('flags naming trump', () => {
+      const hands = baseMatch().currentGame.hands.map((h, i) => ({ ...h, bid: i === 0 ? Bid.Thirty : Bid.Pass }));
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { hands, bid: Bid.Thirty, biddingPlayerId: 'p1' }),
+        connected: true,
+      });
+      renderMatch();
+      expect(lastTurnAlerts()).toMatchObject({ isMyTurn: true, detail: 'Game 1 · name trump' });
+    });
+
+    it('flags my lead', () => {
+      const hands = baseMatch().currentGame.hands.map((h, i) => ({ ...h, bid: i === 0 ? Bid.Thirty : Bid.Pass }));
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { hands, bid: Bid.Thirty, biddingPlayerId: 'p1', trump: Suit.Sixes }),
+        connected: true,
+      });
+      renderMatch();
+      expect(lastTurnAlerts()).toMatchObject({ isMyTurn: true, detail: 'Game 1 · your lead' });
     });
   });
 });

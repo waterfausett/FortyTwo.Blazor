@@ -10,7 +10,8 @@
 //
 // Rejected actions (an illegal play, a stale bid) pop a SweetAlert2 toast (ui/toast.ts). When the
 // match ends, a summary dialog (components/MatchSummary.tsx) offers a rematch; a toast marks each
-// new hand.
+// new hand. When a turn comes round, TurnAlerts (match/TurnAlerts.tsx) chimes, flashes the tab and
+// notifies, per the player's Profile settings.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -46,6 +47,7 @@ import { Seat } from '../components/Seat';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
 import { toastError, toastInfo } from '../ui/toast';
+import { TurnAlerts } from '../match/TurnAlerts';
 import { dealerId, isTrickStarted, openSeats, seatFor, trickLeaderId, trickPlayOrder } from '@fortytwo/client';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
@@ -477,6 +479,18 @@ export function Match(): JSX.Element {
   else if (me.isActive) status = isTrickStarted(game.currentTrick) ? 'Your play' : 'Your lead';
   else status = `${activeName} to play`;
 
+  // What TurnAlerts (match/TurnAlerts.tsx) says when the player has looked away: whether the
+  // table is waiting on them, and for what.
+  const myTurnAsk = canBid
+    ? 'your bid'
+    : canSelectTrump
+      ? 'name trump'
+      : isPlayingPhase && me.isActive && !isHandPlayedOut
+        ? isTrickStarted(game.currentTrick)
+          ? 'your play'
+          : 'your lead'
+        : null;
+
   // A player plays exactly once per trick (dealHands deals HAND_SIZE_DEALT each) - so if this
   // hand already holds fewer dominoes than "HAND_SIZE_DEALT minus completed tricks", they've
   // already played into the CURRENT (still in-progress) trick and can't play again until the NEXT
@@ -502,6 +516,7 @@ export function Match(): JSX.Element {
 
   return (
     <div ref={matchRootRef} className="match">
+      <TurnAlerts isMyTurn={myTurnAsk != null} detail={`${game.name} · ${myTurnAsk ?? ''}`} tag={match.id} />
       {reconnecting && (
         <p className="match-reconnecting" role="status" aria-label="Reconnecting">
           Reconnecting…
