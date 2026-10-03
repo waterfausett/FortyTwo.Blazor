@@ -13,8 +13,8 @@ on:
       - 'cloudflare/package.json'
       - 'cloudflare/package-lock.json'
       - '.github/workflows/mobile.yml'
+  # Every pull request, so the required check below always reports; see the changes job.
   pull_request:
-    paths: *paths
   workflow_dispatch:
 
 concurrency:
@@ -26,7 +26,30 @@ defaults:
     working-directory: cloudflare
 
 jobs:
+  # Pull requests run this workflow whatever they touch, so this job skips the tests when nothing
+  # they cover changed. Its filter mirrors the push paths above; keep them in sync.
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            mobile:
+              - 'cloudflare/apps/mobile/**'
+              - 'cloudflare/packages/**'
+              - 'cloudflare/package.json'
+              - 'cloudflare/package-lock.json'
+              - '.github/workflows/mobile.yml'
+
   test:
+    needs: changes
+    if: ${{ !cancelled() && !failure() && (github.event_name != 'pull_request' || needs.changes.outputs.mobile == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,3 +61,15 @@ jobs:
       - run: npm ci
       - run: npm test -w @fortytwo/mobile
       - run: npm run typecheck -w @fortytwo/mobile
+
+  # The check the master ruleset requires. A skipped job counts as passing, so this fails only when
+  # one of the jobs above failed or was cancelled.
+  ci:
+    name: Mobile CI
+    if: always()
+    needs: [changes, test]
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+        working-directory: .
