@@ -101,6 +101,13 @@ bundles that copy, and `apps/mobile/jest.config.js` maps `react` to it for tests
 Add native libraries with `npx expo install <package>`, which picks versions that match the Expo
 SDK.
 
+The app icon, Android's adaptive and themed icons, and the splash screen are the brand's tilted
+4-2 domino on walnut. They're drawn as SVG in `apps/mobile/assets/icon/render.mjs`; after changing
+it, run `node assets/icon/render.mjs` from `apps/mobile` to rewrite the SVGs and the PNGs that
+`app.json` uses. It renders with Chromium through Playwright. Icons and the splash only change
+with a new build, and the splash only shows properly in a preview or production build: a
+development build shows its own.
+
 ### Building for Android on Windows
 
 `npx expo run:android` needs Android Studio, plus three things set up on Windows:
