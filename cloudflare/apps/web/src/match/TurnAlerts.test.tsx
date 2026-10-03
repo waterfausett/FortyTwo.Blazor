@@ -1,6 +1,7 @@
 import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AlertPrefs } from './alertPrefs';
+import type { TableCall } from './TurnAlerts';
 import { TurnAlerts } from './TurnAlerts';
 
 const { playChimeMock, prefs } = vi.hoisted(() => ({
@@ -44,13 +45,13 @@ function favicon(): HTMLLinkElement {
   return document.querySelector<HTMLLinkElement>('link[rel="icon"]')!;
 }
 
+const TURN: TableCall = { kind: 'turn', title: 'Your lead', body: 'Game 1 is waiting on you.' };
+const HAND_OVER: TableCall = { kind: 'handOver', title: 'Hand over', body: 'Ready up for the next hand.' };
+
 function renderAlerts(isMyTurn: boolean) {
-  const view = render(<TurnAlerts isMyTurn={isMyTurn} title="Your lead" body="Game 1 is waiting on you." tag="match-1" />);
-  return {
-    ...view,
-    setTurn: (next: boolean) =>
-      view.rerender(<TurnAlerts isMyTurn={next} title="Your lead" body="Game 1 is waiting on you." tag="match-1" />),
-  };
+  const view = render(<TurnAlerts call={isMyTurn ? TURN : null} tag="match-1" />);
+  const setCall = (call: TableCall | null) => view.rerender(<TurnAlerts call={call} tag="match-1" />);
+  return { ...view, setCall, setTurn: (next: boolean) => setCall(next ? TURN : null) };
 }
 
 beforeEach(() => {
@@ -129,12 +130,12 @@ describe('TurnAlerts', () => {
       const { setTurn } = renderAlerts(false);
       setAway(true);
       setTurn(true);
-      expect(document.title).toBe('● Your turn');
+      expect(document.title).toBe('● Your lead');
       expect(favicon().getAttribute('href')).toBe('/favicon-turn.svg');
       act(() => vi.advanceTimersByTime(1000));
       expect(document.title).toBe('Forty-Two');
       act(() => vi.advanceTimersByTime(1000));
-      expect(document.title).toBe('● Your turn');
+      expect(document.title).toBe('● Your lead');
 
       comeBack();
       expect(document.title).toBe('Forty-Two');
@@ -166,6 +167,39 @@ describe('TurnAlerts', () => {
       setTurn(true);
       expect(document.title).toBe('Forty-Two');
       expect(favicon().getAttribute('href')).toBe('/favicon.svg');
+    });
+  });
+
+  describe('what counts as a new call', () => {
+    it('alerts again when a turn gives way to the hand being over', () => {
+      prefs.current = { sound: 'away', desktop: true };
+      const { setTurn, setCall } = renderAlerts(false);
+      setAway(true);
+      setTurn(true);
+      setCall(HAND_OVER);
+      expect(playChimeMock).toHaveBeenCalledTimes(2);
+      expect(FakeNotification.instances.map((n) => n.title)).toEqual(['Your lead', 'Hand over']);
+      expect(FakeNotification.instances[0].close).toHaveBeenCalled();
+      expect(document.title).toBe('● Hand over');
+    });
+
+    it('stays quiet when the same call only changes its words (winning a trick, then leading the next)', () => {
+      const { setTurn, setCall } = renderAlerts(false);
+      setAway(true);
+      setCall({ kind: 'turn', title: 'Your play', body: 'Game 1 is waiting on you.' });
+      setTurn(true);
+      expect(playChimeMock).toHaveBeenCalledTimes(1);
+      expect(document.title).toBe('● Your play');
+    });
+
+    it('stays quiet about a hand already over when the page opened', () => {
+      setAway(true);
+      const { setCall } = renderAlerts(false);
+      setCall(null);
+      expect(playChimeMock).not.toHaveBeenCalled();
+      const view = render(<TurnAlerts call={HAND_OVER} tag="match-2" />);
+      expect(playChimeMock).not.toHaveBeenCalled();
+      view.unmount();
     });
   });
 

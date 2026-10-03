@@ -169,10 +169,6 @@
   font-size: 0.9rem;
 }
 
-.form-group .profile-hint {
-  margin: 0;
-}
-
 fieldset.form-group {
   margin: 0;
   padding: 0;
@@ -213,13 +209,12 @@ fieldset.form-group legend {
   cursor: pointer;
 }
 
-.form-group .profile-choice input:disabled {
+.form-check:has(input:disabled) {
   cursor: not-allowed;
 }
 
-.form-group label.profile-choice:has(input:disabled) {
+.form-check:has(input:disabled) .form-check-label {
   color: var(--ink-muted);
-  cursor: not-allowed;
 }
 
 @media (max-width: 520px) {

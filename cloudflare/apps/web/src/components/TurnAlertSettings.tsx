@@ -1,6 +1,6 @@
-// The Profile page's "Turn alerts" card: how match/TurnAlerts.tsx should tell this player their
-// turn has come. Kept per browser (match/alertPrefs.ts), so each change saves on the spot rather
-// than with the profile form.
+// The Profile page's "Turn alerts" card: how match/TurnAlerts.tsx should tell this player the
+// table is waiting on them (their turn, or a hand over). Kept per browser (match/alertPrefs.ts), so
+// each change saves on the spot rather than with the profile form.
 //
 // Desktop notifications need the browser's say-so as well; switching them on asks for it (browsers
 // only allow that from a click), and a refusal leaves them off with a note on where to undo it.
@@ -58,7 +58,9 @@ export function TurnAlertSettings(): JSX.Element {
       <h2 id="turn-alerts-title" className="profile-section-title">
         Turn alerts
       </h2>
-      <p className="profile-hint">How to tell you it's your turn. This browser only.</p>
+      <p className="profile-hint">
+        How to tell you the table is waiting on you: your turn, or a hand over. This browser only.
+      </p>
 
       <fieldset className="form-group">
         <legend>Sound</legend>
@@ -78,18 +80,18 @@ export function TurnAlertSettings(): JSX.Element {
         </div>
       </fieldset>
 
-      <div className="form-group">
-        <label className="profile-choice">
-          <input
-            type="checkbox"
-            checked={prefs.desktop && support === 'granted'}
-            disabled={support === 'unsupported' || support === 'denied'}
-            onChange={(e) => void toggleDesktop(e.target.checked)}
-          />
-          Desktop notifications when I'm away
-        </label>
-        {desktopNote && <p className="profile-hint">{desktopNote}</p>}
-      </div>
+      <label className="form-check">
+        <input
+          type="checkbox"
+          checked={prefs.desktop && support === 'granted'}
+          disabled={support === 'unsupported' || support === 'denied'}
+          onChange={(e) => void toggleDesktop(e.target.checked)}
+        />
+        <span>
+          <span className="form-check-label">Desktop notifications</span>
+          <span className="form-check-hint">{desktopNote ?? "A system notification while you're away from the tab."}</span>
+        </span>
+      </label>
     </section>
   );
 }

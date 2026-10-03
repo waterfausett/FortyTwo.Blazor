@@ -10,8 +10,9 @@
 //
 // Rejected actions (an illegal play, a stale bid) pop a SweetAlert2 toast (ui/toast.ts). When the
 // match ends, the hand-over rail offers a rematch and a summary dialog (components/MatchSummary.tsx)
-// for anyone who wants it; a toast marks each new hand. When a turn comes round, TurnAlerts
-// (match/TurnAlerts.tsx) chimes, flashes the tab and notifies, per the player's Profile settings.
+// for anyone who wants it; a toast marks each new hand. When the table starts waiting on the player
+// - their turn, or a hand over and them not yet ready - TurnAlerts (match/TurnAlerts.tsx) chimes,
+// flashes the tab and notifies, per their Profile settings.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -44,6 +45,7 @@ import { SeatPicker } from '../components/SeatPicker';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
 import { toastError, toastInfo } from '../ui/toast';
+import type { TableCall } from '../match/TurnAlerts';
 import { TurnAlerts } from '../match/TurnAlerts';
 import {
   MARKS_TO_WIN,
@@ -416,12 +418,22 @@ export function Match(): JSX.Element {
   // One line on the rail saying what the table is waiting on.
   const status = matchStatus(match, view, nameFor);
 
-  // What TurnAlerts (match/TurnAlerts.tsx) says when the player has looked away, in the push
-  // notices' words (apps/worker/src/push/notices.ts) - and like them, nothing once the hand is
-  // decided, since playing it out is optional.
-  const myTurnAsk = isHandOver
-    ? null
-    : canBid
+  // What the table is waiting on me for, for TurnAlerts (match/TurnAlerts.tsx) to pass on when I've
+  // looked away - in the push notices' words (apps/worker/src/push/notices.ts). Once the hand is
+  // decided, playing it out is optional, so like the push notices it calls me to ready up rather
+  // than to play: the next hand deals once all four have, played out or not. Hand and match over
+  // wait, like the rail's panel, for the deciding trick to finish its hold.
+  function tableCall(): TableCall | null {
+    if (showHandOver) {
+      if (isMatchOver) {
+        return iVotedRematch || match.rematchId
+          ? null
+          : { kind: 'matchOver', title: 'Match over', body: 'See how it ended, or ask for a rematch.' };
+      }
+      return iAmReady ? null : { kind: 'handOver', title: 'Hand over', body: 'Ready up for the next hand.' };
+    }
+    if (isHandOver) return null;
+    const title = canBid
       ? 'Your bid'
       : canSelectTrump
         ? 'Name trump'
@@ -430,6 +442,8 @@ export function Match(): JSX.Element {
             ? 'Your play'
             : 'Your lead'
           : null;
+    return title ? { kind: 'turn', title, body: `${game.name} is waiting on you.` } : null;
+  }
 
   // Gates which dominoes Hand will let a player preselect (double-click before their turn): only a
   // play that's legal right now, by the same follow-suit rule the server enforces.
@@ -453,12 +467,7 @@ export function Match(): JSX.Element {
 
   return (
     <div ref={matchRootRef} className="match">
-      <TurnAlerts
-        isMyTurn={myTurnAsk != null}
-        title={myTurnAsk ?? ''}
-        body={`${game.name} is waiting on you.`}
-        tag={match.id}
-      />
+      <TurnAlerts call={tableCall()} tag={match.id} />
       {reconnecting && (
         <p className="match-reconnecting" role="status" aria-label="Reconnecting">
           Reconnecting…

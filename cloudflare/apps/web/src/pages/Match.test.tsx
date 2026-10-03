@@ -1669,52 +1669,49 @@ describe('Match', () => {
   });
 
   describe('turn alerts', () => {
-    function lastTurnAlerts() {
-      const calls = turnAlertsMock.mock.calls as unknown as [
-        { isMyTurn: boolean; title: string; body: string; tag: string },
-      ][];
-      return calls[calls.length - 1][0];
+    type Call = { kind: string; title: string; body: string } | null;
+    function lastCall(): Call {
+      const calls = turnAlertsMock.mock.calls as unknown as [{ call: Call; tag: string }][];
+      return calls[calls.length - 1][0].call;
     }
 
-    it('flags my bid, worded like the push notices', () => {
+    it('calls me for my bid, worded like the push notices', () => {
       useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
       renderMatch();
-      expect(lastTurnAlerts()).toEqual({
-        isMyTurn: true,
-        title: 'Your bid',
-        body: 'Game 1 is waiting on you.',
-        tag: 'match-1',
-      });
+      expect(lastCall()).toEqual({ kind: 'turn', title: 'Your bid', body: 'Game 1 is waiting on you.' });
+      const calls = turnAlertsMock.mock.calls as unknown as [{ tag: string }][];
+      expect(calls[calls.length - 1][0].tag).toBe('match-1');
     });
 
-    it("stays down while it's someone else's turn", () => {
+    it("doesn't call me while it's someone else's turn", () => {
       useMatchSocketMock.mockReturnValue({ match: baseMatch({}, { currentPlayerId: 'p2' }), connected: true });
       renderMatch();
-      expect(lastTurnAlerts().isMyTurn).toBe(false);
+      expect(lastCall()).toBeNull();
     });
 
-    it('flags naming trump', () => {
+    it('calls me to name trump', () => {
       const hands = baseMatch().currentGame.hands.map((h, i) => ({ ...h, bid: i === 0 ? Bid.Thirty : Bid.Pass }));
       useMatchSocketMock.mockReturnValue({
         match: baseMatch({}, { hands, bid: Bid.Thirty, biddingPlayerId: 'p1' }),
         connected: true,
       });
       renderMatch();
-      expect(lastTurnAlerts()).toMatchObject({ isMyTurn: true, title: 'Name trump' });
+      expect(lastCall()).toMatchObject({ kind: 'turn', title: 'Name trump' });
     });
 
-    it('flags my lead', () => {
+    it('calls me to lead', () => {
       const hands = baseMatch().currentGame.hands.map((h, i) => ({ ...h, bid: i === 0 ? Bid.Thirty : Bid.Pass }));
       useMatchSocketMock.mockReturnValue({
         match: baseMatch({}, { hands, bid: Bid.Thirty, biddingPlayerId: 'p1', trump: Suit.Sixes }),
         connected: true,
       });
       renderMatch();
-      expect(lastTurnAlerts()).toMatchObject({ isMyTurn: true, title: 'Your lead' });
+      expect(lastCall()).toMatchObject({ kind: 'turn', title: 'Your lead' });
     });
 
-    // Like the push notices: playing out a decided hand is optional, so it's nothing to be called back for.
-    it('stays down once the hand is decided, even with a play left to make', () => {
+    // Like the push notices: playing out a decided hand is optional, so the call is to ready up - the
+    // next hand deals once all four have, played out or not.
+    it('calls me to ready up once the hand is decided, not to play it out', () => {
       const base = finishedHandMatch();
       const decided = {
         ...base,
@@ -1728,7 +1725,33 @@ describe('Match', () => {
       };
       useMatchSocketMock.mockReturnValue({ match: decided, connected: true });
       renderMatch();
-      expect(lastTurnAlerts().isMyTurn).toBe(false);
+      expect(lastCall()).toEqual({ kind: 'handOver', title: 'Hand over', body: 'Ready up for the next hand.' });
+    });
+
+    it("doesn't call me once I'm ready", () => {
+      const base = finishedHandMatch();
+      const ready = { ...base, players: base.players.map((p) => ({ ...p, ready: p.playerId === 'p1' || p.ready })) };
+      useMatchSocketMock.mockReturnValue({ match: ready, connected: true });
+      renderMatch();
+      expect(lastCall()).toBeNull();
+    });
+
+    it('calls me to see the match out, until I ask for a rematch', () => {
+      useMatchSocketMock.mockReturnValue({ match: { ...finishedHandMatch(), winningTeam: Teams.TeamA }, connected: true });
+      const view = renderMatch();
+      expect(lastCall()).toEqual({
+        kind: 'matchOver',
+        title: 'Match over',
+        body: 'See how it ended, or ask for a rematch.',
+      });
+      view.unmount();
+
+      useMatchSocketMock.mockReturnValue({
+        match: { ...finishedHandMatch(), winningTeam: Teams.TeamA, rematchVotes: ['p1'] },
+        connected: true,
+      });
+      renderMatch();
+      expect(lastCall()).toBeNull();
     });
   });
 });
