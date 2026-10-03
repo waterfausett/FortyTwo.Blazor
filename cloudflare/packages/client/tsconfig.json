@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+    "strict": true, "declaration": true, "skipLibCheck": true,
+    "composite": true, "rootDir": "src", "outDir": "dist",
+    // DOM only for the types of fetch and WebSocket, which React Native provides too. Nothing here
+    // may touch window, document or other browser-only APIs - see src/index.ts.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"],
+  "references": [{ "path": "../rules" }, { "path": "../api-types" }]
+}

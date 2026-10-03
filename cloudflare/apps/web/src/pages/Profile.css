@@ -106,6 +106,32 @@
     0 0 0 2px var(--brass);
 }
 
+.form-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+.form-check input {
+  margin-top: 0.2rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--brass);
+}
+
+.form-check-label {
+  display: block;
+  color: var(--bone);
+  font-weight: 600;
+}
+
+.form-check-hint {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
 .form-group input:disabled {
   background: transparent;
   color: var(--ink-muted);

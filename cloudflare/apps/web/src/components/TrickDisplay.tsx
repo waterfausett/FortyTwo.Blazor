@@ -1,8 +1,8 @@
 // Renders the trick being played in the middle of the table. Each played domino sits in front of
-// the seat that played it (`slotSeats`, from match/table.ts) and slides in from that side when it
-// lands; the domino that led gets a "Lead" tag, and once the trick is complete the winning domino
-// is picked out. While `sweepTo` is set, the whole trick leaves the table the way `sweepMode`
-// says (match/sweep.ts) - for every mode but `side`, each tile is measured and handed its own
+// the seat that played it (`slotSeats`, from packages/client's table.ts) and slides in from that
+// side when it lands; the domino that led gets a "Lead" tag, and once the trick is complete the
+// winning domino is picked out. While `sweepTo` is set, the whole trick leaves the table the way
+// `sweepMode` says (match/sweep.ts) - for every mode but `side`, each tile is measured and handed its own
 // offsets (--gx/--gy to the winning tile, --dx/--dy to `sweepTarget`) for match.css to animate.
 //
 // Slot count is 4 normally and 3 for Suit.Low (trick.ts's `isTrickFull` treats a Low trick as
@@ -14,7 +14,7 @@ import type { CSSProperties, JSX } from 'react';
 import { useLayoutEffect, useRef } from 'react';
 import type { Trick } from '@fortytwo/rules';
 import { Suit, isLow } from '@fortytwo/rules';
-import type { Seat } from '../match/table';
+import type { Seat } from '@fortytwo/client';
 import type { Point, SweepMode } from '../match/sweep';
 import { centerOf, sweepDurationMs } from '../match/sweep';
 import { Domino } from './Domino';

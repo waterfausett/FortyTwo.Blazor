@@ -11,7 +11,7 @@ import {
   suitToPrettyString,
   type MatchState,
 } from '@fortytwo/rules';
-import { playedHands } from '../match/summary';
+import { playedHands } from '@fortytwo/client';
 
 interface MatchSummaryProps {
   match: MatchState;

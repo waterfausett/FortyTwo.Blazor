@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "Forty-Two",
+    "slug": "fortytwo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "fortytwo",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.waterfausett.fortytwo",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.waterfausett.fortytwo",
+      "adaptiveIcon": {
+        "backgroundColor": "#3a2a20",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#c9a45c",
+          "defaultChannel": "game"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "backgroundColor": "#3a2a20"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "backgroundColor": "#3a2a20",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f80bd1ef-6aaa-4f06-86d3-9301f55d2835"
+      }
+    },
+    "owner": "fausett-apps"
+  }
+}

@@ -206,8 +206,6 @@ describe('useMatchSocket', () => {
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
-  // A DO restart, a Worker deploy, or webSocketClose echoing the client's 1000 all close cleanly -
-  // none of them mean "stop listening", so the page would otherwise freeze until a reload.
   it('stops reconnecting and reports the match deleted when the server closes with 4404', async () => {
     const getToken = vi.fn(async () => 'test-token');
     const { result, unmount } = renderHook(() => useMatchSocket('match-1', getToken));
@@ -227,6 +225,8 @@ describe('useMatchSocket', () => {
     unmount();
   });
 
+  // A DO restart, a Worker deploy, or webSocketClose echoing the client's 1000 all close cleanly -
+  // none of them mean "stop listening", so the page would otherwise freeze until a reload.
   it('reconnects after a clean close it did not initiate', async () => {
     const getToken = vi.fn(async () => 'test-token');
     const { result, unmount } = renderHook(() => useMatchSocket('match-1', getToken));

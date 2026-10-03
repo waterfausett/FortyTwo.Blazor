@@ -30,6 +30,8 @@ import {
   type Teams,
 } from '@fortytwo/rules';
 import { syncLobbyIndex } from './lobby';
+import { pushNotices } from './push/notices';
+import { sendNotices } from './push/send';
 import { BOT_IDS, decideBid, decideTrump, decideDomino, findNextBotAction, type BotAction } from './bots';
 
 // One tick's worth of "thinking time" before a bot acts, via the DO alarm API - so a client sees
@@ -85,7 +87,7 @@ export class MatchDO extends DurableObject<Env> {
   async create(firstPlayerId: string, matchId: string): Promise<MatchState> {
     const match = { ...createMatch(firstPlayerId), id: matchId };
     await this.save(match);
-    this.broadcast(match);
+    this.publish(null, match);
     return match;
   }
 
@@ -101,7 +103,7 @@ export class MatchDO extends DurableObject<Env> {
 
     const match = createRematch(matchId, previous, dealOrder);
     await this.save(match);
-    this.broadcast(match);
+    this.publish(null, match);
     await this.scheduleBotsIfNeeded(match);
     // No route touches this match on its way in, so the lobby index is synced here, as alarm() does.
     await syncLobbyIndex(this.env.DB, match);
@@ -236,7 +238,7 @@ export class MatchDO extends DurableObject<Env> {
     return this.read(async (match) => {
       const next = await action(match);
       await this.save(next);
-      this.broadcast(next);
+      this.publish(match, next);
       await this.scheduleBotsIfNeeded(next);
       return next;
     });
@@ -278,7 +280,7 @@ export class MatchDO extends DurableObject<Env> {
 
     const next = this.applyBotAction(match, action);
     await this.save(next);
-    this.broadcast(next);
+    this.publish(match, next);
     await syncLobbyIndex(this.env.DB, next);
     await this.scheduleBotsIfNeeded(next);
   }
@@ -332,6 +334,27 @@ export class MatchDO extends DurableObject<Env> {
     } else {
       ws.close();
     }
+  }
+
+  // Tells everyone about a change: each open socket gets the new match, and players who don't
+  // have the match open get a push notification for anything they need to know (push/notices.ts)
+  // - sent after the response, so a play never waits on the push service.
+  private publish(previous: MatchState | null, next: MatchState): void {
+    this.broadcast(next);
+    const watching = this.watchingPlayers();
+    const notices = pushNotices(previous, next).filter((n) => !watching.has(n.playerId));
+    if (notices.length > 0) this.ctx.waitUntil(sendNotices(this.env, notices));
+  }
+
+  // Players with a socket open on this match: they're looking at it, so need no push. (The app
+  // closes its socket when it goes to the background.)
+  private watchingPlayers(): Set<string> {
+    const ids = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as { playerId: string } | null;
+      if (attachment) ids.add(attachment.playerId);
+    }
+    return ids;
   }
 
   // Each socket gets its own view - its player's hand, and only a count of everyone else's.

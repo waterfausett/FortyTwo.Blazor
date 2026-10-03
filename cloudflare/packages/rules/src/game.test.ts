@@ -3,7 +3,7 @@ import { Game, gameValue, gameWinningTeam } from './game';
 import { Trick } from './trick';
 import { createDomino, Domino } from './domino';
 import { Suit } from './suit';
-import { Bid } from './bid';
+import { Bid, pointsToMakeBid } from './bid';
 import { Teams } from './teams';
 import { Hand } from './hand';
 
@@ -167,3 +167,17 @@ describe('gameWinningTeam', () => {
     expect(gameWinningTeam(g)).toBeNull();
   });
 });
+
+describe('pointsToMakeBid', () => {
+  it('is the bid itself up to 42, and all 42 for every marks bid and Plunge', () => {
+    for (const bid of Object.values(Bid).filter((v): v is Bid => typeof v === 'number' && v !== Bid.Pass)) {
+      // The rule the engine used before this was shared: Plunge and multiples of 42 need every point.
+      const before = bid === Bid.Plunge || bid % 42 === 0 ? 42 : bid;
+      expect(pointsToMakeBid(bid)).toBe(before);
+    }
+    expect(pointsToMakeBid(Bid.ThirtyFive)).toBe(35);
+    expect(pointsToMakeBid(Bid.Plunge)).toBe(42);
+    expect(pointsToMakeBid(Bid.SevenMarks)).toBe(42);
+  });
+});
+

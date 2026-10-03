@@ -58,6 +58,14 @@ describe('useGetToken', () => {
     expect(loginWithRedirectMock).toHaveBeenCalledTimes(1);
   });
 
+  it('comes back to the current page after logging in again', async () => {
+    window.history.pushState({}, '', '/match/abc?seat=2#hand');
+    getAccessTokenSilentlyMock.mockRejectedValue(new MissingRefreshTokenError('aud', 'openid'));
+
+    await settle((await getToken())());
+    expect(loginWithRedirectMock).toHaveBeenCalledWith({ appState: { returnTo: '/match/abc?seat=2#hand' } });
+  });
+
   it('rethrows errors that logging in again would not fix', async () => {
     const error = new Error('network down');
     getAccessTokenSilentlyMock.mockRejectedValue(error);

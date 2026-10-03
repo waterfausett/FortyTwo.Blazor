@@ -15,7 +15,9 @@ import { useGetToken } from '../auth/useGetToken';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { JSX } from 'react';
+import { uniqueMatches } from '@fortytwo/client';
 import { apiClient, type MatchPage, type MatchSummary } from '../api/client';
+import { SEAT_SIDES, SeatPicker } from '../components/SeatPicker';
 import './Lobby.css';
 
 type MatchFilter = 'Active' | 'Joinable' | 'Completed';
@@ -32,10 +34,6 @@ const EMPTY_LABELS: Record<MatchFilter, string> = {
   Completed: 'Finished games will show up here.',
 };
 
-// A table seen from above, indexed by seat position: the creator's seat (0) nearest you, then
-// clockwise in turn order - the same layout the match screen uses (match/table.ts), so the seat
-// you pick here is where you'll sit relative to the others there. Partners sit across.
-const SEAT_SIDES = ['bottom', 'left', 'top', 'right'] as const;
 
 function SeatGlyph({ seats }: { seats: (string | null)[] }): JSX.Element {
   return (
@@ -45,48 +43,6 @@ function SeatGlyph({ seats }: { seats: (string | null)[] }): JSX.Element {
         <span key={side} className={`seat-glyph-seat seat-glyph-${side}${seats[position] != null ? ' is-seated' : ''}`} />
       ))}
     </span>
-  );
-}
-
-// The Join flow for a Find a Game row: the table again, bigger, with each taken seat's name and a
-// button in each open one. An open seat says who you'd partner with, since that's what picking a
-// seat really decides (along with who plays before and after you).
-function SeatPicker({
-  seats,
-  disabled,
-  onPick,
-}: {
-  seats: (string | null)[];
-  disabled: boolean;
-  onPick: (position: number) => void;
-}): JSX.Element {
-  return (
-    <div className="seat-picker" role="group" aria-label="Pick a seat">
-      <span className="seat-picker-table" aria-hidden="true" />
-      {SEAT_SIDES.map((side, position) => {
-        const name = seats[position];
-        if (name != null) {
-          return (
-            <span key={side} className={`seat-picker-seat seat-picker-${side} is-seated`}>
-              {name}
-            </span>
-          );
-        }
-        const partner = seats[(position + 2) % 4];
-        return (
-          <button
-            key={side}
-            type="button"
-            className={`seat-picker-seat seat-picker-${side}`}
-            disabled={disabled}
-            onClick={() => onPick(position)}
-          >
-            <span className="seat-picker-action">Sit here</span>
-            <span className="seat-picker-hint">{partner != null ? `with ${partner}` : 'open seat'}</span>
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -105,20 +61,6 @@ function formatUpdated(iso: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.';
-}
-
-// Every loaded page's rows in order, each match once: a match updated between page loads moves
-// to the top, so it can come back on a later page too.
-function uniqueMatches(pages: MatchPage[] | undefined): MatchSummary[] | undefined {
-  if (pages === undefined) return undefined;
-  const seen = new Set<string>();
-  return pages
-    .flatMap((p) => p.matches)
-    .filter((match) => {
-      if (seen.has(match.id)) return false;
-      seen.add(match.id);
-      return true;
-    });
 }
 
 export function Lobby(): JSX.Element {

@@ -35,7 +35,9 @@ export function useGetToken(): () => Promise<string> {
       if (!requiresLogin(error)) throw error;
       if (!redirecting) {
         redirecting = true;
-        void loginWithRedirect();
+        // Read at redirect time, not render time, so a mid-match expiry returns to the match.
+        const { pathname, search, hash } = window.location;
+        void loginWithRedirect({ appState: { returnTo: pathname + search + hash } });
       }
       // The page is about to navigate away - leave the caller waiting rather than flashing an
       // error for a problem the redirect is already fixing.
