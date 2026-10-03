@@ -3,17 +3,10 @@ name: Mobile
 # Tests and typechecks the mobile app on every pull request and push that can affect it. Builds
 # ship through EAS (.eas/workflows), not here.
 #
-# The shared paths (packages, root package files) are duplicated in worker.yml; keep them in sync.
+# Which changes count as affecting it is defined in .github/path-filters.yml.
 on:
   push:
     branches: [master]
-    paths: &paths
-      - 'cloudflare/apps/mobile/**'
-      - 'cloudflare/packages/**'
-      - 'cloudflare/package.json'
-      - 'cloudflare/package-lock.json'
-      - '.github/workflows/mobile.yml'
-  # Every pull request, so the required check below always reports; see the changes job.
   pull_request:
   workflow_dispatch:
 
@@ -26,30 +19,26 @@ defaults:
     working-directory: cloudflare
 
 jobs:
-  # Pull requests run this workflow whatever they touch, so this job skips the tests when nothing
-  # they cover changed. Its filter mirrors the push paths above; keep them in sync.
+  # The workflow runs on every push and pull request so the required check below always reports.
+  # This job skips the rest when nothing it covers changed.
   changes:
-    if: github.event_name == 'pull_request'
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: read
     outputs:
       mobile: ${{ steps.filter.outputs.mobile }}
     steps:
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
-          filters: |
-            mobile:
-              - 'cloudflare/apps/mobile/**'
-              - 'cloudflare/packages/**'
-              - 'cloudflare/package.json'
-              - 'cloudflare/package-lock.json'
-              - '.github/workflows/mobile.yml'
+          filters: .github/path-filters.yml
 
   test:
     needs: changes
-    if: ${{ !cancelled() && !failure() && (github.event_name != 'pull_request' || needs.changes.outputs.mobile == 'true') }}
+    if: ${{ !cancelled() && !failure() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

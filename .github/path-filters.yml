@@ -1,0 +1,18 @@
+# Which changed files each CI workflow covers. The changes job in worker.yml and mobile.yml reads
+# this to decide whether to test (and, for the Worker, deploy).
+shared: &shared
+  - 'cloudflare/packages/**'
+  - 'cloudflare/package.json'
+  - 'cloudflare/package-lock.json'
+  - '.github/path-filters.yml'
+
+worker:
+  - *shared
+  - 'cloudflare/apps/worker/**'
+  - 'cloudflare/apps/web/**'
+  - '.github/workflows/worker.yml'
+
+mobile:
+  - *shared
+  - 'cloudflare/apps/mobile/**'
+  - '.github/workflows/mobile.yml'

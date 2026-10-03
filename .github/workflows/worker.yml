@@ -4,18 +4,10 @@ name: Worker
 # master (or a manual run), it then builds the web app, applies any new D1 migrations, and deploys
 # the Worker, which serves the web app too.
 #
-# The shared paths (packages, root package files) are duplicated in mobile.yml; keep them in sync.
+# Which changes count as affecting it is defined in .github/path-filters.yml.
 on:
   push:
     branches: [master]
-    paths: &paths
-      - 'cloudflare/apps/worker/**'
-      - 'cloudflare/apps/web/**'
-      - 'cloudflare/packages/**'
-      - 'cloudflare/package.json'
-      - 'cloudflare/package-lock.json'
-      - '.github/workflows/worker.yml'
-  # Every pull request, so the required check below always reports; see the changes job.
   pull_request:
   workflow_dispatch:
 
@@ -28,31 +20,26 @@ defaults:
     working-directory: cloudflare
 
 jobs:
-  # Pull requests run this workflow whatever they touch, so this job skips the tests when nothing
-  # they cover changed. Its filter mirrors the push paths above; keep them in sync.
+  # The workflow runs on every push and pull request so the required check below always reports.
+  # This job skips the rest when nothing it covers changed.
   changes:
-    if: github.event_name == 'pull_request'
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: read
     outputs:
       worker: ${{ steps.filter.outputs.worker }}
     steps:
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
-          filters: |
-            worker:
-              - 'cloudflare/apps/worker/**'
-              - 'cloudflare/apps/web/**'
-              - 'cloudflare/packages/**'
-              - 'cloudflare/package.json'
-              - 'cloudflare/package-lock.json'
-              - '.github/workflows/worker.yml'
+          filters: .github/path-filters.yml
 
   test:
     needs: changes
-    if: ${{ !cancelled() && !failure() && (github.event_name != 'pull_request' || needs.changes.outputs.worker == 'true') }}
+    if: ${{ !cancelled() && !failure() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.worker == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
