@@ -18,7 +18,7 @@ export const colors = {
   ink: '#2a1f17',
 };
 
-// Loaded in the root layout (@expo-google-fonts). Until they load the app shows a spinner, so
+// Loaded in the root layout (@expo-google-fonts). Until they load the splash screen stays up, so
 // these names are always available to screens.
 export const fonts = {
   ui: 'Barlow_400Regular',
