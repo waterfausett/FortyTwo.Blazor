@@ -1,6 +1,7 @@
 // React hook over @fortytwo/client's connectMatchSocket, which receives live MatchState updates
 // from MatchDO's broadcast socket and retries a dropped connection with exponential backoff. This
-// file adds the React state and the app's wake-up signals. It mirrors apps/web's hook of the same
+// file adds the React state, closing the socket while the app is in the background, and reconnecting
+// when the network returns. It mirrors apps/web's hook of the same
 // name, which uses the browser's equivalents.
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
@@ -9,20 +10,24 @@ import { connectMatchSocket } from '@fortytwo/client';
 import type { MatchState } from '@fortytwo/rules';
 import { config } from '@/config';
 
-// The OS suspends a backgrounded app's sockets, and a dropped network kills them anywhere. When
-// the app comes back to the foreground or the network returns, reconnect now rather than sitting
-// out the backoff.
-function subscribeAppWake(wake: () => void): () => void {
-  const appState = AppState.addEventListener('change', (state) => {
-    if (state === 'active') wake();
-  });
-  const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+// A dropped network kills sockets: when it returns, reconnect now rather than sitting out the
+// backoff.
+function subscribeNetworkWake(wake: () => void): () => void {
+  return NetInfo.addEventListener((state) => {
     if (state.isConnected) wake();
   });
-  return () => {
-    appState.remove();
-    unsubscribeNetInfo();
-  };
+}
+
+// Whether the app is in the foreground. In the background the match's socket is closed - the OS
+// would suspend it anyway - so the Worker knows the player isn't watching and sends them push
+// notifications instead (worker: MatchDO's publish). Coming back opens a fresh one.
+function useAppInForeground(): boolean {
+  const [foreground, setForeground] = useState(AppState.currentState !== 'background');
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => setForeground(state !== 'background'));
+    return () => subscription.remove();
+  }, []);
+  return foreground;
 }
 
 export function useMatchSocket(
@@ -42,7 +47,14 @@ export function useMatchSocket(
     getTokenRef.current = getToken;
   }, [getToken]);
 
+  const foreground = useAppInForeground();
+
+  // Keeps the last match state while the app is in the background, so coming back shows it at
+  // once while the new socket connects.
+  useEffect(() => () => setLatest(null), [matchId]);
+
   useEffect(() => {
+    if (!foreground) return;
     const disconnect = connectMatchSocket({
       matchId,
       origin: config.wsOrigin,
@@ -56,16 +68,15 @@ export function useMatchSocket(
         setConnectedTo(null);
         setDroppedFrom(matchId);
       },
-      subscribeWake: subscribeAppWake,
+      subscribeWake: subscribeNetworkWake,
     });
 
     return () => {
       disconnect();
-      setLatest(null);
       setConnectedTo(null);
       setDroppedFrom(null);
     };
-  }, [matchId]);
+  }, [matchId, foreground]);
 
   return {
     match: latest?.matchId === matchId ? latest.match : null,

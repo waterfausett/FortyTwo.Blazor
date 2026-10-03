@@ -56,6 +56,7 @@ import { TrickHistory } from '@/components/TrickHistory';
 import { TrumpPicker } from '@/components/TrumpPicker';
 import { colors, fonts } from '@/components/theme';
 import { shareInvite } from '@/linking/invite';
+import { askOnceForPush } from '@/notifications/push';
 import { useLatch } from '@/match/useLatch';
 import { useSettled } from '@/match/useSettled';
 import { useTrickHold } from '@/match/useTrickHold';
@@ -85,8 +86,10 @@ export default function MatchScreen() {
     enabled: seatedIds.length > 0,
     staleTime: Infinity,
   });
-  // Whether to outline the playable dominoes - a setting the player opts into.
-  const highlightPlayable = useProfile().data?.highlightPlayable ?? false;
+  // The player's settings: whether to outline the playable dominoes (opted into), and whether
+  // they want notifications.
+  const profile = useProfile().data;
+  const highlightPlayable = profile?.highlightPlayable ?? false;
   // Bots are a dev-only testing aid (the Worker's AUTO_PLAY_BOTS).
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
 
@@ -155,6 +158,13 @@ export default function MatchScreen() {
   // deal the bids wait for it to finish folding: arriving while it's still full height, they'd
   // briefly push the hand down the screen.
   const early = seatedView(liveMatch, myPlayerId);
+  // Sitting at a match is when notifications start to matter: ask for permission then, if the
+  // player hasn't turned them off.
+  const seated = early != null;
+  const wantsPush = profile != null && profile.pushNotifications;
+  useEffect(() => {
+    if (seated && wantsPush) askOnceForPush(api);
+  }, [seated, wantsPush, api]);
   const tableCompact = early != null && (early.isBiddingPhase || early.isTrumpSelectPhase);
   const tableFolded = useSettled(tableCompact, TABLE_RESIZE_MS);
   // The hand-over panel waits for the trick that decided the hand to leave the table, so the

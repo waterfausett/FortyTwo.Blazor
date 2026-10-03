@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env, fetchMock, runInDurableObject } from 'cloudflare:test';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
-import { Teams, createDomino } from '@fortytwo/rules';
+import { Teams, createDomino, type Domino } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import { saveToken } from '../src/push/tokens';
 import type { MatchDO } from '../src/matchDO';
 
 const testEnv = env as unknown as Env;
@@ -276,5 +277,40 @@ describe('MatchDO WebSocket upgrade', () => {
       state.acceptWebSocket(pair[1]);
       await expect(matchDO.webSocketClose(pair[1], 1005, '', false)).resolves.toBeUndefined();
     });
+  });
+});
+
+// MatchDO's push notifications: a change notifies the players it concerns (push/notices.ts), except
+// anyone watching the match through an open socket.
+describe('MatchDO push notifications', () => {
+  it('pushes to players without the match open, and not to one who has it open', async () => {
+    const dealOrder: Domino[] = [];
+    for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dealOrder.push(createDomino(i, j));
+    for (const id of ['p1', 'p2', 'p3', 'p4']) await saveToken(testEnv.DB, id, `ExponentPushToken[${id}]`, 'android');
+
+    const stub = await createdBy('push-watching');
+    await stub.takeSeat('p2', 1);
+    await stub.takeSeat('p3', 2);
+    const { ws } = await openSocket(stub, `/ws?token=${await signToken({ sub: 'p2' })}`);
+
+    let sentTo: string[] = [];
+    const sent = new Promise<void>((resolve) => {
+      fetchMock
+        .get('https://exp.host')
+        .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
+        .reply((opts) => {
+          const messages = JSON.parse(String(opts.body)) as { to: string }[];
+          sentTo = messages.map((m) => m.to).sort();
+          resolve();
+          return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
+        });
+    });
+
+    // The last seat fills the table and deals: everyone hears the game is on, but p2 is watching.
+    await stub.takeSeat('p4', 3, dealOrder);
+    await sent;
+    expect(sentTo).toEqual(['ExponentPushToken[p1]', 'ExponentPushToken[p3]', 'ExponentPushToken[p4]']);
+
+    ws?.close();
   });
 });

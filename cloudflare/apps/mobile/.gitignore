@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Firebase service account keys (private: uploaded to EAS, never committed). google-services.json
+# is public and may be committed.
+*firebase-adminsdk*.json

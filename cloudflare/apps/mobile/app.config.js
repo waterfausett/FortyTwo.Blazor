@@ -7,6 +7,14 @@
 //   links the app shares) open in the app when it's installed. Android only trusts this once the
 //   Worker vouches for the app at /.well-known/assetlinks.json; until then such links still open
 //   in the browser. Only for an https Worker, since Android won't verify anything else.
+// - Push notifications on Android go through Firebase, which needs the app registered with the
+//   Firebase project: google-services.json, from the Firebase console. Not a secret, so it can be
+//   committed. Without it the app builds, but gets no push token.
+const fs = require('node:fs');
+const path = require('node:path');
+
+const GOOGLE_SERVICES_FILE = './google-services.json';
+
 function appLinksHost() {
   const origin = process.env.EXPO_PUBLIC_API_ORIGIN ?? '';
   return origin.startsWith('https://') ? new URL(origin).host : null;
@@ -18,6 +26,7 @@ module.exports = ({ config }) => {
     ...config,
     android: {
       ...config.android,
+      ...(fs.existsSync(path.join(__dirname, GOOGLE_SERVICES_FILE)) ? { googleServicesFile: GOOGLE_SERVICES_FILE } : {}),
       intentFilters: host
         ? [
             {

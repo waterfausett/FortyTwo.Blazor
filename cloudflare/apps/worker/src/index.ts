@@ -26,6 +26,9 @@ export interface Env {
   // The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links
   // (appLinks.ts). Not secret: Android reads them from a public file.
   ANDROID_APP_FINGERPRINTS?: string;
+  // An Expo access token, needed to send push notifications only once "enhanced push security"
+  // is turned on for the Expo project (push/send.ts). A secret: `wrangler secret put`.
+  EXPO_ACCESS_TOKEN?: string;
 }
 
 // The Hono environment every route runs in: the bindings above, plus the signed-in user that

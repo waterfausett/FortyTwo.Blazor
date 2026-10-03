@@ -24,6 +24,14 @@
     "plugins": [
       "expo-router",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#c9a45c",
+          "defaultChannel": "game"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",

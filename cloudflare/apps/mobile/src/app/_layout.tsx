@@ -17,6 +17,7 @@ import { colors, fonts } from '@/components/theme';
 import { ToastHost } from '@/components/ToastHost';
 import { config } from '@/config';
 import { setSignedIn, takePendingLink } from '@/linking/incomingLink';
+import { usePushNotifications } from '@/notifications/usePushNotifications';
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function RootStack() {
   // player has signed in - unless the router already opened it, as it does at launch when the
   // stored session turns out to be signed in.
   setSignedIn(signedIn);
+  usePushNotifications(ready && signedIn);
   useEffect(() => {
     if (!ready || !signedIn) return;
     const link = takePendingLink();

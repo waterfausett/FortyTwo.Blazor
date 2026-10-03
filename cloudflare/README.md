@@ -35,6 +35,7 @@ The Worker reads its settings from `apps/worker/.dev.vars` (gitignored):
 | `AUTH0_API_CLIENT_ID`, `AUTH0_API_CLIENT_SECRET`, `AUTH0_API_AUDIENCE` | Call Auth0's Management API for profiles and display names. |
 | `ALLOWED_ORIGIN` | The web app's origin, for CORS. Defaults to `http://localhost:5173`. |
 | `AUTO_PLAY_BOTS` | `true` lets players seat bots in open seats. Never set in a deployed environment. |
+| `EXPO_ACCESS_TOKEN` | Only once "enhanced push security" is on for the Expo project: an Expo access token the Worker sends push notifications with (see [Push notifications](#push-notifications)). A secret: `npx wrangler secret put EXPO_ACCESS_TOKEN`. |
 | `ANDROID_APP_FINGERPRINTS` | The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links (see [Invite links](#invite-links)). Not secret. |
 
 The web app reads `apps/web/.env.local` (gitignored):
@@ -230,6 +231,43 @@ Android only opens https links in the app once the Worker vouches for it:
    Android checks the Worker's file when the app is installed, so reinstall after changing it.
 
 iOS Universal Links aren't set up yet: they need an Apple Developer team ID.
+
+### Push notifications
+
+The app is sent a push notification when it's the player's turn (to bid, name trump or play), a
+hand they're in is decided, or a game of theirs starts (the last seat taken, or a rematch dealt).
+None is sent for a match they have open: the app closes a match's socket in the background, and
+`MatchDO` only notifies players without one (`apps/worker/src/push/`). Bots get none.
+
+- **Asking:** the app asks for permission the first time the player sits at a match. Once
+  allowed, it registers the device's Expo push token with the Worker (`PUT
+  /api/users/push-tokens`, stored in D1's `push_tokens`). The token is removed on sign-out.
+- **Turning them off:** the Notifications setting on the profile, on unless turned off. Each
+  device of the player's unregisters when it next starts.
+- **Opening one:** a notification opens its match, or the match opens once the player has
+  signed in.
+- **Sending:** the Worker sends through Expo's push service, and forgets a token Expo says is no
+  longer registered.
+
+Setup:
+
+1. **Firebase, for Android.** Create a Firebase project, add an Android app to it with the
+   package `com.waterfausett.fortytwo`, and download its `google-services.json` into
+   `apps/mobile/`. It isn't secret, so commit it; `app.config.js` uses it when it's there.
+2. **Firebase's key, for Expo.** In the Firebase console, open Project settings, then Service
+   accounts, and generate a private key. Upload that JSON file to EAS: run
+   `npx eas-cli@latest credentials -p android`, pick the build profile, then Google Service
+   Account, then Push Notifications (FCM V1). The key *is* secret: don't commit it (files named
+   `*firebase-adminsdk*.json` are gitignored).
+3. **iOS** needs an Apple Developer account. EAS sets up the push key on the first iOS build
+   (#49).
+4. **The database:** CI applies the new D1 migration when it deploys. For `wrangler dev`, run
+   `cd apps/worker && npx wrangler d1 migrations apply fortytwo --local`.
+5. **Rebuild the app.** Push needs a build with `expo-notifications` and `google-services.json`.
+
+Notifications only work in a real build; Expo Go can't receive them. To check one end to end,
+copy the device's token from the `push_tokens` table and send a test from
+[expo.dev/notifications](https://expo.dev/notifications).
 
 ## Deploying
 
