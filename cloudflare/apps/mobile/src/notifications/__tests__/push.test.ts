@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import type { Api } from '@/api/useApi';
-import { askOnceForPush, notificationRoute, registerDevice, unregisterDevice } from '../push';
+import { addPushTokenChangeListener, askOnceForPush, notificationRoute, registerDevice, unregisterDevice } from '../push';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: { eas: { projectId: 'project-1' } } } } }));
 jest.mock('expo-notifications', () => ({
@@ -8,7 +8,9 @@ jest.mock('expo-notifications', () => ({
   setNotificationChannelAsync: jest.fn(async () => null),
   getPermissionsAsync: jest.fn(),
   requestPermissionsAsync: jest.fn(),
+  getDevicePushTokenAsync: jest.fn(async () => ({ type: 'android', data: 'fcm-1' })),
   getExpoPushTokenAsync: jest.fn(async () => ({ type: 'expo', data: 'ExponentPushToken[device]' })),
+  addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })),
   AndroidImportance: { HIGH: 4 },
 }));
 
@@ -31,7 +33,10 @@ describe('registerDevice', () => {
     const api = fakeApi();
 
     expect(await registerDevice(api, { ask: false })).toBe(true);
-    expect(mocked.getExpoPushTokenAsync).toHaveBeenCalledWith({ projectId: 'project-1' });
+    expect(mocked.getExpoPushTokenAsync).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      devicePushToken: { type: 'android', data: 'fcm-1' },
+    });
     expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', expect.stringMatching(/android|ios/));
   });
 
@@ -71,6 +76,25 @@ describe('unregisterDevice', () => {
     mocked.getPermissionsAsync.mockResolvedValue(permission('denied'));
     await unregisterDevice(api);
     expect(api.removePushToken).not.toHaveBeenCalled();
+  });
+});
+
+describe('addPushTokenChangeListener', () => {
+  it('reports a new token, but not the same one again', async () => {
+    mocked.getPermissionsAsync.mockResolvedValue(permission('granted'));
+    await registerDevice(fakeApi(), { ask: false }); // last seen: fcm-1
+    const onChange = jest.fn();
+    addPushTokenChangeListener(onChange);
+    const emit = mocked.addPushTokenListener.mock.calls[0][0];
+    const event = (data: string) => ({ type: 'android', data }) as Notifications.DevicePushToken;
+
+    // What Android sends back after every fetch of the token.
+    emit(event('fcm-1'));
+    expect(onChange).not.toHaveBeenCalled();
+
+    emit(event('fcm-2'));
+    emit(event('fcm-2'));
+    expect(onChange).toHaveBeenCalledTimes(1);
   });
 });
 
