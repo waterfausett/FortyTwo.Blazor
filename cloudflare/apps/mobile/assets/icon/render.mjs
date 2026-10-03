@@ -42,11 +42,14 @@ function domino(width, { solid = null } = {}) {
   const divider = { x: SIZE / 2 - width * 0.012, y: y + h * 0.12, w: width * 0.024, h: h * 0.76 };
 
   if (solid) {
+    // The mask is drawn in the tile's own coordinates, so it sits inside the rotated group with
+    // the tile: rotating it separately would turn the cut-outs twice as far as the tile.
     const holes = [...fours, ...twos].map((p) => `<circle cx="${p.cx}" cy="${p.cy}" r="${pip}" fill="black"/>`).join('');
-    return `<defs><mask id="cut"><rect width="${SIZE}" height="${SIZE}" fill="white"/>
-      <g transform="rotate(${TILT} ${SIZE / 2} ${SIZE / 2})">${holes}
-      <rect x="${divider.x}" y="${divider.y}" width="${divider.w}" height="${divider.h}" rx="${divider.w / 2}" fill="black"/></g></mask></defs>
-      <rect x="${x}" y="${y}" width="${width}" height="${h}" rx="${r}" fill="${solid}" mask="url(#cut)" transform="rotate(${TILT} ${SIZE / 2} ${SIZE / 2})"/>`;
+    return `<defs><mask id="cut"><rect width="${SIZE}" height="${SIZE}" fill="white"/>${holes}
+      <rect x="${divider.x}" y="${divider.y}" width="${divider.w}" height="${divider.h}" rx="${divider.w / 2}" fill="black"/></mask></defs>
+      <g transform="rotate(${TILT} ${SIZE / 2} ${SIZE / 2})">
+        <rect x="${x}" y="${y}" width="${width}" height="${h}" rx="${r}" fill="${solid}" mask="url(#cut)"/>
+      </g>`;
   }
 
   const lift = width * 0.035;
