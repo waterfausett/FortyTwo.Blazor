@@ -1,0 +1,40 @@
+name: Mobile
+
+# Tests and typechecks the mobile app on every pull request and push that can affect it. Builds
+# ship through EAS (.eas/workflows), not here.
+#
+# The shared paths (packages, root package files) are duplicated in worker.yml; keep them in sync.
+on:
+  push:
+    branches: [master]
+    paths: &paths
+      - 'cloudflare/apps/mobile/**'
+      - 'cloudflare/packages/**'
+      - 'cloudflare/package.json'
+      - 'cloudflare/package-lock.json'
+      - '.github/workflows/mobile.yml'
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: cloudflare
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: cloudflare/package-lock.json
+      - run: npm ci
+      - run: npm test -w @fortytwo/mobile
+      - run: npm run typecheck -w @fortytwo/mobile

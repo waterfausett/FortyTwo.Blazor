@@ -1,17 +1,26 @@
-name: Cloudflare
+name: Worker
 
-# Tests every pull request and push. On a push to master (or a manual run), it then builds the web
-# app, applies any new D1 migrations, and deploys the Worker, which serves the web app too.
+# Tests the Worker and web app on every pull request and push that can affect them. On a push to
+# master (or a manual run), it then builds the web app, applies any new D1 migrations, and deploys
+# the Worker, which serves the web app too.
+#
+# The shared paths (packages, root package files) are duplicated in mobile.yml; keep them in sync.
 on:
   push:
     branches: [master]
-    paths: ['cloudflare/**', '.github/workflows/cloudflare.yml']
+    paths: &paths
+      - 'cloudflare/apps/worker/**'
+      - 'cloudflare/apps/web/**'
+      - 'cloudflare/packages/**'
+      - 'cloudflare/package.json'
+      - 'cloudflare/package-lock.json'
+      - '.github/workflows/worker.yml'
   pull_request:
-    paths: ['cloudflare/**', '.github/workflows/cloudflare.yml']
+    paths: *paths
   workflow_dispatch:
 
 concurrency:
-  group: cloudflare-${{ github.ref }}
+  group: worker-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -35,8 +44,6 @@ jobs:
       - run: npm test -w @fortytwo/web
       # Typechecks the web app and the packages it references.
       - run: npm run build -w @fortytwo/web
-      - run: npm test -w @fortytwo/mobile
-      - run: npm run typecheck -w @fortytwo/mobile
 
   deploy:
     needs: test
