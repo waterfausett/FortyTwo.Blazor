@@ -174,6 +174,40 @@ function baseMatch(overrides: Partial<MatchState> = {}, gameOverrides: Partial<M
   };
 }
 
+  function finishedHandMatch(): MatchState {
+    // A finished game: TeamA (p1/p3) bid Thirty and won a single trick worth 31 (>= 30) - matches
+    // matchEngine.test.ts's `finishedGame` fixture shape closely enough to trip `gameWinningTeam`.
+    return baseMatch(
+      {
+        players: [
+          { playerId: 'p1', position: Positions.First, ready: false },
+          { playerId: 'p2', position: Positions.Second, ready: true },
+          { playerId: 'p3', position: Positions.Third, ready: false },
+          { playerId: 'p4', position: Positions.Fourth, ready: false },
+        ],
+      },
+      {
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: Bid.Thirty },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+        ],
+        tricks: [
+          {
+            playerId: 'p1',
+            team: Teams.TeamA,
+            suit: Suit.Sixes,
+            dominoes: [createDomino(5, 0), createDomino(5, 5), createDomino(6, 4), createDomino(4, 1)],
+          },
+        ],
+      }
+    );
+  }
+
 describe('Match', () => {
   describe('open seats', () => {
     // Just me and my partner so far - seats 1 and 3 (my left and right) are open.
@@ -841,40 +875,6 @@ describe('Match', () => {
   // `readyUp` is the ONLY mechanism that deals a new hand once the current one has a winner, so
   // without this UI a match would play its first hand to completion and then never continue.
   describe('Ready Up', () => {
-    function finishedHandMatch(): MatchState {
-      // A finished game: TeamA (p1/p3) bid Thirty and won a single trick worth 31 (>= 30) - matches
-      // matchEngine.test.ts's `finishedGame` fixture shape closely enough to trip `gameWinningTeam`.
-      return baseMatch(
-        {
-          players: [
-            { playerId: 'p1', position: Positions.First, ready: false },
-            { playerId: 'p2', position: Positions.Second, ready: true },
-            { playerId: 'p3', position: Positions.Third, ready: false },
-            { playerId: 'p4', position: Positions.Fourth, ready: false },
-          ],
-        },
-        {
-          bid: Bid.Thirty,
-          biddingPlayerId: 'p1',
-          trump: Suit.Sixes,
-          hands: [
-            { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: Bid.Thirty },
-            { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
-            { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
-            { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
-          ],
-          tricks: [
-            {
-              playerId: 'p1',
-              team: Teams.TeamA,
-              suit: Suit.Sixes,
-              dominoes: [createDomino(5, 0), createDomino(5, 5), createDomino(6, 4), createDomino(4, 1)],
-            },
-          ],
-        }
-      );
-    }
-
     it('shows a Ready Up button once the current hand has a winner, and hides it once bidding is happening', () => {
       const finished = finishedHandMatch();
       useMatchSocketMock.mockReturnValue({ match: finished, connected: true });
@@ -1670,14 +1670,21 @@ describe('Match', () => {
 
   describe('turn alerts', () => {
     function lastTurnAlerts() {
-      const calls = turnAlertsMock.mock.calls as unknown as [{ isMyTurn: boolean; detail: string; tag: string }][];
+      const calls = turnAlertsMock.mock.calls as unknown as [
+        { isMyTurn: boolean; title: string; body: string; tag: string },
+      ][];
       return calls[calls.length - 1][0];
     }
 
-    it('flags my bid', () => {
+    it('flags my bid, worded like the push notices', () => {
       useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
       renderMatch();
-      expect(lastTurnAlerts()).toEqual({ isMyTurn: true, detail: 'Game 1 · your bid', tag: 'match-1' });
+      expect(lastTurnAlerts()).toEqual({
+        isMyTurn: true,
+        title: 'Your bid',
+        body: 'Game 1 is waiting on you.',
+        tag: 'match-1',
+      });
     });
 
     it("stays down while it's someone else's turn", () => {
@@ -1693,7 +1700,7 @@ describe('Match', () => {
         connected: true,
       });
       renderMatch();
-      expect(lastTurnAlerts()).toMatchObject({ isMyTurn: true, detail: 'Game 1 · name trump' });
+      expect(lastTurnAlerts()).toMatchObject({ isMyTurn: true, title: 'Name trump' });
     });
 
     it('flags my lead', () => {
@@ -1703,7 +1710,25 @@ describe('Match', () => {
         connected: true,
       });
       renderMatch();
-      expect(lastTurnAlerts()).toMatchObject({ isMyTurn: true, detail: 'Game 1 · your lead' });
+      expect(lastTurnAlerts()).toMatchObject({ isMyTurn: true, title: 'Your lead' });
+    });
+
+    // Like the push notices: playing out a decided hand is optional, so it's nothing to be called back for.
+    it('stays down once the hand is decided, even with a play left to make', () => {
+      const base = finishedHandMatch();
+      const decided = {
+        ...base,
+        currentGame: {
+          ...base.currentGame,
+          currentPlayerId: 'p1',
+          hands: base.currentGame.hands.map((h) =>
+            h.playerId === 'p1' ? { ...h, dominoes: [createDomino(1, 2)] } : h
+          ),
+        },
+      };
+      useMatchSocketMock.mockReturnValue({ match: decided, connected: true });
+      renderMatch();
+      expect(lastTurnAlerts().isMyTurn).toBe(false);
     });
   });
 });

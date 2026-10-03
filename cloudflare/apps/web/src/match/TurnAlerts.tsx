@@ -9,6 +9,10 @@
 //   - while away, a system notification, if they switched those on and the browser allows it.
 //
 // "Away" is a hidden tab or an unfocused window.
+//
+// The mobile app gets push notifications instead (apps/worker/src/push/), but only when it has no
+// socket open on the match - and a web tab keeps its socket in the background, so a player looking
+// away from it hears nothing from the Worker. This covers that, saying what the push would.
 import { useEffect, useRef } from 'react';
 import { readAlertPrefs } from './alertPrefs';
 import { playChime } from '../ui/chime';
@@ -43,11 +47,11 @@ function flashTab(): () => void {
   };
 }
 
-function notify(body: string, tag: string): Notification | null {
+function notify(title: string, body: string, tag: string): Notification | null {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return null;
   try {
     // One tag per match, so a new turn replaces the last notice instead of stacking.
-    const notification = new Notification('Your turn', { body, tag, icon: '/favicon.svg' });
+    const notification = new Notification(title, { body, tag, icon: '/favicon.svg' });
     notification.onclick = () => {
       window.focus();
       notification.close();
@@ -61,19 +65,21 @@ function notify(body: string, tag: string): Notification | null {
 
 export interface TurnAlertsProps {
   isMyTurn: boolean;
-  // What the turn asks for, e.g. "Game 3 · your lead" - the notification's text.
-  detail: string;
+  // The notification's words, as the mobile app's push notices put them (apps/worker/src/push/
+  // notices.ts): what the turn asks for ("Your lead") and which game is waiting.
+  title: string;
+  body: string;
   // Identifies the match, so its notifications replace one another.
   tag: string;
 }
 
-export function TurnAlerts({ isMyTurn, detail, tag }: TurnAlertsProps): null {
+export function TurnAlerts({ isMyTurn, title, body, tag }: TurnAlertsProps): null {
   const wasMyTurnRef = useRef(isMyTurn);
   // Read when a turn starts, without restarting the alert if the text changes mid-turn.
-  const messageRef = useRef({ detail, tag });
+  const messageRef = useRef({ title, body, tag });
   // Declared first, so it has caught up before the effect below reads it.
   useEffect(() => {
-    messageRef.current = { detail, tag };
+    messageRef.current = { title, body, tag };
   });
 
   useEffect(() => {
@@ -87,7 +93,8 @@ export function TurnAlerts({ isMyTurn, detail, tag }: TurnAlertsProps): null {
     if (!away) return;
 
     const stopFlash = flashTab();
-    const notification = prefs.desktop ? notify(messageRef.current.detail, messageRef.current.tag) : null;
+    const { title: noticeTitle, body: noticeBody, tag: noticeTag } = messageRef.current;
+    const notification = prefs.desktop ? notify(noticeTitle, noticeBody, noticeTag) : null;
     function stop(): void {
       stopFlash();
       notification?.close();

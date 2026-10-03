@@ -45,11 +45,11 @@ function favicon(): HTMLLinkElement {
 }
 
 function renderAlerts(isMyTurn: boolean) {
-  const view = render(<TurnAlerts isMyTurn={isMyTurn} detail="Game 1 · your lead" tag="match-1" />);
+  const view = render(<TurnAlerts isMyTurn={isMyTurn} title="Your lead" body="Game 1 is waiting on you." tag="match-1" />);
   return {
     ...view,
     setTurn: (next: boolean) =>
-      view.rerender(<TurnAlerts isMyTurn={next} detail="Game 1 · your lead" tag="match-1" />),
+      view.rerender(<TurnAlerts isMyTurn={next} title="Your lead" body="Game 1 is waiting on you." tag="match-1" />),
   };
 }
 
@@ -177,8 +177,8 @@ describe('TurnAlerts', () => {
       setTurn(true);
       expect(FakeNotification.instances).toHaveLength(1);
       const [shown] = FakeNotification.instances;
-      expect(shown.title).toBe('Your turn');
-      expect(shown.options).toMatchObject({ body: 'Game 1 · your lead', tag: 'match-1' });
+      expect(shown.title).toBe('Your lead');
+      expect(shown.options).toMatchObject({ body: 'Game 1 is waiting on you.', tag: 'match-1' });
     });
 
     it('closes when the turn ends', () => {

@@ -416,17 +416,20 @@ export function Match(): JSX.Element {
   // One line on the rail saying what the table is waiting on.
   const status = matchStatus(match, view, nameFor);
 
-  // What TurnAlerts (match/TurnAlerts.tsx) says when the player has looked away: whether the
-  // table is waiting on them, and for what.
-  const myTurnAsk = canBid
-    ? 'your bid'
-    : canSelectTrump
-      ? 'name trump'
-      : view.isMyTurnToPlay && !isHandPlayedOut
-        ? isTrickStarted(game.currentTrick)
-          ? 'your play'
-          : 'your lead'
-        : null;
+  // What TurnAlerts (match/TurnAlerts.tsx) says when the player has looked away, in the push
+  // notices' words (apps/worker/src/push/notices.ts) - and like them, nothing once the hand is
+  // decided, since playing it out is optional.
+  const myTurnAsk = isHandOver
+    ? null
+    : canBid
+      ? 'Your bid'
+      : canSelectTrump
+        ? 'Name trump'
+        : view.isMyTurnToPlay && !isHandPlayedOut
+          ? isTrickStarted(game.currentTrick)
+            ? 'Your play'
+            : 'Your lead'
+          : null;
 
   // Gates which dominoes Hand will let a player preselect (double-click before their turn): only a
   // play that's legal right now, by the same follow-suit rule the server enforces.
@@ -450,7 +453,12 @@ export function Match(): JSX.Element {
 
   return (
     <div ref={matchRootRef} className="match">
-      <TurnAlerts isMyTurn={myTurnAsk != null} detail={`${game.name} · ${myTurnAsk ?? ''}`} tag={match.id} />
+      <TurnAlerts
+        isMyTurn={myTurnAsk != null}
+        title={myTurnAsk ?? ''}
+        body={`${game.name} is waiting on you.`}
+        tag={match.id}
+      />
       {reconnecting && (
         <p className="match-reconnecting" role="status" aria-label="Reconnecting">
           Reconnecting…
