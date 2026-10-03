@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "788866348406",
+    "project_id": "fortytwo-da7e9",
+    "storage_bucket": "fortytwo-da7e9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:788866348406:android:3063048ade11a9a593f657",
+        "android_client_info": {
+          "package_name": "com.waterfausett.fortytwo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLaYGsQmlou6XiYuBPpjzBXZvuzk-rMBk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
