@@ -4,6 +4,9 @@
 // until edited. There's no theme setting: the whole site is the one dark domino-hall look
 // (styles/hall.css).
 //
+// Below it, the Turn alerts card (components/TurnAlertSettings.tsx) - kept per browser and saved
+// as it changes, not with this form.
+//
 // A save confirms with a brief inline "Saved" message near the button, and an error shows as an
 // inline banner.
 import { useEffect, useState } from 'react';
@@ -11,6 +14,7 @@ import type { FormEvent, JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useGetToken } from '../auth/useGetToken';
 import { apiClient } from '../api/client';
+import { TurnAlertSettings } from '../components/TurnAlertSettings';
 import './Profile.css';
 
 function errorMessage(error: unknown): string {
@@ -151,6 +155,8 @@ export function Profile(): JSX.Element {
           )}
         </div>
       </form>
+
+      <TurnAlertSettings />
     </div>
   );
 }

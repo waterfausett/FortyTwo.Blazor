@@ -39,6 +39,7 @@ const {
   toastInfoMock,
   rematchMock,
   navigateMock,
+  turnAlertsMock,
   joinMatchMock,
   currentUserId,
 } =
@@ -57,6 +58,7 @@ const {
     toastInfoMock: vi.fn(),
     rematchMock: vi.fn(),
     navigateMock: vi.fn(),
+    turnAlertsMock: vi.fn(() => null),
     joinMatchMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
@@ -83,6 +85,10 @@ vi.mock('../api/client', () => ({
 vi.mock('../ui/toast', () => ({
   toastError: toastErrorMock,
   toastInfo: toastInfoMock,
+}));
+
+vi.mock('../match/TurnAlerts', () => ({
+  TurnAlerts: turnAlertsMock,
 }));
 
 vi.mock('../api/useMatchSocket', () => ({
@@ -167,6 +173,40 @@ function baseMatch(overrides: Partial<MatchState> = {}, gameOverrides: Partial<M
     ...overrides,
   };
 }
+
+  function finishedHandMatch(): MatchState {
+    // A finished game: TeamA (p1/p3) bid Thirty and won a single trick worth 31 (>= 30) - matches
+    // matchEngine.test.ts's `finishedGame` fixture shape closely enough to trip `gameWinningTeam`.
+    return baseMatch(
+      {
+        players: [
+          { playerId: 'p1', position: Positions.First, ready: false },
+          { playerId: 'p2', position: Positions.Second, ready: true },
+          { playerId: 'p3', position: Positions.Third, ready: false },
+          { playerId: 'p4', position: Positions.Fourth, ready: false },
+        ],
+      },
+      {
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: Bid.Thirty },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+        ],
+        tricks: [
+          {
+            playerId: 'p1',
+            team: Teams.TeamA,
+            suit: Suit.Sixes,
+            dominoes: [createDomino(5, 0), createDomino(5, 5), createDomino(6, 4), createDomino(4, 1)],
+          },
+        ],
+      }
+    );
+  }
 
 describe('Match', () => {
   describe('open seats', () => {
@@ -835,40 +875,6 @@ describe('Match', () => {
   // `readyUp` is the ONLY mechanism that deals a new hand once the current one has a winner, so
   // without this UI a match would play its first hand to completion and then never continue.
   describe('Ready Up', () => {
-    function finishedHandMatch(): MatchState {
-      // A finished game: TeamA (p1/p3) bid Thirty and won a single trick worth 31 (>= 30) - matches
-      // matchEngine.test.ts's `finishedGame` fixture shape closely enough to trip `gameWinningTeam`.
-      return baseMatch(
-        {
-          players: [
-            { playerId: 'p1', position: Positions.First, ready: false },
-            { playerId: 'p2', position: Positions.Second, ready: true },
-            { playerId: 'p3', position: Positions.Third, ready: false },
-            { playerId: 'p4', position: Positions.Fourth, ready: false },
-          ],
-        },
-        {
-          bid: Bid.Thirty,
-          biddingPlayerId: 'p1',
-          trump: Suit.Sixes,
-          hands: [
-            { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: Bid.Thirty },
-            { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
-            { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
-            { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
-          ],
-          tricks: [
-            {
-              playerId: 'p1',
-              team: Teams.TeamA,
-              suit: Suit.Sixes,
-              dominoes: [createDomino(5, 0), createDomino(5, 5), createDomino(6, 4), createDomino(4, 1)],
-            },
-          ],
-        }
-      );
-    }
-
     it('shows a Ready Up button once the current hand has a winner, and hides it once bidding is happening', () => {
       const finished = finishedHandMatch();
       useMatchSocketMock.mockReturnValue({ match: finished, connected: true });
@@ -1659,6 +1665,93 @@ describe('Match', () => {
       rerenderMatch(view);
 
       expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'You bid first', 'center');
+    });
+  });
+
+  describe('turn alerts', () => {
+    type Call = { kind: string; title: string; body: string } | null;
+    function lastCall(): Call {
+      const calls = turnAlertsMock.mock.calls as unknown as [{ call: Call; tag: string }][];
+      return calls[calls.length - 1][0].call;
+    }
+
+    it('calls me for my bid, worded like the push notices', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+      expect(lastCall()).toEqual({ kind: 'turn', title: 'Your bid', body: 'Game 1 is waiting on you.' });
+      const calls = turnAlertsMock.mock.calls as unknown as [{ tag: string }][];
+      expect(calls[calls.length - 1][0].tag).toBe('match-1');
+    });
+
+    it("doesn't call me while it's someone else's turn", () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({}, { currentPlayerId: 'p2' }), connected: true });
+      renderMatch();
+      expect(lastCall()).toBeNull();
+    });
+
+    it('calls me to name trump', () => {
+      const hands = baseMatch().currentGame.hands.map((h, i) => ({ ...h, bid: i === 0 ? Bid.Thirty : Bid.Pass }));
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { hands, bid: Bid.Thirty, biddingPlayerId: 'p1' }),
+        connected: true,
+      });
+      renderMatch();
+      expect(lastCall()).toMatchObject({ kind: 'turn', title: 'Name trump' });
+    });
+
+    it('calls me to lead', () => {
+      const hands = baseMatch().currentGame.hands.map((h, i) => ({ ...h, bid: i === 0 ? Bid.Thirty : Bid.Pass }));
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { hands, bid: Bid.Thirty, biddingPlayerId: 'p1', trump: Suit.Sixes }),
+        connected: true,
+      });
+      renderMatch();
+      expect(lastCall()).toMatchObject({ kind: 'turn', title: 'Your lead' });
+    });
+
+    // Like the push notices: playing out a decided hand is optional, so the call is to ready up - the
+    // next hand deals once all four have, played out or not.
+    it('calls me to ready up once the hand is decided, not to play it out', () => {
+      const base = finishedHandMatch();
+      const decided = {
+        ...base,
+        currentGame: {
+          ...base.currentGame,
+          currentPlayerId: 'p1',
+          hands: base.currentGame.hands.map((h) =>
+            h.playerId === 'p1' ? { ...h, dominoes: [createDomino(1, 2)] } : h
+          ),
+        },
+      };
+      useMatchSocketMock.mockReturnValue({ match: decided, connected: true });
+      renderMatch();
+      expect(lastCall()).toEqual({ kind: 'handOver', title: 'Hand over', body: 'Ready up for the next hand.' });
+    });
+
+    it("doesn't call me once I'm ready", () => {
+      const base = finishedHandMatch();
+      const ready = { ...base, players: base.players.map((p) => ({ ...p, ready: p.playerId === 'p1' || p.ready })) };
+      useMatchSocketMock.mockReturnValue({ match: ready, connected: true });
+      renderMatch();
+      expect(lastCall()).toBeNull();
+    });
+
+    it('calls me to see the match out, until I ask for a rematch', () => {
+      useMatchSocketMock.mockReturnValue({ match: { ...finishedHandMatch(), winningTeam: Teams.TeamA }, connected: true });
+      const view = renderMatch();
+      expect(lastCall()).toEqual({
+        kind: 'matchOver',
+        title: 'Match over',
+        body: 'See how it ended, or ask for a rematch.',
+      });
+      view.unmount();
+
+      useMatchSocketMock.mockReturnValue({
+        match: { ...finishedHandMatch(), winningTeam: Teams.TeamA, rematchVotes: ['p1'] },
+        connected: true,
+      });
+      renderMatch();
+      expect(lastCall()).toBeNull();
     });
   });
 });
