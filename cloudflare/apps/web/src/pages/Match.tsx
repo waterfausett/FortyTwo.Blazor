@@ -609,6 +609,7 @@ export function Match(): JSX.Element {
                     sweepTo={sweepTo}
                     sweepMode={sweepMode}
                     sweepTarget={sweepTarget}
+                    pendingId={inFlight?.id ?? null}
                   />
                 )}
               </div>

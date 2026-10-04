@@ -412,6 +412,7 @@ export default function MatchScreen() {
           trick={view.isTableReady ? trick : null}
           slotSeats={slotSeats}
           winningSlot={winningSlot}
+          pendingId={inFlight?.id ?? null}
           dropRef={tableRef}
           dropActive={drag.overDropZone}
           sweepTo={sweepTo}
