@@ -89,7 +89,7 @@ before Stage 2 aren't comparable.
 
 Then evaluate the simulation bidder against heuristic bidding with the same play model. The model
 runs on CPU. On the idle dev box a bid decision takes about 6 s (median 5.8 s, p95 6.7 s), and
-there are about 4 per duplicate deal, so 1,000 deals take about 6.5 h. A concurrent training run
+there are about 4 per duplicate deal. 1,000 deals took about 6.5 h single-process; with the default 7 workers (`--workers`) it's about an hour. A concurrent training run
 nearly doubles that. `--sim-deals` trades accuracy for speed, and `--make-threshold` (default 0.6)
 sets how sure the bidder must be before it bids. 0.6 beat the spec's original 0.5 by about 0.1
 marks/deal on the same 300 deals: the bidder wins fewer auctions but makes more of them.
@@ -116,6 +116,40 @@ Before the overnight run, sanity-check the bid-level lines. The bidder's P(make 
 decided, so play after a 30 bid is decided is out of its training distribution. The calibration
 by bid band (30–31, 32–35, 36–41, 42+) shows whether higher points bids are made less often than
 predicted.
+
+## Stage 3: a fast bidding model
+
+The simulation bidder is too slow to ship (about 6 s per bid). Stage 3 teaches a small network,
+BidNet, to predict the same P(make) table from the hand alone, then bids from it with the same
+rules and threshold. Every P(make) the simulation bidder estimates depends only on its own seven
+dominoes, so the training data is just simulated hands, with no auctions.
+
+```sh
+# Training data: about 7 h with 7 workers. Rerunning resumes; a new --seed adds hands.
+uv run ml gen-bids --model runs/stage1-c/ckpt-latest.pt --out data/bids --hands 100000 --sim-deals 50 --seed 1
+# A small low-noise "gold" set for measuring the model (about 30 min).
+uv run ml gen-bids --model runs/stage1-c/ckpt-latest.pt --out data/bids-gold --hands 2000 --sim-deals 400 --seed 99
+uv run ml train-bids --data data/bids --gold data/bids-gold --out runs/bidnet-1
+```
+
+`train-bids` prints each epoch's loss. It ends with the gold-set error at the bids that matter and a
+calibration table.
+
+Then check it against both bidders, with the same play model on both sides:
+
+```sh
+uv run ml eval-bidding --model runs/stage1-c/ckpt-latest.pt --a fast:runs/bidnet-1/bidnet.pt --b heuristic --deals 1000
+uv run ml eval-bidding --model runs/stage1-c/ckpt-latest.pt --a fast:runs/bidnet-1/bidnet.pt --b sim --deals 1000
+uv run ml play-demo --agent fast:runs/bidnet-1/bidnet.pt --seed 3
+```
+
+Stage 3 passes if:
+- against `heuristic`, A's 95% CI is above 0;
+- against `sim`, A's CI lower bound is above −0.1;
+- the fast bid decision's p95 is under 10 ms.
+
+`eval-bidding` runs on 7 worker processes by default (`--workers`). Results are identical for any
+worker count. A 1,000-deal run with a `sim` side now takes about an hour.
 
 ## Layout
 

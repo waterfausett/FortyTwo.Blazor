@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..agents.base import Agent
+from ..agents.fast_bidder import FastAgent
 from ..agents.model_agent import ModelAgent
 from ..agents.sim_bidder import SimAgent
 from ..sim.decide import DEFAULT_MAKE_THRESHOLD
@@ -24,7 +25,12 @@ class BidderSpec:
 def parse_bidder(text: str, model: str, sim_deals: int, make_threshold: float, seed: int) -> BidderSpec:
     if text in ("heuristic", "sim"):
         return BidderSpec(text, model, None, sim_deals, make_threshold, seed)
-    raise ValueError(f"unknown bidder {text!r}; use heuristic or sim")
+    if text.startswith("fast:"):
+        path = text[len("fast:"):]
+        if not Path(path).is_file():
+            raise FileNotFoundError(f"no bidnet at {path}")
+        return BidderSpec("fast", model, path, sim_deals, make_threshold, seed)
+    raise ValueError(f"unknown bidder {text!r}; use heuristic, sim or fast:<bidnet.pt>")
 
 
 def build_bidder(spec: BidderSpec) -> Agent:
@@ -36,6 +42,8 @@ def build_bidder(spec: BidderSpec) -> Agent:
         return SimAgent.from_checkpoint(
             spec.model, n_deals=spec.sim_deals, make_threshold=spec.make_threshold, seed=spec.seed
         )
+    if spec.kind == "fast":
+        return FastAgent.from_files(spec.bidnet, play_path=spec.model, make_threshold=spec.make_threshold)
     raise ValueError(f"unknown bidder kind {spec.kind!r}")
 
 

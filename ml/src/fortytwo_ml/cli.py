@@ -1,14 +1,20 @@
-"""`ml train`, `ml eval`, `ml eval-bidding`, `ml gen-bids`, `ml train-bids`, and `ml play-demo`."""
+"""`ml train`, `ml eval`, `ml eval-bidding`, `ml gen-bids`, `ml train-bids`, and `ml play-demo`.
+
+Agents (`load_agent`): dumb, heuristic, a checkpoint path, `sim:<checkpoint.pt>` (simulation bidding)
+and `fast:<bidnet.pt>` (BidNet bidding)."""
 import argparse
 import random
+import sys
 from datetime import datetime
 from pathlib import Path
 
 from .agents.base import Agent, choose
 from .agents.dumb_bot import DumbBot
+from .agents.fast_bidder import FastAgent, play_checkpoint_mismatch
 from .agents.heuristic_bot import HeuristicBot
 from .agents.model_agent import ModelAgent
 from .agents.sim_bidder import SimAgent
+from .bidding.model import load_bidnet
 from .contracts import DEFAULT_MIX, ContractSampler, contract_kind
 from .engine.dominoes import domino_id
 from .engine.enums import Suit
@@ -30,12 +36,17 @@ def load_agent(spec: str) -> Agent:
         if not Path(path).is_file():
             raise FileNotFoundError(f"no checkpoint at {path}")
         return SimAgent.from_checkpoint(path)
+    if spec.startswith("fast:"):
+        path = spec[len("fast:"):]
+        if not Path(path).is_file():
+            raise FileNotFoundError(f"no bidnet at {path}")
+        return FastAgent.from_files(path)
     if not Path(spec).is_file():
         raise FileNotFoundError(f"no agent named {spec!r} and no checkpoint at that path")
     return ModelAgent.from_checkpoint(spec)
 
 
-def _auction_demo(agent: SimAgent, seed: int) -> None:
+def _auction_demo(agent: SimAgent | FastAgent, seed: int) -> None:
     rng = random.Random(seed)
     order = list(range(28))
     rng.shuffle(order)
@@ -59,7 +70,7 @@ def _auction_demo(agent: SimAgent, seed: int) -> None:
 
 
 def _play_demo(agent: Agent, seed: int) -> None:
-    if isinstance(agent, SimAgent):
+    if isinstance(agent, (SimAgent, FastAgent)):
         return _auction_demo(agent, seed)
     rng = random.Random(seed)
     order, _, contract = ContractSampler(DEFAULT_MIX, rng).sample_hand()
@@ -103,8 +114,8 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("eval-bidding", help="compare two bidders on one play model (default: sim vs heuristic)")
     s.add_argument("--model", required=True, help="path/to/checkpoint.pt")
     s.add_argument("--deals", type=int, default=1000)
-    s.add_argument("--a", default="sim", help="heuristic | sim (Task 6 adds fast:<bidnet.pt>)")
-    s.add_argument("--b", default="heuristic", help="heuristic | sim")
+    s.add_argument("--a", default="sim", help="heuristic | sim | fast:<bidnet.pt>")
+    s.add_argument("--b", default="heuristic", help="heuristic | sim | fast:<bidnet.pt>")
     s.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="worker processes (1 = in-process)")
     s.add_argument("--sim-deals", type=int, default=200)
     s.add_argument(
@@ -158,6 +169,11 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "eval-bidding":
         common = dict(model=args.model, sim_deals=args.sim_deals, make_threshold=args.make_threshold, seed=args.seed)
         a_spec, b_spec = parse_bidder(args.a, **common), parse_bidder(args.b, **common)
+        for spec in (a_spec, b_spec):
+            if spec.kind == "fast":
+                warning = play_checkpoint_mismatch(load_bidnet(spec.bidnet)[1], args.model)
+                if warning:
+                    print(warning, file=sys.stderr)
         ev = evaluate_auctions_parallel(a_spec, b_spec, args.deals, seed=args.seed, workers=args.workers)
         matches = None
         if args.matches:

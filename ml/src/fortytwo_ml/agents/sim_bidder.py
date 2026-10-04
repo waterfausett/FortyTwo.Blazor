@@ -10,12 +10,13 @@ import numpy as np
 import torch
 
 from ..engine.enums import PASS, PLUNGE
-from ..engine.hand_state import Contract, HandState, partner
+from ..engine.hand_state import Contract, HandState
 from ..model import QNet, load_checkpoint
 from ..sim.deal import deal_unseen
-from ..sim.decide import DEFAULT_MAKE_THRESHOLD, BidContext, BidDecision, DecideConfig, Option, choose_bid
+from ..sim.decide import DEFAULT_MAKE_THRESHOLD, BidDecision, DecideConfig, Option, choose_bid
 from ..sim.probe import kinds_for, options_from_table, simulate_hand, table_from_sims
 from ..sim.rollout import rollout
+from .bid_support import BidPlans, bid_context
 from .model_agent import ModelAgent
 
 
@@ -39,7 +40,7 @@ class SimBidder:
         self.config = DecideConfig(make_threshold, overbid_partner_threshold)
         self.rng = random.Random(f"sim-bidder:{seed}")
         self.device = torch.device(device) if device is not None else next(model.parameters()).device
-        self._planned: dict[tuple, tuple[int, int | None, float]] = {}  # (seat, hand) -> (bid, trump, p_make)
+        self.plans = BidPlans()
         self.last_decision: BidDecision | None = None
         self.decision_seconds: list[float] = []
 
@@ -49,40 +50,24 @@ class SimBidder:
         deals are split across workers)."""
         self.rng = random.Random(f"sim-bidder:{key}")
 
-    @staticmethod
-    def _key(state: HandState, seat: int) -> tuple:
-        return seat, tuple(sorted(state.dealt[seat]))
-
-    def _plan_for(self, state: HandState, seat: int) -> tuple[int, int | None, float] | None:
-        plan = self._planned.get(self._key(state, seat))
-        return plan if plan is not None and state.bidder == seat and plan[0] == state.high_bid else None
-
     def predicted_make(self, state: HandState, seat: int) -> float | None:
-        plan = self._plan_for(state, seat)
-        return plan[2] if plan else None
+        return self.plans.predicted_make(state, seat)
 
     def bid(self, state: HandState, seat: int) -> int:
         start = time.perf_counter()
         options = estimate_options(self.model, state, seat, self.n_deals, self.rng, self.device)
-        others = [s for s in range(4) if s != seat]
-        ctx = BidContext(
-            legal=state.legal_actions(),
-            partner_holds=state.bidder is not None and state.bidder == partner(seat),
-            last_to_bid=all(state.bids[s] is not None for s in others),
-        )
+        ctx = bid_context(state, seat)
         decision = choose_bid(options, ctx, self.config)
         self.decision_seconds.append(time.perf_counter() - start)
         self.last_decision = decision
-        if decision.bid != PASS:
-            trump = None if decision.bid == PLUNGE else decision.trump
-            self._planned[self._key(state, seat)] = (decision.bid, trump, decision.p_make)
+        self.plans.record(state, seat, decision)
         return decision.bid
 
     def trump(self, state: HandState, seat: int) -> int:
         legal = state.legal_actions()
         if state.high_bid == PLUNGE and state.bidder != seat:
             return self._best_trump(state, seat, legal, require=(state.bidder, 4), bidder=state.bidder)
-        plan = self._plan_for(state, seat)
+        plan = self.plans.current(state, seat)
         if plan is not None and plan[1] in legal:
             return plan[1]
         return self._best_trump(state, seat, legal, require=None, bidder=seat)

@@ -103,3 +103,44 @@ def test_train_bids_cli(tmp_path, capsys):
     assert "Gold set" in capsys.readouterr().out
     net, meta = load_bidnet(tmp_path / "run" / "bidnet.pt")
     assert meta["train_hands"] == 6 and "mae_30" in meta["gold"]
+
+
+def _fast_files(tmp_path, play_step=0):
+    from fortytwo_ml.bidding.model import BidNet, save_bidnet
+
+    play = tmp_path / "run" / "m.pt"
+    play.parent.mkdir(exist_ok=True)
+    save_checkpoint(play, QNet(hidden=16, layers=1), step=0, config={})
+    bidnet = tmp_path / "bidnet.pt"
+    save_bidnet(bidnet, BidNet(hidden=16, layers=1), {"play_checkpoint": "run/m.pt", "play_path": str(play),
+                                                      "play_step": play_step, "train_hands": 1, "val_loss": 0.0, "gold": {}})
+    return play, bidnet
+
+
+def test_load_agent_fast(tmp_path):
+    from fortytwo_ml.agents.fast_bidder import FastAgent
+
+    _, bidnet = _fast_files(tmp_path)
+    assert isinstance(load_agent(f"fast:{bidnet}"), FastAgent)
+
+
+def test_eval_bidding_fast_vs_sim(tmp_path, capsys):
+    play, bidnet = _fast_files(tmp_path)
+    assert main(["eval-bidding", "--model", str(play), "--a", f"fast:{bidnet}", "--b", "sim",
+                 "--deals", "2", "--sim-deals", "4", "--workers", "2"]) == 0
+    out = capsys.readouterr().out
+    assert "A: fast" in out and "Bid decision time (A)" in out and "Bid decision time (B)" in out
+
+
+def test_eval_bidding_warns_on_play_checkpoint_mismatch(tmp_path, capsys):
+    play, bidnet = _fast_files(tmp_path, play_step=5)
+    assert main(["eval-bidding", "--model", str(play), "--a", f"fast:{bidnet}", "--b", "heuristic",
+                 "--deals", "1", "--workers", "1"]) == 0
+    captured = capsys.readouterr()
+    assert "warning" in captured.err and "Mean marks/deal" in captured.out
+
+
+def test_play_demo_fast(tmp_path, capsys):
+    _, bidnet = _fast_files(tmp_path)
+    assert main(["play-demo", "--agent", f"fast:{bidnet}", "--seed", "3"]) == 0
+    assert "top options" in capsys.readouterr().out

@@ -59,13 +59,15 @@ def test_trump_reuses_the_bid_time_choice(monkeypatch):
 
 
 def test_trump_plan_only_used_for_the_winning_bid():
+    from fortytwo_ml.sim.decide import BidDecision
+
     bidder = SimBidder(tiny(), n_deals=4)
     state = HandState.deal(list(range(28)), opener=0)
-    bidder._planned[bidder._key(state, 0)] = (30, Suit.SIXES, 0.9)
+    bidder.plans.record(state, 0, BidDecision(30, Suit.SIXES, 0.9, ()))
     for bid in (30, 31, PASS, PASS):  # seat 1 outbids; seat 0 never wins at 30
         state.apply(bid)
     assert state.bidder == 1
-    assert bidder._plan_for(state, 0) is None
+    assert bidder.plans.current(state, 0) is None
 
 
 def test_partner_plunge_trump_uses_constrained_deals():
