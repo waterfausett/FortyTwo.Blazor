@@ -53,6 +53,7 @@ import {
   assertPlayable,
   describeMatch,
   isHighBidder as holdsHighBid,
+  isPokeCurrent,
   isTrickStarted,
   isValidPlay as isLegalPlay,
   matchStatus,
@@ -98,11 +99,14 @@ export function Match(): JSX.Element {
   // and the hook is retrying; the initial connect alone doesn't count. While down, the table may be
   // stale (a turn may already have passed), so the page says so and holds every action until the
   // socket is back.
-  // A poke names its sender from the display names further down, kept here once they load.
-  const namesRef = useRef<Map<string, string> | undefined>(undefined);
-  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken, (from) =>
-    toastInfo(`${namesRef.current?.get(from) ?? from} poked you`, "It's your turn", 'center')
-  );
+  // What a poke needs when it lands, from state further down: the sender's display name, and
+  // whether a move of mine is already in flight - then the poke is moot, as is one that arrives
+  // once it's no longer my turn.
+  const pokedRef = useRef<{ names?: Map<string, string>; moving: boolean }>({ moving: false });
+  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken, (from, latest) => {
+    if (pokedRef.current.moving || !isPokeCurrent(latest, myPlayerId)) return;
+    toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
+  });
   const client = apiClient(getToken);
 
   // Initial load + reconnect-catchup: `useMatchSocket` starts at `null` and only fills once a
@@ -138,10 +142,6 @@ export function Match(): JSX.Element {
     enabled: seatedIds.length > 0,
     staleTime: Infinity,
   });
-
-  useEffect(() => {
-    namesRef.current = namesQuery.data;
-  }, [namesQuery.data]);
 
   const poke = usePoke(liveMatch, myPlayerId, () => client.poke(matchId!), (id) => namesQuery.data?.get(id) ?? id);
 
@@ -293,6 +293,13 @@ export function Match(): JSX.Element {
   }, []);
 
   // My hand as the server last sent it, and the play in flight while that hand still holds it.
+  useEffect(() => {
+    pokedRef.current = {
+      names: namesQuery.data,
+      moving: playing != null || bidMutation.isPending || setTrumpMutation.isPending,
+    };
+  }, [namesQuery.data, playing, bidMutation.isPending, setTrumpMutation.isPending]);
+
   const myLiveHand = holdGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
   const inFlight = playing != null && myLiveHand.some((d) => d.id === playing.id) ? playing : null;
   useEffect(() => {

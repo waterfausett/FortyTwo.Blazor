@@ -123,15 +123,20 @@ describe('connectMatchSocket messages', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it('hands a poke to onPoke with who sent it, and not to onMatch', async () => {
+  it('hands a poke to onPoke with who sent it and the last match received, and not to onMatch', async () => {
     const onPoke = vi.fn();
     const { options, disconnect } = connect({ onPoke });
     await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    const socket = MockWebSocket.instances[0];
 
-    MockWebSocket.instances[0].emit('message', { data: JSON.stringify({ type: 'poke', from: 'p2' }) });
-
-    expect(onPoke).toHaveBeenCalledWith('p2');
+    socket.emit('message', { data: JSON.stringify({ type: 'poke', from: 'p2' }) });
+    expect(onPoke).toHaveBeenLastCalledWith('p2', null);
     expect(options.onMatch).not.toHaveBeenCalled();
+
+    const match = { id: 'match-1' };
+    socket.emit('message', { data: JSON.stringify({ type: 'match', match }) });
+    socket.emit('message', { data: JSON.stringify({ type: 'poke', from: 'p3' }) });
+    expect(onPoke).toHaveBeenLastCalledWith('p3', match);
     disconnect();
   });
 });

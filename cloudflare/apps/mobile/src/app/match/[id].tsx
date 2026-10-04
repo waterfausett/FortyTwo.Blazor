@@ -15,6 +15,7 @@ import {
   assertPlayable,
   describeMatch,
   isHighBidder,
+  isPokeCurrent,
   isTrickStarted,
   isValidPlay,
   matchStatus,
@@ -75,11 +76,14 @@ export default function MatchScreen() {
   // Room at the bottom of the scroll, above the phone's gesture bar or navigation buttons.
   const bottomInset = useSafeAreaInsets().bottom;
 
-  // A poke names its sender from the display names below, kept here once they load.
-  const namesRef = useRef<Map<string, string> | undefined>(undefined);
-  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(id, getToken, (from) =>
-    toastInfo(`${namesRef.current?.get(from) ?? from} poked you`, "It's your turn", 'center')
-  );
+  // What a poke needs when it lands, from state below: the sender's display name, and whether a
+  // move of mine is already in flight - then the poke is moot, as is one that arrives once it's no
+  // longer my turn.
+  const pokedRef = useRef<{ names?: Map<string, string>; moving: boolean }>({ moving: false });
+  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(id, getToken, (from, latest) => {
+    if (pokedRef.current.moving || !isPokeCurrent(latest, myPlayerId)) return;
+    toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
+  });
   // The socket sends the match as soon as it connects; this fills the moment before that, and
   // stands in while the socket is down.
   const matchQuery = useQuery({
@@ -100,9 +104,6 @@ export default function MatchScreen() {
     enabled: seatedIds.length > 0,
     staleTime: Infinity,
   });
-  useEffect(() => {
-    namesRef.current = names.data;
-  }, [names.data]);
   const poke = usePoke(liveMatch, myPlayerId, () => api.poke(id), (playerId) => names.data?.get(playerId) ?? playerId);
   // The player's settings: whether to outline the playable dominoes (opted into), and whether
   // they want notifications.
@@ -166,6 +167,9 @@ export default function MatchScreen() {
       toastError(error);
     },
   });
+  useEffect(() => {
+    pokedRef.current = { names: names.data, moving: playing != null || bid.isPending || trump.isPending };
+  }, [names.data, playing, bid.isPending, trump.isPending]);
   const liveGame = liveMatch?.currentGame ?? null;
   const myLiveHand = liveGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
   // Still in my hand, as far as the server has said - so still to be shown as played.

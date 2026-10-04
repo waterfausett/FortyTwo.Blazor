@@ -54,8 +54,9 @@ export interface MatchSocketOptions {
   // A socket opened.
   onOpen: () => void;
   onMatch: (match: MatchState) => void;
-  // Someone poked this player: it's their turn and they've sat on it a while. `from` is the poker.
-  onPoke?: (from: string) => void;
+  // Someone poked this player: it's their turn and they've sat on it a while. `from` is the poker;
+  // `match` is the last one this socket received, to check the poke against (isPokeCurrent).
+  onPoke?: (from: string, match: MatchState | null) => void;
   // A socket closed on us - a live one dropping, or a connect attempt failing. A retry follows.
   onDrop: () => void;
   // The server deleted the match (the last human left, or it expired). Follows an onDrop; no retry
@@ -86,6 +87,7 @@ export function connectMatchSocket({
   let connecting = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+  let lastMatch: MatchState | null = null;
 
   async function connect() {
     connecting = true;
@@ -123,8 +125,12 @@ export function connectMatchSocket({
       } catch {
         return; // Ignore malformed frames.
       }
-      if (isMatchSocketMessage(data)) onMatch(data.match);
-      else if (isPokeSocketMessage(data)) onPoke?.(data.from);
+      if (isMatchSocketMessage(data)) {
+        lastMatch = data.match;
+        onMatch(data.match);
+      } else if (isPokeSocketMessage(data)) {
+        onPoke?.(data.from, lastMatch);
+      }
     });
 
     ws.addEventListener('close', (event: { code: number }) => {

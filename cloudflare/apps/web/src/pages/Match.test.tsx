@@ -1849,14 +1849,30 @@ describe('Match', () => {
       expect(screen.queryByRole('button', { name: /^Poke/ })).toBeNull();
     });
 
-    it("tells me when I'm poked", () => {
+    it("tells me when I'm poked, but not once it's no longer my turn", () => {
       useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
       renderMatch();
+      const onPoke = useMatchSocketMock.mock.calls[0][2] as (from: string, match: MatchState | null) => void;
 
-      const onPoke = useMatchSocketMock.mock.calls[0][2] as (from: string) => void;
-      act(() => onPoke('p2'));
-
+      act(() => onPoke('p2', baseMatch()));
       expect(toastInfoMock).toHaveBeenCalledWith('p2 poked you', "It's your turn", 'center');
+
+      toastInfoMock.mockClear();
+      act(() => onPoke('p2', baseMatch({}, { currentPlayerId: 'p2' })));
+      expect(toastInfoMock).not.toHaveBeenCalled();
+    });
+
+    it('ignores a poke that lands while my bid is on its way', async () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      bidMock.mockReturnValue(new Promise(() => {}));
+      renderMatch();
+
+      fireEvent.click(screen.getByRole('button', { name: /^30$/ }));
+      await waitFor(() => expect(bidMock).toHaveBeenCalled());
+      const onPoke = useMatchSocketMock.mock.calls.at(-1)![2] as (from: string, match: MatchState | null) => void;
+      act(() => onPoke('p2', baseMatch()));
+
+      expect(toastInfoMock).not.toHaveBeenCalledWith('p2 poked you', "It's your turn", 'center');
     });
   });
 });

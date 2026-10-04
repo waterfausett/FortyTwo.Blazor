@@ -156,6 +156,10 @@ describe('MatchDO poke', () => {
     await idle(stub);
 
     expect(await stub.poke(poker)).toEqual({ ok: true, value: { delivered: 'none' } });
+    // Nothing written, so poking again and again costs no storage writes.
+    await runInDurableObject(stub, async (_instance, state) => {
+      expect(await state.storage.get('pokedTurn')).toBeUndefined();
+    });
 
     await saveToken(testEnv.DB, target, `ExponentPushToken[${target}]`, 'ios');
     const sent = expectPush();
