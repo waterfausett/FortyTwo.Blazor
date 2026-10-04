@@ -1,8 +1,9 @@
-// The table seen from the player's chair: the other three seats around the mat, the player at the
-// bottom, and the trick in progress in the middle, each domino in front of whoever played it.
-// Sized from the window width so it fills a phone screen.
+// The table seen from the player's chair, as on the web: one felt with every seat on it - the other
+// three players around the edge, each with a face-down fan of the dominoes they still hold, the
+// player at the bottom - and the trick in progress in the middle, each domino in front of whoever
+// played it. Sized from the window width so it fills a phone screen.
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions, type LayoutRectangle } from 'react-native';
 import type { Seat } from '@fortytwo/client';
 import type { Suit, Trick } from '@fortytwo/rules';
 import { PipFace } from './PipFace';
@@ -10,13 +11,12 @@ import { Domino } from './Domino';
 import { colors, fonts } from './theme';
 import { TRICK_SWEEP_MS } from '@/match/useTrickHold';
 
-// The mat's height while compact (bidding and naming trump), and how long it takes to resize.
+// The middle's height while compact (bidding and naming trump), and how long it takes to resize.
 const COMPACT_MAT_HEIGHT = 44;
 export const TABLE_RESIZE_MS = 480;
 
-// Roughly how tall a seat plate is (two lines of text and padding), for aiming the sweep at it.
-const PLATE_HEIGHT = 46;
-const GAP = 6;
+const FELT_PADDING = 8;
+const GAP = 4;
 
 export interface SeatInfo {
   name: string;
@@ -34,6 +34,20 @@ export interface SeatInfo {
   dominoCount: number | null;
 }
 
+// A face-down tile for each domino a player still holds. Only ever a count: the Worker never sends
+// another player's dominoes.
+function TileBacks({ count }: { count: number }) {
+  return (
+    <View style={styles.backs} accessibilityLabel={`${count} ${count === 1 ? 'domino' : 'dominoes'}`}>
+      {Array.from({ length: count }, (_, i) => (
+        <View key={i} style={styles.back}>
+          <View style={styles.backDot} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function SeatPlate({ info, width }: { info: SeatInfo | null; width: number }) {
   if (!info) {
     return (
@@ -43,22 +57,18 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
     );
   }
   const team = info.side === 'us' ? colors.us : colors.them;
-  const details = [
-    info.dominoCount != null ? `${info.dominoCount} left` : null,
-    info.ready == null ? null : info.ready ? 'Ready' : 'Not ready',
-  ].filter(Boolean);
   return (
     <View
-      style={[styles.plate, { width, borderColor: info.isActive ? colors.brass : team }, info.isActive && styles.active]}
+      style={[styles.plate, { width }, info.isActive && [styles.active, { boxShadow: activeGlow(team) }]]}
       accessibilityLabel={`${info.name}${info.isActive ? ', to act' : ''}`}
     >
+      <View style={[styles.teamStripe, { backgroundColor: team }]} />
       <View style={styles.nameRow}>
-        <View style={[styles.teamDot, { backgroundColor: team }]} />
         <Text style={styles.name} numberOfLines={1}>
           {info.name}
         </Text>
         {info.isDealer && (
-          <View style={styles.dealer}>
+          <View style={styles.dealer} accessibilityLabel="Dealer">
             <Text style={styles.dealerText}>D</Text>
           </View>
         )}
@@ -75,10 +85,37 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
             {info.isHighBidder && info.trump != null && <PipFace suit={info.trump} size={14} />}
           </View>
         )}
-        <Text style={styles.detail} numberOfLines={1}>
-          {details.join(' · ')}
-        </Text>
+        {info.ready != null && (
+          <Text style={[styles.detail, info.ready && styles.ready]} numberOfLines={1}>
+            {info.ready ? 'Ready' : 'Not ready'}
+          </Text>
+        )}
       </View>
+    </View>
+  );
+}
+
+// The brass ring and a glow in the team's colour around whoever is to act, as on the web.
+function activeGlow(team: string): string {
+  return `0 0 0 2px ${colors.brass}, 0 0 14px ${team}`;
+}
+
+// A seat on the felt: the plate, and for the other players their face-down tiles, on the side
+// facing the middle of the table.
+function TableSeat({
+  info,
+  width,
+  onLayout,
+}: {
+  info: SeatInfo | null;
+  width: number;
+  onLayout: (layout: LayoutRectangle) => void;
+}) {
+  const count = info?.dominoCount ?? 0;
+  return (
+    <View style={styles.seat} onLayout={(e) => onLayout(e.nativeEvent.layout)}>
+      <SeatPlate info={info} width={width} />
+      {count > 0 && <TileBacks count={count} />}
     </View>
   );
 }
@@ -209,16 +246,17 @@ export function Table({
 }: TableProps) {
   const window = useWindowDimensions();
   const width = Math.min(window.width - 24, 480);
-  const sideWidth = Math.round(width * 0.27);
-  const matWidth = width - sideWidth * 2 - 12;
-  // Trick tiles: three stacked vertically must fit the mat's height, two across beside the middle.
+  const inner = width - FELT_PADDING * 2;
+  const sideWidth = Math.round(inner * 0.26);
+  const matWidth = inner - sideWidth * 2 - GAP * 2;
+  // Trick tiles: three stacked vertically must fit the middle's height, two across beside it.
   const tileWidth = Math.min(30, Math.floor(matWidth / 5));
   const matHeight = tileWidth * 2 * 3 + 24;
   const rowHeight = tileWidth * 2 + 4;
 
-  // The mat's height, eased between full and compact. Animating height re-lays-out the screen each
-  // frame, which is fine for this one short, deliberate change. Opening starts gently and settles
-  // slowly, so the table seems to unfold rather than snap open.
+  // The middle's height, eased between full and compact. Animating height re-lays-out the screen
+  // each frame, which is fine for this one short, deliberate change. Opening starts gently and
+  // settles slowly, so the table seems to unfold rather than snap open.
   const shownHeight = compact ? COMPACT_MAT_HEIGHT : matHeight;
   const height = useRef(new Animated.Value(shownHeight)).current;
   useEffect(() => {
@@ -230,18 +268,43 @@ export function Table({
     }).start();
   }, [shownHeight, height]);
 
-  // Centres relative to the mat's centre: each slot's tile, and each seat's plate.
+  // Where everything sits, for aiming a sweep at the winner's seat: the top and bottom seats and the
+  // middle row are laid out on the felt, the side seats and the middle within that row. Measured
+  // rather than worked out, since a seat's height depends on its plate's text.
+  const layouts = useRef<Partial<Record<Seat | 'row' | 'mat', LayoutRectangle>>>({}).current;
+  const remember = (key: Seat | 'row' | 'mat') => (layout: LayoutRectangle) => {
+    layouts[key] = layout;
+  };
+  const centreOf = (key: Seat | 'mat'): Point | null => {
+    const l = layouts[key];
+    if (!l) return null;
+    const inRow = key === 'left' || key === 'right' || key === 'mat';
+    const row = inRow ? layouts.row : { x: 0, y: 0 };
+    if (!row) return null;
+    // The middle is measured mid-resize too, so use its full height rather than the last frame's.
+    const h = key === 'mat' ? matHeight : l.height;
+    return { x: row.x + l.x + l.width / 2, y: row.y + l.y + h / 2 };
+  };
+  const sweepTarget = (seat: Seat): Point => {
+    const from = centreOf('mat');
+    const to = centreOf(seat);
+    if (from && to) return { x: to.x - from.x, y: to.y - from.y };
+    // Not laid out yet (or under test): roughly where the seat is.
+    const fallback: Record<Seat, Point> = {
+      top: { x: 0, y: -matHeight },
+      bottom: { x: 0, y: matHeight },
+      left: { x: -(matWidth + sideWidth) / 2, y: 0 },
+      right: { x: (matWidth + sideWidth) / 2, y: 0 },
+    };
+    return fallback[seat];
+  };
+
+  // Centres of each slot's tile, relative to the middle's centre.
   const slotCentre: Record<Seat, Point> = {
     top: { x: 0, y: -rowHeight },
     bottom: { x: 0, y: rowHeight },
     left: { x: -matWidth / 4, y: 0 },
     right: { x: matWidth / 4, y: 0 },
-  };
-  const seatCentre: Record<Seat, Point> = {
-    top: { x: 0, y: -(matHeight / 2 + GAP + PLATE_HEIGHT / 2) },
-    bottom: { x: 0, y: matHeight / 2 + GAP + PLATE_HEIGHT / 2 },
-    left: { x: -(matWidth / 2 + GAP + sideWidth / 2), y: 0 },
-    right: { x: matWidth / 2 + GAP + sideWidth / 2, y: 0 },
   };
 
   const played: Partial<Record<Seat, PlayedTile>> = {};
@@ -254,13 +317,14 @@ export function Table({
   });
 
   return (
-    <View style={styles.table} accessibilityLabel="Table">
-      <SeatPlate info={seats.top} width={sideWidth + 20} />
-      <View style={styles.middle}>
-        <SeatPlate info={seats.left} width={sideWidth} />
+    <View style={[styles.felt, { width }]} accessibilityLabel="Table">
+      <TableSeat info={seats.top} width={sideWidth + 30} onLayout={remember('top')} />
+      <View style={styles.middle} onLayout={(e) => remember('row')(e.nativeEvent.layout)}>
+        <TableSeat info={seats.left} width={sideWidth} onLayout={remember('left')} />
         <Animated.View
           ref={dropRef}
           collapsable={false}
+          onLayout={(e) => remember('mat')(e.nativeEvent.layout)}
           style={[styles.mat, { width: matWidth, height }, compact && styles.matCompact, dropActive && styles.matDrop]}
         >
           {center ?? (compact ? null : (
@@ -273,25 +337,37 @@ export function Table({
               tileWidth={tileWidth}
               rowHeight={rowHeight}
               slotCentre={slotCentre}
-              target={sweepTo ? seatCentre[sweepTo] : null}
+              target={sweepTo ? sweepTarget(sweepTo) : null}
             />
           ))}
         </Animated.View>
-        <SeatPlate info={seats.right} width={sideWidth} />
+        <TableSeat info={seats.right} width={sideWidth} onLayout={remember('right')} />
       </View>
-      <SeatPlate info={seats.bottom} width={sideWidth + 20} />
+      <TableSeat info={seats.bottom} width={sideWidth + 30} onLayout={remember('bottom')} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  table: { alignItems: 'center', gap: 8 },
-  middle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // The felt, lit from just above the middle like the web's table.
+  felt: {
+    alignItems: 'center',
+    gap: 8,
+    padding: FELT_PADDING,
+    borderRadius: 24,
+    backgroundColor: colors.mat,
+    experimental_backgroundImage: `radial-gradient(ellipse at 50% 45%, ${colors.matLight}, ${colors.mat} 70%)`,
+    boxShadow: 'inset 0 2px 18px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(242, 234, 219, 0.06)',
+  },
+  middle: { flexDirection: 'row', alignItems: 'center', gap: GAP },
+  seat: { alignItems: 'center', gap: 5 },
+  // The middle of the felt, where the trick is played and a dragged domino is dropped. Outlined
+  // only while a domino is over it, as on the web.
   mat: {
     borderRadius: 14,
-    backgroundColor: colors.mat,
     borderWidth: 2,
-    borderColor: colors.matLight,
+    borderStyle: 'dashed',
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -314,26 +390,52 @@ const styles = StyleSheet.create({
   },
   // Clipped only while compact: a full table lets a sweeping trick fly out to the seats.
   matCompact: { overflow: 'hidden' },
-  matDrop: { borderColor: colors.brass, backgroundColor: colors.matLight },
+  matDrop: { borderColor: colors.brass, backgroundColor: 'rgba(242, 234, 219, 0.05)' },
   trickRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%' },
   plate: {
     paddingVertical: 5,
-    paddingHorizontal: 6,
-    borderRadius: 8,
-    borderWidth: 2,
+    paddingLeft: 10,
+    paddingRight: 6,
+    borderRadius: 10,
     backgroundColor: 'rgba(20, 13, 9, 0.55)',
+    boxShadow: '0 0 0 1px rgba(242, 234, 219, 0.1)',
   },
-  active: { backgroundColor: 'rgba(201, 164, 92, 0.18)' },
-  open: { borderColor: colors.inkMuted, borderStyle: 'dashed', alignItems: 'center' },
+  teamStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    borderTopLeftRadius: 10,
+    borderBottomLeftRadius: 10,
+  },
+  active: { backgroundColor: 'rgba(58, 42, 22, 0.85)' },
+  open: {
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.inkMuted,
+    boxShadow: 'none',
+    paddingLeft: 6,
+  },
   openText: { color: colors.inkMuted, fontFamily: fonts.ui },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  teamDot: { width: 8, height: 8, borderRadius: 4 },
   name: { flex: 1, color: colors.bone, fontFamily: fonts.uiBold, fontSize: 14 },
-  dealer: { backgroundColor: colors.brass, borderRadius: 8, width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
-  dealerText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 10 },
+  dealer: {
+    backgroundColor: colors.bone,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: `0 1px 0 ${colors.boneEdge}`,
+  },
+  dealerText: { color: colors.walnutDeep, fontFamily: fonts.display, fontSize: 10 },
   // Fixed height, so a plate doesn't change size as a bid chip comes and goes.
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 20 },
   detail: { flexShrink: 1, color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12 },
+  ready: { color: colors.us },
   bid: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -346,4 +448,15 @@ const styles = StyleSheet.create({
   },
   bidText: { color: colors.inkMuted, fontFamily: fonts.display, fontSize: 12 },
   bidTextHigh: { color: colors.walnutDeep },
+  backs: { flexDirection: 'row', gap: 2 },
+  back: {
+    width: 8,
+    height: 16,
+    borderRadius: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bone,
+    boxShadow: `1px 1px 0 ${colors.boneEdge}, 0 2px 3px rgba(0, 0, 0, 0.35)`,
+  },
+  backDot: { width: 2, height: 2, borderRadius: 1, backgroundColor: colors.boneEdge },
 });
