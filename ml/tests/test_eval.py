@@ -102,3 +102,48 @@ def test_auction_report_calibration_bands_auction_sides_and_p95():
     assert "A won: +1.000  (n=4)" in text
     assert "B won: +0.000  (n=2)" in text
     assert "median 11.0s  p95 20.0s  (n=20)" in text
+
+
+def _sim_and_model(seed=0):
+    import torch
+    from fortytwo_ml.agents.model_agent import ModelAgent
+    from fortytwo_ml.agents.sim_bidder import SimAgent
+    from fortytwo_ml.model import QNet
+
+    torch.manual_seed(seed)
+    net = QNet(hidden=16, layers=1).eval()
+    return SimAgent(net, n_deals=4), ModelAgent(net)
+
+
+def test_split_ranges_match_one_run():
+    from fortytwo_ml.eval.arena import evaluate_auctions, merge_auction_evals
+
+    whole = evaluate_auctions(*_sim_and_model(), deals=4, seed=3)
+    parts = merge_auction_evals([
+        evaluate_auctions(*_sim_and_model(), deals=range(0, 2), seed=3),
+        evaluate_auctions(*_sim_and_model(), deals=range(2, 4), seed=3),
+    ])
+    assert parts.records == whole.records and parts.deal_scores == whole.deal_scores
+    assert parts.illegal == whole.illegal and len(parts.decision_seconds) == len(whole.decision_seconds)
+
+
+def test_decision_times_cover_only_this_call():
+    from fortytwo_ml.eval.arena import evaluate_auctions
+
+    a, b = _sim_and_model()
+    first = evaluate_auctions(a, b, deals=1, seed=0)
+    second = evaluate_auctions(a, b, deals=1, seed=1)
+    assert len(first.decision_seconds) + len(second.decision_seconds) == len(a.decision_seconds)
+    assert second.b_decision_seconds == []  # ModelAgent records no times
+
+
+def test_report_prints_each_sides_decision_time_in_ms_when_fast():
+    from fortytwo_ml.eval.arena import AuctionEval, AuctionRecord
+    from fortytwo_ml.eval.report import format_auction_report
+
+    recs = [AuctionRecord("points", 30, True, True, 1, 0.7)]
+    ev = AuctionEval("a", "b", records=recs, deal_scores=[1],
+                     decision_seconds=[0.001, 0.002, 0.003], b_decision_seconds=[5.0, 6.0, 7.0])
+    text = format_auction_report(ev)
+    assert "Bid decision time (A): median 2.0ms  p95 3.0ms  (n=3)" in text
+    assert "Bid decision time (B): median 6.0s  p95 7.0s  (n=3)" in text

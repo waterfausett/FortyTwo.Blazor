@@ -43,6 +43,12 @@ class SimBidder:
         self.last_decision: BidDecision | None = None
         self.decision_seconds: list[float] = []
 
+    def reseed(self, key: str) -> None:
+        """Restart the simulation stream from `key`, so a hand's simulations don't depend on what
+        this bidder simulated before (the arena reseeds per hand; results then don't depend on how
+        deals are split across workers)."""
+        self.rng = random.Random(f"sim-bidder:{key}")
+
     @staticmethod
     def _key(state: HandState, seat: int) -> tuple:
         return seat, tuple(sorted(state.dealt[seat]))
@@ -104,6 +110,9 @@ class SimAgent:
     def from_checkpoint(cls, path: str | Path, **kwargs) -> "SimAgent":
         model, _ = load_checkpoint(path)
         return cls(model, name=f"sim:{Path(path).name}", **kwargs)
+
+    def reseed(self, key: str) -> None:
+        self.bidder.reseed(key)
 
     def bid(self, state: HandState, seat: int) -> int:
         return self.bidder.bid(state, seat)

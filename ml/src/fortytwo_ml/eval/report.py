@@ -63,6 +63,16 @@ _CALIBRATION_BINS = [(0.0, 0.5), (0.5, 0.6), (0.6, 0.7), (0.7, 0.8), (0.8, 0.9),
 _BID_BANDS = [(30, 31, "30-31"), (32, 35, "32-35"), (36, 41, "36-41"), (42, 10**9, "42+")]
 
 
+def _decision_time_line(label: str, seconds: Sequence[float]) -> str:
+    times = sorted(seconds)
+    median, p95 = times[len(times) // 2], times[min(len(times) - 1, int(0.95 * len(times)))]
+
+    def fmt(t: float) -> str:
+        return f"{t * 1000:.1f}ms" if p95 < 1 else f"{t:.1f}s"
+
+    return f"Bid decision time ({label}): median {fmt(median)}  p95 {fmt(p95)}  (n={len(times)})"
+
+
 def format_auction_report(ev: AuctionEval, matches: MatchEval | None = None) -> str:
     mean, lo, hi = mean_ci(ev.deal_scores)
     won = [r for r in ev.records if r.a_won_auction]
@@ -97,10 +107,9 @@ def format_auction_report(ev: AuctionEval, matches: MatchEval | None = None) -> 
         recs = [r for r in ev.records if r.a_won_auction == side]
         if recs:
             lines.append(f"  {label}: {sum(r.a_marks for r in recs) / len(recs):+.3f}  (n={len(recs)})")
-    if ev.decision_seconds:
-        times = sorted(ev.decision_seconds)
-        p95 = times[min(len(times) - 1, int(0.95 * len(times)))]
-        lines.append(f"Bid decision time: median {times[len(times) // 2]:.1f}s  p95 {p95:.1f}s  (n={len(times)})")
+    for label, seconds in (("A", ev.decision_seconds), ("B", ev.b_decision_seconds)):
+        if seconds:
+            lines.append(_decision_time_line(label, seconds))
     illegal = dict(ev.illegal)
     if matches is not None:
         p, plo, phi = proportion_ci(matches.a_wins, matches.matches)

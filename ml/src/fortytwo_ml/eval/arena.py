@@ -1,7 +1,7 @@
 """Head-to-head evaluation on duplicate deals: every deal is played twice with the same dominoes
 and contract, the two agents swapping sides, so most of the deal's luck cancels out."""
 import random
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
 from ..agents.base import Agent, run_hand
@@ -95,19 +95,32 @@ class AuctionEval:
     deal_scores: list[int] = field(default_factory=list)
     illegal: dict[str, int] = field(default_factory=lambda: {"a": 0, "b": 0})
     decision_seconds: list[float] = field(default_factory=list)
+    b_decision_seconds: list[float] = field(default_factory=list)
 
 
-def evaluate_auctions(a: Agent, b: Agent, deals: int, seed: int = 0) -> AuctionEval:
+def _reseed(agents: tuple[Agent, ...], key: str) -> None:
+    for agent in agents:
+        reseed = getattr(agent, "reseed", None)
+        if reseed is not None:
+            reseed(key)
+
+
+def evaluate_auctions(a: Agent, b: Agent, deals: int | Sequence[int], seed: int = 0) -> AuctionEval:
     """Duplicate deals with real auctions: each deal is bid and played twice with the teams
-    swapped. For Stage 2, A and B share a play model and differ only in how they bid."""
+    swapped. A and B share a play model and differ only in how they bid. `deals` is a count or the
+    deal indices to play (workers each take a slice); every hand reseeds both agents from
+    (seed, deal, seating), so the result for a deal never depends on what ran before it."""
     result = AuctionEval(a.name, b.name)
-    for i in range(deals):
+    a_start = len(getattr(a, "decision_seconds", []))
+    b_start = len(getattr(b, "decision_seconds", []))
+    for i in range(deals) if isinstance(deals, int) else deals:
         rng = random.Random(f"auction:{seed}:{i}")
         order = list(range(28))
         rng.shuffle(order)
         opener = rng.randrange(4)
         score = 0
         for a_team in (0, 1):
+            _reseed((a, b), f"{seed}:{i}:{a_team}")
             seats = _seats(a, b, a_team)
             state = HandState.deal(order, opener)
             hand = run_hand(state, seats, _illegal_counter(result.illegal, a_team))
@@ -121,5 +134,19 @@ def evaluate_auctions(a: Agent, b: Agent, deals: int, seed: int = 0) -> AuctionE
             )
             score += a_marks
         result.deal_scores.append(score)
-    result.decision_seconds = list(getattr(a, "decision_seconds", []))
+    result.decision_seconds = list(getattr(a, "decision_seconds", []))[a_start:]
+    result.b_decision_seconds = [] if b is a else list(getattr(b, "decision_seconds", []))[b_start:]
     return result
+
+
+def merge_auction_evals(parts: Sequence[AuctionEval]) -> AuctionEval:
+    """Combine evaluations of consecutive deal ranges, in order."""
+    merged = AuctionEval(parts[0].a_name, parts[0].b_name)
+    for part in parts:
+        merged.records += part.records
+        merged.deal_scores += part.deal_scores
+        merged.decision_seconds += part.decision_seconds
+        merged.b_decision_seconds += part.b_decision_seconds
+        for side in merged.illegal:
+            merged.illegal[side] += part.illegal[side]
+    return merged
