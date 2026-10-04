@@ -18,18 +18,6 @@ export function pokeTarget(match: MatchState | null, myPlayerId: string | undefi
   return target;
 }
 
-// Whether a poke that just reached `myPlayerId` still stands: the table is still waiting on them,
-// in a hand that's still undecided. A screen also drops one that lands while the player's own move
-// is in flight - the move the poke would be asking for.
-export function isPokeCurrent(match: MatchState | null, myPlayerId: string | undefined): boolean {
-  if (!match || !myPlayerId || !match.players.some((p) => p.playerId === myPlayerId)) return false;
-  return (
-    match.currentGame.currentPlayerId === myPlayerId &&
-    describeMatch(match, myPlayerId).isTableReady &&
-    gameWinningTeam(match.currentGame) === null
-  );
-}
-
 // When the current turn can first be poked, in ms since the epoch.
 export function pokeableAt(match: MatchState): number {
   return Date.parse(match.updatedOn) + POKE_IDLE_MS;

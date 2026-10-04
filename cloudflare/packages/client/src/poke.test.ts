@@ -1,7 +1,7 @@
 // pokeTarget against real matches, read as a client gets them (matchViewFor).
 import { describe, expect, it } from 'vitest';
 import { Bid, createDomino, createMatch, matchViewFor, placeBid, takeSeat, type Domino, type MatchState } from '@fortytwo/rules';
-import { POKE_IDLE_MS, isPokeCurrent, pokeTarget, pokeTurnKey, pokeableAt } from './poke';
+import { POKE_IDLE_MS, pokeTarget, pokeTurnKey, pokeableAt } from './poke';
 
 function deck(): Domino[] {
   const dominoes: Domino[] = [];
@@ -33,18 +33,6 @@ describe('pokeTarget', () => {
     let match = dealt('bot-1');
     while (match.currentGame.currentPlayerId !== 'bot-1') match = placeBid(match, match.currentGame.currentPlayerId!, Bid.Pass);
     expect(pokeTarget(match, 'p1')).toBeNull();
-  });
-});
-
-describe('isPokeCurrent', () => {
-  it('holds while the table is still waiting on me, and not once my turn has passed', () => {
-    const match = dealt();
-    const turn = match.currentGame.currentPlayerId!;
-
-    expect(isPokeCurrent(matchViewFor(match, turn), turn)).toBe(true);
-    const moved = placeBid(match, turn, Bid.Pass);
-    expect(isPokeCurrent(matchViewFor(moved, turn), turn)).toBe(false);
-    expect(isPokeCurrent(null, turn)).toBe(false);
   });
 });
 

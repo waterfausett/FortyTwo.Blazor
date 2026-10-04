@@ -53,7 +53,6 @@ import {
   assertPlayable,
   describeMatch,
   isHighBidder as holdsHighBid,
-  isPokeCurrent,
   isTrickStarted,
   isValidPlay as isLegalPlay,
   matchStatus,
@@ -100,11 +99,12 @@ export function Match(): JSX.Element {
   // stale (a turn may already have passed), so the page says so and holds every action until the
   // socket is back.
   // What a poke needs when it lands, from state further down: the sender's display name, and
-  // whether a move of mine is already in flight - then the poke is moot, as is one that arrives
-  // once it's no longer my turn.
+  // whether a move of mine is already in flight - then the poke is moot. (The Worker only sends a
+  // poke while it's still my turn, and the socket keeps its messages in order, so that's the one
+  // way one can land late.)
   const pokedRef = useRef<{ names?: Map<string, string>; moving: boolean }>({ moving: false });
-  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken, (from, latest) => {
-    if (pokedRef.current.moving || !isPokeCurrent(latest, myPlayerId)) return;
+  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken, (from) => {
+    if (pokedRef.current.moving) return;
     toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
   });
   const client = apiClient(getToken);

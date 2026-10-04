@@ -15,7 +15,6 @@ import {
   assertPlayable,
   describeMatch,
   isHighBidder,
-  isPokeCurrent,
   isTrickStarted,
   isValidPlay,
   matchStatus,
@@ -77,11 +76,12 @@ export default function MatchScreen() {
   const bottomInset = useSafeAreaInsets().bottom;
 
   // What a poke needs when it lands, from state below: the sender's display name, and whether a
-  // move of mine is already in flight - then the poke is moot, as is one that arrives once it's no
-  // longer my turn.
+  // move of mine is already in flight - then the poke is moot. (The Worker only sends a poke while
+  // it's still my turn, and the socket keeps its messages in order, so that's the one way one can
+  // land late.)
   const pokedRef = useRef<{ names?: Map<string, string>; moving: boolean }>({ moving: false });
-  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(id, getToken, (from, latest) => {
-    if (pokedRef.current.moving || !isPokeCurrent(latest, myPlayerId)) return;
+  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(id, getToken, (from) => {
+    if (pokedRef.current.moving) return;
     toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
   });
   // The socket sends the match as soon as it connects; this fills the moment before that, and

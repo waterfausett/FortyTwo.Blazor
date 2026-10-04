@@ -22,9 +22,8 @@ function subscribeBrowserWake(wake: () => void): () => void {
 export function useMatchSocket(
   matchId: string,
   getToken: () => Promise<string>,
-  // Someone poked this player on their turn; `from` is who, and `match` the latest state the socket
-  // holds, to check the poke against.
-  onPoke?: (from: string, match: MatchState | null) => void
+  // Someone poked this player on their turn; `from` is who.
+  onPoke?: (from: string) => void
 ): { match: MatchState | null; connected: boolean; reconnecting: boolean; deleted: boolean } {
   // Both are tagged with the matchId they belong to, so the very first render for a new matchId
   // never shows the previous match's state (or its "connected") while the new socket comes up.
@@ -66,7 +65,7 @@ export function useMatchSocket(
         setDroppedFrom(null);
       },
       onMatch: (match) => setLatest({ matchId, match }),
-      onPoke: (from, match) => onPokeRef.current?.(from, match),
+      onPoke: (from) => onPokeRef.current?.(from),
       onDrop: () => {
         setConnectedTo(null);
         setDroppedFrom(matchId);
