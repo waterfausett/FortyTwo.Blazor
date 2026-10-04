@@ -8,13 +8,14 @@ from .agents.base import Agent, choose
 from .agents.dumb_bot import DumbBot
 from .agents.heuristic_bot import HeuristicBot
 from .agents.model_agent import ModelAgent
-from .agents.sim_bidder import DEFAULT_MAKE_THRESHOLD, SimAgent
+from .agents.sim_bidder import SimAgent
 from .contracts import DEFAULT_MIX, ContractSampler, contract_kind
 from .engine.dominoes import domino_id
 from .engine.enums import Suit
 from .engine.hand_state import HandState, Phase
 from .eval.arena import evaluate_auctions, evaluate_hands, evaluate_matches
 from .eval.report import format_auction_report, format_report
+from .sim.decide import DEFAULT_MAKE_THRESHOLD
 
 
 def load_agent(spec: str) -> Agent:

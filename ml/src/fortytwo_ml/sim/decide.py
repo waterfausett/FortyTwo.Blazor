@@ -11,6 +11,11 @@ from dataclasses import dataclass
 from ..engine.bidding import marks_for
 from ..engine.enums import PASS
 
+# Tuned on stage1-c: over the same 300 deals, 0.5/0.55/0.6 scored +0.390/+0.467/+0.497 marks/deal
+# against heuristic bidding. Fewer coin-flip bids, a higher made rate, and the auctions given up cost
+# nothing. Both bidders default to it; DecideConfig's own default stays 0.5, the pure-rule default.
+DEFAULT_MAKE_THRESHOLD = 0.6
+
 
 @dataclass(frozen=True)
 class Option:

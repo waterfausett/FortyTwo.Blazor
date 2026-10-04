@@ -4,83 +4,29 @@ v1 looks only at its own hand (plus two public facts: who holds the high bid, an
 plunger holds four doubles)."""
 import random
 import time
-from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 import torch
 
-from ..engine.enums import LOW_TRUMPS, NAMED_SUITS, PASS, PLUNGE, Suit
+from ..engine.enums import PASS, PLUNGE
 from ..engine.hand_state import Contract, HandState, partner
 from ..model import QNet, load_checkpoint
 from ..sim.deal import deal_unseen
-from ..sim.decide import BidContext, BidDecision, DecideConfig, Option, choose_bid
+from ..sim.decide import DEFAULT_MAKE_THRESHOLD, BidContext, BidDecision, DecideConfig, Option, choose_bid
+from ..sim.probe import kinds_for, options_from_table, simulate_hand, table_from_sims
 from ..sim.rollout import rollout
-from .heuristic_bot import best_suit
 from .model_agent import ModelAgent
-
-POINTS_PROBE = 30  # suits played as a 30 bid answer every points bid (30..41)
-HIGH_PROBE = 42    # suits, follow-me and Low played as a 42 bid answer 42 and the marks bids
 
 
 def estimate_options(
     model: QNet, state: HandState, seat: int, n_deals: int, rng: random.Random, device=None
 ) -> list[Option]:
-    legal = [b for b in state.legal_actions() if b != PASS]
-    if not legal:
+    legal = state.legal_actions()
+    if not any(b != PASS for b in legal):
         return []
-    hand = state.hand(seat)
-    deals = [deal_unseen(seat, hand, rng) for _ in range(n_deals)]
-    points_bids = [b for b in legal if b < HIGH_PROBE]
-    high_bids = [b for b in legal if b >= HIGH_PROBE and b != PLUNGE]
-
-    jobs: list[tuple[list[int], Contract]] = []
-    keys: list[tuple[str, int]] = []
-
-    def add(kind: str, trump_for_deal) -> None:
-        for d in deals:
-            trump = trump_for_deal(d)
-            jobs.append((d, Contract(seat, {"points": POINTS_PROBE, "plunge": PLUNGE}.get(kind, HIGH_PROBE), trump)))
-            keys.append((kind, trump if kind != "plunge" else -1))
-
-    if points_bids:
-        for t in NAMED_SUITS:
-            add("points", lambda d, t=t: t)
-    if high_bids:
-        for t in (*NAMED_SUITS, Suit.NONE):
-            add("high", lambda d, t=t: t)
-        for v in LOW_TRUMPS:
-            add("low", lambda d, v=v: v)
-    if PLUNGE in legal:
-        mate = partner(seat)
-        add("plunge", lambda d: best_suit(list(d[mate * 7:(mate + 1) * 7]))[0])
-
-    result = rollout(model, jobs, device)
-    points: dict[tuple[str, int], list[int]] = defaultdict(list)
-    took: dict[tuple[str, int], list[bool]] = defaultdict(list)
-    for key, p, t in zip(keys, result.bidder_points, result.bidder_took_trick):
-        points[key].append(int(p))
-        took[key].append(bool(t))
-
-    options: list[Option] = []
-    for t in NAMED_SUITS if points_bids else ():
-        pts = np.array(points[("points", t)])
-        options += [Option(b, t, float(np.mean(pts >= b))) for b in points_bids]
-    if high_bids:
-        for t in (*NAMED_SUITS, Suit.NONE):
-            p = float(np.mean(np.array(points[("high", t)]) == 42))
-            options += [Option(b, t, p) for b in high_bids]
-        for v in LOW_TRUMPS:
-            p = float(np.mean(~np.array(took[("low", v)])))
-            options += [Option(b, v, p) for b in high_bids]
-    if PLUNGE in legal:
-        options.append(Option(PLUNGE, Suit.NONE, float(np.mean(np.array(points[("plunge", -1)]) == 42))))
-    return options
-
-
-# Tuned on stage1-c: over the same 300 deals, 0.5/0.55/0.6 scored +0.390/+0.467/+0.497 marks/deal
-# against heuristic bidding. Fewer coin-flip bids, a higher made rate, and the auctions given up cost nothing.
-DEFAULT_MAKE_THRESHOLD = 0.6
+    sims = simulate_hand(model, seat, state.hand(seat), n_deals, rng, device, kinds_for(legal))
+    return options_from_table(table_from_sims(sims), legal)
 
 
 class SimBidder:
