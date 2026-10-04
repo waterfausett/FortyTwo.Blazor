@@ -19,18 +19,38 @@ interface Auth0TokenResponse {
   scope?: string;
 }
 
-// Module-level cache: valid for the lifetime of the Worker isolate. A cold isolate just re-fetches
-// once.
+// Refresh this long before the token's nominal expiry, so a request never carries a token that
+// expires while it's in flight.
+const REFRESH_MARGIN_MS = 30_000;
+
+function isFresh(token: CachedToken | undefined): token is CachedToken {
+  return token !== undefined && token.expiresOn - REFRESH_MARGIN_MS > Date.now();
+}
+
+// Two layers: this isolate's memory, then D1 (the auth0_tokens table), which every isolate shares.
+// Auth0 limits how many M2M tokens a tenant gets each month, and Cloudflare starts isolates often,
+// so a new isolate takes the token from D1 rather than asking Auth0 for another.
 let cachedToken: CachedToken | undefined;
 
-// Note the freshness check: a cached token is reused until 30 seconds PAST its expiry, not
-// refreshed 30 seconds early. That's the original app's behavior, kept as-is (and pinned by
-// auth0Management.test.ts).
-async function fetchAccessToken(env: Env): Promise<CachedToken> {
-  if (cachedToken && cachedToken.expiresOn > Date.now() - 30_000) {
-    return cachedToken;
-  }
+async function readStoredToken(env: Env): Promise<CachedToken | undefined> {
+  const row = await env.DB.prepare(
+    'SELECT token, token_type, expires_on FROM auth0_tokens WHERE audience = ?1'
+  )
+    .bind(env.AUTH0_API_AUDIENCE)
+    .first<{ token: string; token_type: string; expires_on: number }>();
+  return row ? { token: row.token, tokenType: row.token_type, expiresOn: row.expires_on } : undefined;
+}
 
+async function storeToken(env: Env, token: CachedToken): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO auth0_tokens (audience, token, token_type, expires_on) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT (audience) DO UPDATE SET token = ?2, token_type = ?3, expires_on = ?4`
+  )
+    .bind(env.AUTH0_API_AUDIENCE, token.token, token.tokenType, token.expiresOn)
+    .run();
+}
+
+async function requestToken(env: Env): Promise<CachedToken> {
   const body = new URLSearchParams({
     grant_type: 'client_credentials',
     client_id: env.AUTH0_API_CLIENT_ID,
@@ -48,11 +68,32 @@ async function fetchAccessToken(env: Env): Promise<CachedToken> {
   }
 
   const json = (await response.json()) as Auth0TokenResponse;
-  cachedToken = {
+  return {
     token: json.access_token,
     tokenType: json.token_type,
     expiresOn: Date.now() + json.expires_in * 1000,
   };
+}
+
+async function loadAccessToken(env: Env): Promise<CachedToken> {
+  const stored = await readStoredToken(env);
+  if (isFresh(stored)) return stored;
+
+  const token = await requestToken(env);
+  await storeToken(env, token);
+  return token;
+}
+
+// Concurrent requests in one isolate share a single lookup instead of each fetching a token.
+let pendingToken: Promise<CachedToken> | undefined;
+
+async function fetchAccessToken(env: Env): Promise<CachedToken> {
+  if (isFresh(cachedToken)) return cachedToken;
+
+  pendingToken ??= loadAccessToken(env).finally(() => {
+    pendingToken = undefined;
+  });
+  cachedToken = await pendingToken;
   return cachedToken;
 }
 
