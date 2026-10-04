@@ -1,4 +1,4 @@
-"""`ml train`, `ml eval`, `ml eval-bidding`, and `ml play-demo`."""
+"""`ml train`, `ml eval`, `ml eval-bidding`, `ml gen-bids`, and `ml play-demo`."""
 import argparse
 import random
 from datetime import datetime
@@ -119,6 +119,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     s.add_argument("--seed", type=int, default=0)
 
+    g = sub.add_parser("gen-bids", help="Stage 3: simulate random hands into bidding-model training data")
+    g.add_argument("--model", required=True, help="the play checkpoint the simulations use")
+    g.add_argument("--out", required=True, help="data folder (batches are added; reruns resume)")
+    g.add_argument("--hands", type=int, required=True)
+    g.add_argument("--sim-deals", type=int, default=50)
+    g.add_argument("--seed", type=int, default=0)
+    g.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
+
     d = sub.add_parser("play-demo", help="print one hand, decision by decision")
     d.add_argument("--agent", default="heuristic")
     d.add_argument("--seed", type=int, default=0)
@@ -148,6 +156,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.matches:
             matches = evaluate_matches(build_bidder(a_spec), build_bidder(b_spec), args.matches, seed=args.seed)
         print(format_auction_report(ev, matches))
+    elif args.command == "gen-bids":
+        from .bidding.data import GenConfig, generate
+
+        written = generate(GenConfig(args.model, args.out, args.hands, args.sim_deals, args.seed, args.workers))
+        print(f"wrote {written} hands to {args.out}")
     elif args.command == "bench-train":
         import dataclasses
         import tempfile

@@ -82,3 +82,11 @@ def test_play_demo_sim_runs_an_auction(tmp_path, capsys):
     assert main(["play-demo", "--agent", f"sim:{path}", "--seed", "3"]) == 0
     out = capsys.readouterr().out
     assert "top options" in out and "Contract:" in out and "Result:" in out
+
+
+def test_gen_bids_cli(tmp_path, capsys):
+    path = tmp_path / "m.pt"
+    save_checkpoint(path, QNet(hidden=16, layers=1), step=0, config={})
+    assert main(["gen-bids", "--model", str(path), "--out", str(tmp_path / "d"), "--hands", "2",
+                 "--sim-deals", "2", "--workers", "1"]) == 0
+    assert "wrote 2 hands" in capsys.readouterr().out
