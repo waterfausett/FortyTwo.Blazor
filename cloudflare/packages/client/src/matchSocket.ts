@@ -74,9 +74,16 @@ export function connectMatchSocket({
     let token: string;
     try {
       token = await getToken();
-    } finally {
+    } catch {
+      // E.g. offline when the token needs renewing. Treat it like a failed connect attempt and
+      // retry, rather than leaving nothing scheduled - which would also make reconnectNow a no-op.
       connecting = false;
+      if (cancelled) return;
+      onDrop();
+      scheduleReconnect();
+      return;
     }
+    connecting = false;
     // We may have been disposed while awaiting the token - bail out rather than opening a socket
     // nobody will ever close.
     if (cancelled) return;
@@ -109,12 +116,16 @@ export function connectMatchSocket({
       onDrop();
       if (event.code === MATCH_DELETED_CLOSE_CODE) onDeleted?.();
       if (NO_RECONNECT_CODES.has(event.code)) return;
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
-        connect();
-      }, reconnectDelay);
+      scheduleReconnect();
     });
+  }
+
+  function scheduleReconnect() {
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
+      connect();
+    }, reconnectDelay);
   }
 
   function reconnectNow() {
