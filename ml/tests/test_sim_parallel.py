@@ -1,4 +1,7 @@
+import functools
 import math
+import operator
+import time
 
 import pytest
 
@@ -39,3 +42,11 @@ def test_parallel_eval_matches_in_process(tmp_path):
 def test_a_worker_setup_error_is_raised_as_itself():
     with pytest.raises(ValueError):
         parallel_map(math.sqrt, [1, 4], workers=2, initializer=math.sqrt, initargs=(-1,))
+
+
+def test_an_error_fails_fast_without_waiting_for_slow_items():
+    items = [functools.partial(time.sleep, 20), functools.partial(math.sqrt, -1), functools.partial(time.sleep, 20)]
+    began = time.monotonic()
+    with pytest.raises(ValueError):
+        parallel_map(operator.call, items, workers=3)
+    assert time.monotonic() - began < 12  # neither waited for the earlier sleep nor joined the sleeping workers

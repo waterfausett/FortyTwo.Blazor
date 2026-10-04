@@ -15,8 +15,9 @@ def ckpt(tmp_path):
     return str(path)
 
 
-def _gen(ckpt, out, hands, seed=1, workers=1, batch=2):
-    return generate(GenConfig(ckpt, str(out), hands, sim_deals=2, seed=seed, workers=workers, batch_hands=batch), log=lambda *_: None)
+def _gen(ckpt, out, hands, seed=1, workers=1, batch=2, chunk=100):
+    return generate(GenConfig(ckpt, str(out), hands, sim_deals=2, seed=seed, workers=workers, batch_hands=batch,
+                              chunk_hands=chunk), log=lambda *_: None)
 
 
 def test_hands_are_deterministic_per_seed_and_index():
@@ -69,7 +70,7 @@ def test_mixed_play_checkpoints_are_rejected(tmp_path):
 
 def test_worker_count_does_not_change_the_data(tmp_path, ckpt):
     _gen(ckpt, tmp_path / "one", 4, workers=1)
-    _gen(ckpt, tmp_path / "two", 4, workers=2)
+    _gen(ckpt, tmp_path / "two", 4, workers=2, chunk=1)  # four 1-hand chunks, assembled into two batches
     one, two = load_bids(tmp_path / "one"), load_bids(tmp_path / "two")
     assert (one.hands == two.hands).all() and (one.points_hist == two.points_hist).all()
     assert (one.high_made == two.high_made).all() and (one.plunge_made == two.plunge_made).all()
@@ -79,3 +80,40 @@ def test_rerun_with_fewer_hands_never_shrinks_a_batch(tmp_path, ckpt):
     _gen(ckpt, tmp_path / "d", 4)  # two batches of 2
     assert _gen(ckpt, tmp_path / "d", 3) == 0  # the 2-hand batch at 2 is kept, not cut to 1
     assert len(load_bids(tmp_path / "d").hands) == 4
+
+
+def test_chunk_size_does_not_change_the_data(tmp_path, ckpt):
+    for chunk in (1, 2):
+        generate(GenConfig(ckpt, str(tmp_path / f"c{chunk}"), 5, sim_deals=2, seed=1, workers=1, batch_hands=3,
+                           chunk_hands=chunk), log=lambda *_: None)
+    one, two = load_bids(tmp_path / "c1"), load_bids(tmp_path / "c2")
+    assert sorted(p.name for p in (tmp_path / "c2").iterdir()) == ["gen-s1-0000000.npz", "gen-s1-0000003.npz"]
+    for k in ("hands", "points_hist", "high_made", "low_clean", "plunge_made", "n_deals"):
+        assert (getattr(one, k) == getattr(two, k)).all()
+
+
+def test_a_batch_from_another_play_checkpoint_is_refused_before_simulating(tmp_path, ckpt, monkeypatch):
+    out = tmp_path / "d"
+    out.mkdir()
+    arrays = dict(hands=np.zeros((1, 7), np.int8), points_hist=np.zeros((1, 7, 43), np.uint16),
+                  high_made=np.zeros((1, 8), np.uint16), low_clean=np.zeros((1, 3), np.uint16),
+                  plunge_made=np.full(1, -1, np.int16))
+    save_batch(out / "gen-s5-0000000.npz", arrays, sim_deals=2, play_checkpoint="other/m.pt", play_path="other/m.pt",
+               play_step=7, seed=5)
+
+    def boom(*_):
+        raise AssertionError("simulated before the checkpoint check")
+
+    monkeypatch.setattr("fortytwo_ml.bidding.data.parallel_map", boom)
+    with pytest.raises(ValueError, match="different play checkpoints.*other/m.pt.*run/m.pt"):
+        _gen(ckpt, out, 2)
+
+
+def test_an_unreadable_batch_is_regenerated(tmp_path, ckpt):
+    out = tmp_path / "d"
+    out.mkdir()
+    (out / "gen-s1-0000000.npz").write_bytes(b"")  # e.g. the machine died mid-rename
+    lines = []
+    assert generate(GenConfig(ckpt, str(out), 2, sim_deals=2, seed=1, workers=1, batch_hands=2), log=lines.append) == 2
+    assert any("gen-s1-0000000.npz can't be read" in line for line in lines)
+    assert [list(h) for h in load_bids(out).hands] == [deal_hand(1, i)[0] for i in range(2)]

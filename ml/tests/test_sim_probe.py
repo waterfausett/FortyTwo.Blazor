@@ -120,7 +120,7 @@ def test_simulate_hand_counts_match_one_at_a_time_play():
 
 def test_plunge_is_simulated_only_with_four_doubles():
     model = tiny()
-    weak = [1, 2, 3, 4, 5, 6, 8]  # one double (0/0 is index 0, not held; 1/1 is index 7, not held)
+    weak = [1, 2, 3, 4, 5, 6, 8]  # 0/1..0/6 and 1/2: no doubles (0/0 is index 0, 1/1 is index 7)
     assert not can_plunge(weak)
     assert simulate_hand(model, 0, weak, 2, random.Random(0)).plunge_made is None
     strong = deal_with({0: [(0, 0), (1, 1), (2, 2), (3, 3)]})[:7]

@@ -1,10 +1,10 @@
 """Spread independent work over worker processes. Workers are spawned (the only start method on
 Windows), each set up once by `initializer` (e.g. load a model) with torch limited to one thread so
-N workers use about N cores. Results come back in item order; a worker's exception fails the call."""
+N workers use about N cores. Results come back in item order; the first exception from any item
+fails the call at once and stops the workers."""
 import multiprocessing as mp
 from collections.abc import Callable, Iterable
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 
 DEFAULT_WORKERS = 7  # one core of the dev box's eight left for the parent and the machine
 
@@ -30,12 +30,22 @@ def _guarded(fn: Callable, item):
     return fn(item)
 
 
+def _stop(pool: ProcessPoolExecutor) -> None:
+    """Kill the workers now. `shutdown(cancel_futures=True)` alone can't stop items already handed
+    to a worker, and the interpreter's exit hook would wait for them (gen-bids items run for
+    minutes). The executor has no public way to reach its processes, hence the private `_processes`."""
+    for p in list((pool._processes or {}).values()):
+        p.terminate()
+    pool.shutdown(wait=False, cancel_futures=True)
+
+
 def parallel_map(
     fn: Callable, items: Iterable, workers: int, initializer: Callable | None = None, initargs: tuple = (),
     on_result: Callable[[int, object], None] | None = None,
 ) -> list:
     """`fn` and `initializer` must be importable top-level functions (spawned workers re-import them).
-    With one worker (or one item) everything runs in this process, initializer included."""
+    With one worker (or one item) everything runs in this process, initializer included.
+    `on_result(done_count, result)` is called in item order."""
     items = list(items)
     results: list = []
 
@@ -55,10 +65,17 @@ def parallel_map(
         initializer=_init_worker, initargs=(initializer, initargs),
     )
     try:
-        for result in pool.map(partial(_guarded, fn), items):
-            collect(result)
-    except BaseException:
-        pool.shutdown(wait=False, cancel_futures=True)
+        futures = [pool.submit(_guarded, fn, item) for item in items]
+        pending = set(futures)
+        while pending:
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            for f in done:  # fail fast: any item's error, not just the next one in order
+                if f.exception() is not None:
+                    raise f.exception()
+            while len(results) < len(futures) and futures[len(results)].done():  # flush the finished prefix
+                collect(futures[len(results)].result())
+    except BaseException:  # including KeyboardInterrupt
+        _stop(pool)
         raise
     pool.shutdown()
     return results

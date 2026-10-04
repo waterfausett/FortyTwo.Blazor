@@ -127,10 +127,14 @@ dominoes, so the training data is just simulated hands, with no auctions.
 ```sh
 # Training data: about 7 h with 7 workers. Rerunning resumes; a new --seed adds hands.
 uv run ml gen-bids --model runs/stage1-c/ckpt-latest.pt --out data/bids --hands 100000 --sim-deals 50 --seed 1
-# A small low-noise "gold" set for measuring the model (about 30 min).
+# A small low-noise "gold" set for measuring the model (roughly an hour with 7 workers).
 uv run ml gen-bids --model runs/stage1-c/ckpt-latest.pt --out data/bids-gold --hands 2000 --sim-deals 400 --seed 99
 uv run ml train-bids --data data/bids --gold data/bids-gold --out runs/bidnet-1
 ```
+
+`gen-bids` prints a progress line (hands done, hands/s, ETA) per 100-hand chunk and a line per
+1,000-hand batch file written. It refuses an `--out` folder holding batches from a different play
+checkpoint.
 
 `train-bids` prints each epoch's loss. It ends with the gold-set error at the bids that matter and a
 calibration table.
@@ -157,10 +161,12 @@ worker count. A 1,000-deal run with a `sim` side now takes about an hour.
 | --- | --- |
 | `src/fortytwo_ml/engine` | The rules for one hand, ported from `cloudflare/packages/rules`, plus the match loop. |
 | `src/fortytwo_ml/agents` | The agent protocol, the Worker's dumb bot, a heuristic bot, and the model agent. |
-| `src/fortytwo_ml/contracts.py` | Where training hands get their contract (bidding isn't learned yet). |
+| `src/fortytwo_ml/contracts.py` | Where self-play training hands get their contract. |
 | `src/fortytwo_ml/features.py` | What the model sees. |
 | `src/fortytwo_ml/train` | Deep Monte-Carlo self-play: actor processes, the GPU learner, and the replay buffer. |
 | `src/fortytwo_ml/eval` | Duplicate-deal arena and report. |
+| `src/fortytwo_ml/sim` | Simulation bidding: deal sampling, rollouts, the P(make) probes, bid decisions, and worker processes. |
+| `src/fortytwo_ml/bidding` | BidNet, the fast bidding model: gen-bids data, the network, and its training. |
 
 ## Parity with the TS rules
 

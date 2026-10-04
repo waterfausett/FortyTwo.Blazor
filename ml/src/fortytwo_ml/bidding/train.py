@@ -1,5 +1,6 @@
 """Train BidNet on gen-bids data: cross-entropy against each hand's simulated points histogram,
-binomial likelihood for the yes/no options, both weighted by how many deals the counts came from."""
+binomial likelihood for the yes/no options. Each hand's loss is divided by its deal count, so every
+hand weighs the same whatever `sim_deals` its counts came from."""
 import copy
 import zlib
 from dataclasses import dataclass
