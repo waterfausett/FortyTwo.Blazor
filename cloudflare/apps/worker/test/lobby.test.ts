@@ -2,13 +2,15 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import {
   upsertMatchSummary,
+  refreshMatchSummary,
+  SUMMARY_REFRESH_MS,
   syncMatchPlayers,
   listActive,
   listCompleted,
   listJoinable,
   listMatchPlayers,
 } from '../src/lobby';
-import { Teams } from '@fortytwo/rules';
+import { Teams, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 
 const testEnv = env as unknown as Env;
@@ -125,6 +127,44 @@ describe('lobby', () => {
       expect(results).toHaveLength(1);
       expect(results[0].playerCount).toBe(3);
       expect(results[0].updatedOn).toBe('2026-09-24T02:00:00Z');
+    });
+  });
+
+  describe('refreshMatchSummary', () => {
+    const indexed = { id: 'm1', status: 'active' as const, playerCount: 4, updatedOn: '2026-09-24T01:00:00.000Z' };
+    // Just the fields the summary row is built from.
+    const matchAt = (updatedOn: string, winningTeam: Teams | null = null) =>
+      ({ id: 'm1', players: seat('p1', 'p2', 'p3', 'p4'), winningTeam, updatedOn }) as unknown as MatchState;
+    const msAfterIndexed = (ms: number) => new Date(Date.parse(indexed.updatedOn) + ms).toISOString();
+    const row = () =>
+      testEnv.DB.prepare('SELECT id, status, player_count AS playerCount, updated_on AS updatedOn FROM matches WHERE id = ?')
+        .bind('m1')
+        .first();
+
+    beforeEach(async () => {
+      await upsertMatchSummary(testEnv.DB, indexed);
+    });
+
+    it('leaves the row alone while updated_on is recent', async () => {
+      await refreshMatchSummary(testEnv.DB, matchAt(msAfterIndexed(SUMMARY_REFRESH_MS - 1)));
+
+      expect(await row()).toEqual(indexed);
+    });
+
+    it('refreshes updated_on once it is stale', async () => {
+      const later = msAfterIndexed(SUMMARY_REFRESH_MS + 1);
+
+      await refreshMatchSummary(testEnv.DB, matchAt(later));
+
+      expect(await row()).toEqual({ ...indexed, updatedOn: later });
+    });
+
+    it('writes a finished match straight away', async () => {
+      const justAfter = msAfterIndexed(1000);
+
+      await refreshMatchSummary(testEnv.DB, matchAt(justAfter, Teams.TeamB));
+
+      expect(await row()).toEqual({ ...indexed, status: 'completed', updatedOn: justAfter });
     });
   });
 

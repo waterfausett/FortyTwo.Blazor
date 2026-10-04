@@ -3,6 +3,7 @@ import { env, fetchMock, runInDurableObject, SELF } from 'cloudflare:test';
 import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import app, { type Env } from '../src/index';
+import { countLobbyWrites } from './lobbyWrites';
 
 const testEnv = env as unknown as Env;
 
@@ -248,6 +249,38 @@ describe('match routes', () => {
       expect(outsiderJoinBody.title).toBeTruthy();
     }
   );
+
+  // A seat change rewrites the match's match_players rows; anything else must leave them alone,
+  // or every move costs a dozen-plus D1 row writes.
+  it('rewrites the seated players on a join, but not on a ready-up or a play', async () => {
+    const lobbyWrites = await countLobbyWrites(testEnv.DB);
+    const [p1, p2, p3, p4] = await Promise.all(['p1', 'p2', 'p3', 'p4'].map(signToken));
+    const { id: matchId } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+    const send = async (token: string, method: string, path: string, body: unknown) => {
+      const res = await api(`/api/matches/${matchId}${path}`, token, { method, body: JSON.stringify(body) });
+      expect(res.status).toBe(200);
+      return (await res.json()) as MatchState;
+    };
+
+    await send(p2, 'POST', '/players', { team: 2 });
+    await send(p3, 'POST', '/players', { team: 1 });
+    const beforeLastJoin = await lobbyWrites(matchId);
+    await send(p4, 'POST', '/players', { team: 2 });
+    const afterJoins = await lobbyWrites(matchId);
+    // Three rows deleted, four inserted.
+    expect(afterJoins.match_players - beforeLastJoin.match_players).toBe(7);
+
+    for (const token of [p1, p2, p3, p4]) await send(token, 'PATCH', '/players', { ready: true });
+    await send(p1, 'POST', '/games/current/bids', { bid: 30 });
+    for (const token of [p2, p3, p4]) await send(token, 'POST', '/games/current/bids', { bid: 0 });
+    const afterTrump = await send(p1, 'PATCH', '/games/current', { suit: 6 });
+    const p1Hand = afterTrump.currentGame.hands.find((h) => h.playerId === 'p1')!;
+    await send(p1, 'POST', '/games/current/moves', { domino: p1Hand.dominoes[0] });
+
+    // The matches row isn't written either: nothing the lobby shows changed, and updated_on is
+    // still well within SUMMARY_REFRESH_MS.
+    expect(await lobbyWrites(matchId)).toEqual(afterJoins);
+  });
 
   it("returns the caller's own hand from GET /api/matches/:id and hides the rest", async () => {
     const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4', 'p5'].map(signToken));

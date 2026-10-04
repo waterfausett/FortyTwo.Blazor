@@ -6,6 +6,8 @@ import { describe, it, expect } from 'vitest';
 import { env, runDurableObjectAlarm } from 'cloudflare:test';
 import { Bid, Suit, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import { syncLobbyIndex } from '../src/lobby';
+import { countLobbyWrites } from './lobbyWrites';
 
 const testEnv = env as unknown as Env;
 
@@ -109,5 +111,29 @@ describe('MatchDO bot auto-play', () => {
     // again - even if a bot won and had to lead the next trick.
     expect(match.currentGame.tricks).toHaveLength(1);
     expect(match.currentGame.currentPlayerId).toBe('human-1');
+  });
+
+  // The alarm syncs the lobby by the routes' rules: bot moves never change who's seated, so they
+  // never rewrite match_players (and bids and trump calls write nothing at all).
+  it('leaves the lobby index alone while bots bid and play', async () => {
+    const lobbyWrites = await countLobbyWrites(testEnv.DB);
+    const stub = stubFor('bots-lobby-sync');
+    await stub.create('human-1', 'bots-lobby-sync');
+    let match = valueOf(await stub.addBots('human-1'));
+    // Seeded here, as the route that seats bots would: these tests call the DO directly.
+    await syncLobbyIndex(testEnv.DB, match);
+    const before = await lobbyWrites(match.id);
+    expect(before.match_players).toBe(4);
+
+    await stub.bid('human-1', Bid.Thirty);
+    await runAllPendingAlarms(stub);
+    match = valueOf(await stub.setTrump('human-1', Suit.Sixes));
+    await stub.playDomino('human-1', match.currentGame.hands.find((h) => h.playerId === 'human-1')!.dominoes[0]);
+    await runAllPendingAlarms(stub);
+
+    expect(valueOf(await stub.getMatch()).currentGame.tricks).toHaveLength(1);
+    // The matches row isn't written either: the match is moments old, well inside
+    // SUMMARY_REFRESH_MS.
+    expect(await lobbyWrites(match.id)).toEqual(before);
   });
 });

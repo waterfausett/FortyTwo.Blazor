@@ -27,7 +27,7 @@ import {
   type Suit,
   type Teams,
 } from '@fortytwo/rules';
-import { syncLobbyIndex } from './lobby';
+import { syncLobbyIndex, refreshMatchSummary } from './lobby';
 import { pushNotices } from './push/notices';
 import { sendNotices } from './push/send';
 import { BOT_IDS, decideBid, decideTrump, decideDomino, findNextBotAction, type BotAction } from './bots';
@@ -220,7 +220,9 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   // Runs one bot action per firing. Alarm-driven changes never pass through routes/matches.ts,
-  // which syncs the D1 lobby index for everything else, so it's synced here.
+  // which syncs the D1 lobby index for everything else, so it's synced here - by the same rules:
+  // a bot's ready-up or play refreshes the summary row, and its bid or trump call (which the
+  // routes don't sync either) writes nothing.
   async alarm(): Promise<void> {
     const match = await this.load();
     if (match === null) return;
@@ -231,7 +233,7 @@ export class MatchDO extends DurableObject<Env> {
     const next = this.applyBotAction(match, action);
     await this.save(next);
     this.publish(match, next);
-    await syncLobbyIndex(this.env.DB, next);
+    if (action.kind === 'ready' || action.kind === 'play') await refreshMatchSummary(this.env.DB, next);
     await this.scheduleBotsIfNeeded(next);
   }
 
