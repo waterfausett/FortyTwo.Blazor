@@ -8,7 +8,7 @@ from .agents.base import Agent, choose
 from .agents.dumb_bot import DumbBot
 from .agents.heuristic_bot import HeuristicBot
 from .agents.model_agent import ModelAgent
-from .agents.sim_bidder import SimAgent
+from .agents.sim_bidder import DEFAULT_MAKE_THRESHOLD, SimAgent
 from .contracts import DEFAULT_MIX, ContractSampler, contract_kind
 from .engine.dominoes import domino_id
 from .engine.enums import Suit
@@ -101,7 +101,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--model", required=True, help="path/to/checkpoint.pt")
     s.add_argument("--deals", type=int, default=1000)
     s.add_argument("--sim-deals", type=int, default=200)
-    s.add_argument("--make-threshold", type=float, default=0.5, help="bid only when P(make) is above this")
+    s.add_argument(
+        "--make-threshold", type=float, default=DEFAULT_MAKE_THRESHOLD, help="bid only when P(make) is above this"
+    )
     s.add_argument(
         "--matches",
         type=int,

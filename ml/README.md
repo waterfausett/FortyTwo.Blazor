@@ -90,8 +90,9 @@ before Stage 2 aren't comparable.
 Then evaluate the simulation bidder against heuristic bidding with the same play model. The model
 runs on CPU. On the idle dev box a bid decision takes about 6 s (median 5.8 s, p95 6.7 s), and
 there are about 4 per duplicate deal, so 1,000 deals take about 6.5 h. A concurrent training run
-nearly doubles that. `--sim-deals` trades accuracy for speed, and `--make-threshold` (default 0.5)
-sets how sure the bidder must be before it bids.
+nearly doubles that. `--sim-deals` trades accuracy for speed, and `--make-threshold` (default 0.6)
+sets how sure the bidder must be before it bids. 0.6 beat the spec's original 0.5 by about 0.1
+marks/deal on the same 300 deals: the bidder wins fewer auctions but makes more of them.
 
 ```sh
 uv run ml eval-bidding --model runs/stage1-c/ckpt-latest.pt --deals 1000

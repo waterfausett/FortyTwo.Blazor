@@ -78,10 +78,15 @@ def estimate_options(
     return options
 
 
+# Tuned on stage1-c: over the same 300 deals, 0.5/0.55/0.6 scored +0.390/+0.467/+0.497 marks/deal
+# against heuristic bidding. Fewer coin-flip bids, a higher made rate, and the auctions given up cost nothing.
+DEFAULT_MAKE_THRESHOLD = 0.6
+
+
 class SimBidder:
     name = "sim"
 
-    def __init__(self, model: QNet, n_deals: int = 200, make_threshold: float = 0.5,
+    def __init__(self, model: QNet, n_deals: int = 200, make_threshold: float = DEFAULT_MAKE_THRESHOLD,
                  overbid_partner_threshold: float = 0.9, seed: int = 0, device=None):
         self.model = model.eval()
         self.n_deals = n_deals
