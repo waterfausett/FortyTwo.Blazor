@@ -121,6 +121,9 @@ export function connectMatchSocket({
   }
 
   function scheduleReconnect() {
+    // Only one of a pending timer, a token fetch, or a socket exists at a time, so this should
+    // never find a timer already set - but if it does, don't leak it into a second connect.
+    if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
