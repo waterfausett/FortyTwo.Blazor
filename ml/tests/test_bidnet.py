@@ -78,7 +78,7 @@ def test_training_learns_a_known_rule_and_round_trips(tmp_path):
     data, gold = _rule_data(_hands(800, 3)), _rule_data(_hands(100, 4))
     torch.manual_seed(0)
     _, before = gold_report(BidNet(hidden=32, layers=2), gold)
-    result = train_bidnet(data, BidTrainConfig(hidden=32, layers=2, epochs=40, batch_size=64), log=lambda *_: None)
+    result = train_bidnet(data, BidTrainConfig(hidden=32, layers=2, epochs=40, batch_size=64, lr=3e-3), log=lambda *_: None)
     lines, after = gold_report(result.net, gold)
     assert after["mae_30"] < before["mae_30"] / 2 and any("Calibration" in line for line in lines)
     save_bidnet(tmp_path / "b.pt", result.net, {"play_checkpoint": "run/m.pt", "play_path": "x", "play_step": 1,
