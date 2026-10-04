@@ -57,6 +57,9 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
     );
   }
   const team = info.side === 'us' ? colors.us : colors.them;
+  // TEMPORARY, for comparing the two looks side by side: our team keeps the plates from before the
+  // seats moved onto the felt. Remove once one is picked.
+  if (info.side === 'us') return <ClassicPlate info={info} width={width} team={team} />;
   return (
     <View
       style={[styles.plate, { width }, info.isActive && [styles.active, { boxShadow: activeGlow(team) }]]}
@@ -87,6 +90,51 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
         )}
         {info.ready != null && (
           <Text style={[styles.detail, info.ready && styles.ready]} numberOfLines={1}>
+            {info.ready ? 'Ready' : 'Not ready'}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// The plate as it was before the seats moved onto the felt: a full border in the team's colour
+// (brass while they're to act), a team dot, and a brass dealer chip.
+function ClassicPlate({ info, width, team }: { info: SeatInfo; width: number; team: string }) {
+  return (
+    <View
+      style={[
+        styles.classicPlate,
+        { width, borderColor: info.isActive ? colors.brass : team },
+        info.isActive && styles.classicActive,
+      ]}
+      accessibilityLabel={`${info.name}${info.isActive ? ', to act' : ''}`}
+    >
+      <View style={styles.nameRow}>
+        <View style={[styles.teamDot, { backgroundColor: team }]} />
+        <Text style={styles.name} numberOfLines={1}>
+          {info.name}
+        </Text>
+        {info.isDealer && (
+          <View style={styles.classicDealer} accessibilityLabel="Dealer">
+            <Text style={styles.classicDealerText}>D</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.detailRow}>
+        {info.bid != null && (
+          <View
+            style={[styles.bid, info.isHighBidder && { backgroundColor: team, borderColor: team }]}
+            accessibilityLabel={`Bid ${info.bid}`}
+          >
+            <Text style={[styles.bidText, info.isHighBidder && styles.bidTextHigh]} maxFontSizeMultiplier={1.2}>
+              {info.bid}
+            </Text>
+            {info.isHighBidder && info.trump != null && <PipFace suit={info.trump} size={14} />}
+          </View>
+        )}
+        {info.ready != null && (
+          <Text style={styles.detail} numberOfLines={1}>
             {info.ready ? 'Ready' : 'Not ready'}
           </Text>
         )}
@@ -448,6 +496,24 @@ const styles = StyleSheet.create({
   },
   bidText: { color: colors.inkMuted, fontFamily: fonts.display, fontSize: 12 },
   bidTextHigh: { color: colors.walnutDeep },
+  classicPlate: {
+    paddingVertical: 5,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    borderWidth: 2,
+    backgroundColor: 'rgba(20, 13, 9, 0.55)',
+  },
+  classicActive: { backgroundColor: 'rgba(201, 164, 92, 0.18)' },
+  teamDot: { width: 8, height: 8, borderRadius: 4 },
+  classicDealer: {
+    backgroundColor: colors.brass,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  classicDealerText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 10 },
   backs: { flexDirection: 'row', gap: 2 },
   back: {
     width: 8,
