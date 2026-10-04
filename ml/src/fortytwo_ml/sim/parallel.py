@@ -4,16 +4,30 @@ N workers use about N cores. Results come back in item order; a worker's excepti
 import multiprocessing as mp
 from collections.abc import Callable, Iterable
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 
 DEFAULT_WORKERS = 7  # one core of the dev box's eight left for the parent and the machine
 
 
+_init_error: Exception | None = None  # this worker's setup failure, re-raised by its first task
+
+
 def _init_worker(initializer: Callable | None, initargs: tuple) -> None:
+    global _init_error
     import torch
 
     torch.set_num_threads(1)
     if initializer is not None:
-        initializer(*initargs)
+        try:
+            initializer(*initargs)
+        except Exception as e:  # keep the worker alive so the caller gets this error, not BrokenProcessPool
+            _init_error = e
+
+
+def _guarded(fn: Callable, item):
+    if _init_error is not None:
+        raise _init_error
+    return fn(item)
 
 
 def parallel_map(
@@ -41,7 +55,7 @@ def parallel_map(
         initializer=_init_worker, initargs=(initializer, initargs),
     )
     try:
-        for result in pool.map(fn, items):
+        for result in pool.map(partial(_guarded, fn), items):
             collect(result)
     except BaseException:
         pool.shutdown(wait=False, cancel_futures=True)
