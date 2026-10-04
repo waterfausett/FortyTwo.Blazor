@@ -3,7 +3,7 @@
 // player at the bottom - and the trick in progress in the middle, each domino in front of whoever
 // played it. Sized from the window width so it fills a phone screen.
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions, type LayoutRectangle } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, useWindowDimensions, type LayoutRectangle } from 'react-native';
 import type { Seat } from '@fortytwo/client';
 import type { Suit, Trick } from '@fortytwo/rules';
 import { PipFace } from './PipFace';
@@ -59,9 +59,10 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
   const team = info.side === 'us' ? colors.us : colors.them;
   return (
     <View
-      style={[styles.plate, { width }, info.isActive && [styles.active, { boxShadow: activeGlow(team) }]]}
+      style={[styles.plate, { width }, info.isActive && [styles.active, { boxShadow: `0 0 0 2px ${team}` }]]}
       accessibilityLabel={`${info.name}${info.isActive ? ', to act' : ''}`}
     >
+      {info.isActive && <PulsingGlow color={team} />}
       <View style={[styles.teamStripe, { backgroundColor: team }]} />
       <View style={styles.nameRow}>
         <Text style={styles.name} numberOfLines={1}>
@@ -95,9 +96,42 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
   );
 }
 
-// A ring and a glow in the team's colour around whoever is to act.
-function activeGlow(team: string): string {
-  return `0 0 0 2px ${team}, 0 0 14px ${team}`;
+// How long the glow around whoever is to act takes to swell and fade back, as on the web.
+const PULSE_MS = 2400;
+
+// A glow in the team's colour around whoever is to act (the plate carries a steady ring in the same
+// colour), slowly swelling and fading so the eye finds it. A shadow can't be animated on the native
+// side, so the glow is its own layer and only its opacity changes. Held steady when the system asks
+// for reduced motion.
+function PulsingGlow({ color }: { color: string }) {
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    let loop: Animated.CompositeAnimation | null = null;
+    let cancelled = false;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .catch(() => false)
+      .then((reduced) => {
+        if (cancelled || reduced) return;
+        const half = { duration: PULSE_MS / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true };
+        loop = Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulse, { ...half, toValue: 0.3 }),
+            Animated.timing(pulse, { ...half, toValue: 1 }),
+          ]),
+        );
+        loop.start();
+      });
+    return () => {
+      cancelled = true;
+      loop?.stop();
+    };
+  }, [pulse]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.glow, { boxShadow: `0 0 16px 2px ${color}`, opacity: pulse }]}
+    />
+  );
 }
 
 // A seat on the felt: the plate, and for the other players their face-down tiles, on the side
@@ -410,6 +444,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 10,
   },
   active: { backgroundColor: 'rgba(58, 42, 22, 0.85)' },
+  glow: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 10 },
   open: {
     alignItems: 'center',
     backgroundColor: 'transparent',
