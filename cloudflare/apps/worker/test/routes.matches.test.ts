@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env, fetchMock, runInDurableObject, SELF } from 'cloudflare:test';
 import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
-import app, { type Env } from '../src/index';
+import { app, type Env } from '../src/index';
+import { upsertMatchSummary } from '../src/lobby';
 import { countLobbyWrites } from './lobbyWrites';
 
 const testEnv = env as unknown as Env;
@@ -103,7 +104,7 @@ describe('match routes', () => {
       // --- GET /api/matches?filter=Joinable from a second user's token ---
       const joinableRes = await api('/api/matches?filter=Joinable', p2);
       expect(joinableRes.status).toBe(200);
-      const joinable = (await joinableRes.json()) as { id: string; teams: string[][] }[];
+      const joinable = ((await joinableRes.json()) as { matches: { id: string; teams: string[][] }[] }).matches;
       expect(joinable.some((m) => m.id === matchId)).toBe(true);
       // No Auth0 mock here, so name lookup fails and players fall back to their raw ids rather
       // than failing the whole list.
@@ -332,7 +333,7 @@ describe('match routes', () => {
 
     const res = await api('/api/matches?filter=Joinable', p4);
     expect(res.status).toBe(200);
-    const rows = (await res.json()) as { id: string; teams: string[][] }[];
+    const rows = ((await res.json()) as { matches: { id: string; teams: string[][] }[] }).matches;
     expect(rows.find((row) => row.id === created.id)?.teams).toEqual([['Player One', 'three'], ['p2']]);
   });
 
@@ -354,8 +355,106 @@ describe('match routes', () => {
 
     // No Auth0 mock, so seats show raw ids.
     const res = await api('/api/matches?filter=Joinable', p3);
-    const rows = (await res.json()) as { id: string; seats: (string | null)[] }[];
+    const rows = ((await res.json()) as { matches: { id: string; seats: (string | null)[] }[] }).matches;
     expect(rows.find((row) => row.id === created.id)?.seats).toEqual(['p1', null, null, 'p2']);
+  });
+
+  describe('GET /api/matches paging', () => {
+    it('returns a page with a cursor that fetches the next page', async () => {
+      const p1 = await signToken('p1');
+      for (let i = 0; i < 21; i++) await (await api('/api/matches', p1, { method: 'POST' })).arrayBuffer();
+
+      const first = (await (await api('/api/matches?filter=Active', p1)).json()) as { matches: { id: string }[]; nextCursor: string | null };
+      expect(first.matches).toHaveLength(20);
+      expect(first.nextCursor).toEqual(expect.any(String));
+
+      const second = (await (await api(`/api/matches?filter=Active&cursor=${first.nextCursor}`, p1)).json()) as typeof first;
+      expect(second.matches).toHaveLength(1);
+      expect(second.nextCursor).toBeNull();
+      expect(first.matches.map((m) => m.id)).not.toContain(second.matches[0].id);
+    });
+
+    it('rejects a malformed cursor with a 400', async () => {
+      const res = await api('/api/matches?filter=Active&cursor=%25%25', await signToken('p1'));
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ title: 'Invalid request', detail: 'Invalid cursor' });
+    });
+  });
+
+  describe('DELETE /api/matches/:id/players', () => {
+    async function seatCount(matchId: string) {
+      const row = await testEnv.DB.prepare('SELECT player_count FROM matches WHERE id = ?')
+        .bind(matchId)
+        .first<{ player_count: number }>();
+      return row?.player_count ?? null;
+    }
+
+    it('lets a joiner leave and updates the lobby row', async () => {
+      const p1 = await signToken('p1');
+      const p2 = await signToken('p2');
+      const { id } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+      await api(`/api/matches/${id}/players`, p2, { method: 'POST', body: JSON.stringify({ position: 1 }) });
+
+      const res = await api(`/api/matches/${id}/players`, p2, { method: 'DELETE' });
+
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as { players: unknown[] }).players).toHaveLength(1);
+      expect(await seatCount(id)).toBe(1);
+    });
+
+    it('deletes the match and its lobby rows when the creator cancels', async () => {
+      const p1 = await signToken('p1');
+      const { id } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await api(`/api/matches/${id}/players`, p1, { method: 'DELETE' });
+
+      expect(res.status).toBe(204);
+      await res.arrayBuffer();
+      expect(await seatCount(id)).toBeNull();
+      const seats = await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM match_players WHERE match_id = ?')
+        .bind(id)
+        .first<{ n: number }>();
+      expect(seats?.n).toBe(0);
+      const gone = await api(`/api/matches/${id}`, p1);
+      expect(gone.status).toBe(404);
+      await gone.arrayBuffer();
+    });
+
+    it('refuses to let a player leave once the hand is dealt', async () => {
+      const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4'].map((sub) => signToken(sub)));
+      const { id } = (await (await api('/api/matches', tokens[0], { method: 'POST' })).json()) as { id: string };
+      for (const position of [1, 2, 3]) {
+        const join = await api(`/api/matches/${id}/players`, tokens[position], { method: 'POST', body: JSON.stringify({ position }) });
+        await join.arrayBuffer();
+      }
+
+      const res = await api(`/api/matches/${id}/players`, tokens[1], { method: 'DELETE' });
+
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { title: string }).title).toBe("You can't leave once the dominoes are dealt");
+    });
+
+    it('treats leaving a match that is already gone as done, and clears any lobby row left behind', async () => {
+      const p1 = await signToken('p1');
+      await upsertMatchSummary(testEnv.DB, { id: 'zombie-match', status: 'active', playerCount: 1, updatedOn: '2026-09-01T00:00:00.000Z' });
+
+      const res = await api('/api/matches/zombie-match/players', p1, { method: 'DELETE' });
+
+      expect(res.status).toBe(204);
+      await res.arrayBuffer();
+      expect(await seatCount('zombie-match')).toBeNull();
+    });
+
+    it('refuses someone who is not seated', async () => {
+      const p1 = await signToken('p1');
+      const outsider = await signToken('p9');
+      const { id } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await api(`/api/matches/${id}/players`, outsider, { method: 'DELETE' });
+
+      expect(res.status).toBe(400);
+      await res.arrayBuffer();
+    });
   });
 
   describe('malformed request bodies', () => {

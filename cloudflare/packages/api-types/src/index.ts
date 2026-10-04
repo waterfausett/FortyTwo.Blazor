@@ -23,6 +23,13 @@ export interface MatchSummary {
   seats: (string | null)[];
 }
 
+// One page of a lobby list (GET /api/matches). `nextCursor` goes back as `?cursor=` for the next
+// page; null on the last one.
+export interface MatchPage {
+  matches: MatchSummary[];
+  nextCursor: string | null;
+}
+
 // Feature switches the Worker turns on per environment (GET /api/config).
 export interface ClientConfig {
   bots: boolean;

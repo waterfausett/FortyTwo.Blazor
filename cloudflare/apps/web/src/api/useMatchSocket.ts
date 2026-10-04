@@ -22,7 +22,7 @@ function subscribeBrowserWake(wake: () => void): () => void {
 export function useMatchSocket(
   matchId: string,
   getToken: () => Promise<string>
-): { match: MatchState | null; connected: boolean; reconnecting: boolean } {
+): { match: MatchState | null; connected: boolean; reconnecting: boolean; deleted: boolean } {
   // Both are tagged with the matchId they belong to, so the very first render for a new matchId
   // never shows the previous match's state (or its "connected") while the new socket comes up.
   const [latest, setLatest] = useState<{ matchId: string; match: MatchState } | null>(null);
@@ -31,6 +31,8 @@ export function useMatchSocket(
   // when one opens. The initial connect doesn't count, so callers can tell "still coming up" apart
   // from "down, retrying".
   const [droppedFrom, setDroppedFrom] = useState<string | null>(null);
+  // Set when the server says this match was deleted - nothing more will ever arrive for it.
+  const [deletedId, setDeletedId] = useState<string | null>(null);
 
   // getToken is commonly a fresh closure every render (e.g. Auth0's getAccessTokenSilently
   // wrapped inline) - stash the latest in a ref so the connection effect below only depends on
@@ -60,6 +62,7 @@ export function useMatchSocket(
         setConnectedTo(null);
         setDroppedFrom(matchId);
       },
+      onDeleted: () => setDeletedId(matchId),
       subscribeWake: subscribeBrowserWake,
     });
 
@@ -70,6 +73,7 @@ export function useMatchSocket(
       setLatest(null);
       setConnectedTo(null);
       setDroppedFrom(null);
+      setDeletedId(null);
     };
   }, [matchId]);
 
@@ -77,5 +81,6 @@ export function useMatchSocket(
     match: latest?.matchId === matchId ? latest.match : null,
     connected: connectedTo === matchId,
     reconnecting: droppedFrom === matchId,
+    deleted: deletedId === matchId,
   };
 }

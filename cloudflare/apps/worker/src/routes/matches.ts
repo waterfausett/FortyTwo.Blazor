@@ -7,6 +7,7 @@ import type { MatchResult } from '../matchDO';
 import {
   syncLobbyIndex,
   refreshMatchSummary,
+  deleteFromLobbyIndex,
   listActive,
   listCompleted,
   listJoinable,
@@ -18,7 +19,8 @@ import { toUserResponse } from './users';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
 import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
-import type { MatchSummary } from '@fortytwo/api-types';
+import { decodeCursor, encodeCursor } from '../cursor';
+import type { MatchPage, MatchSummary } from '@fortytwo/api-types';
 
 type AppContext = Context<AppEnv>;
 const matches = new Hono<AppEnv>();
@@ -56,25 +58,23 @@ matches.post('/', async (c) => {
 matches.get('/', async (c) => {
   const userId = c.get('user').sub;
   const filter = c.req.query('filter') ?? 'Active';
-  const rows =
-    filter === 'Completed' ? await listCompleted(c.env.DB, userId) :
-    filter === 'Joinable' ? await listJoinable(c.env.DB, userId) :
-    await listActive(c.env.DB, userId);
+  const cursor = decodeCursor(c.req.query('cursor'));
+  const list = filter === 'Completed' ? listCompleted : filter === 'Joinable' ? listJoinable : listActive;
+  const { rows, next } = await list(c.env.DB, userId, cursor);
   const playersByMatch = await listMatchPlayers(c.env.DB, rows.map((row) => row.id));
   const allPlayerIds = [...playersByMatch.values()].flat().map((p) => p.playerId);
   const names = await displayNames(c.env, [...new Set(allPlayerIds)]);
-  return c.json(
-    rows.map((row): MatchSummary => {
-      const seated = playersByMatch.get(row.id) ?? [];
-      const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
-      const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
-      const seats = [0, 1, 2, 3].map((position) => {
-        const player = seated.find((p) => p.position === position);
-        return player ? nameOf(player.playerId) : null;
-      });
-      return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
-    })
-  );
+  const summaries = rows.map((row): MatchSummary => {
+    const seated = playersByMatch.get(row.id) ?? [];
+    const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
+    const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
+    const seats = [0, 1, 2, 3].map((position) => {
+      const player = seated.find((p) => p.position === position);
+      return player ? nameOf(player.playerId) : null;
+    });
+    return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
+  });
+  return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });
 
 // Maps player ids to display names for the lobby list. Bots have no Auth0 account and keep their
@@ -137,6 +137,22 @@ matches.patch('/:id/players', async (c) => {
   const ready = field.ready(await readBody(c));
   const result = await matchStub(c.env, c.req.param('id')).readyUp(c.get('user').sub, ready, shuffledDominoOrder());
   return replyWithMatch(c, result, { lobbySync: 'summary' });
+});
+
+// Leaves a match before its first deal. The last human out deletes it - which is how a creator
+// cancels a match nobody joined - so its lobby rows go too and the reply has no match to show.
+// Leaving a match that's already gone counts as done, and clears any lobby row it left behind (a
+// retry after a failed cleanup, or a row a slower sync re-inserted after the delete).
+matches.delete('/:id/players', async (c) => {
+  const matchId = c.req.param('id');
+  const result = await matchStub(c.env, matchId).leave(c.get('user').sub);
+  if (!result.ok && result.status !== 404) return refusal(c, result);
+  if (!result.ok || result.value.deleted) {
+    await deleteFromLobbyIndex(c.env.DB, matchId);
+    return c.body(null, 204);
+  }
+  await syncLobbyIndex(c.env.DB, result.value.match);
+  return c.json(matchViewFor(result.value.match, c.get('user').sub));
 });
 
 // A vote to play the same four again once the match is over. The vote that completes the table

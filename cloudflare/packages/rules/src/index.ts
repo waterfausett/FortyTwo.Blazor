@@ -55,6 +55,9 @@ export {
   voteRematch,
   rematchAgreed,
   createRematch,
+  removePlayer,
+  hasBeenDealt,
+  hasHumanPlayers,
 } from './matchEngine';
 export { BOT_IDS, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';
