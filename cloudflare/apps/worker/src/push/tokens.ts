@@ -9,13 +9,25 @@ export function isExpoPushToken(value: unknown): value is string {
   return typeof value === 'string' && value.length <= 256 && /^Expo(nent)?PushToken\[[^\]]+\]$/.test(value);
 }
 
-export async function saveToken(db: D1Database, userId: string, token: string, platform: PushPlatform): Promise<void> {
+// A device registering the same token again leaves the row alone - D1 bills every row written,
+// and the app registers on each launch - apart from refreshing updated_on once this long has
+// passed. (An app build with a bug registered in a loop, using up the day's D1 writes.)
+export const TOKEN_REFRESH_MS = 24 * 60 * 60 * 1000;
+
+export async function saveToken(
+  db: D1Database,
+  userId: string,
+  token: string,
+  platform: PushPlatform,
+  now: Date = new Date()
+): Promise<void> {
   await db
     .prepare(
       `INSERT INTO push_tokens (token, user_id, platform, updated_on) VALUES (?1, ?2, ?3, ?4)
-       ON CONFLICT (token) DO UPDATE SET user_id = ?2, platform = ?3, updated_on = ?4`
+       ON CONFLICT (token) DO UPDATE SET user_id = ?2, platform = ?3, updated_on = ?4
+       WHERE user_id IS NOT ?2 OR platform IS NOT ?3 OR updated_on < ?5`
     )
-    .bind(token, userId, platform, new Date().toISOString())
+    .bind(token, userId, platform, now.toISOString(), new Date(now.getTime() - TOKEN_REFRESH_MS).toISOString())
     .run();
 }
 

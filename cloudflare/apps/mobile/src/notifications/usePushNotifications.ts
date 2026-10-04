@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { useApi } from '@/api/useApi';
 import { useProfile } from '@/api/useProfile';
 import { noteIncomingLink } from '@/linking/incomingLink';
-import { notificationRoute, registerDevice, unregisterDevice } from './push';
+import { addPushTokenChangeListener, notificationRoute, registerDevice, unregisterDevice } from './push';
 
 export function usePushNotifications(signedIn: boolean): void {
   const api = useApi();
@@ -21,7 +21,7 @@ export function usePushNotifications(signedIn: boolean): void {
     const sync = () => (enabled ? registerDevice(api, { ask: false }) : unregisterDevice(api)).catch(() => {});
     void sync();
     if (!enabled) return;
-    const subscription = Notifications.addPushTokenListener(() => void sync());
+    const subscription = addPushTokenChangeListener(() => void sync());
     return () => subscription.remove();
   }, [api, enabled]);
 

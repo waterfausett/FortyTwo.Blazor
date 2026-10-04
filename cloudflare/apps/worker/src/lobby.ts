@@ -23,15 +23,42 @@ export interface LobbyPage {
   next: LobbyCursor | null;
 }
 
-// Brings a match's summary row and seated players up to date.
+// Brings a match's summary row and seated players up to date. For a change to who's seated: a
+// create, join, leave, bots or rematch. Anything else uses refreshMatchSummary, which writes far less.
 export async function syncLobbyIndex(db: D1Database, match: MatchState): Promise<void> {
   await upsertMatchSummary(db, {
     id: match.id,
-    status: match.winningTeam ? 'completed' : 'active',
+    status: matchStatus(match),
     playerCount: match.players.length,
     updatedOn: match.updatedOn,
   });
   await syncMatchPlayers(db, match.id, match.players);
+}
+
+// D1 bills every row (and index entry) written, and a match changes on every play, so a change
+// that leaves the seats alone rewrites at most the match's own row: when its status or player
+// count changed (status is indexed, so it's only set then), or to refresh updated_on once it's
+// this far behind. The lobby orders by updated_on, so a match can sit up to this long below one
+// that moved more recently. (Rewriting every seat on every move used up the day's D1 writes.)
+export const SUMMARY_REFRESH_MS = 5 * 60 * 1000;
+
+export async function refreshMatchSummary(db: D1Database, match: MatchState): Promise<void> {
+  const refreshBefore = new Date(Date.parse(match.updatedOn) - SUMMARY_REFRESH_MS).toISOString();
+  await db.batch([
+    db
+      .prepare(
+        `UPDATE matches SET status = ?2, player_count = ?3, updated_on = ?4
+         WHERE id = ?1 AND (status IS NOT ?2 OR player_count IS NOT ?3)`
+      )
+      .bind(match.id, matchStatus(match), match.players.length, match.updatedOn),
+    db
+      .prepare('UPDATE matches SET updated_on = ?2 WHERE id = ?1 AND updated_on < ?3')
+      .bind(match.id, match.updatedOn, refreshBefore),
+  ]);
+}
+
+function matchStatus(match: MatchState): MatchIndexRow['status'] {
+  return match.winningTeam ? 'completed' : 'active';
 }
 
 export async function upsertMatchSummary(db: D1Database, summary: MatchIndexRow): Promise<void> {
@@ -77,9 +104,9 @@ export async function syncMatchPlayers(
 }
 
 // Seated players per match, in join order: syncMatchPlayers re-inserts the whole set in
-// `match.players` order on every sync, so rowid order is join order. The ids go in as one JSON
-// array param (unpacked by json_each) since D1 caps bound parameters at 100 per statement and a
-// long Game History could exceed that.
+// `match.players` order whenever the seats change, so rowid order is join order. The ids go in as
+// one JSON array param (unpacked by json_each) since D1 caps bound parameters at 100 per statement
+// and a long Game History could exceed that.
 export async function listMatchPlayers(db: D1Database, matchIds: string[]): Promise<Map<string, SeatedPlayer[]>> {
   const byMatch = new Map<string, SeatedPlayer[]>(matchIds.map((id) => [id, []]));
   if (matchIds.length === 0) return byMatch;

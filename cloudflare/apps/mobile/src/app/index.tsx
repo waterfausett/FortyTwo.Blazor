@@ -7,6 +7,7 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Tex
 import { useAuth0 } from 'react-native-auth0';
 import { uniqueMatches, type MatchPage, type MatchSummary } from '@fortytwo/client';
 import { useApi } from '@/api/useApi';
+import { clearCachedToken } from '@/auth/tokenCache';
 import { SeatPicker } from '@/components/SeatPicker';
 import { colors, fonts } from '@/components/theme';
 import { toastError } from '@/components/toast';
@@ -31,6 +32,7 @@ export default function Lobby() {
   // request can still be signed as them.
   const signOut = async () => {
     await unregisterDevice(api).catch(() => {});
+    clearCachedToken();
     await clearSession();
   };
   const queryClient = useQueryClient();

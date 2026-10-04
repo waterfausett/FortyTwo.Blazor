@@ -2,7 +2,7 @@ import { describe, expect, it, beforeAll, afterEach } from 'vitest';
 import { env, fetchMock } from 'cloudflare:test';
 import type { Env } from '../src/index';
 import { messagesFor, sendNotices } from '../src/push/send';
-import { saveToken } from '../src/push/tokens';
+import { TOKEN_REFRESH_MS, saveToken } from '../src/push/tokens';
 import type { Notice } from '../src/push/notices';
 
 const testEnv = env as unknown as Env;
@@ -14,6 +14,35 @@ beforeAll(() => {
 });
 
 afterEach(() => fetchMock.assertNoPendingInterceptors());
+
+describe('saveToken', () => {
+  const updatedOn = async (token: string) =>
+    (await testEnv.DB.prepare('SELECT updated_on FROM push_tokens WHERE token = ?1').bind(token).first<{ updated_on: string }>())
+      ?.updated_on;
+
+  it('leaves the row alone when the same device registers again, refreshing it at most daily', async () => {
+    const token = 'ExponentPushToken[again]';
+    const first = new Date('2026-10-01T00:00:00Z');
+    await saveToken(testEnv.DB, 'p1', token, 'android', first);
+
+    const soon = new Date(first.getTime() + 60_000);
+    await saveToken(testEnv.DB, 'p1', token, 'android', soon);
+    expect(await updatedOn(token)).toBe(first.toISOString());
+
+    const nextDay = new Date(first.getTime() + TOKEN_REFRESH_MS + 1);
+    await saveToken(testEnv.DB, 'p1', token, 'android', nextDay);
+    expect(await updatedOn(token)).toBe(nextDay.toISOString());
+  });
+
+  it('still moves the token to whoever signs in on the device next', async () => {
+    const token = 'ExponentPushToken[moved]';
+    const at = new Date('2026-10-01T00:00:00Z');
+    await saveToken(testEnv.DB, 'p1', token, 'android', at);
+    await saveToken(testEnv.DB, 'p2', token, 'android', at);
+    const row = await testEnv.DB.prepare('SELECT user_id FROM push_tokens WHERE token = ?1').bind(token).first<{ user_id: string }>();
+    expect(row?.user_id).toBe('p2');
+  });
+});
 
 describe('messagesFor', () => {
   it("sends each notice to every one of its player's devices, opening the match", () => {
