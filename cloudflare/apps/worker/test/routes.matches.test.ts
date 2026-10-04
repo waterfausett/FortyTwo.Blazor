@@ -353,6 +353,28 @@ describe('match routes', () => {
     });
   });
 
+  // A match whose seats-changing sync failed (a rematch, say) has no lobby rows, and nothing
+  // re-syncs its seats once the table is full. Its next ready-up or play puts it back.
+  it('puts a match missing from the lobby back on its next ready-up', async () => {
+    const [p1, p2, p3, p4] = await Promise.all(['p1', 'p2', 'p3', 'p4'].map(signToken));
+    const { id: matchId } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+    for (const [token, position] of [[p2, 1], [p3, 2], [p4, 3]] as const) {
+      await (await api(`/api/matches/${matchId}/players`, token, { method: 'POST', body: JSON.stringify({ position }) })).arrayBuffer();
+    }
+    await testEnv.DB.batch([
+      testEnv.DB.prepare('DELETE FROM match_players WHERE match_id = ?').bind(matchId),
+      testEnv.DB.prepare('DELETE FROM matches WHERE id = ?').bind(matchId),
+    ]);
+
+    const res = await api(`/api/matches/${matchId}/players`, p3, { method: 'PATCH', body: JSON.stringify({ ready: true }) });
+    expect(res.status).toBe(200);
+    await res.arrayBuffer();
+
+    const active = await api('/api/matches?filter=Active', p3);
+    const { matches: listed } = (await active.json()) as { matches: { id: string; playerCount: number }[] };
+    expect(listed).toEqual([expect.objectContaining({ id: matchId, playerCount: 4 })]);
+  });
+
   it("returns the caller's own hand from GET /api/matches/:id and hides the rest", async () => {
     const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4', 'p5'].map(signToken));
     const [p1, p2, p3, p4, outsider] = tokens;
