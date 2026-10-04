@@ -73,3 +73,9 @@ def test_worker_count_does_not_change_the_data(tmp_path, ckpt):
     one, two = load_bids(tmp_path / "one"), load_bids(tmp_path / "two")
     assert (one.hands == two.hands).all() and (one.points_hist == two.points_hist).all()
     assert (one.high_made == two.high_made).all() and (one.plunge_made == two.plunge_made).all()
+
+
+def test_rerun_with_fewer_hands_never_shrinks_a_batch(tmp_path, ckpt):
+    _gen(ckpt, tmp_path / "d", 4)  # two batches of 2
+    assert _gen(ckpt, tmp_path / "d", 3) == 0  # the 2-hand batch at 2 is kept, not cut to 1
+    assert len(load_bids(tmp_path / "d").hands) == 4

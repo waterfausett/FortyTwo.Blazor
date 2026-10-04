@@ -108,7 +108,8 @@ def generate(cfg: GenConfig, log=print) -> int:
     tasks = []
     for start in range(0, cfg.hands, cfg.batch_hands):
         count = min(cfg.batch_hands, cfg.hands - start)
-        if _batch_size(batch_path(out, cfg.seed, start)) != count:  # missing, or short from a smaller --hands
+        size = _batch_size(batch_path(out, cfg.seed, start))
+        if size is None or size < count:  # missing, or short from a smaller --hands; never shrink a longer one
             tasks.append((str(out), cfg.seed, start, count, cfg.sim_deals))
     total = sum(t[3] for t in tasks)
     log(f"{len(tasks)} batches to simulate ({total} hands); "
