@@ -1,7 +1,8 @@
 // D1-backed "lobby index": a lightweight, denormalized summary of matches for the lobby UI's
 // listing/filtering needs. The Durable Object (matchDO.ts) remains the sole source of truth for
 // match state; this index is synced from it after each change - by routes/matches.ts, or by
-// MatchDO itself for the changes no route makes (bot moves, a rematch).
+// MatchDO itself for the changes no route makes (bot moves, a rematch). Every sync runs through
+// `bestEffort`: by then the match is already saved, so a D1 failure must not fail the change.
 import { teamForPosition, type MatchPlayerState, type MatchState, type Teams } from '@fortytwo/rules';
 import type { MatchSummary } from '@fortytwo/api-types';
 
@@ -21,6 +22,18 @@ export interface LobbyCursor {
 export interface LobbyPage {
   rows: MatchIndexRow[];
   next: LobbyCursor | null;
+}
+
+// Runs a lobby index write for `matchId`, logging rather than throwing if it fails. The change it
+// mirrors has already been saved in the match's DO, so failing now would only tell the client a
+// move went wrong when it didn't (and a retry would then be refused). The index lags until the
+// match's next successful sync catches it up (or, for a stale or orphaned row, the expiry sweep).
+export async function bestEffort(matchId: string, write: () => Promise<void>): Promise<void> {
+  try {
+    await write();
+  } catch (error) {
+    console.error(`Failed to sync the lobby index for match ${matchId}`, error);
+  }
 }
 
 // Brings a match's summary row and seated players up to date. For a change to who's seated: a
