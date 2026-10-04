@@ -13,9 +13,11 @@ from .contracts import DEFAULT_MIX, ContractSampler, contract_kind
 from .engine.dominoes import domino_id
 from .engine.enums import Suit
 from .engine.hand_state import HandState, Phase
-from .eval.arena import evaluate_auctions, evaluate_hands, evaluate_matches
+from .eval.arena import evaluate_hands, evaluate_matches
+from .eval.auction_runner import build_bidder, evaluate_auctions_parallel, parse_bidder
 from .eval.report import format_auction_report, format_report
 from .sim.decide import DEFAULT_MAKE_THRESHOLD
+from .sim.parallel import DEFAULT_WORKERS
 
 
 def load_agent(spec: str) -> Agent:
@@ -98,9 +100,12 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--seed", type=int, default=0)
     e.add_argument("--kind", choices=["plunge", "low"], help="only evaluate this contract type")
 
-    s = sub.add_parser("eval-bidding", help="Stage 2: simulation bidding vs heuristic bidding, same play model")
+    s = sub.add_parser("eval-bidding", help="compare two bidders on one play model (default: sim vs heuristic)")
     s.add_argument("--model", required=True, help="path/to/checkpoint.pt")
     s.add_argument("--deals", type=int, default=1000)
+    s.add_argument("--a", default="sim", help="heuristic | sim (Task 6 adds fast:<bidnet.pt>)")
+    s.add_argument("--b", default="heuristic", help="heuristic | sim")
+    s.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="worker processes (1 = in-process)")
     s.add_argument("--sim-deals", type=int, default=200)
     s.add_argument(
         "--make-threshold", type=float, default=DEFAULT_MAKE_THRESHOLD, help="bid only when P(make) is above this"
@@ -136,13 +141,12 @@ def main(argv: list[str] | None = None) -> int:
         matches = evaluate_matches(a, b, args.matches, seed=args.seed) if args.matches else None
         print(format_report(hands, matches))
     elif args.command == "eval-bidding":
-        a = SimAgent.from_checkpoint(
-            args.model, n_deals=args.sim_deals, make_threshold=args.make_threshold, seed=args.seed
-        )
-        b = ModelAgent.from_checkpoint(args.model)
-        b.name = f"heuristic-bidding:{Path(args.model).name}"
-        ev = evaluate_auctions(a, b, args.deals, seed=args.seed)
-        matches = evaluate_matches(a, b, args.matches, seed=args.seed) if args.matches else None
+        common = dict(model=args.model, sim_deals=args.sim_deals, make_threshold=args.make_threshold, seed=args.seed)
+        a_spec, b_spec = parse_bidder(args.a, **common), parse_bidder(args.b, **common)
+        ev = evaluate_auctions_parallel(a_spec, b_spec, args.deals, seed=args.seed, workers=args.workers)
+        matches = None
+        if args.matches:
+            matches = evaluate_matches(build_bidder(a_spec), build_bidder(b_spec), args.matches, seed=args.seed)
         print(format_auction_report(ev, matches))
     elif args.command == "bench-train":
         import dataclasses
