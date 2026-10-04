@@ -1,4 +1,4 @@
-"""`ml train`, `ml eval`, `ml eval-bidding`, `ml gen-bids`, and `ml play-demo`."""
+"""`ml train`, `ml eval`, `ml eval-bidding`, `ml gen-bids`, `ml train-bids`, and `ml play-demo`."""
 import argparse
 import random
 from datetime import datetime
@@ -127,6 +127,13 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--seed", type=int, default=0)
     g.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
 
+    t = sub.add_parser("train-bids", help="Stage 3: train BidNet on gen-bids data")
+    t.add_argument("--data", required=True, help="gen-bids folder")
+    t.add_argument("--gold", help="optional low-noise gen-bids folder, used only for the final report")
+    t.add_argument("--out", required=True, type=Path, help="run folder; bidnet.pt is written here")
+    t.add_argument("--epochs", type=int, default=100)
+    t.add_argument("--seed", type=int, default=0)
+
     d = sub.add_parser("play-demo", help="print one hand, decision by decision")
     d.add_argument("--agent", default="heuristic")
     d.add_argument("--seed", type=int, default=0)
@@ -161,6 +168,26 @@ def main(argv: list[str] | None = None) -> int:
 
         written = generate(GenConfig(args.model, args.out, args.hands, args.sim_deals, args.seed, args.workers))
         print(f"wrote {written} hands to {args.out}")
+    elif args.command == "train-bids":
+        from .bidding.data import load_bids
+        from .bidding.model import save_bidnet
+        from .bidding.train import BidTrainConfig, gold_report, train_bidnet
+
+        data = load_bids(args.data)
+        gold = load_bids(args.gold) if args.gold else None
+        if gold is not None and (gold.play_checkpoint, gold.play_step) != (data.play_checkpoint, data.play_step):
+            raise ValueError(f"the gold set was simulated with {gold.play_checkpoint} (step {gold.play_step}), "
+                             f"the training data with {data.play_checkpoint} (step {data.play_step})")
+        result = train_bidnet(data, BidTrainConfig(epochs=args.epochs, seed=args.seed))
+        meta = {"play_checkpoint": data.play_checkpoint, "play_path": data.play_path, "play_step": data.play_step,
+                "train_hands": int(len(data.hands)), "val_loss": result.val_loss, "gold": {}}
+        if gold is not None:
+            lines, meta["gold"] = gold_report(result.net, gold)
+            print("\n".join(lines))
+        args.out.mkdir(parents=True, exist_ok=True)
+        save_bidnet(args.out / "bidnet.pt", result.net, meta)
+        print(f"trained {result.epochs} epochs on {len(data.hands)} hands; held-out loss {result.val_loss:.4f}; "
+              f"saved {args.out / 'bidnet.pt'}")
     elif args.command == "bench-train":
         import dataclasses
         import tempfile

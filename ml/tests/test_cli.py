@@ -90,3 +90,16 @@ def test_gen_bids_cli(tmp_path, capsys):
     assert main(["gen-bids", "--model", str(path), "--out", str(tmp_path / "d"), "--hands", "2",
                  "--sim-deals", "2", "--workers", "1"]) == 0
     assert "wrote 2 hands" in capsys.readouterr().out
+
+
+def test_train_bids_cli(tmp_path, capsys):
+    from fortytwo_ml.bidding.model import load_bidnet
+
+    path = tmp_path / "m.pt"
+    save_checkpoint(path, QNet(hidden=16, layers=1), step=0, config={})
+    main(["gen-bids", "--model", str(path), "--out", str(tmp_path / "d"), "--hands", "6", "--sim-deals", "2", "--workers", "1"])
+    assert main(["train-bids", "--data", str(tmp_path / "d"), "--gold", str(tmp_path / "d"),
+                 "--out", str(tmp_path / "run"), "--epochs", "2"]) == 0
+    assert "Gold set" in capsys.readouterr().out
+    net, meta = load_bidnet(tmp_path / "run" / "bidnet.pt")
+    assert meta["train_hands"] == 6 and "mae_30" in meta["gold"]
