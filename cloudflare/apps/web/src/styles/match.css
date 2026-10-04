@@ -787,6 +787,11 @@
   font-weight: 500;
 }
 
+.rail-poke {
+  display: block;
+  margin: 0 auto 0.5rem;
+}
+
 .player.active .rail-status {
   color: var(--brass);
   font-weight: 600;

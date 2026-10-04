@@ -32,6 +32,9 @@ import {
 import { syncLobbyIndex, refreshMatchSummary } from './lobby';
 import { pushNotices } from './push/notices';
 import { sendNotices } from './push/send';
+import { tokensFor } from './push/tokens';
+import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
+import type { PokeResult } from '@fortytwo/api-types';
 import { BOT_IDS, decideBid, decideTrump, decideDomino, findNextBotAction, type BotAction } from './bots';
 
 // One tick's worth of "thinking time" before a bot acts, via the DO alarm API - so a client sees
@@ -217,6 +220,38 @@ export class MatchDO extends DurableObject<Env> {
     });
   }
 
+  // Nudges the player whose turn it is once they've sat on it a while (poke.ts): over their socket
+  // if they have the match open, else as a push notification. One poke per turn, whoever sends it,
+  // recorded under its own key naming the turn - so the next turn can be poked again without the
+  // match itself changing. A poke that reaches nobody (no socket open, no device registered)
+  // doesn't use the turn's poke up, and the reply says so, so the poker isn't left guessing.
+  poke(pokerId: string): Promise<MatchResult<PokeResult>> {
+    return this.read(async (match): Promise<PokeResult> => {
+      const target = pokeTarget(match, pokerId, Date.now());
+      const turn = pokeTurnKey(match);
+      if ((await this.ctx.storage.get<string>('pokedTurn')) === turn) {
+        throw new ValidationError('Already poked', 'Someone has already poked them this turn.');
+      }
+      // Taken before the D1 lookup below, which lets other calls in while it's out, so a second
+      // poke meanwhile is refused rather than sent too.
+      await this.ctx.storage.put('pokedTurn', turn);
+
+      const sockets = this.socketsOf(target);
+      if (sockets.length > 0) {
+        const message = JSON.stringify({ type: 'poke', from: pokerId });
+        for (const ws of sockets) ws.send(message);
+        return { delivered: 'inApp' };
+      }
+      if ((await tokensFor(this.env.DB, [target])).length === 0) {
+        // Handed back, unless the turn moved on and was poked while the lookup was out.
+        if ((await this.ctx.storage.get<string>('pokedTurn')) === turn) await this.ctx.storage.delete('pokedTurn');
+        return { delivered: 'none' };
+      }
+      this.ctx.waitUntil(sendNotices(this.env, [pokeNotice(match, target)]));
+      return { delivered: 'push' };
+    });
+  }
+
   // Runs `action` against the stored match, turning a broken rule into a 400 result. Anything else
   // thrown is a bug, and propagates.
   private async read<T>(action: (match: MatchState) => T | Promise<T>): Promise<MatchResult<T>> {
@@ -323,7 +358,8 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   // Required by the Hibernation API even though clients don't send messages today - all match
-  // actions go through the REST routes, not over the socket.
+  // actions go through the REST routes, not over the socket. The server sends two kinds:
+  // `{ type: 'match', match }` on every change, and `{ type: 'poke', from }` to a poked player.
   async webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {}
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
@@ -357,6 +393,14 @@ export class MatchDO extends DurableObject<Env> {
       if (attachment) ids.add(attachment.playerId);
     }
     return ids;
+  }
+
+  // Every socket `playerId` has open on this match - one per tab or device.
+  private socketsOf(playerId: string): WebSocket[] {
+    return this.ctx.getWebSockets().filter((ws) => {
+      const attachment = ws.deserializeAttachment() as { playerId: string } | null;
+      return attachment?.playerId === playerId;
+    });
   }
 
   // Each socket gets its own view - its player's hand, and only a count of everyone else's.

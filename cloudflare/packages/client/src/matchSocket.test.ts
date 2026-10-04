@@ -1,5 +1,5 @@
 // The connect/backoff loop's general behaviour is covered by apps/web's useMatchSocket tests. These
-// cover a token fetch failing, against a mock WebSocket and fake timers.
+// cover a token fetch failing and the poke message, against a mock WebSocket and fake timers.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectMatchSocket, type MatchSocketOptions } from './matchSocket';
 
@@ -112,5 +112,26 @@ describe('connectMatchSocket when getToken rejects', () => {
     expect(options.onDrop).not.toHaveBeenCalled();
     expect(getToken).toHaveBeenCalledTimes(1);
     expect(MockWebSocket.instances).toHaveLength(0);
+  });
+});
+
+describe('connectMatchSocket messages', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = [];
+    vi.stubGlobal('WebSocket', MockWebSocket);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('hands a poke to onPoke with who sent it, and not to onMatch', async () => {
+    const onPoke = vi.fn();
+    const { options, disconnect } = connect({ onPoke });
+    await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+
+    MockWebSocket.instances[0].emit('message', { data: JSON.stringify({ type: 'poke', from: 'p2' }) });
+
+    expect(onPoke).toHaveBeenCalledWith('p2');
+    expect(options.onMatch).not.toHaveBeenCalled();
+    disconnect();
   });
 });

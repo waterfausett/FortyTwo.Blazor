@@ -1,6 +1,7 @@
 // The match screen: scores and contract, the table, and what this player can do right now - bid,
 // name trump, play a domino by tapping it, ready up for the next hand, ask for a rematch, or - before
-// the first deal - leave the table (or cancel the match, when no other human is seated). Live
+// the first deal - leave the table (or cancel the match, when no other human is seated) - or poke
+// whoever the table has been waiting on for 30 minutes (match/usePoke.ts). Live
 // state comes from the match socket; what the state allows comes from @fortytwo/client's
 // describeMatch, which the web match page uses too.
 import { useEffect, useRef, useState } from 'react';
@@ -61,6 +62,7 @@ import { colors, fonts } from '@/components/theme';
 import { shareInvite } from '@/linking/invite';
 import { askOnceForPush } from '@/notifications/push';
 import { useLatch } from '@/match/useLatch';
+import { usePoke } from '@/match/usePoke';
 import { useSettled } from '@/match/useSettled';
 import { useTrickHold } from '@/match/useTrickHold';
 
@@ -73,7 +75,11 @@ export default function MatchScreen() {
   // Room at the bottom of the scroll, above the phone's gesture bar or navigation buttons.
   const bottomInset = useSafeAreaInsets().bottom;
 
-  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(id, getToken);
+  // A poke names its sender from the display names below, kept here once they load.
+  const namesRef = useRef<Map<string, string> | undefined>(undefined);
+  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(id, getToken, (from) =>
+    toastInfo(`${namesRef.current?.get(from) ?? from} poked you`, "It's your turn", 'center')
+  );
   // The socket sends the match as soon as it connects; this fills the moment before that, and
   // stands in while the socket is down.
   const matchQuery = useQuery({
@@ -94,6 +100,10 @@ export default function MatchScreen() {
     enabled: seatedIds.length > 0,
     staleTime: Infinity,
   });
+  useEffect(() => {
+    namesRef.current = names.data;
+  }, [names.data]);
+  const poke = usePoke(liveMatch, myPlayerId, () => api.poke(id), (playerId) => names.data?.get(playerId) ?? playerId);
   // The player's settings: whether to outline the playable dominoes (opted into), and whether
   // they want notifications.
   const profile = useProfile().data;
@@ -514,9 +524,21 @@ export default function MatchScreen() {
             // Keyed by phase rather than by the words, so a new phase eases in but each turn's
             // status doesn't flicker.
             <Fade key={view.isPlayingPhase ? 'play' : 'wait'}>
-              <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
-                {status}
-              </Text>
+              <View style={styles.statusLine}>
+                <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
+                  {status}
+                </Text>
+                {poke.target != null && (
+                  <Pressable
+                    style={[styles.smallButton, poke.pending && styles.buttonDisabled]}
+                    disabled={poke.pending}
+                    onPress={poke.poke}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.smallButtonText}>Poke {nameFor(poke.target)}</Text>
+                  </Pressable>
+                )}
+              </View>
             </Fade>
           )
         )}
@@ -680,6 +702,7 @@ const styles = StyleSheet.create({
   handOverText: { flex: 1, gap: 2 },
   handOverTitle: { color: colors.bone, fontFamily: fonts.display, fontSize: 20 },
   handOverDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
+  statusLine: { alignItems: 'center', gap: 8 },
   status: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   muted: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center' },
   spacer: { flexGrow: 1 },
