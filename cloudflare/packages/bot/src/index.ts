@@ -5,3 +5,7 @@ export { buildView, seatOf } from './view';
 export type { BotView } from './view';
 export { encodeCandidates, encodeHand, OBS_DIM, INPUT_DIM } from './encode';
 export { DOMINOES, toIndex } from './dominoes';
+export { createBot, legalPlays } from './bot';
+export type { Bot } from './bot';
+export { bidTable, optionsFromTable, chooseBid } from './bidding';
+export type { BidTable, Option, BidContext, BidDecision } from './bidding';

@@ -31,7 +31,7 @@ export function scoreCandidates(play: Dense[], obsDim: number, rows: ArrayLike<n
   const shared = Float64Array.from(first.b);
   addColumns(first, rows[0], 0, obsDim, shared);
   return rows.map((row) => {
-    let h = Float64Array.from(shared);
+    let h: Float64Array = Float64Array.from(shared);
     addColumns(first, row, obsDim, first.inDim, h);
     for (let o = 0; o < h.length; o++) if (h[o] < 0) h[o] = 0;
     rest.forEach((layer, k) => {
