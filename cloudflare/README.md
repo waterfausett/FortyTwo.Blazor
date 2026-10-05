@@ -120,18 +120,48 @@ development build shows its own.
 - **The Android SDK.** Gradle fails with "SDK location not found" until `ANDROID_HOME` points at
   it, by default `%LOCALAPPDATA%\Android\Sdk` (Android Studio → SDK Manager shows the location).
   Add `%ANDROID_HOME%\platform-tools` to `Path` too, so `adb devices` can see your phone.
-- **Short paths.** The native build writes object files at very deep paths, and the `ninja.exe`
-  that comes with the SDK's CMake can't handle paths over Windows' 260-character limit
-  ("Filename longer than 260 characters"). Either clone the repo to a short path such as `C:\ft`,
-  or turn on Windows long paths (the `LongPathsEnabled` registry setting, then reboot) and
-  replace `%ANDROID_HOME%\cmake\<version>\bin\ninja.exe` with ninja 1.12 or later. Avoid a
-  `subst` drive: npm links the `@fortytwo/*` packages by their real `C:\` path, which Metro then
-  treats as outside the project ("Unable to resolve \"@fortytwo/rules\"").
+- **Long paths.** The native build writes object files at paths past Windows' old 260-character
+  limit, and the `ninja.exe` that comes with the SDK's CMake (1.10) can't handle them ("Filename
+  longer than 260 characters"). Turn on Windows long paths (the `LongPathsEnabled` registry
+  setting, then reboot) and replace `%ANDROID_HOME%\cmake\<version>\bin\ninja.exe` with ninja
+  1.12 or later, from [ninja's releases](https://github.com/ninja-build/ninja/releases)
+  (`ninja-win.zip`). Then even a deep git worktree builds; without it, only a short clone such
+  as `C:\ft` does. Don't build through a `subst` drive
+  to shorten the path: autolinking resolves the native modules to their real `C:\` paths, and
+  the build fails on the mix ("this and base files have different roots").
 
 After changing any of these, open a new terminal. If Gradle still uses the old settings, stop
 its background process (`cd android && gradlew --stop`). After a failed native build, delete
 `android\app\.cxx` before retrying. `android\` is generated and gitignored, so fix the machine's
 setup rather than editing files in it.
+
+#### The emulator script
+
+`apps/mobile/scripts/emulator.ps1` does it all, in order. `up` boots the emulator,
+builds and installs the app if it isn't installed, starts Metro on a free port and opens the
+app. `shot`, `tap`, `open <route>` and the rest drive it from the command line, and `down` stops
+it. `Get-Help apps/mobile/scripts/emulator.ps1` lists the commands.
+
+It runs the app with the **dev bypass** unless you pass `-SignIn`. With
+`EXPO_PUBLIC_DEV_BYPASS=1` in Metro's environment, a development build acts signed in and
+answers the lobby and profile from canned data in `apps/mobile/src/dev/devBypass.ts`, with no
+Auth0 or Worker. It's for working on screens; opening a match doesn't work. A release build
+compiles it out.
+
+#### Running next to another checkout
+
+Metro defaults to port 8081, so a second checkout's Metro needs another port. Start it with
+`npx expo start --dev-client --port 8082` and point the app at it:
+
+```powershell
+adb reverse tcp:8082 tcp:8082
+adb shell am start -a android.intent.action.VIEW -d "exp+fortytwo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8082"
+```
+
+`adb reverse` makes `localhost:8082` on the device reach your machine, on the emulator and on a
+phone plugged in by USB. With more than one device attached, adb needs to know which one:
+`adb -s emulator-5554 ...` (`adb devices` lists them). The emulator script picks a free port and
+does all of this itself.
 
 ### Cloud builds with EAS
 
