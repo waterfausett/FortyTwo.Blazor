@@ -31,14 +31,14 @@ describe('GET /.well-known/assetlinks.json', () => {
   });
 
   it('serves each fingerprint it is given', async () => {
-    const res = await app.request('/.well-known/assetlinks.json', {}, { ...testEnv, ANDROID_APP_FINGERPRINTS: 'AB:CD' });
+    const res = await app.fetch(new Request('https://example.com/.well-known/assetlinks.json'), { ...testEnv, ANDROID_APP_FINGERPRINTS: 'AB:CD' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { target: { sha256_cert_fingerprints: string[] } }[];
     expect(body[0].target.sha256_cert_fingerprints).toEqual(['AB:CD']);
   });
 
   it('is a 404 when none are set', async () => {
-    const res = await app.request('/.well-known/assetlinks.json', {}, { ...testEnv, ANDROID_APP_FINGERPRINTS: undefined });
+    const res = await app.fetch(new Request('https://example.com/.well-known/assetlinks.json'), { ...testEnv, ANDROID_APP_FINGERPRINTS: undefined });
     expect(res.status).toBe(404);
   });
 });

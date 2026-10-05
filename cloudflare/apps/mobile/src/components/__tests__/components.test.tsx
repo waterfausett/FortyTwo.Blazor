@@ -5,7 +5,7 @@ import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
 import { JoinMatchPanel } from '../JoinMatchPanel';
 import { SeatPicker } from '../SeatPicker';
-import { Table } from '../Table';
+import { Table, type SeatInfo } from '../Table';
 import { TrickHistory } from '../TrickHistory';
 
 function biddingGame(overrides: Partial<Game> = {}): Game {
@@ -116,6 +116,44 @@ describe('SeatPicker', () => {
     expect(onPick).toHaveBeenCalledWith(2);
     await fireEvent.press(screen.getByLabelText('Sit here, with Di'));
     expect(onPick).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('Table', () => {
+  const seat = (name: string, dominoCount: number | null, overrides: Partial<SeatInfo> = {}): SeatInfo => ({
+    name,
+    side: 'them',
+    isActive: false,
+    isDealer: false,
+    bid: null,
+    isHighBidder: false,
+    trump: null,
+    ready: null,
+    dominoCount,
+    ...overrides,
+  });
+
+  it('seats everyone on the felt, with a face-down tile for each domino another player holds', async () => {
+    await render(
+      <Table
+        seats={{
+          bottom: seat('You', null, { side: 'us' }),
+          left: seat('Ann', 7),
+          top: seat('Bo', 6, { side: 'us', isActive: true }),
+          right: null,
+        }}
+        trick={null}
+        slotSeats={[null, null, null, null]}
+        winningSlot={null}
+      />,
+    );
+
+    expect(screen.getByLabelText('Table')).toBeTruthy();
+    expect(screen.getByText('You')).toBeTruthy();
+    expect(screen.getByLabelText('7 dominoes')).toBeTruthy();
+    expect(screen.getByLabelText('6 dominoes')).toBeTruthy();
+    expect(screen.getByLabelText('Bo, to act')).toBeTruthy();
+    expect(screen.getByText('Open seat')).toBeTruthy();
   });
 });
 

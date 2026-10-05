@@ -163,6 +163,46 @@ function seatPlayer(match: MatchState, playerId: string, position: Positions, de
   return { ...match, currentGame, players, updatedOn: now() };
 }
 
+// Whether any hand has been dealt in this match yet. Hands are empty again after a hand's last
+// trick, so empty hands alone don't mean "not dealt": a played trick or a filed game counts too.
+// A hidden hand (view.ts) counts by its `hiddenCount`, so this also works on a client's view.
+export function hasBeenDealt(match: MatchState): boolean {
+  return (
+    Object.values(match.games).some((games) => (games?.length ?? 0) > 0) ||
+    match.currentGame.tricks.length > 0 ||
+    match.currentGame.hands.some((h) => (h.hiddenCount ?? h.dominoes.length) > 0)
+  );
+}
+
+export function hasHumanPlayers(match: MatchState): boolean {
+  return match.players.some((p) => !isBot(p.playerId));
+}
+
+// Takes a player's seat and hand back out of a match that hasn't been dealt yet. If they were
+// due to open (the creator always is), the lowest-seated remaining human opens instead - never a
+// bot, which would act on its turn before anything is dealt. Removing the last player is allowed;
+// the caller deletes a match with no human left.
+export function removePlayer(match: MatchState, playerId: string): MatchState {
+  assertActive(match);
+  assertIsMatchPlayer(match, playerId);
+  if (hasBeenDealt(match)) throw new ValidationError("You can't leave once the dominoes are dealt");
+
+  const players = match.players.filter((p) => p.playerId !== playerId);
+  const opener = players
+    .filter((p) => !isBot(p.playerId))
+    .sort((a, b) => a.position - b.position)[0]?.playerId;
+  const replaceLeaver = (id: string | null) => (id === playerId && opener !== undefined ? opener : id);
+
+  const currentGame: Game = {
+    ...match.currentGame,
+    hands: match.currentGame.hands.filter((h) => h.playerId !== playerId),
+    firstActionBy: replaceLeaver(match.currentGame.firstActionBy),
+    currentPlayerId: replaceLeaver(match.currentGame.currentPlayerId),
+  };
+
+  return { ...match, players, currentGame, updatedOn: now() };
+}
+
 // Marks a player ready (or not) for the next hand. Once the current hand is decided and all four
 // are ready, the next hand is dealt from `dealOrder`, opened by the seat after the last opener.
 export function patchPlayerReady(

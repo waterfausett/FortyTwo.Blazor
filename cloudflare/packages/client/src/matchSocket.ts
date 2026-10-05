@@ -7,10 +7,14 @@ import type { MatchState } from '@fortytwo/rules';
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
-// Close codes the server sends on purpose to say "don't come back" (e.g. a future "not a player"
-// code). Every other close - clean or not - is retried: a DO restart, a Worker deploy, and
-// webSocketClose echoing a 1000 all close cleanly without meaning the match is over.
-const NO_RECONNECT_CODES: ReadonlySet<number> = new Set();
+// The Worker closes every socket with this when their match is deleted (MatchDO's
+// MATCH_DELETED_CLOSE_CODE): the last human left, or it expired.
+export const MATCH_DELETED_CLOSE_CODE = 4404;
+
+// Close codes the server sends on purpose to say "don't come back". Every other close - clean or
+// not - is retried: a DO restart, a Worker deploy, and webSocketClose echoing a 1000 all close
+// cleanly without meaning the match is over.
+const NO_RECONNECT_CODES: ReadonlySet<number> = new Set([MATCH_DELETED_CLOSE_CODE]);
 
 interface MatchSocketMessage {
   type: 'match';
@@ -37,6 +41,9 @@ export interface MatchSocketOptions {
   onMatch: (match: MatchState) => void;
   // A socket closed on us - a live one dropping, or a connect attempt failing. A retry follows.
   onDrop: () => void;
+  // The server deleted the match (the last human left, or it expired). Follows an onDrop; no retry
+  // follows, and nothing more will arrive.
+  onDeleted?: () => void;
   // Registers `wake` to be called when it's worth reconnecting now rather than sitting out the rest
   // of a backoff delay that may have grown to 30s - the app coming back to the foreground, or the
   // network returning. Returns an unsubscribe function.
@@ -52,6 +59,7 @@ export function connectMatchSocket({
   onOpen,
   onMatch,
   onDrop,
+  onDeleted,
   subscribeWake,
 }: MatchSocketOptions): () => void {
   let cancelled = false;
@@ -66,9 +74,16 @@ export function connectMatchSocket({
     let token: string;
     try {
       token = await getToken();
-    } finally {
+    } catch {
+      // E.g. offline when the token needs renewing. Treat it like a failed connect attempt and
+      // retry, rather than leaving nothing scheduled - which would also make reconnectNow a no-op.
       connecting = false;
+      if (cancelled) return;
+      onDrop();
+      scheduleReconnect();
+      return;
     }
+    connecting = false;
     // We may have been disposed while awaiting the token - bail out rather than opening a socket
     // nobody will ever close.
     if (cancelled) return;
@@ -99,13 +114,21 @@ export function connectMatchSocket({
       // case, regardless of the close event's wasClean flag.
       if (cancelled) return;
       onDrop();
+      if (event.code === MATCH_DELETED_CLOSE_CODE) onDeleted?.();
       if (NO_RECONNECT_CODES.has(event.code)) return;
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
-        connect();
-      }, reconnectDelay);
+      scheduleReconnect();
     });
+  }
+
+  function scheduleReconnect() {
+    // Only one of a pending timer, a token fetch, or a socket exists at a time, so this should
+    // never find a timer already set - but if it does, don't leak it into a second connect.
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
+      connect();
+    }, reconnectDelay);
   }
 
   function reconnectNow() {

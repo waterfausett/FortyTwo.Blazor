@@ -1,0 +1,64 @@
+name: Mobile
+
+# Tests and typechecks the mobile app on every pull request and push that can affect it. Builds
+# ship through EAS (.eas/workflows), not here.
+#
+# Which changes count as affecting it is defined in .github/path-filters.yml.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: cloudflare
+
+jobs:
+  # The workflow runs on every push and pull request so the required check below always reports.
+  # This job skips the rest when nothing it covers changed.
+  changes:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: .github/path-filters.yml
+
+  test:
+    needs: changes
+    if: ${{ !cancelled() && !failure() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: cloudflare/package-lock.json
+      - run: npm ci
+      - run: npm test -w @fortytwo/mobile
+      - run: npm run typecheck -w @fortytwo/mobile
+
+  # The check the master ruleset requires. A skipped job counts as passing, so this fails only when
+  # one of the jobs above failed or was cancelled.
+  ci:
+    name: Mobile CI
+    if: always()
+    needs: [changes, test]
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+        working-directory: .

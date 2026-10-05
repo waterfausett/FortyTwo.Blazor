@@ -1,12 +1,13 @@
 // The lobby: the signed-in player's matches, one list at a time, plus starting a new match and
-// joining an open seat in someone else's.
+// joining an open seat in someone else's. Each list loads a page at a time as it's scrolled.
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { router, Stack } from 'expo-router';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useAuth0 } from 'react-native-auth0';
-import type { MatchSummary } from '@fortytwo/client';
+import { uniqueMatches, type MatchPage, type MatchSummary } from '@fortytwo/client';
 import { useApi } from '@/api/useApi';
+import { clearCachedToken } from '@/auth/tokenCache';
 import { SeatPicker } from '@/components/SeatPicker';
 import { colors, fonts } from '@/components/theme';
 import { toastError } from '@/components/toast';
@@ -31,6 +32,7 @@ export default function Lobby() {
   // request can still be signed as them.
   const signOut = async () => {
     await unregisterDevice(api).catch(() => {});
+    clearCachedToken();
     await clearSession();
   };
   const queryClient = useQueryClient();
@@ -38,10 +40,23 @@ export default function Lobby() {
   // The Find a game row whose seat picker is open, if any.
   const [pickingSeatIn, setPickingSeatIn] = useState<string | null>(null);
 
-  const matches = useQuery({
-    queryKey: ['matches', filter],
-    queryFn: () => api.listMatches(filter),
+  const matches = useInfiniteQuery({
+    queryKey: ['matches', filter] as const,
+    queryFn: ({ pageParam }) => api.listMatches(filter, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
+  // Loading the next page fetches too, but only a refresh shows the pull-to-refresh spinner.
+  const refreshing = matches.isFetching && !matches.isFetchingNextPage;
+
+  // Back to the first page: drop the rest from the cache, then refetch what's left - one request,
+  // with the list kept on screen meanwhile.
+  function refresh() {
+    queryClient.setQueryData<InfiniteData<MatchPage, string | undefined>>(['matches', filter], (data) =>
+      data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
+    );
+    void matches.refetch();
+  }
 
   const create = useMutation({
     mutationFn: () => api.createMatch(),
@@ -96,7 +111,7 @@ export default function Lobby() {
       </View>
       {matches.error && <Text style={styles.error}>{matches.error.message}</Text>}
       <FlatList
-        data={matches.data ?? []}
+        data={uniqueMatches(matches.data?.pages) ?? []}
         keyExtractor={(m) => m.id}
         renderItem={({ item }) => (
           <MatchRow
@@ -110,11 +125,17 @@ export default function Lobby() {
         )}
         refreshControl={
           <RefreshControl
-            refreshing={matches.isFetching}
-            onRefresh={() => matches.refetch()}
+            refreshing={refreshing}
+            onRefresh={refresh}
             tintColor={colors.brass}
             colors={[colors.brass]}
           />
+        }
+        onEndReached={() => {
+          if (matches.hasNextPage && !matches.isFetching) void matches.fetchNextPage();
+        }}
+        ListFooterComponent={
+          matches.isFetchingNextPage ? <ActivityIndicator color={colors.brass} style={styles.footer} /> : null
         }
         ListEmptyComponent={matches.isSuccess ? <Text style={styles.empty}>{EMPTY_LABELS[filter]}</Text> : null}
       />
@@ -200,6 +221,7 @@ const styles = StyleSheet.create({
   joinButton: { backgroundColor: colors.brass, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
   joinText: { color: colors.walnutDeep, fontFamily: fonts.uiBold },
   rowDetail: { color: colors.inkMuted, fontFamily: fonts.ui, marginTop: 2 },
+  footer: { marginVertical: 12 },
   empty: { textAlign: 'center', color: colors.inkMuted, fontFamily: fonts.ui, marginTop: 24 },
   error: { color: colors.danger, fontFamily: fonts.ui },
   headerLinks: { flexDirection: 'row', gap: 16 },

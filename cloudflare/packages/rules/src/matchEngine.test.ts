@@ -12,6 +12,9 @@ import {
   voteRematch,
   rematchAgreed,
   createRematch,
+  removePlayer,
+  hasBeenDealt,
+  hasHumanPlayers,
   MatchState,
 } from './matchEngine';
 import { ValidationError } from './errors';
@@ -768,6 +771,103 @@ describe('rematch', () => {
 
     it('refuses a previous match without four players', () => {
       expect(() => createRematch('m2', finishedMatch({ players: fourPlayers().slice(0, 3) }), fullDeck())).toThrow();
+    });
+  });
+});
+
+describe('leaving a match', () => {
+  // p1 created the match; p2 sat at seat 1 and p3 at seat 2. Nothing dealt yet.
+  function threeSeated(): MatchState {
+    let match = createMatch('p1');
+    match = takeSeat(match, 'p2', Positions.Second);
+    match = takeSeat(match, 'p3', Positions.Third);
+    return match;
+  }
+
+  describe('hasBeenDealt', () => {
+    it('is false for a table still waiting for players', () => {
+      expect(hasBeenDealt(threeSeated())).toBe(false);
+    });
+
+    it('is true once the 4th seat deals', () => {
+      expect(hasBeenDealt(takeSeat(threeSeated(), 'p4', Positions.Fourth, fullDeck()))).toBe(true);
+    });
+
+    it('counts hidden hands, so it works on a client view', () => {
+      const match = threeSeated();
+      const hidden = {
+        ...match,
+        currentGame: {
+          ...match.currentGame,
+          hands: match.currentGame.hands.map((h) => ({ ...h, dominoes: [], hiddenCount: 7 })),
+        },
+      };
+      expect(hasBeenDealt(hidden)).toBe(true);
+    });
+
+    it('stays true between hands, when every hand is empty again', () => {
+      const match = threeSeated();
+      const afterLastTrick = { ...match, currentGame: { ...match.currentGame, tricks: [createTrick()] } };
+      expect(hasBeenDealt(afterLastTrick)).toBe(true);
+      const withFiledGame = { ...match, games: { [Teams.TeamA]: [match.currentGame] } };
+      expect(hasBeenDealt(withFiledGame)).toBe(true);
+    });
+  });
+
+  describe('hasHumanPlayers', () => {
+    it('ignores bots', () => {
+      expect(hasHumanPlayers(createMatch('bot-1'))).toBe(false);
+      expect(hasHumanPlayers(threeSeated())).toBe(true);
+    });
+  });
+
+  describe('removePlayer', () => {
+    it("removes the player's seat and hand", () => {
+      const next = removePlayer(threeSeated(), 'p2');
+      expect(next.players.map((p) => p.playerId)).toEqual(['p1', 'p3']);
+      expect(next.currentGame.hands.map((h) => h.playerId)).toEqual(['p1', 'p3']);
+    });
+
+    it('hands the opening turn to the lowest remaining seat when the creator leaves', () => {
+      const next = removePlayer(threeSeated(), 'p1');
+      expect(next.currentGame.firstActionBy).toBe('p2');
+      expect(next.currentGame.currentPlayerId).toBe('p2');
+    });
+
+    it('skips bots when handing on the opening turn, so no bot acts before the deal', () => {
+      let match = createMatch('p1');
+      match = takeSeat(match, 'bot-1', Positions.Second);
+      match = takeSeat(match, 'p3', Positions.Third);
+
+      const next = removePlayer(match, 'p1');
+
+      expect(next.currentGame.firstActionBy).toBe('p3');
+      expect(next.currentGame.currentPlayerId).toBe('p3');
+    });
+
+    it('leaves the opener alone when someone else leaves', () => {
+      const next = removePlayer(threeSeated(), 'p3');
+      expect(next.currentGame.firstActionBy).toBe('p1');
+      expect(next.currentGame.currentPlayerId).toBe('p1');
+    });
+
+    it('can remove the last player', () => {
+      const next = removePlayer(createMatch('p1'), 'p1');
+      expect(next.players).toEqual([]);
+      expect(next.currentGame.hands).toEqual([]);
+    });
+
+    it('refuses someone who is not seated', () => {
+      expect(() => removePlayer(threeSeated(), 'p9')).toThrow(ValidationError);
+    });
+
+    it('refuses once the dominoes are dealt', () => {
+      const dealt = takeSeat(threeSeated(), 'p4', Positions.Fourth, fullDeck());
+      expect(() => removePlayer(dealt, 'p2')).toThrow("You can't leave once the dominoes are dealt");
+    });
+
+    it('refuses on a finished match', () => {
+      expect(() => removePlayer({ ...threeSeated(), winningTeam: Teams.TeamA }, 'p2')).toThrow(ValidationError);
     });
   });
 });

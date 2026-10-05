@@ -12,25 +12,29 @@ import type { MatchState } from '@fortytwo/rules';
 import type {
   ApiErrorBody,
   ClientConfig,
+  MatchPage,
   MatchSummary,
   ProfilePatch,
   PublicUser,
   UserProfile,
 } from '@fortytwo/api-types';
 
-export type { MatchSummary, PublicUser, UserProfile };
+export type { MatchPage, MatchSummary, PublicUser, UserProfile };
 
 // Keeps the Worker's title and detail apart so a toast can show them as heading and body;
 // `message` still joins them for callers that just print it.
 export class ApiError extends Error {
   readonly title: string;
   readonly detail?: string;
+  // The response's HTTP status, when the error came from one.
+  readonly status?: number;
 
-  constructor(title: string, detail?: string) {
+  constructor(title: string, detail?: string, status?: number) {
     super(detail ? `${title}: ${detail}` : title);
     this.name = 'ApiError';
     this.title = title;
     this.detail = detail;
+    this.status = status;
   }
 }
 
@@ -64,7 +68,7 @@ async function requestFrom<T>(
       // so the title/detail fallback below still produces a useful message.
     }
     const title = body.title?.trim() || res.statusText || `Request failed (${res.status})`;
-    throw new ApiError(title, body.detail || undefined);
+    throw new ApiError(title, body.detail || undefined, res.status);
   }
 
   if (!parseJson) return undefined as T;
@@ -79,8 +83,9 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
   return {
     createMatch: (): Promise<MatchState> => request<MatchState>('/api/matches', { method: 'POST' }),
 
-    listMatches: (filter: 'Active' | 'Completed' | 'Joinable'): Promise<MatchSummary[]> =>
-      request<MatchSummary[]>(`/api/matches?filter=${filter}`),
+    // One page of a lobby list; pass the previous page's `nextCursor` for the next one.
+    listMatches: (filter: 'Active' | 'Completed' | 'Joinable', cursor?: string): Promise<MatchPage> =>
+      request<MatchPage>(`/api/matches?filter=${filter}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
 
     getMatch: (id: string): Promise<MatchState> => request<MatchState>(`/api/matches/${id}`),
 
@@ -90,6 +95,11 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
         method: 'POST',
         body: JSON.stringify({ position }),
       }),
+
+    // Leaves a match before its first deal; the last human out deletes it. The reply is the match
+    // (someone's still seated) or empty (deleted) - the caller navigates away either way.
+    leaveMatch: (id: string): Promise<void> =>
+      request<void>(`/api/matches/${id}/players`, { method: 'DELETE' }, false),
 
     readyUp: (id: string, ready: boolean): Promise<MatchState> =>
       request<MatchState>(`/api/matches/${id}/players`, {

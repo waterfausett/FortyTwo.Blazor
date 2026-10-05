@@ -1,17 +1,18 @@
-name: Cloudflare
+name: Worker
 
-# Tests every pull request and push. On a push to master (or a manual run), it then builds the web
-# app, applies any new D1 migrations, and deploys the Worker, which serves the web app too.
+# Tests the Worker and web app on every pull request and push that can affect them. On a push to
+# master (or a manual run), it then builds the web app, applies any new D1 migrations, and deploys
+# the Worker, which serves the web app too.
+#
+# Which changes count as affecting it is defined in .github/path-filters.yml.
 on:
   push:
     branches: [master]
-    paths: ['cloudflare/**', '.github/workflows/cloudflare.yml']
   pull_request:
-    paths: ['cloudflare/**', '.github/workflows/cloudflare.yml']
   workflow_dispatch:
 
 concurrency:
-  group: cloudflare-${{ github.ref }}
+  group: worker-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -19,7 +20,26 @@ defaults:
     working-directory: cloudflare
 
 jobs:
+  # The workflow runs on every push and pull request so the required check below always reports.
+  # This job skips the rest when nothing it covers changed.
+  changes:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      worker: ${{ steps.filter.outputs.worker }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: .github/path-filters.yml
+
   test:
+    needs: changes
+    if: ${{ !cancelled() && !failure() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.worker == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +55,6 @@ jobs:
       - run: npm test -w @fortytwo/web
       # Typechecks the web app and the packages it references.
       - run: npm run build -w @fortytwo/web
-      - run: npm test -w @fortytwo/mobile
-      - run: npm run typecheck -w @fortytwo/mobile
 
   deploy:
     needs: test
@@ -65,3 +83,15 @@ jobs:
         working-directory: cloudflare/apps/worker
       - run: npx wrangler deploy
         working-directory: cloudflare/apps/worker
+
+  # The check the master ruleset requires. A skipped job counts as passing, so this fails only when
+  # one of the jobs above failed or was cancelled.
+  ci:
+    name: Worker CI
+    if: always()
+    needs: [changes, test]
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+        working-directory: .

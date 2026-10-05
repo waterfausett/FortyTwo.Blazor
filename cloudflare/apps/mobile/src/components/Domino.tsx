@@ -3,6 +3,7 @@
 // coloured by count. Every pip is positioned absolutely from the centre of its half of the face,
 // so the layout can't shift with rounding the way a wrapped grid of fractional cells does, and the
 // offset shadow is a separate layer behind the face so it can't pull the pips off centre.
+import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors } from './theme';
 
@@ -55,7 +56,9 @@ export interface DominoProps {
   accessible?: boolean;
 }
 
-export function Domino({
+// Memoized: a screen of dominoes re-renders on every broadcast, and each tile's props (numbers and
+// flags, plus onPress where it's tapped directly) rarely change between them.
+export const Domino = memo(function Domino({
   top,
   bottom,
   width = 32,
@@ -148,7 +151,7 @@ export function Domino({
       {({ pressed }) => <View style={pressed ? styles.pressed : undefined}>{tile}</View>}
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   edge: { position: 'absolute', backgroundColor: colors.boneEdge },

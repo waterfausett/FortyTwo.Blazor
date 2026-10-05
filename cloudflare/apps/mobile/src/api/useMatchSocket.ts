@@ -33,13 +33,15 @@ function useAppInForeground(): boolean {
 export function useMatchSocket(
   matchId: string,
   getToken: () => Promise<string>
-): { match: MatchState | null; connected: boolean; reconnecting: boolean } {
+): { match: MatchState | null; connected: boolean; reconnecting: boolean; deleted: boolean } {
   // Both are tagged with the matchId they belong to, so the very first render for a new matchId
   // never shows the previous match's state (or its "connected") while the new socket comes up.
   const [latest, setLatest] = useState<{ matchId: string; match: MatchState } | null>(null);
   const [connectedTo, setConnectedTo] = useState<string | null>(null);
   // Set when a socket closes on us and cleared when one opens; the initial connect doesn't count.
   const [droppedFrom, setDroppedFrom] = useState<string | null>(null);
+  // Set when the server says this match was deleted - nothing more will ever arrive for it.
+  const [deletedId, setDeletedId] = useState<string | null>(null);
 
   // Kept in a ref so a new getToken closure doesn't tear down the socket; synced after commit.
   const getTokenRef = useRef(getToken);
@@ -68,6 +70,7 @@ export function useMatchSocket(
         setConnectedTo(null);
         setDroppedFrom(matchId);
       },
+      onDeleted: () => setDeletedId(matchId),
       subscribeWake: subscribeNetworkWake,
     });
 
@@ -82,5 +85,6 @@ export function useMatchSocket(
     match: latest?.matchId === matchId ? latest.match : null,
     connected: connectedTo === matchId,
     reconnecting: droppedFrom === matchId,
+    deleted: deletedId === matchId,
   };
 }

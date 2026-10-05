@@ -9,15 +9,56 @@ import type { MatchSummary } from '@fortytwo/api-types';
 // full MatchSummary.
 export type MatchIndexRow = Omit<MatchSummary, 'teams' | 'seats'>;
 
-// Brings a match's summary row and seated players up to date.
+// Lobby lists come one page at a time, newest first. A page ends at its last row's
+// (updatedOn, id); the next page starts strictly after it.
+export const LOBBY_PAGE_SIZE = 20;
+
+export interface LobbyCursor {
+  updatedOn: string;
+  id: string;
+}
+
+export interface LobbyPage {
+  rows: MatchIndexRow[];
+  next: LobbyCursor | null;
+}
+
+// Brings a match's summary row and seated players up to date. For a change to who's seated: a
+// create, join, leave, bots or rematch. Anything else uses refreshMatchSummary, which writes far less.
 export async function syncLobbyIndex(db: D1Database, match: MatchState): Promise<void> {
   await upsertMatchSummary(db, {
     id: match.id,
-    status: match.winningTeam ? 'completed' : 'active',
+    status: matchStatus(match),
     playerCount: match.players.length,
     updatedOn: match.updatedOn,
   });
   await syncMatchPlayers(db, match.id, match.players);
+}
+
+// D1 bills every row (and index entry) written, and a match changes on every play, so a change
+// that leaves the seats alone rewrites at most the match's own row: when its status or player
+// count changed (status is indexed, so it's only set then), or to refresh updated_on once it's
+// this far behind. The lobby orders by updated_on, so a match can sit up to this long below one
+// that moved more recently. (Rewriting every seat on every move used up the day's D1 writes.)
+export const SUMMARY_REFRESH_MS = 5 * 60 * 1000;
+
+export async function refreshMatchSummary(db: D1Database, match: MatchState): Promise<void> {
+  const refreshBefore = new Date(Date.parse(match.updatedOn) - SUMMARY_REFRESH_MS).toISOString();
+  await db.batch([
+    db
+      .prepare(
+        `UPDATE matches SET status = ?2, player_count = ?3, updated_on = ?4
+         WHERE id = ?1 AND (status IS NOT ?2 OR player_count IS NOT ?3)`
+      )
+      .bind(match.id, matchStatus(match), match.players.length, match.updatedOn),
+    db
+      .prepare('UPDATE matches SET updated_on = ?2 WHERE id = ?1 AND updated_on < ?3')
+      .bind(match.id, match.updatedOn, refreshBefore),
+  ]);
+}
+
+function matchStatus(match: MatchState): MatchIndexRow['status'] {
+  return match.winningTeam ? 'completed' : 'active';
 }
 
 export async function upsertMatchSummary(db: D1Database, summary: MatchIndexRow): Promise<void> {
@@ -28,6 +69,14 @@ export async function upsertMatchSummary(db: D1Database, summary: MatchIndexRow)
     )
     .bind(summary.id, summary.status, summary.playerCount, summary.updatedOn)
     .run();
+}
+
+// Drops a deleted match from the lobby: its seats first, then the match row they reference.
+export async function deleteFromLobbyIndex(db: D1Database, matchId: string): Promise<void> {
+  await db.batch([
+    db.prepare('DELETE FROM match_players WHERE match_id = ?').bind(matchId),
+    db.prepare('DELETE FROM matches WHERE id = ?').bind(matchId),
+  ]);
 }
 
 export interface SeatedPlayer {
@@ -55,9 +104,9 @@ export async function syncMatchPlayers(
 }
 
 // Seated players per match, in join order: syncMatchPlayers re-inserts the whole set in
-// `match.players` order on every sync, so rowid order is join order. The ids go in as one JSON
-// array param (unpacked by json_each) since D1 caps bound parameters at 100 per statement and a
-// long Game History could exceed that.
+// `match.players` order whenever the seats change, so rowid order is join order. The ids go in as
+// one JSON array param (unpacked by json_each) since D1 caps bound parameters at 100 per statement
+// and a long Game History could exceed that.
 export async function listMatchPlayers(db: D1Database, matchIds: string[]): Promise<Map<string, SeatedPlayer[]>> {
   const byMatch = new Map<string, SeatedPlayer[]>(matchIds.map((id) => [id, []]));
   if (matchIds.length === 0) return byMatch;
@@ -80,43 +129,57 @@ export async function listMatchPlayers(db: D1Database, matchIds: string[]): Prom
   return byMatch;
 }
 
-export async function listActive(db: D1Database, userId: string): Promise<MatchIndexRow[]> {
-  // NOTE: D1's `.all<MatchIndexRow>()` type parameter is compile-time only - it does not rename
-  // runtime columns. The underlying `matches` table is snake_case (player_count, updated_on), so
-  // every column that maps to a camelCase MatchIndexRow field must be explicitly aliased with AS,
-  // or `.playerCount`/`.updatedOn` would be undefined on every returned row at runtime.
+// One more row than a page is fetched; if it comes back, there's another page after this one.
+function toPage(results: MatchIndexRow[]): LobbyPage {
+  const rows = results.slice(0, LOBBY_PAGE_SIZE);
+  const last = rows[rows.length - 1];
+  const next = results.length > LOBBY_PAGE_SIZE ? { updatedOn: last.updatedOn, id: last.id } : null;
+  return { rows, next };
+}
+
+// Matches the user is seated in with the given status, a page at a time.
+//
+// NOTE: D1's `.all<MatchIndexRow>()` type parameter is compile-time only - it does not rename
+// runtime columns. The underlying `matches` table is snake_case (player_count, updated_on), so
+// every column that maps to a camelCase MatchIndexRow field must be explicitly aliased with AS,
+// or `.playerCount`/`.updatedOn` would be undefined on every returned row at runtime.
+async function listForPlayer(
+  db: D1Database,
+  userId: string,
+  status: 'active' | 'completed',
+  cursor: LobbyCursor | null
+): Promise<LobbyPage> {
   const { results } = await db
     .prepare(
       `SELECT m.id, m.status, m.player_count AS playerCount, m.updated_on AS updatedOn
        FROM matches m JOIN match_players mp ON mp.match_id = m.id
-       WHERE mp.player_id = ? AND m.status = 'active' ORDER BY m.updated_on DESC`
+       WHERE mp.player_id = ?1 AND m.status = ?2
+       AND (?3 IS NULL OR (m.updated_on, m.id) < (?3, ?4))
+       ORDER BY m.updated_on DESC, m.id DESC LIMIT ?5`
     )
-    .bind(userId)
+    .bind(userId, status, cursor?.updatedOn ?? null, cursor?.id ?? null, LOBBY_PAGE_SIZE + 1)
     .all<MatchIndexRow>();
-  return results;
+  return toPage(results);
 }
 
-export async function listCompleted(db: D1Database, userId: string): Promise<MatchIndexRow[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT m.id, m.status, m.player_count AS playerCount, m.updated_on AS updatedOn
-       FROM matches m JOIN match_players mp ON mp.match_id = m.id
-       WHERE mp.player_id = ? AND m.status = 'completed' ORDER BY m.updated_on DESC`
-    )
-    .bind(userId)
-    .all<MatchIndexRow>();
-  return results;
+export function listActive(db: D1Database, userId: string, cursor: LobbyCursor | null = null): Promise<LobbyPage> {
+  return listForPlayer(db, userId, 'active', cursor);
 }
 
-export async function listJoinable(db: D1Database, userId: string): Promise<MatchIndexRow[]> {
+export function listCompleted(db: D1Database, userId: string, cursor: LobbyCursor | null = null): Promise<LobbyPage> {
+  return listForPlayer(db, userId, 'completed', cursor);
+}
+
+export async function listJoinable(db: D1Database, userId: string, cursor: LobbyCursor | null = null): Promise<LobbyPage> {
   const { results } = await db
     .prepare(
       `SELECT id, status, player_count AS playerCount, updated_on AS updatedOn
        FROM matches WHERE status = 'active' AND player_count < 4
-       AND id NOT IN (SELECT match_id FROM match_players WHERE player_id = ?)
-       ORDER BY updated_on DESC, player_count DESC`
+       AND id NOT IN (SELECT match_id FROM match_players WHERE player_id = ?1)
+       AND (?2 IS NULL OR (updated_on, id) < (?2, ?3))
+       ORDER BY updated_on DESC, id DESC LIMIT ?4`
     )
-    .bind(userId)
+    .bind(userId, cursor?.updatedOn ?? null, cursor?.id ?? null, LOBBY_PAGE_SIZE + 1)
     .all<MatchIndexRow>();
-  return results;
+  return toPage(results);
 }

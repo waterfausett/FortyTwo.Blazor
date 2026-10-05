@@ -28,6 +28,8 @@ import {
   isLow,
   lowDoublesToPrettyString,
   rematchAgreed,
+  hasBeenDealt,
+  isBot,
 } from '@fortytwo/rules';
 import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
@@ -92,7 +94,7 @@ export function Match(): JSX.Element {
   // and the hook is retrying; the initial connect alone doesn't count. While down, the table may be
   // stale (a turn may already have passed), so the page says so and holds every action until the
   // socket is back.
-  const { match: socketMatch, connected, reconnecting } = useMatchSocket(matchId ?? '', getToken);
+  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken);
   const client = apiClient(getToken);
 
   // Initial load + reconnect-catchup: `useMatchSocket` starts at `null` and only fills once a
@@ -106,6 +108,8 @@ export function Match(): JSX.Element {
     queryKey: ['match', matchId],
     queryFn: () => client.getMatch(matchId!),
     enabled: !!matchId,
+    // A match that doesn't exist (deleted, or a stale link) won't appear on a retry - say so now.
+    retry: (failureCount, error) => (error as { status?: number }).status !== 404 && failureCount < 3,
   });
 
   // Prefer the socket's state once it has ANY value (it's the live source of truth once connected);
@@ -186,6 +190,32 @@ export function Match(): JSX.Element {
     mutationFn: (position?: number) => client.addBots(matchId!, position),
     onError: toastError,
   });
+
+  // Set (by the button, before the request goes out) while this player's own leave is in flight:
+  // if it deletes the match, their socket gets the same "deleted" close as everyone else's, and
+  // they shouldn't be told about it.
+  const leavingRef = useRef(false);
+  const leaveMutation = useMutation({
+    mutationFn: () => client.leaveMatch(matchId!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['matches'] });
+      navigate('/');
+    },
+    onError: (error) => {
+      leavingRef.current = false;
+      toastError(error);
+    },
+  });
+
+  // The match was deleted (its last human left, or it expired) - there's nothing left to show.
+  // Re-checked when this player's own leave fails, since by then the match may be gone anyway.
+  const leaveFailed = leaveMutation.isError;
+  useEffect(() => {
+    if (!deleted || leavingRef.current) return;
+    toastInfo('This match was deleted');
+    void queryClient.invalidateQueries({ queryKey: ['matches'] });
+    navigate('/', { replace: true });
+  }, [deleted, leaveFailed, navigate, queryClient]);
 
   // Trick-hold state: `revealedTrickCount` is how many of `game.tricks` have finished their hold
   // (see TRICK_HOLD_MS above) and are allowed to appear in the side piles/point totals. Any trick
@@ -295,6 +325,17 @@ export function Match(): JSX.Element {
     );
   }
 
+  // A match that can't be loaded - most often one that was deleted - says so rather than leaving
+  // the loading spinner up forever.
+  if (!liveMatch && matchQuery.isError) {
+    return (
+      <div role="alert" className="match-error">
+        <p>{matchQuery.error.message}</p>
+        <Link to="/">Back to lobby</Link>
+      </div>
+    );
+  }
+
   if (!liveMatch || !myPlayerId) {
     return <div className="spinner" role="status" aria-label="Loading match" />;
   }
@@ -302,6 +343,11 @@ export function Match(): JSX.Element {
   // Someone who isn't seated - typically arriving from an invite link - picks a seat, or learns
   // the match is full.
   if (!liveMatch.players.some((p) => p.playerId === myPlayerId)) {
+    // Having just left, the table's broadcast without this player usually arrives before the
+    // leave's own reply navigates away - that's not a seat picker to show them.
+    if (leaveMutation.isPending || leaveMutation.isSuccess) {
+      return <div className="spinner" role="status" aria-label="Leaving match" />;
+    }
     const seats = [0, 1, 2, 3].map((position) => {
       const player = liveMatch.players.find((p) => p.position === position);
       return player ? (namesQuery.data?.get(player.playerId) ?? player.playerId) : null;
@@ -345,6 +391,8 @@ export function Match(): JSX.Element {
   } = view;
   const scores = matchScores(match);
   const canPlay = view.isMyTurnToPlay && connected && playing == null;
+  // Leaving deletes the match when nobody else human is seated, so the button says so.
+  const onlyHumanSeated = match.players.every((p) => p.playerId === myPlayerId || isBot(p.playerId));
 
   // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
   // itself always reflects the true, immediate server state (used above for e.g. `isHandOver`,
@@ -534,6 +582,21 @@ export function Match(): JSX.Element {
                         onClick={() => addBotsMutation.mutate(undefined)}
                       >
                         Fill with bots
+                      </button>
+                    )}
+                    {!hasBeenDealt(match) && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        disabled={leaveMutation.isPending}
+                        onClick={() => {
+                          if (window.confirm(onlyHumanSeated ? 'Cancel this match? It will be deleted.' : 'Leave this table?')) {
+                            leavingRef.current = true;
+                            leaveMutation.mutate();
+                          }
+                        }}
+                      >
+                        {onlyHumanSeated ? 'Cancel match' : 'Leave table'}
                       </button>
                     )}
                   </div>
