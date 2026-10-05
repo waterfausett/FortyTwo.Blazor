@@ -180,7 +180,7 @@ interface PlayedTile {
 
 // How long a play waits for the server before its tile shows a spinner: a play that lands
 // promptly never flashes one.
-const PENDING_SPINNER_DELAY_MS = 400;
+const PENDING_SPINNER_DELAY_MS = 1500;
 
 // A small spinner over a tile I've played that the server hasn't taken yet, so a play that hasn't
 // gone through - the app closed straight after, say, or a weak signal - doesn't look done.
