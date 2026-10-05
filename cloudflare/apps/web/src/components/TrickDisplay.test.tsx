@@ -45,4 +45,19 @@ describe('TrickDisplay', () => {
 
     expect(screen.getAllByTestId('domino')).toHaveLength(3);
   });
+
+  it('marks only the pending domino as still being sent', () => {
+    const mine = createDomino(4, 5);
+    const trick = trickWith([createDomino(1, 2), mine, null, null]);
+    render(<TrickDisplay trick={trick} trump={Suit.Sixes} pendingId={mine.id} />);
+
+    expect(screen.getAllByRole('status', { name: 'Sending your play' })).toHaveLength(1);
+  });
+
+  it('shows no spinner once nothing is pending', () => {
+    const trick = trickWith([createDomino(1, 2), createDomino(4, 5), null, null]);
+    render(<TrickDisplay trick={trick} trump={Suit.Sixes} />);
+
+    expect(screen.queryByRole('status')).toBeNull();
+  });
 });

@@ -2,8 +2,18 @@
 // three players around the edge, each with a face-down fan of the dominoes they still hold, the
 // player at the bottom - and the trick in progress in the middle, each domino in front of whoever
 // played it. Sized from the window width so it fills a phone screen.
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, useWindowDimensions, type LayoutRectangle } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  type LayoutRectangle,
+} from 'react-native';
 import type { Seat } from '@fortytwo/client';
 import type { Suit, Trick } from '@fortytwo/rules';
 import { PipFace } from './PipFace';
@@ -164,6 +174,33 @@ interface PlayedTile {
   bottom: number;
   winning: boolean;
   lead: boolean;
+  // My play, shown before the server has taken it.
+  pending: boolean;
+}
+
+// How long a play waits for the server before its tile shows a spinner: a play that lands
+// promptly never flashes one.
+export const PENDING_SPINNER_DELAY_MS = 1500;
+
+// A small spinner over a tile I've played that the server hasn't taken yet, so a play that hasn't
+// gone through - the app closed straight after, say, or a weak signal - doesn't look done.
+function PendingSpinner() {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setShown(true), PENDING_SPINNER_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!shown) return;
+    Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+  }, [shown, opacity]);
+  if (!shown) return null;
+  return (
+    <Animated.View style={[styles.pending, { opacity }]} accessibilityLabel="Sending your play" accessibilityRole="progressbar">
+      <ActivityIndicator size="small" color={colors.brass} />
+    </Animated.View>
+  );
 }
 
 // The sweep runs a little shorter than the hold's sweeping window, so the trick has fully faded
@@ -222,6 +259,7 @@ function TrickTiles({
         style={[{ width: tileWidth + 4, height: rowHeight, alignItems: 'center', justifyContent: 'center' }, sweepStyle]}
       >
         {d && <Domino top={d.top} bottom={d.bottom} width={tileWidth} highlighted={d.winning} />}
+        {d?.pending && <PendingSpinner />}
         {d?.lead && (
           <View style={styles.leadTag}>
             {/* A tag on a small tile: kept from growing with the system font size. */}
@@ -252,6 +290,8 @@ export interface TableProps {
   // Which seat played each slot of `trick`.
   slotSeats: (Seat | null)[];
   winningSlot: number | null;
+  // The domino I've played that the server hasn't confirmed yet, if any: it gets a spinner.
+  pendingId?: string | null;
   // Shown in the middle instead of a trick, e.g. while waiting for players.
   center?: ReactNode;
   // The mat is where a dragged domino is dropped to play it: `dropRef` is measured for that, and
@@ -272,6 +312,7 @@ export function Table({
   trick,
   slotSeats,
   winningSlot,
+  pendingId = null,
   center,
   dropRef,
   dropActive = false,
@@ -346,7 +387,13 @@ export function Table({
     const seat = slotSeats[slot];
     // Slot 0 is always the leader's (trickPlayOrder starts from them).
     if (domino && seat) {
-      played[seat] = { top: domino.top, bottom: domino.bottom, winning: slot === winningSlot, lead: slot === 0 };
+      played[seat] = {
+        top: domino.top,
+        bottom: domino.bottom,
+        winning: slot === winningSlot,
+        lead: slot === 0,
+        pending: domino.id === pendingId,
+      };
     }
   });
 
@@ -421,6 +468,15 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: 'center',
     textTransform: 'uppercase',
+  },
+  pending: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(20, 13, 9, 0.72)',
   },
   // Clipped only while compact: a full table lets a sweeping trick fly out to the seats.
   matCompact: { overflow: 'hidden' },
