@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node -e \"require('fs').mkdirSync('../web/dist', { recursive: true })\" && wrangler dev",
     "deploy": "npm run build -w @fortytwo/web && wrangler deploy",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:check": "node scripts/check-d1.mjs"
   },
   "dependencies": {
     "@fortytwo/api-types": "*",
