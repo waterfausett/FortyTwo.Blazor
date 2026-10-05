@@ -1,10 +1,13 @@
-// Tests auth0Management.ts by mocking global fetch directly. The token cache is a module-level
-// variable (valid for the Worker isolate's lifetime), so each test resets the module via
-// vi.resetModules() + a fresh dynamic import to get an unpolluted cache.
+// Tests auth0Management.ts by mocking global fetch directly. The token is cached in a module-level
+// variable (one isolate's memory) and in D1's auth0_tokens table (shared by every isolate), so each
+// test empties the table and resets the module via vi.resetModules() + a fresh dynamic import.
+// Re-importing the module is also how a test plays a new isolate.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { env } from 'cloudflare:test';
 import type { Env } from '../src/index';
 
 const testEnv = {
+  DB: env.DB,
   AUTH0_DOMAIN: 'test-tenant.auth0.local',
   AUTH0_AUDIENCE: 'https://api.test.local',
   AUTH0_API_CLIENT_ID: 'test-client-id',
@@ -34,9 +37,14 @@ let mod: typeof import('../src/auth0Management');
 
 beforeEach(async () => {
   vi.useRealTimers();
+  await env.DB.exec('DELETE FROM auth0_tokens');
   vi.resetModules();
   mod = await import('../src/auth0Management');
 });
+
+function tokenCallCount(fetchMock: ReturnType<typeof vi.fn>): number {
+  return fetchMock.mock.calls.filter((call: unknown[]) => String(call[0]).includes('oauth/token')).length;
+}
 
 describe('auth0Management', () => {
   describe('getUser', () => {
@@ -71,16 +79,15 @@ describe('auth0Management', () => {
       await mod.getUser(testEnv, 'u1');
       await mod.getUser(testEnv, 'u2');
 
-      const tokenCalls = fetchMock.mock.calls.filter((call: unknown[]) => String(call[0]).includes('oauth/token'));
-      expect(tokenCalls).toHaveLength(1);
+      expect(tokenCallCount(fetchMock)).toBe(1);
       expect(fetchMock).toHaveBeenCalledTimes(3);
 
       vi.unstubAllGlobals();
     });
 
-    // The cached token stays valid until `now < expiresOn + 30s` - up to 30 SECONDS PAST its
-    // nominal expiry, not refreshed 30s early. The original app behaved this way; kept as-is.
-    it('treats a token up to 30s PAST its nominal expiry as still a cache hit (grace-period quirk)', async () => {
+    // A token is refreshed 30s BEFORE its nominal expiry, so no request carries one that's about
+    // to lapse.
+    it('reuses the token until 30s before its nominal expiry', async () => {
       vi.useFakeTimers();
       const fetchMock = vi
         .fn()
@@ -90,18 +97,17 @@ describe('auth0Management', () => {
       vi.stubGlobal('fetch', fetchMock);
 
       await mod.getUser(testEnv, 'u1');
-      // Nominal expiry is now+60s. Advance 89s: 29s PAST expiry - still inside the 30s grace window.
-      vi.advanceTimersByTime(89_000);
+      // Nominal expiry is now+60s. Advance 29s: 31s left, outside the 30s margin.
+      vi.advanceTimersByTime(29_000);
       await mod.getUser(testEnv, 'u2');
 
-      const tokenCalls = fetchMock.mock.calls.filter((call: unknown[]) => String(call[0]).includes('oauth/token'));
-      expect(tokenCalls).toHaveLength(1);
+      expect(tokenCallCount(fetchMock)).toBe(1);
 
       vi.unstubAllGlobals();
       vi.useRealTimers();
     });
 
-    it('refetches once more than 30s past the nominal expiry', async () => {
+    it('fetches a new token once inside the 30s before expiry, and uses it', async () => {
       vi.useFakeTimers();
       const fetchMock = vi
         .fn()
@@ -112,15 +118,72 @@ describe('auth0Management', () => {
       vi.stubGlobal('fetch', fetchMock);
 
       await mod.getUser(testEnv, 'u1');
-      // Nominal expiry is now+60s. Advance 91s: 31s PAST expiry - past the 30s grace window.
-      vi.advanceTimersByTime(91_000);
+      // Nominal expiry is now+60s. Advance 31s: 29s left, inside the 30s margin.
+      vi.advanceTimersByTime(31_000);
       await mod.getUser(testEnv, 'u2');
 
-      const tokenCalls = fetchMock.mock.calls.filter((call: unknown[]) => String(call[0]).includes('oauth/token'));
-      expect(tokenCalls).toHaveLength(2);
+      expect(tokenCallCount(fetchMock)).toBe(2);
+      const headers = fetchMock.mock.calls[3][1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer second-token');
 
       vi.unstubAllGlobals();
       vi.useRealTimers();
+    });
+
+    it('shares the token with a new isolate through D1 instead of fetching another', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(tokenResponse({ access_token: 'shared-token' }))
+        .mockResolvedValueOnce(jsonResponse({ user_id: 'u1' }))
+        .mockResolvedValueOnce(jsonResponse({ user_id: 'u2' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await mod.getUser(testEnv, 'u1');
+      vi.resetModules();
+      const freshIsolate = await import('../src/auth0Management');
+      await freshIsolate.getUser(testEnv, 'u2');
+
+      expect(tokenCallCount(fetchMock)).toBe(1);
+      const headers = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer shared-token');
+
+      vi.unstubAllGlobals();
+    });
+
+    it('fetches a new token when the one in D1 is about to expire, and stores it for the others', async () => {
+      await env.DB.prepare(
+        'INSERT INTO auth0_tokens (audience, token, token_type, expires_on) VALUES (?1, ?2, ?3, ?4)'
+      )
+        .bind(testEnv.AUTH0_API_AUDIENCE, 'stale-token', 'Bearer', Date.now() + 10_000)
+        .run();
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(tokenResponse({ access_token: 'new-token' }))
+        .mockResolvedValueOnce(jsonResponse({ user_id: 'u1' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await mod.getUser(testEnv, 'u1');
+
+      expect(tokenCallCount(fetchMock)).toBe(1);
+      const stored = await env.DB.prepare('SELECT token FROM auth0_tokens WHERE audience = ?1')
+        .bind(testEnv.AUTH0_API_AUDIENCE)
+        .first<{ token: string }>();
+      expect(stored?.token).toBe('new-token');
+
+      vi.unstubAllGlobals();
+    });
+
+    it('asks Auth0 once when requests in one isolate need a token at the same time', async () => {
+      const fetchMock = vi.fn((url: string) =>
+        Promise.resolve(url.includes('oauth/token') ? tokenResponse() : jsonResponse({ user_id: 'u' }))
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await Promise.all([mod.getUser(testEnv, 'u1'), mod.getUser(testEnv, 'u2'), mod.getUser(testEnv, 'u3')]);
+
+      expect(tokenCallCount(fetchMock)).toBe(1);
+
+      vi.unstubAllGlobals();
     });
   });
 

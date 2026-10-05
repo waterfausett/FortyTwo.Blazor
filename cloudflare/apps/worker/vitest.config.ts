@@ -29,6 +29,8 @@ export default defineWorkersConfig({
           bindings: {
             AUTH0_DOMAIN: 'test-tenant.auth0.local',
             AUTH0_AUDIENCE: 'https://api.test.local',
+            // auth0Management.ts keys the Management API token it keeps in D1 by this.
+            AUTH0_API_AUDIENCE: 'https://api.test.local/mgmt',
             TEST_MIGRATIONS: migrations,
             // Pinned off regardless of a developer's local .dev.vars (which vitest-pool-workers
             // also loads into this pool), so the bot routes stay off unless a test asks for them.

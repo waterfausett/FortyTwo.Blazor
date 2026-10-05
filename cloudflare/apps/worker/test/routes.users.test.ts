@@ -30,7 +30,7 @@ beforeAll(async () => {
     .intercept({ path: '/.well-known/jwks.json', method: 'GET' })
     .reply(200, JSON.stringify({ keys: [publicJwk] }), { headers: { 'content-type': 'application/json' } })
     .persist();
-  // The Management API token is cached per isolate, so a test can't count on asking for one.
+  // The Management API token is cached (in memory and in D1), so a test can't count on asking for one.
   auth0
     .intercept({ path: '/oauth/token', method: 'POST' })
     .reply(200, JSON.stringify({ access_token: 'mgmt-token', expires_in: 3600, token_type: 'Bearer' }), {
