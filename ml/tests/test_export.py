@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import numpy as np
@@ -22,6 +23,7 @@ def test_write_bot_layout_and_round_trip(tmp_path):
     assert len(manifest["play"]["layers"]) == 3 and len(manifest["bid"]["body"]) == 2
     bin_bytes = (tmp_path / "bot.bin").read_bytes()
     assert len(bin_bytes) == manifest["totalBytes"]
+    assert manifest["sha256"] == hashlib.sha256(bin_bytes).hexdigest()
     assert all(t["offset"] % 4 == 0 for t in manifest["tensors"].values())
     assert json.loads((tmp_path / "bot.json").read_text()) == manifest
 

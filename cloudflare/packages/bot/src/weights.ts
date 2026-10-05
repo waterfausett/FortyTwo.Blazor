@@ -67,6 +67,8 @@ export function loadWeights(raw: unknown, bin: ArrayBuffer): BotWeights {
     return width;
   };
 
+  // scoreCandidates applies ReLU after the first layer, so a single linear layer can't be run as is.
+  if (manifest.play.layers.length < 2) throw new WeightsError('play network must have at least two layers');
   const play = manifest.play.layers.map(dense);
   if (chain(play, PLAY_INPUT_DIM, 'play network') !== 1) throw new WeightsError('play network must output one value');
   const bidBody = manifest.bid.body.map(dense);

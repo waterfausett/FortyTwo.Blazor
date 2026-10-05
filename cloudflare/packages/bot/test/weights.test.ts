@@ -35,6 +35,11 @@ describe('loadWeights', () => {
     expect(() => loadWeights({ ...manifest(), format: 2 }, bin())).toThrow(/format/);
   });
 
+  it('rejects a play network with fewer than two layers', () => {
+    const m = manifest();
+    expect(() => loadWeights({ ...m, play: { layers: m.play.layers.slice(-1) } }, bin())).toThrow(/at least two layers/);
+  });
+
   it('rejects something that is not a manifest', () => {
     expect(() => loadWeights('<!doctype html>', bin())).toThrow(WeightsError);
   });
