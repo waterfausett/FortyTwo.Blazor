@@ -130,7 +130,8 @@ function ml(match: MatchState, action: BotAction, bot: Bot): MatchState {
 // is illegal (the rules functions throw), that action falls back to the simple rules, so a model
 // problem never stalls a match.
 export function applyBotAction(match: MatchState, action: BotAction, bot: Bot | null): MatchState {
-  if (bot !== null) {
+  // Readying up is the simple bot's job either way, so a failure there isn't an ML failure.
+  if (bot !== null && action.kind !== 'ready') {
     try {
       return ml(match, action, bot);
     } catch (e) {

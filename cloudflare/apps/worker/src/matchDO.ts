@@ -305,13 +305,16 @@ export class MatchDO extends DurableObject<Env> {
   // a bot's ready-up or play refreshes the summary row, and its bid or trump call (which the
   // routes don't sync either) writes nothing.
   async alarm(): Promise<void> {
+    // Resolved before the match is read: the first call in an isolate makes outgoing ASSETS fetches,
+    // which don't hold input gates, so a request could change the match between load and save.
+    const bot = await getMlBot(this.env);
     const match = await this.load();
     if (match === null) return;
 
     const action = findNextBotAction(match);
     if (action === null) return;
 
-    const next = applyBotAction(match, action, await getMlBot(this.env));
+    const next = applyBotAction(match, action, bot);
     await this.save(next);
     // Scheduled straight after the save: the saved match already points at the next bot action,
     // so if anything below threw first, the runtime's retry would fire that action unpaced, and

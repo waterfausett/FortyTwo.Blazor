@@ -13,6 +13,9 @@ fs.mkdirSync(path.join(__dirname, '../web/dist'), { recursive: true });
 // play differently from the simple bots the flow tests assert on. Whatever the local build state,
 // the tests get no model, so getMlBot resolves to null (mlBot.test.ts fakes the binding for the
 // cases that need files).
+// The tiny test model from the bot package, handed to mlBot.test.ts as text/base64 bindings (the
+// pool has no fs).
+const fixtures = path.join(__dirname, '../../packages/bot/test/fixtures');
 const emptyAssets = path.join(os.tmpdir(), 'fortytwo-no-assets');
 fs.mkdirSync(emptyAssets, { recursive: true });
 
@@ -42,6 +45,8 @@ export default defineWorkersConfig({
             // auth0Management.ts keys the Management API token it keeps in D1 by this.
             AUTH0_API_AUDIENCE: 'https://api.test.local/mgmt',
             TEST_MIGRATIONS: migrations,
+            TINY_BOT_JSON: fs.readFileSync(path.join(fixtures, 'tiny-bot.json'), 'utf8'),
+            TINY_BOT_BIN_B64: fs.readFileSync(path.join(fixtures, 'tiny-bot.bin')).toString('base64'),
             // Pinned off regardless of a developer's local .dev.vars (which vitest-pool-workers
             // also loads into this pool), so the bot routes stay off unless a test asks for them.
             // routes.matches.test.ts turns BOTS_ENABLED on per call (app.request's env argument)
