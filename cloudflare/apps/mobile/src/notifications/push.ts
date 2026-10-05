@@ -103,6 +103,17 @@ export function askOnceForPush(api: Api): void {
   void registerDevice(api, { ask: true }).catch(() => {});
 }
 
+// Whether a tap is new: the same tap can reach the app twice. On a launch from a notification,
+// Android both keeps it as the last response and replays it as an event once the module starts -
+// which can land after the listener is added - so opening on each would stack the match twice.
+let lastTap: string | null = null;
+export function isNewTap(response: Notifications.NotificationResponse): boolean {
+  const tap = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+  if (tap === lastTap) return false;
+  lastTap = tap;
+  return true;
+}
+
 // The app route a tapped notification opens (the Worker puts it in `data.url`).
 export function notificationRoute(notification: Notifications.Notification): string | null {
   const url = notification.request.content.data?.url;

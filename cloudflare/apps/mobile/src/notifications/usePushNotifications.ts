@@ -1,17 +1,20 @@
 // Keeps this device's push registration in step with the signed-in player (src/notifications/
 // push.ts), and opens the match a tapped notification is about.
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
+import { type Href, router, usePathname } from 'expo-router';
 import { useApi } from '@/api/useApi';
 import { useProfile } from '@/api/useProfile';
 import { noteIncomingLink } from '@/linking/incomingLink';
-import { addPushTokenChangeListener, notificationRoute, registerDevice, unregisterDevice } from './push';
+import { addPushTokenChangeListener, isNewTap, notificationRoute, registerDevice, unregisterDevice } from './push';
 
 export function usePushNotifications(signedIn: boolean): void {
   const api = useApi();
   const profile = useProfile({ enabled: signedIn });
   const enabled = signedIn ? profile.data?.pushNotifications : undefined;
+  // Read when a notification is tapped, without setting up the listener again on each navigation.
+  const pathname = useRef('');
+  pathname.current = usePathname();
 
   // On each launch (and whenever the setting changes), register or unregister this device to
   // match the player's setting - without asking for permission; that waits for a match. Expo can
@@ -27,20 +30,27 @@ export function usePushNotifications(signedIn: boolean): void {
 
   // A tapped notification opens its match - straight away when signed in, or after sign-in
   // (incomingLink.ts) otherwise. Covers one that launched the app as well as one tapped while
-  // it's running.
+  // it's running - each tap once, however many ways it arrives (isNewTap). From a match, the
+  // tapped one takes its place rather than stacking on it, as a rematch does: left underneath, a
+  // finished match would follow its rematch as soon as Back showed it (match/[id].tsx), opening
+  // the tapped match a second time. One already on screen isn't opened again - the Worker skips
+  // a match that's open, but one left open in the background has no socket, so gets notified.
   useEffect(() => {
-    const open = (notification: Notifications.Notification) => {
-      const route = notificationRoute(notification);
+    const open = (response: Notifications.NotificationResponse) => {
+      if (!isNewTap(response)) return;
+      const route = notificationRoute(response.notification);
       if (route == null) return;
-      if (signedIn) router.push(route);
-      else noteIncomingLink(route);
+      if (!signedIn) noteIncomingLink(route);
+      else if (route === pathname.current) return;
+      else if (pathname.current.startsWith('/match/')) router.replace(route as Href);
+      else router.push(route as Href);
     };
     const launchedBy = Notifications.getLastNotificationResponse();
     if (launchedBy) {
-      open(launchedBy.notification);
+      open(launchedBy);
       Notifications.clearLastNotificationResponse();
     }
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => open(response.notification));
+    const subscription = Notifications.addNotificationResponseReceivedListener(open);
     return () => subscription.remove();
   }, [signedIn]);
 }
