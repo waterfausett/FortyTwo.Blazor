@@ -42,7 +42,7 @@ The bot from Stages 1–3 moves into the Cloudflare Worker. Players can then sea
 
 ## Prerequisite
 
-This work builds on current `master`, which is 29 commits ahead of the ML-bots branch when this spec was written. That includes the mobile app (`cloudflare/apps/mobile`) and a small `@fortytwo/rules` refactor (`pointsToMakeBid`). Bring `master` into the branch before implementation starts.
+This work builds on current `master`. It was merged into the ML-bots branch in 6c0def0, bringing in the mobile app (`cloudflare/apps/mobile`) and a small `@fortytwo/rules` refactor (`pointsToMakeBid`). The merge passed every suite: rules, worker, client, web and ML, including the TS-to-Python rules parity test.
 
 ## 1. The `@fortytwo/bot` package
 
@@ -83,7 +83,7 @@ The command refuses to export a bidnet whose recorded play checkpoint differs fr
 
 **Git LFS:**
 - `.gitattributes` tracks `cloudflare/apps/web/public/models/*.bin` with LFS. The manifest stays in normal git.
-- The `deploy` job in `.github/workflows/cloudflare.yml` checks out with `lfs: true`.
+- The `deploy` job in `.github/workflows/worker.yml` checks out with `lfs: true`.
 
 **Loading in the Worker:**
 - `wrangler.toml`'s `[assets]` gains `binding = "ASSETS"`.
@@ -148,7 +148,7 @@ The command refuses to export a bidnet whose recorded play checkpoint differs fr
 - `BOTS_ENABLED=false` turns bots off without a deploy.
 
 **Order:**
-1. Bring in `master`.
+1. ~~Bring in `master`.~~ Done in 6c0def0.
 2. Python: partner-plunge trump, `ml export`, `ml export-fixtures`.
 3. The `@fortytwo/bot` package with parity tests.
 4. The timing spike on the real export.
