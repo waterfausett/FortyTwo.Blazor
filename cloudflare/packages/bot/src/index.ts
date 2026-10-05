@@ -9,3 +9,4 @@ export { createBot, legalPlays } from './bot';
 export type { Bot } from './bot';
 export { bidTable, optionsFromTable, chooseBid } from './bidding';
 export type { BidTable, Option, BidContext, BidDecision } from './bidding';
+export { warmUp } from './warmup';
