@@ -23,6 +23,22 @@ export interface MatchSummary {
   seats: (string | null)[];
 }
 
+// One page of a lobby list (GET /api/matches). `nextCursor` goes back as `?cursor=` for the next
+// page; null on the last one.
+export interface MatchPage {
+  matches: MatchSummary[];
+  nextCursor: string | null;
+}
+
+// How a poke (POST /api/matches/:id/poke) reached the player whose turn it is: a push
+// notification, a nudge on the match they have open, or not at all - they don't have the match
+// open and have no device to notify. Only a poke that got through uses up the turn's one poke.
+export type PokeDelivery = 'push' | 'inApp' | 'none';
+
+export interface PokeResult {
+  delivered: PokeDelivery;
+}
+
 // Feature switches the Worker turns on per environment (GET /api/config).
 export interface ClientConfig {
   bots: boolean;
@@ -38,13 +54,25 @@ export interface Auth0User {
   nickname?: string;
   // Every Auth0 user has one (their avatar); a player's own `user_metadata.picture` overrides it.
   picture?: string;
-  user_metadata?: { displayName?: string; theme?: 'Light' | 'Dark'; picture?: string };
+  user_metadata?: {
+    displayName?: string;
+    theme?: 'Light' | 'Dark';
+    picture?: string;
+    highlightPlayable?: boolean;
+    pushNotifications?: boolean;
+  };
 }
 
 // The caller's own profile (GET /api/users/profile): their Auth0 user, with `picture` resolved to
-// the one to show and the name to show them by.
+// the one to show, the name to show them by, and their settings with defaults filled in.
 export interface UserProfile extends Auth0User {
   displayName: string;
+  // On their turn, outline the dominoes they may legally play and fade the rest. A help a player
+  // opts into; off unless they've turned it on.
+  highlightPlayable: boolean;
+  // Push notifications to the mobile app when it's their turn, a hand ends or a game starts. On
+  // unless they've turned it off. Each device also needs the player's permission.
+  pushNotifications: boolean;
 }
 
 // What any player may see of another (POST /api/users/search): enough to show them at the table,
@@ -55,4 +83,6 @@ export type PublicUser = Pick<UserProfile, 'user_id' | 'displayName' | 'picture'
 export interface ProfilePatch {
   displayName?: string;
   picture?: string;
+  highlightPlayable?: boolean;
+  pushNotifications?: boolean;
 }

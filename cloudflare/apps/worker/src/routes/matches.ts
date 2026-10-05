@@ -1,17 +1,29 @@
 // Hono routes for matches. Each one calls the match's MatchDO over RPC, syncs the D1 lobby index
 // (lobby.ts) when the change can show up in the lobby, and replies with the match as the caller
-// may see it. D1 syncing lives here, not in the DO, except for the changes no route makes.
+// may see it. D1 syncing lives here, not in the DO, except for the changes no route makes. Syncing
+// is best-effort (lobby.ts's `bestEffort`): the DO has saved the change by then, so a D1 failure is
+// logged, not returned as a 500.
 import { Hono, type Context } from 'hono';
 import type { AppEnv, Env } from '../index';
 import type { MatchResult } from '../matchDO';
-import { syncLobbyIndex, listActive, listCompleted, listJoinable, listMatchPlayers } from '../lobby';
+import {
+  bestEffort,
+  syncLobbyIndex,
+  refreshMatchSummary,
+  deleteFromLobbyIndex,
+  listActive,
+  listCompleted,
+  listJoinable,
+  listMatchPlayers,
+} from '../lobby';
 import { isBot } from '../bots';
 import { getUsers, MAX_USER_IDS } from '../auth0Management';
 import { toUserResponse } from './users';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
 import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
-import type { MatchSummary } from '@fortytwo/api-types';
+import { decodeCursor, encodeCursor } from '../cursor';
+import type { MatchPage, MatchSummary } from '@fortytwo/api-types';
 
 type AppContext = Context<AppEnv>;
 const matches = new Hono<AppEnv>();
@@ -26,42 +38,47 @@ function refusal(c: AppContext, result: Extract<MatchResult<unknown>, { ok: fals
 }
 
 // Replies with a match action's result - the match as the caller may see it (their own hand, and
-// only a count of everyone else's) - after syncing the lobby index when `syncLobby` is set.
-async function replyWithMatch(c: AppContext, result: MatchResult<MatchState>, { syncLobby = false } = {}) {
+// only a count of everyone else's) - after syncing the lobby index when `lobbySync` is set:
+// 'seats' for a change to who's seated, 'summary' for one that only moves the match along.
+async function replyWithMatch(
+  c: AppContext,
+  result: MatchResult<MatchState>,
+  { lobbySync }: { lobbySync?: 'seats' | 'summary' } = {}
+) {
   if (!result.ok) return refusal(c, result);
-  if (syncLobby) await syncLobbyIndex(c.env.DB, result.value);
+  const match = result.value;
+  if (lobbySync === 'seats') await bestEffort(match.id, () => syncLobbyIndex(c.env.DB, match));
+  if (lobbySync === 'summary') await bestEffort(match.id, () => refreshMatchSummary(c.env.DB, match));
   return c.json(matchViewFor(result.value, c.get('user').sub));
 }
 
 matches.post('/', async (c) => {
   const matchId = crypto.randomUUID();
   const match = await matchStub(c.env, matchId).create(c.get('user').sub, matchId);
-  await syncLobbyIndex(c.env.DB, match);
+  await bestEffort(matchId, () => syncLobbyIndex(c.env.DB, match));
   return c.json(matchViewFor(match, c.get('user').sub), 201);
 });
 
 matches.get('/', async (c) => {
   const userId = c.get('user').sub;
   const filter = c.req.query('filter') ?? 'Active';
-  const rows =
-    filter === 'Completed' ? await listCompleted(c.env.DB, userId) :
-    filter === 'Joinable' ? await listJoinable(c.env.DB, userId) :
-    await listActive(c.env.DB, userId);
+  const cursor = decodeCursor(c.req.query('cursor'));
+  const list = filter === 'Completed' ? listCompleted : filter === 'Joinable' ? listJoinable : listActive;
+  const { rows, next } = await list(c.env.DB, userId, cursor);
   const playersByMatch = await listMatchPlayers(c.env.DB, rows.map((row) => row.id));
   const allPlayerIds = [...playersByMatch.values()].flat().map((p) => p.playerId);
   const names = await displayNames(c.env, [...new Set(allPlayerIds)]);
-  return c.json(
-    rows.map((row): MatchSummary => {
-      const seated = playersByMatch.get(row.id) ?? [];
-      const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
-      const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
-      const seats = [0, 1, 2, 3].map((position) => {
-        const player = seated.find((p) => p.position === position);
-        return player ? nameOf(player.playerId) : null;
-      });
-      return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
-    })
-  );
+  const summaries = rows.map((row): MatchSummary => {
+    const seated = playersByMatch.get(row.id) ?? [];
+    const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
+    const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
+    const seats = [0, 1, 2, 3].map((position) => {
+      const player = seated.find((p) => p.position === position);
+      return player ? nameOf(player.playerId) : null;
+    });
+    return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
+  });
+  return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });
 
 // Maps player ids to display names for the lobby list. Bots have no Auth0 account and keep their
@@ -105,7 +122,7 @@ matches.post('/:id/players', async (c) => {
     body.position !== undefined
       ? await match.takeSeat(userId, field.position(body), shuffledDominoOrder())
       : await match.addPlayer(userId, field.team(body), shuffledDominoOrder());
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { lobbySync: 'seats' });
 });
 
 // Dev-only (AUTO_PLAY_BOTS): seats a bot at `{ position }`, or at every open seat when no position
@@ -116,14 +133,31 @@ matches.post('/:id/bots', async (c) => {
   const body = await readBody(c);
   const positions = body.position !== undefined ? [field.position(body)] : undefined;
   const result = await matchStub(c.env, c.req.param('id')).addBots(c.get('user').sub, positions);
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { lobbySync: 'seats' });
 });
 
 // Readying up can finish a hand's wait and deal the next one, so it always carries a deck.
 matches.patch('/:id/players', async (c) => {
   const ready = field.ready(await readBody(c));
   const result = await matchStub(c.env, c.req.param('id')).readyUp(c.get('user').sub, ready, shuffledDominoOrder());
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { lobbySync: 'summary' });
+});
+
+// Leaves a match before its first deal. The last human out deletes it - which is how a creator
+// cancels a match nobody joined - so its lobby rows go too and the reply has no match to show.
+// Leaving a match that's already gone counts as done, and clears any lobby row it left behind (a
+// retry after a failed cleanup, or a row a slower sync re-inserted after the delete).
+matches.delete('/:id/players', async (c) => {
+  const matchId = c.req.param('id');
+  const result = await matchStub(c.env, matchId).leave(c.get('user').sub);
+  if (!result.ok && result.status !== 404) return refusal(c, result);
+  if (!result.ok || result.value.deleted) {
+    await bestEffort(matchId, () => deleteFromLobbyIndex(c.env.DB, matchId));
+    return c.body(null, 204);
+  }
+  const { match } = result.value;
+  await bestEffort(matchId, () => syncLobbyIndex(c.env.DB, match));
+  return c.json(matchViewFor(match, c.get('user').sub));
 });
 
 // A vote to play the same four again once the match is over. The vote that completes the table
@@ -131,7 +165,14 @@ matches.patch('/:id/players', async (c) => {
 // syncs the finished match.
 matches.post('/:id/rematch', async (c) => {
   const result = await matchStub(c.env, c.req.param('id')).rematch(c.get('user').sub);
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { lobbySync: 'summary' });
+});
+
+// Pokes the player whose turn it is, once it's waited long enough (MatchDO's `poke`). The reply
+// says how it reached them - a push, a nudge in the app, or not at all.
+matches.post('/:id/poke', async (c) => {
+  const result = await matchStub(c.env, c.req.param('id')).poke(c.get('user').sub);
+  return result.ok ? c.json(result.value) : refusal(c, result);
 });
 
 matches.patch('/:id/games/current', async (c) => {
@@ -147,7 +188,7 @@ matches.post('/:id/games/current/bids', async (c) => {
 matches.post('/:id/games/current/moves', async (c) => {
   const domino = field.domino(await readBody(c));
   const result = await matchStub(c.env, c.req.param('id')).playDomino(c.get('user').sub, domino);
-  return replyWithMatch(c, result, { syncLobby: true });
+  return replyWithMatch(c, result, { lobbySync: 'summary' });
 });
 
 export default matches;

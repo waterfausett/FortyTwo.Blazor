@@ -1,8 +1,11 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { env, fetchMock, runInDurableObject, SELF } from 'cloudflare:test';
 import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
-import app, { type Env } from '../src/index';
+import { app, type Env } from '../src/index';
+import { upsertMatchSummary } from '../src/lobby';
+import { countLobbyWrites } from './lobbyWrites';
+import { failingDb } from './failingDb';
 
 const testEnv = env as unknown as Env;
 
@@ -102,7 +105,7 @@ describe('match routes', () => {
       // --- GET /api/matches?filter=Joinable from a second user's token ---
       const joinableRes = await api('/api/matches?filter=Joinable', p2);
       expect(joinableRes.status).toBe(200);
-      const joinable = (await joinableRes.json()) as { id: string; teams: string[][] }[];
+      const joinable = ((await joinableRes.json()) as { matches: { id: string; teams: string[][] }[] }).matches;
       expect(joinable.some((m) => m.id === matchId)).toBe(true);
       // No Auth0 mock here, so name lookup fails and players fall back to their raw ids rather
       // than failing the whole list.
@@ -249,6 +252,129 @@ describe('match routes', () => {
     }
   );
 
+  // A seat change rewrites the match's match_players rows; anything else must leave them alone,
+  // or every move costs a dozen-plus D1 row writes.
+  it('rewrites the seated players on a join, but not on a ready-up or a play', async () => {
+    const lobbyWrites = await countLobbyWrites(testEnv.DB);
+    const [p1, p2, p3, p4] = await Promise.all(['p1', 'p2', 'p3', 'p4'].map(signToken));
+    const { id: matchId } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+    const send = async (token: string, method: string, path: string, body: unknown) => {
+      const res = await api(`/api/matches/${matchId}${path}`, token, { method, body: JSON.stringify(body) });
+      expect(res.status).toBe(200);
+      return (await res.json()) as MatchState;
+    };
+
+    await send(p2, 'POST', '/players', { team: 2 });
+    await send(p3, 'POST', '/players', { team: 1 });
+    const beforeLastJoin = await lobbyWrites(matchId);
+    await send(p4, 'POST', '/players', { team: 2 });
+    const afterJoins = await lobbyWrites(matchId);
+    // Three rows deleted, four inserted.
+    expect(afterJoins.match_players - beforeLastJoin.match_players).toBe(7);
+
+    for (const token of [p1, p2, p3, p4]) await send(token, 'PATCH', '/players', { ready: true });
+    await send(p1, 'POST', '/games/current/bids', { bid: 30 });
+    for (const token of [p2, p3, p4]) await send(token, 'POST', '/games/current/bids', { bid: 0 });
+    const afterTrump = await send(p1, 'PATCH', '/games/current', { suit: 6 });
+    const p1Hand = afterTrump.currentGame.hands.find((h) => h.playerId === 'p1')!;
+    await send(p1, 'POST', '/games/current/moves', { domino: p1Hand.dominoes[0] });
+
+    // The matches row isn't written either: nothing the lobby shows changed, and updated_on is
+    // still well within SUMMARY_REFRESH_MS.
+    expect(await lobbyWrites(matchId)).toEqual(afterJoins);
+  });
+
+  // The DO has saved each change before the lobby index is synced, so a D1 failure is logged and
+  // the change still gets its usual reply - not a 500 for a move that went through.
+  describe('when the lobby index is down', () => {
+    async function apiWithoutDb(path: string, token: string, init: RequestInit = {}) {
+      return app.request(
+        path,
+        {
+          ...init,
+          headers: {
+            ...(init.body ? { 'content-type': 'application/json' } : {}),
+            Authorization: `Bearer ${token}`,
+          },
+        },
+        { ...testEnv, DB: failingDb() }
+      );
+    }
+
+    it('still creates, joins, readies up, bids, sets trump and plays', async () => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const [p1, p2, p3, p4] = await Promise.all(['p1', 'p2', 'p3', 'p4'].map(signToken));
+        const created = await apiWithoutDb('/api/matches', p1, { method: 'POST' });
+        expect(created.status).toBe(201);
+        const { id: matchId } = (await created.json()) as { id: string };
+        const send = async (token: string, method: string, path: string, body: unknown) => {
+          const res = await apiWithoutDb(`/api/matches/${matchId}${path}`, token, { method, body: JSON.stringify(body) });
+          expect(res.status).toBe(200);
+          return (await res.json()) as MatchState;
+        };
+
+        await send(p2, 'POST', '/players', { team: 2 });
+        await send(p3, 'POST', '/players', { team: 1 });
+        await send(p4, 'POST', '/players', { team: 2 });
+        for (const token of [p1, p2, p3, p4]) await send(token, 'PATCH', '/players', { ready: true });
+        await send(p1, 'POST', '/games/current/bids', { bid: 30 });
+        for (const token of [p2, p3, p4]) await send(token, 'POST', '/games/current/bids', { bid: 0 });
+        const afterTrump = await send(p1, 'PATCH', '/games/current', { suit: 6 });
+        const p1Hand = afterTrump.currentGame.hands.find((h) => h.playerId === 'p1')!;
+        const afterMove = await send(p1, 'POST', '/games/current/moves', { domino: p1Hand.dominoes[0] });
+
+        expect(afterMove.currentGame.currentTrick.dominoes[0]).toEqual(p1Hand.dominoes[0]);
+        expect(logged).toHaveBeenCalledWith(`Failed to sync the lobby index for match ${matchId}`, expect.any(Error));
+      } finally {
+        logged.mockRestore();
+      }
+    });
+
+    it('still lets a player leave, and the creator cancel', async () => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const p1 = await signToken('p1');
+        const p2 = await signToken('p2');
+        const { id } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+        await (await api(`/api/matches/${id}/players`, p2, { method: 'POST', body: JSON.stringify({ position: 1 }) })).arrayBuffer();
+
+        const left = await apiWithoutDb(`/api/matches/${id}/players`, p2, { method: 'DELETE' });
+        expect(left.status).toBe(200);
+        expect(((await left.json()) as { players: unknown[] }).players).toHaveLength(1);
+
+        const cancelled = await apiWithoutDb(`/api/matches/${id}/players`, p1, { method: 'DELETE' });
+        expect(cancelled.status).toBe(204);
+        await cancelled.arrayBuffer();
+        expect(logged).toHaveBeenCalledTimes(2);
+      } finally {
+        logged.mockRestore();
+      }
+    });
+  });
+
+  // A match whose seats-changing sync failed (a rematch, say) has no lobby rows, and nothing
+  // re-syncs its seats once the table is full. Its next ready-up or play puts it back.
+  it('puts a match missing from the lobby back on its next ready-up', async () => {
+    const [p1, p2, p3, p4] = await Promise.all(['p1', 'p2', 'p3', 'p4'].map(signToken));
+    const { id: matchId } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+    for (const [token, position] of [[p2, 1], [p3, 2], [p4, 3]] as const) {
+      await (await api(`/api/matches/${matchId}/players`, token, { method: 'POST', body: JSON.stringify({ position }) })).arrayBuffer();
+    }
+    await testEnv.DB.batch([
+      testEnv.DB.prepare('DELETE FROM match_players WHERE match_id = ?').bind(matchId),
+      testEnv.DB.prepare('DELETE FROM matches WHERE id = ?').bind(matchId),
+    ]);
+
+    const res = await api(`/api/matches/${matchId}/players`, p3, { method: 'PATCH', body: JSON.stringify({ ready: true }) });
+    expect(res.status).toBe(200);
+    await res.arrayBuffer();
+
+    const active = await api('/api/matches?filter=Active', p3);
+    const { matches: listed } = (await active.json()) as { matches: { id: string; playerCount: number }[] };
+    expect(listed).toEqual([expect.objectContaining({ id: matchId, playerCount: 4 })]);
+  });
+
   it("returns the caller's own hand from GET /api/matches/:id and hides the rest", async () => {
     const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4', 'p5'].map(signToken));
     const [p1, p2, p3, p4, outsider] = tokens;
@@ -299,7 +425,7 @@ describe('match routes', () => {
 
     const res = await api('/api/matches?filter=Joinable', p4);
     expect(res.status).toBe(200);
-    const rows = (await res.json()) as { id: string; teams: string[][] }[];
+    const rows = ((await res.json()) as { matches: { id: string; teams: string[][] }[] }).matches;
     expect(rows.find((row) => row.id === created.id)?.teams).toEqual([['Player One', 'three'], ['p2']]);
   });
 
@@ -321,8 +447,132 @@ describe('match routes', () => {
 
     // No Auth0 mock, so seats show raw ids.
     const res = await api('/api/matches?filter=Joinable', p3);
-    const rows = (await res.json()) as { id: string; seats: (string | null)[] }[];
+    const rows = ((await res.json()) as { matches: { id: string; seats: (string | null)[] }[] }).matches;
     expect(rows.find((row) => row.id === created.id)?.seats).toEqual(['p1', null, null, 'p2']);
+  });
+
+  describe('GET /api/matches paging', () => {
+    it('returns a page with a cursor that fetches the next page', async () => {
+      const p1 = await signToken('p1');
+      for (let i = 0; i < 21; i++) await (await api('/api/matches', p1, { method: 'POST' })).arrayBuffer();
+
+      const first = (await (await api('/api/matches?filter=Active', p1)).json()) as { matches: { id: string }[]; nextCursor: string | null };
+      expect(first.matches).toHaveLength(20);
+      expect(first.nextCursor).toEqual(expect.any(String));
+
+      const second = (await (await api(`/api/matches?filter=Active&cursor=${first.nextCursor}`, p1)).json()) as typeof first;
+      expect(second.matches).toHaveLength(1);
+      expect(second.nextCursor).toBeNull();
+      expect(first.matches.map((m) => m.id)).not.toContain(second.matches[0].id);
+    });
+
+    it('rejects a malformed cursor with a 400', async () => {
+      const res = await api('/api/matches?filter=Active&cursor=%25%25', await signToken('p1'));
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ title: 'Invalid request', detail: 'Invalid cursor' });
+    });
+  });
+
+  describe('DELETE /api/matches/:id/players', () => {
+    async function seatCount(matchId: string) {
+      const row = await testEnv.DB.prepare('SELECT player_count FROM matches WHERE id = ?')
+        .bind(matchId)
+        .first<{ player_count: number }>();
+      return row?.player_count ?? null;
+    }
+
+    it('lets a joiner leave and updates the lobby row', async () => {
+      const p1 = await signToken('p1');
+      const p2 = await signToken('p2');
+      const { id } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+      await api(`/api/matches/${id}/players`, p2, { method: 'POST', body: JSON.stringify({ position: 1 }) });
+
+      const res = await api(`/api/matches/${id}/players`, p2, { method: 'DELETE' });
+
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as { players: unknown[] }).players).toHaveLength(1);
+      expect(await seatCount(id)).toBe(1);
+    });
+
+    it('deletes the match and its lobby rows when the creator cancels', async () => {
+      const p1 = await signToken('p1');
+      const { id } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await api(`/api/matches/${id}/players`, p1, { method: 'DELETE' });
+
+      expect(res.status).toBe(204);
+      await res.arrayBuffer();
+      expect(await seatCount(id)).toBeNull();
+      const seats = await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM match_players WHERE match_id = ?')
+        .bind(id)
+        .first<{ n: number }>();
+      expect(seats?.n).toBe(0);
+      const gone = await api(`/api/matches/${id}`, p1);
+      expect(gone.status).toBe(404);
+      await gone.arrayBuffer();
+    });
+
+    it('refuses to let a player leave once the hand is dealt', async () => {
+      const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4'].map((sub) => signToken(sub)));
+      const { id } = (await (await api('/api/matches', tokens[0], { method: 'POST' })).json()) as { id: string };
+      for (const position of [1, 2, 3]) {
+        const join = await api(`/api/matches/${id}/players`, tokens[position], { method: 'POST', body: JSON.stringify({ position }) });
+        await join.arrayBuffer();
+      }
+
+      const res = await api(`/api/matches/${id}/players`, tokens[1], { method: 'DELETE' });
+
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { title: string }).title).toBe("You can't leave once the dominoes are dealt");
+    });
+
+    it('treats leaving a match that is already gone as done, and clears any lobby row left behind', async () => {
+      const p1 = await signToken('p1');
+      await upsertMatchSummary(testEnv.DB, { id: 'zombie-match', status: 'active', playerCount: 1, updatedOn: '2026-09-01T00:00:00.000Z' });
+
+      const res = await api('/api/matches/zombie-match/players', p1, { method: 'DELETE' });
+
+      expect(res.status).toBe(204);
+      await res.arrayBuffer();
+      expect(await seatCount('zombie-match')).toBeNull();
+    });
+
+    it('refuses someone who is not seated', async () => {
+      const p1 = await signToken('p1');
+      const outsider = await signToken('p9');
+      const { id } = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await api(`/api/matches/${id}/players`, outsider, { method: 'DELETE' });
+
+      expect(res.status).toBe(400);
+      await res.arrayBuffer();
+    });
+  });
+
+  describe('POST /api/matches/:id/poke', () => {
+    it("refuses a turn that hasn't waited long enough, then says when nobody could be reached", async () => {
+      const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4'].map((sub) => signToken(sub)));
+      const { id } = (await (await api('/api/matches', tokens[0], { method: 'POST' })).json()) as { id: string };
+      for (const position of [1, 2, 3]) {
+        const join = await api(`/api/matches/${id}/players`, tokens[position], { method: 'POST', body: JSON.stringify({ position }) });
+        await join.arrayBuffer();
+      }
+      const match = (await (await api(`/api/matches/${id}`, tokens[0])).json()) as MatchState;
+      const poker = tokens[match.players.find((p) => p.playerId !== match.currentGame.currentPlayerId)!.position];
+
+      const early = await api(`/api/matches/${id}/poke`, poker, { method: 'POST' });
+      expect(early.status).toBe(400);
+      expect(((await early.json()) as { title: string }).title).toBe('Too soon to poke');
+
+      const stub = testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(id));
+      await runInDurableObject(stub, async (_instance, state) => {
+        const stored = (await state.storage.get<MatchState>('match'))!;
+        await state.storage.put('match', { ...stored, updatedOn: '2026-01-01T00:00:00.000Z' });
+      });
+      const res = await api(`/api/matches/${id}/poke`, poker, { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ delivered: 'none' });
+    });
   });
 
   describe('malformed request bodies', () => {

@@ -1,9 +1,13 @@
 // Renders the trick being played in the middle of the table. Each played domino sits in front of
-// the seat that played it (`slotSeats`, from match/table.ts) and slides in from that side when it
-// lands; the domino that led gets a "Lead" tag, and once the trick is complete the winning domino
-// is picked out. While `sweepTo` is set, the whole trick leaves the table the way `sweepMode`
-// says (match/sweep.ts) - for every mode but `side`, each tile is measured and handed its own
+// the seat that played it (`slotSeats`, from packages/client's table.ts) and slides in from that
+// side when it lands; the domino that led gets a "Lead" tag, and once the trick is complete the
+// winning domino is picked out. While `sweepTo` is set, the whole trick leaves the table the way
+// `sweepMode` says (match/sweep.ts) - for every mode but `side`, each tile is measured and handed its own
 // offsets (--gx/--gy to the winning tile, --dx/--dy to `sweepTarget`) for match.css to animate.
+//
+// My own play shows on the table before the server has taken it (Match.tsx's optimistic play);
+// `pendingId` marks that domino with a small spinner until it has, so a play that hasn't gone
+// through doesn't look done.
 //
 // Slot count is 4 normally and 3 for Suit.Low (trick.ts's `isTrickFull` treats a Low trick as
 // full at 3 dominoes, the bidder's partner sitting out).
@@ -14,7 +18,7 @@ import type { CSSProperties, JSX } from 'react';
 import { useLayoutEffect, useRef } from 'react';
 import type { Trick } from '@fortytwo/rules';
 import { Suit, isLow } from '@fortytwo/rules';
-import type { Seat } from '../match/table';
+import type { Seat } from '@fortytwo/client';
 import type { Point, SweepMode } from '../match/sweep';
 import { centerOf, sweepDurationMs } from '../match/sweep';
 import { Domino } from './Domino';
@@ -31,6 +35,8 @@ export interface TrickDisplayProps {
   sweepMode?: SweepMode;
   // Viewport point the trick flies to; read once, as the sweep starts.
   sweepTarget?: (() => Point | null) | null;
+  // The domino I've played that the server hasn't confirmed yet, if any.
+  pendingId?: string | null;
 }
 
 const DEFAULT_SEATS: Seat[] = ['bottom', 'left', 'top', 'right'];
@@ -43,6 +49,7 @@ export function TrickDisplay({
   sweepTo = null,
   sweepMode = 'side',
   sweepTarget = null,
+  pendingId = null,
 }: TrickDisplayProps): JSX.Element {
   const slotCount = isLow(trump) ? 3 : 4;
   const slots = trick.dominoes.slice(0, slotCount);
@@ -87,6 +94,11 @@ export function TrickDisplay({
             >
               <Domino top={domino.top} bottom={domino.bottom} direction="vertical" />
               {index === 0 && <span className="trick-lead-tag">Lead</span>}
+              {domino.id === pendingId && (
+                <span className="trick-pending" role="status" aria-label="Sending your play">
+                  <span className="trick-pending-ring" />
+                </span>
+              )}
             </div>
           );
         })}

@@ -5,7 +5,7 @@
 //   seat   - fly to the winning player's seat plate.
 //   pile   - fly to the exact spot on the winning team's pile where the trick lands.
 //   gather - collapse onto the winning domino, then fly that stack to the pile.
-import type { Seat } from './table';
+import type { Seat } from '@fortytwo/client';
 
 export const SWEEP_MODES = ['side', 'seat', 'pile', 'gather'] as const;
 export type SweepMode = (typeof SWEEP_MODES)[number];

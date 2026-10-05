@@ -1,7 +1,7 @@
 // The /api/users routes through the real Worker (Auth0 mocked via fetchMock), plus unit tests for
 // toUserResponse's two fallback chains (picture and displayName) and toPublicUser's trimmed shape.
 import { describe, it, expect, beforeAll } from 'vitest';
-import { fetchMock, SELF } from 'cloudflare:test';
+import { env, fetchMock, SELF } from 'cloudflare:test';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { toPublicUser, toUserResponse } from '../src/routes/users';
 import type { Auth0User } from '../src/auth0Management';
@@ -30,7 +30,7 @@ beforeAll(async () => {
     .intercept({ path: '/.well-known/jwks.json', method: 'GET' })
     .reply(200, JSON.stringify({ keys: [publicJwk] }), { headers: { 'content-type': 'application/json' } })
     .persist();
-  // The Management API token is cached per isolate, so a test can't count on asking for one.
+  // The Management API token is cached (in memory and in D1), so a test can't count on asking for one.
   auth0
     .intercept({ path: '/oauth/token', method: 'POST' })
     .reply(200, JSON.stringify({ access_token: 'mgmt-token', expires_in: 3600, token_type: 'Bearer' }), {
@@ -169,6 +169,26 @@ describe('user routes', () => {
       });
     });
 
+    it('stores the highlight-playable setting', async () => {
+      const seen = mockUserPatch();
+      const res = await api('/api/users', 'auth0|p1', {
+        method: 'PATCH',
+        body: JSON.stringify({ highlightPlayable: true }),
+      });
+      expect(res.status).toBe(200);
+      expect(seen.body).toEqual({ user_metadata: { highlightPlayable: true } });
+    });
+
+    it('stores the push notifications setting', async () => {
+      const seen = mockUserPatch();
+      const res = await api('/api/users', 'auth0|p1', {
+        method: 'PATCH',
+        body: JSON.stringify({ pushNotifications: false }),
+      });
+      expect(res.status).toBe(200);
+      expect(seen.body).toEqual({ user_metadata: { pushNotifications: false } });
+    });
+
     it('lets a blank picture clear the custom one', async () => {
       const seen = mockUserPatch();
       const res = await api('/api/users', 'auth0|p1', { method: 'PATCH', body: JSON.stringify({ picture: '' }) });
@@ -186,11 +206,55 @@ describe('user routes', () => {
       ['a picture that is not a URL', { picture: 'me.png' }],
       ['an over-long picture URL', { picture: `https://example.com/${'x'.repeat(2048)}` }],
       ['an array body', ['displayName']],
+      ['a non-boolean highlight setting', { highlightPlayable: 'yes' }],
+      ['a non-boolean push notifications setting', { pushNotifications: 1 }],
     ])('rejects %s with a 400', async (_, body) => {
       const res = await api('/api/users', 'auth0|p1', { method: 'PATCH', body: JSON.stringify(body) });
       expect(res.status).toBe(400);
       expect((await titleAndDetail(res)).title).toBe('Invalid request');
     });
+  });
+});
+
+describe('push tokens', () => {
+  const token = 'ExponentPushToken[abc123]';
+  const tokensOf = async (userId: string) =>
+    (
+      await env.DB.prepare('SELECT token, platform FROM push_tokens WHERE user_id = ?1').bind(userId).all<{
+        token: string;
+        platform: string;
+      }>()
+    ).results;
+
+  it("registers the caller's device, and moves it to whoever signs in on it next", async () => {
+    const put = (sub: string) =>
+      api('/api/users/push-tokens', sub, { method: 'PUT', body: JSON.stringify({ token, platform: 'android' }) });
+
+    expect((await put('auth0|p1')).status).toBe(204);
+    expect(await tokensOf('auth0|p1')).toEqual([{ token, platform: 'android' }]);
+
+    expect((await put('auth0|p2')).status).toBe(204);
+    expect(await tokensOf('auth0|p1')).toEqual([]);
+    expect(await tokensOf('auth0|p2')).toEqual([{ token, platform: 'android' }]);
+  });
+
+  it("removes the caller's own device only", async () => {
+    await api('/api/users/push-tokens', 'auth0|p3', { method: 'PUT', body: JSON.stringify({ token, platform: 'ios' }) });
+
+    await api('/api/users/push-tokens', 'auth0|p4', { method: 'DELETE', body: JSON.stringify({ token }) });
+    expect(await tokensOf('auth0|p3')).toHaveLength(1);
+
+    const res = await api('/api/users/push-tokens', 'auth0|p3', { method: 'DELETE', body: JSON.stringify({ token }) });
+    expect(res.status).toBe(204);
+    expect(await tokensOf('auth0|p3')).toEqual([]);
+  });
+
+  it.each([
+    ['a token that is not an Expo push token', { token: 'abc', platform: 'android' }],
+    ['an unknown platform', { token, platform: 'web' }],
+  ])('rejects %s with a 400', async (_, body) => {
+    const res = await api('/api/users/push-tokens', 'auth0|p1', { method: 'PUT', body: JSON.stringify(body) });
+    expect(res.status).toBe(400);
   });
 });
 
@@ -224,6 +288,26 @@ describe('toUserResponse', () => {
     it('falls back to the raw picture when user_metadata is absent entirely', () => {
       const u: Auth0User = { user_id: 'u1', picture: 'raw.png' };
       expect(toUserResponse(u).picture).toBe('raw.png');
+    });
+  });
+
+  describe('highlightPlayable', () => {
+    it('is off unless the player turned it on', () => {
+      expect(toUserResponse({ user_id: 'u1' }).highlightPlayable).toBe(false);
+      expect(toUserResponse({ user_id: 'u1', user_metadata: { highlightPlayable: false } }).highlightPlayable).toBe(false);
+      expect(toUserResponse({ user_id: 'u1', user_metadata: { highlightPlayable: true } }).highlightPlayable).toBe(true);
+    });
+
+    it('is not shown to other players', () => {
+      const u: Auth0User = { user_id: 'u1', user_metadata: { highlightPlayable: true } };
+      expect(toPublicUser(u)).not.toHaveProperty('highlightPlayable');
+    });
+  });
+
+  describe('pushNotifications', () => {
+    it('is on unless the player turned it off', () => {
+      expect(toUserResponse({ user_id: 'u1' }).pushNotifications).toBe(true);
+      expect(toUserResponse({ user_id: 'u1', user_metadata: { pushNotifications: false } }).pushNotifications).toBe(false);
     });
   });
 

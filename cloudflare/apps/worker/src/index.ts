@@ -4,6 +4,8 @@ import { requireAuth, type AuthedUser } from './auth/verifyJwt';
 import matchesRoutes from './routes/matches';
 import usersRoutes from './routes/users';
 import { BadRequestError } from './requestBody';
+import { expireIdleMatches } from './expiry';
+import { assetLinks } from './appLinks';
 import type { MatchDO } from './matchDO';
 import type { ClientConfig } from '@fortytwo/api-types';
 
@@ -22,6 +24,12 @@ export interface Env {
   // people testing together - can play a full match. A string, not a boolean: .dev.vars is
   // dotenv-style, so every value arrives as text.
   AUTO_PLAY_BOTS?: string;
+  // The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links
+  // (appLinks.ts). Not secret: Android reads them from a public file.
+  ANDROID_APP_FINGERPRINTS?: string;
+  // An Expo access token, needed to send push notifications only once "enhanced push security"
+  // is turned on for the Expo project (push/send.ts). A secret: `wrangler secret put`.
+  EXPO_ACCESS_TOKEN?: string;
 }
 
 // The Hono environment every route runs in: the bindings above, plus the signed-in user that
@@ -40,6 +48,12 @@ app.onError((err, c) => {
 });
 
 app.get('/health', (c) => c.json({ ok: true }));
+
+// Android App Links (appLinks.ts). Public, like the web app's own files.
+app.get('/.well-known/assetlinks.json', (c) => {
+  const statements = assetLinks(c.env.ANDROID_APP_FINGERPRINTS);
+  return statements ? c.json(statements) : c.notFound();
+});
 
 // WebSocket upgrade route for a match's live-state socket (matchDO.ts's `handleWebSocketUpgrade`).
 // Deliberately mounted OUTSIDE the `/api/*` `requireAuth()` middleware below: a WebSocket upgrade
@@ -80,5 +94,14 @@ app.get('/api/config', (c) => c.json({ bots: c.env.AUTO_PLAY_BOTS === 'true' } s
 app.route('/api/matches', matchesRoutes);
 app.route('/api/users', usersRoutes);
 
-export default app;
+export { app };
+
+// The Worker's entry points: every request goes through the Hono app; the daily cron
+// (wrangler.toml's [triggers]) runs the expiry sweep.
+export default {
+  fetch: app.fetch,
+  scheduled(controller, env, ctx) {
+    ctx.waitUntil(expireIdleMatches(env, controller.scheduledTime));
+  },
+} satisfies ExportedHandler<Env>;
 export { MatchDO } from './matchDO';

@@ -1,4 +1,4 @@
-import { Bid } from './bid';
+import { Bid, pointsToMakeBid } from './bid';
 import { Hand } from './hand';
 import { Suit, isLow } from './suit';
 import { Teams } from './teams';
@@ -42,8 +42,8 @@ export function gameWinningTeam(g: Game): Teams | null {
     teamPoints.set(t.team, (teamPoints.get(t.team) ?? 0) + trickValue(t));
   }
 
-  // Marks bids and Plunge (169, not a multiple of 42) all need every point.
-  const adjustedBid = g.bid === Bid.Plunge || (g.bid as number) % 42 === 0 ? 42 : (g.bid as number);
+  // Marks bids and Plunge all need every point.
+  const adjustedBid = pointsToMakeBid(g.bid as Bid);
 
   return isLow(g.trump)
     ? biddingTeamId != null && teamPoints.has(biddingTeamId)

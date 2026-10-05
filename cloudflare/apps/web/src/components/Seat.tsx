@@ -5,7 +5,7 @@
 import type { JSX } from 'react';
 import type { Bid, Suit } from '@fortytwo/rules';
 import { bidToPrettyString } from '@fortytwo/rules';
-import type { Seat as SeatPosition } from '../match/table';
+import type { Seat as SeatPosition } from '@fortytwo/client';
 import { PipFace } from './PipFace';
 
 export interface SeatProps {

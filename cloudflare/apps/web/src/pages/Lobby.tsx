@@ -1,21 +1,23 @@
 // The lobby: a tabbed match list (Find a Game / Active / Game History, defaulting to Active) plus
 // create/join actions.
 //
-// Only the selected tab's list is ever fetched - the single `useQuery` below is keyed on
-// `activeTab`, so switching tabs just mounts a new query instance instead of eagerly fetching all
-// three lists up front. There's no `refetchInterval` cadence either: Active games are expected to
+// Only the selected tab's list is ever fetched - one page (20) at a time, with Load more for the
+// next - and the single `useInfiniteQuery` below is keyed on `activeTab`, so switching tabs just
+// mounts a new query instance instead of eagerly fetching all three lists up front. There's no `refetchInterval` cadence either: Active games are expected to
 // stay fairly static now that in-match play has its own WebSocket (useMatchSocket) carrying
 // real-time updates once you're actually in a match - the lobby just needs a reasonably fresh
 // snapshot, not a live feed. A manual refresh icon button (open-iconic's oi-loop-circular, loaded
 // via app.css) refetches whichever tab is currently selected.
 // Find a Game may want its own polling/push back later (matches can appear from other players at
 // any time) - left as-is for now per explicit product direction.
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useGetToken } from '../auth/useGetToken';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { JSX } from 'react';
-import { apiClient, type MatchSummary } from '../api/client';
+import { uniqueMatches } from '@fortytwo/client';
+import { apiClient, type MatchPage, type MatchSummary } from '../api/client';
+import { SEAT_SIDES, SeatPicker } from '../components/SeatPicker';
 import './Lobby.css';
 
 type MatchFilter = 'Active' | 'Joinable' | 'Completed';
@@ -32,10 +34,6 @@ const EMPTY_LABELS: Record<MatchFilter, string> = {
   Completed: 'Finished games will show up here.',
 };
 
-// A table seen from above, indexed by seat position: the creator's seat (0) nearest you, then
-// clockwise in turn order - the same layout the match screen uses (match/table.ts), so the seat
-// you pick here is where you'll sit relative to the others there. Partners sit across.
-const SEAT_SIDES = ['bottom', 'left', 'top', 'right'] as const;
 
 function SeatGlyph({ seats }: { seats: (string | null)[] }): JSX.Element {
   return (
@@ -45,48 +43,6 @@ function SeatGlyph({ seats }: { seats: (string | null)[] }): JSX.Element {
         <span key={side} className={`seat-glyph-seat seat-glyph-${side}${seats[position] != null ? ' is-seated' : ''}`} />
       ))}
     </span>
-  );
-}
-
-// The Join flow for a Find a Game row: the table again, bigger, with each taken seat's name and a
-// button in each open one. An open seat says who you'd partner with, since that's what picking a
-// seat really decides (along with who plays before and after you).
-function SeatPicker({
-  seats,
-  disabled,
-  onPick,
-}: {
-  seats: (string | null)[];
-  disabled: boolean;
-  onPick: (position: number) => void;
-}): JSX.Element {
-  return (
-    <div className="seat-picker" role="group" aria-label="Pick a seat">
-      <span className="seat-picker-table" aria-hidden="true" />
-      {SEAT_SIDES.map((side, position) => {
-        const name = seats[position];
-        if (name != null) {
-          return (
-            <span key={side} className={`seat-picker-seat seat-picker-${side} is-seated`}>
-              {name}
-            </span>
-          );
-        }
-        const partner = seats[(position + 2) % 4];
-        return (
-          <button
-            key={side}
-            type="button"
-            className={`seat-picker-seat seat-picker-${side}`}
-            disabled={disabled}
-            onClick={() => onPick(position)}
-          >
-            <span className="seat-picker-action">Sit here</span>
-            <span className="seat-picker-hint">{partner != null ? `with ${partner}` : 'open seat'}</span>
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -115,11 +71,24 @@ export function Lobby(): JSX.Element {
   const [activeTab, setActiveTab] = useState<MatchFilter>('Active');
   const activeTabLabel = TABS.find((tab) => tab.filter === activeTab)?.label ?? activeTab;
 
-  const matchesQuery = useQuery({
+  const matchesQuery = useInfiniteQuery({
     queryKey: ['matches', activeTab] as const,
-    queryFn: () => client.listMatches(activeTab),
+    queryFn: ({ pageParam }) => client.listMatches(activeTab, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
-  const matches = matchesQuery.data;
+  const matches = uniqueMatches(matchesQuery.data?.pages);
+  // "Load more" fetches too, but only a refresh spins the refresh icon.
+  const refreshing = matchesQuery.isFetching && !matchesQuery.isFetchingNextPage;
+
+  // Back to the first page: drop the rest from the cache, then refetch what's left - one request,
+  // with the list kept on screen meanwhile.
+  function refresh() {
+    queryClient.setQueryData<InfiniteData<MatchPage, string | undefined>>(['matches', activeTab], (data) =>
+      data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
+    );
+    void matchesQuery.refetch();
+  }
 
   const createMatch = useMutation({
     mutationFn: () => client.createMatch(),
@@ -184,11 +153,11 @@ export function Lobby(): JSX.Element {
           className="lobby-refresh"
           title="Refresh list"
           aria-label={`Refresh ${activeTabLabel}`}
-          disabled={matchesQuery.isFetching}
-          onClick={() => matchesQuery.refetch()}
+          disabled={refreshing}
+          onClick={refresh}
         >
           <span
-            className={`oi oi-loop-circular${matchesQuery.isFetching ? ' spinner-reverse' : ''}`}
+            className={`oi oi-loop-circular${refreshing ? ' spinner-reverse' : ''}`}
             aria-hidden="true"
           ></span>
         </button>
@@ -237,6 +206,16 @@ export function Lobby(): JSX.Element {
               </li>
             ))}
           </ul>
+        )}
+        {matchesQuery.hasNextPage && (
+          <button
+            type="button"
+            className="action-button action-button-small lobby-load-more"
+            disabled={matchesQuery.isFetchingNextPage}
+            onClick={() => void matchesQuery.fetchNextPage()}
+          >
+            {matchesQuery.isFetchingNextPage ? 'Loading…' : 'Load more'}
+          </button>
         )}
       </section>
     </div>

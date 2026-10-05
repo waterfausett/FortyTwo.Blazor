@@ -2,14 +2,18 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import {
   upsertMatchSummary,
+  refreshMatchSummary,
+  SUMMARY_REFRESH_MS,
   syncMatchPlayers,
   listActive,
   listCompleted,
   listJoinable,
   listMatchPlayers,
+  LOBBY_PAGE_SIZE,
 } from '../src/lobby';
-import { Teams } from '@fortytwo/rules';
+import { Teams, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import { countLobbyWrites } from './lobbyWrites';
 
 const testEnv = env as unknown as Env;
 
@@ -36,7 +40,7 @@ describe('lobby', () => {
       await upsertMatchSummary(testEnv.DB, { id: 'm-completed', status: 'completed', playerCount: 4, updatedOn: '2026-09-24T02:00:00Z' });
       await syncMatchPlayers(testEnv.DB, 'm-completed', seat('p1', 'p2', 'p3', 'p4'));
 
-      const results = await listActive(testEnv.DB, 'p1');
+      const results = (await listActive(testEnv.DB, 'p1')).rows;
 
       expect(results).toHaveLength(1);
       expect(results[0].id).toBe('m-active');
@@ -54,7 +58,7 @@ describe('lobby', () => {
       await upsertMatchSummary(testEnv.DB, { id: 'm-other', status: 'active', playerCount: 1, updatedOn: '2026-09-24T01:00:00Z' });
       await syncMatchPlayers(testEnv.DB, 'm-other', seat('p9'));
 
-      const results = await listActive(testEnv.DB, 'p1');
+      const results = (await listActive(testEnv.DB, 'p1')).rows;
 
       expect(results).toHaveLength(0);
     });
@@ -68,7 +72,7 @@ describe('lobby', () => {
       await upsertMatchSummary(testEnv.DB, { id: 'm-completed', status: 'completed', playerCount: 4, updatedOn: '2026-09-24T03:00:00Z' });
       await syncMatchPlayers(testEnv.DB, 'm-completed', seat('p1', 'p2', 'p3', 'p4'));
 
-      const results = await listCompleted(testEnv.DB, 'p1');
+      const results = (await listCompleted(testEnv.DB, 'p1')).rows;
 
       expect(results).toHaveLength(1);
       expect(results[0].id).toBe('m-completed');
@@ -81,7 +85,7 @@ describe('lobby', () => {
       await upsertMatchSummary(testEnv.DB, { id: 'm-completed-other', status: 'completed', playerCount: 4, updatedOn: '2026-09-24T03:00:00Z' });
       await syncMatchPlayers(testEnv.DB, 'm-completed-other', seat('p9', 'p8', 'p7', 'p6'));
 
-      const results = await listCompleted(testEnv.DB, 'p1');
+      const results = (await listCompleted(testEnv.DB, 'p1')).rows;
 
       expect(results).toHaveLength(0);
     });
@@ -105,7 +109,7 @@ describe('lobby', () => {
       await upsertMatchSummary(testEnv.DB, { id: 'm-done', status: 'completed', playerCount: 2, updatedOn: '2026-09-24T07:00:00Z' });
       await syncMatchPlayers(testEnv.DB, 'm-done', seat('p2', 'p3'));
 
-      const results = await listJoinable(testEnv.DB, 'p1');
+      const results = (await listJoinable(testEnv.DB, 'p1')).rows;
 
       expect(results).toHaveLength(1);
       expect(results[0].id).toBe('m-joinable');
@@ -120,11 +124,67 @@ describe('lobby', () => {
       await upsertMatchSummary(testEnv.DB, { id: 'm1', status: 'active', playerCount: 3, updatedOn: '2026-09-24T02:00:00Z' });
       await syncMatchPlayers(testEnv.DB, 'm1', seat('p1'));
 
-      const results = await listActive(testEnv.DB, 'p1');
+      const results = (await listActive(testEnv.DB, 'p1')).rows;
 
       expect(results).toHaveLength(1);
       expect(results[0].playerCount).toBe(3);
       expect(results[0].updatedOn).toBe('2026-09-24T02:00:00Z');
+    });
+  });
+
+  describe('refreshMatchSummary', () => {
+    const indexed = { id: 'm1', status: 'active' as const, playerCount: 4, updatedOn: '2026-09-24T01:00:00.000Z' };
+    // Just the fields the summary row is built from.
+    const matchAt = (updatedOn: string, winningTeam: Teams | null = null) =>
+      ({ id: 'm1', players: seat('p1', 'p2', 'p3', 'p4'), winningTeam, updatedOn }) as unknown as MatchState;
+    const msAfterIndexed = (ms: number) => new Date(Date.parse(indexed.updatedOn) + ms).toISOString();
+    const row = () =>
+      testEnv.DB.prepare('SELECT id, status, player_count AS playerCount, updated_on AS updatedOn FROM matches WHERE id = ?')
+        .bind('m1')
+        .first();
+
+    beforeEach(async () => {
+      await upsertMatchSummary(testEnv.DB, indexed);
+    });
+
+    it('leaves the row alone while updated_on is recent', async () => {
+      await refreshMatchSummary(testEnv.DB, matchAt(msAfterIndexed(SUMMARY_REFRESH_MS - 1)));
+
+      expect(await row()).toEqual(indexed);
+    });
+
+    it('refreshes updated_on once it is stale', async () => {
+      const later = msAfterIndexed(SUMMARY_REFRESH_MS + 1);
+
+      await refreshMatchSummary(testEnv.DB, matchAt(later));
+
+      expect(await row()).toEqual({ ...indexed, updatedOn: later });
+    });
+
+    it('writes a finished match straight away', async () => {
+      const justAfter = msAfterIndexed(1000);
+
+      await refreshMatchSummary(testEnv.DB, matchAt(justAfter, Teams.TeamB));
+
+      expect(await row()).toEqual({ ...indexed, status: 'completed', updatedOn: justAfter });
+    });
+
+    it('restores a match missing from the lobby, seats and all', async () => {
+      await testEnv.DB.prepare('DELETE FROM matches WHERE id = ?').bind('m1').run();
+      const justAfter = msAfterIndexed(1000);
+
+      await refreshMatchSummary(testEnv.DB, matchAt(justAfter));
+
+      expect(await row()).toEqual({ ...indexed, updatedOn: justAfter });
+      expect((await listActive(testEnv.DB, 'p3')).rows.map((r) => r.id)).toEqual(['m1']);
+    });
+
+    it('writes no seats, and no row, for a match that is already listed', async () => {
+      const lobbyWrites = await countLobbyWrites(testEnv.DB);
+
+      await refreshMatchSummary(testEnv.DB, matchAt(msAfterIndexed(1000)));
+
+      expect(await lobbyWrites('m1')).toEqual({ match_players: 0, matches: 0 });
     });
   });
 
@@ -204,12 +264,70 @@ describe('lobby', () => {
       await syncMatchPlayers(testEnv.DB, 'm1', seat('p3'));
 
       // p1 was removed from m1's player set, so it should no longer show up for p1.
-      const p1Results = await listActive(testEnv.DB, 'p1');
+      const p1Results = (await listActive(testEnv.DB, 'p1')).rows;
       expect(p1Results).toHaveLength(0);
 
-      const p3Results = await listActive(testEnv.DB, 'p3');
+      const p3Results = (await listActive(testEnv.DB, 'p3')).rows;
       expect(p3Results).toHaveLength(1);
       expect(p3Results[0].id).toBe('m1');
+    });
+  });
+
+  describe('paging', () => {
+    // `count` active matches p1 is in, one minute apart unless `updatedOn` says otherwise.
+    async function seedActive(count: number, updatedOn = (i: number) => `2026-09-24T01:${String(i).padStart(2, '0')}:00Z`) {
+      for (let i = 0; i < count; i++) {
+        const id = `m-${String(i).padStart(2, '0')}`;
+        await upsertMatchSummary(testEnv.DB, { id, status: 'active', playerCount: 2, updatedOn: updatedOn(i) });
+        await syncMatchPlayers(testEnv.DB, id, seat('p1', 'p2'));
+      }
+    }
+
+    it('returns a full page and a cursor, then the rest with no cursor', async () => {
+      await seedActive(LOBBY_PAGE_SIZE + 1);
+
+      const first = await listActive(testEnv.DB, 'p1');
+      expect(first.rows).toHaveLength(LOBBY_PAGE_SIZE);
+      expect(first.rows[0].id).toBe('m-20');
+      expect(first.next).toEqual({ updatedOn: first.rows[19].updatedOn, id: first.rows[19].id });
+
+      const second = await listActive(testEnv.DB, 'p1', first.next);
+      expect(second.rows.map((r) => r.id)).toEqual(['m-00']);
+      expect(second.next).toBeNull();
+    });
+
+    it('has no cursor when everything fits on one page', async () => {
+      await seedActive(LOBBY_PAGE_SIZE);
+      expect((await listActive(testEnv.DB, 'p1')).next).toBeNull();
+    });
+
+    it('pages through matches sharing one updated_on by id, without skipping or repeating any', async () => {
+      await seedActive(LOBBY_PAGE_SIZE + 5, () => '2026-09-24T01:00:00Z');
+
+      const first = await listActive(testEnv.DB, 'p1');
+      const second = await listActive(testEnv.DB, 'p1', first.next);
+      const ids = [...first.rows, ...second.rows].map((r) => r.id);
+
+      expect(new Set(ids).size).toBe(LOBBY_PAGE_SIZE + 5);
+      expect(ids).toEqual([...ids].sort().reverse());
+    });
+
+    it('pages Joinable and Completed the same way', async () => {
+      for (let i = 0; i <= LOBBY_PAGE_SIZE; i++) {
+        const minute = String(i).padStart(2, '0');
+        await upsertMatchSummary(testEnv.DB, { id: `j-${minute}`, status: 'active', playerCount: 1, updatedOn: `2026-09-24T02:${minute}:00Z` });
+        await syncMatchPlayers(testEnv.DB, `j-${minute}`, seat('p2'));
+        await upsertMatchSummary(testEnv.DB, { id: `c-${minute}`, status: 'completed', playerCount: 4, updatedOn: `2026-09-24T03:${minute}:00Z` });
+        await syncMatchPlayers(testEnv.DB, `c-${minute}`, seat('p1', 'p2', 'p3', 'p4'));
+      }
+
+      const joinable = await listJoinable(testEnv.DB, 'p1');
+      expect(joinable.rows).toHaveLength(LOBBY_PAGE_SIZE);
+      expect((await listJoinable(testEnv.DB, 'p1', joinable.next)).rows.map((r) => r.id)).toEqual(['j-00']);
+
+      const completed = await listCompleted(testEnv.DB, 'p1');
+      expect(completed.rows).toHaveLength(LOBBY_PAGE_SIZE);
+      expect((await listCompleted(testEnv.DB, 'p1', completed.next)).rows.map((r) => r.id)).toEqual(['c-00']);
     });
   });
 });

@@ -17,6 +17,8 @@ import {
   voteRematch,
   rematchAgreed,
   createRematch,
+  removePlayer,
+  hasHumanPlayers,
   assertIsMatchPlayer,
   shuffledDominoOrder,
   ValidationError,
@@ -27,13 +29,29 @@ import {
   type Suit,
   type Teams,
 } from '@fortytwo/rules';
-import { syncLobbyIndex } from './lobby';
+import { bestEffort, syncLobbyIndex, refreshMatchSummary } from './lobby';
+import { pushNotices } from './push/notices';
+import { sendNotices } from './push/send';
+import { tokensFor } from './push/tokens';
+import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
+import type { PokeResult } from '@fortytwo/api-types';
 import { BOT_IDS, decideBid, decideTrump, decideDomino, findNextBotAction, type BotAction } from './bots';
 
 // One tick's worth of "thinking time" before a bot acts, via the DO alarm API - so a client sees
 // each bot bid/play arrive as its own WebSocket broadcast instead of the whole rest of the hand
 // resolving instantly the moment the human acts.
 const BOT_MOVE_DELAY_MS = 600;
+
+// Sent to every socket when its match is deleted, so clients stop reconnecting to it. In the
+// 4000-4999 range the WebSocket protocol leaves for applications; the web app's useMatchSocket
+// knows it by the same number.
+export const MATCH_DELETED_CLOSE_CODE = 4404;
+
+export type LeaveResult = { deleted: true } | { deleted: false; match: MatchState };
+
+// What the expiry sweep (expiry.ts) learns from one match: it was deleted, the lobby row that
+// pointed here was stale (here's the match to re-sync it from), or there was nothing here at all.
+export type ExpireOutcome = { outcome: 'expired' } | { outcome: 'missing' } | { outcome: 'fresh'; match: MatchState };
 
 // What a match action hands back: its result, or why it was refused - a broken rule (400) or no
 // match at this id (404) - in the { title, detail } shape the client shows. Returned rather than
@@ -51,6 +69,16 @@ export class MatchDO extends DurableObject<Env> {
     await this.ctx.storage.put('match', match);
   }
 
+  // Deletes this match for good: no bot move may fire afterwards, every client is told to stop
+  // reconnecting, and storage is wiped so a later call finds no match (404).
+  private async destroy(): Promise<void> {
+    await this.ctx.storage.deleteAlarm();
+    for (const ws of this.ctx.getWebSockets()) {
+      ws.close(MATCH_DELETED_CLOSE_CODE, 'Match deleted');
+    }
+    await this.ctx.storage.deleteAll();
+  }
+
   // Only the WebSocket upgrade still arrives as a request; everything else is an RPC method below.
   async fetch(request: Request): Promise<Response> {
     if (new URL(request.url).pathname === '/ws') return this.handleWebSocketUpgrade(request);
@@ -62,26 +90,28 @@ export class MatchDO extends DurableObject<Env> {
   async create(firstPlayerId: string, matchId: string): Promise<MatchState> {
     const match = { ...createMatch(firstPlayerId), id: matchId };
     await this.save(match);
-    this.broadcast(match);
+    this.publish(null, match);
     return match;
   }
 
   // The other way a match comes into being: the finished match's DO (`rematch` below) calls this
   // on the rematch's DO. Returns an existing match untouched, so a retried call can't redeal it.
+  // No route touches this match on its way in, so the lobby index is synced here, as alarm() does.
   async createRematch(matchId: string, previous: MatchState, dealOrder: Domino[]): Promise<MatchState> {
     const stored = await this.load();
     if (stored !== null) {
-      // A retry: the first attempt may have failed before its bots were scheduled.
+      // A retry: the first attempt may have failed before its bots were scheduled or its lobby
+      // rows were written.
       await this.scheduleBotsIfNeeded(stored);
+      await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, stored));
       return stored;
     }
 
     const match = createRematch(matchId, previous, dealOrder);
     await this.save(match);
-    this.broadcast(match);
+    this.publish(null, match);
     await this.scheduleBotsIfNeeded(match);
-    // No route touches this match on its way in, so the lobby index is synced here, as alarm() does.
-    await syncLobbyIndex(this.env.DB, match);
+    await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, match));
     return match;
   }
 
@@ -103,6 +133,33 @@ export class MatchDO extends DurableObject<Env> {
 
   takeSeat(playerId: string, position: number, dealOrder?: Domino[]): Promise<MatchResult<MatchState>> {
     return this.update((match) => takeSeat(match, playerId, position, dealOrder));
+  }
+
+  // Takes a player back out of a match that hasn't been dealt. When no human is left the match is
+  // deleted outright - that's also how a creator cancels a match nobody joined. The caller drops
+  // the lobby rows (routes/matches.ts), as routes already own D1 syncing.
+  leave(playerId: string): Promise<MatchResult<LeaveResult>> {
+    return this.read(async (match): Promise<LeaveResult> => {
+      const next = removePlayer(match, playerId);
+      if (!hasHumanPlayers(next)) {
+        await this.destroy();
+        return { deleted: true };
+      }
+      await this.save(next);
+      this.broadcast(next);
+      await this.scheduleBotsIfNeeded(next);
+      return { deleted: false, match: next };
+    });
+  }
+
+  // Deletes this match if it is still active and was last changed before `cutoff`. This DO, not
+  // the D1 row that led the sweep here, decides - the row is only an index and can lag behind.
+  async expire(cutoff: string): Promise<ExpireOutcome> {
+    const match = await this.load();
+    if (match === null) return { outcome: 'missing' };
+    if (match.winningTeam !== null || match.updatedOn >= cutoff) return { outcome: 'fresh', match };
+    await this.destroy();
+    return { outcome: 'expired' };
   }
 
   // Seats a bot at each of `positions`, or at every open seat when none are given, so people
@@ -165,6 +222,47 @@ export class MatchDO extends DurableObject<Env> {
     });
   }
 
+  // Nudges the player whose turn it is once they've sat on it a while (poke.ts): over their socket
+  // if they have the match open, else as a push notification. One poke per turn, whoever sends it,
+  // recorded under its own key naming the turn - so the next turn can be poked again without the
+  // match itself changing. A poke that reaches nobody (no socket open, no device registered)
+  // doesn't use the turn's poke up, and the reply says so, so the poker isn't left guessing. It
+  // writes nothing either, so trying it again and again costs reads, never writes.
+  poke(pokerId: string): Promise<MatchResult<PokeResult>> {
+    return this.read(async (match): Promise<PokeResult> => {
+      const target = pokeTarget(match, pokerId, Date.now());
+      const turn = pokeTurnKey(match);
+      await this.assertNotPoked(turn);
+
+      const sockets = this.socketsOf(target);
+      if (sockets.length > 0) {
+        await this.ctx.storage.put('pokedTurn', turn);
+        const message = JSON.stringify({ type: 'poke', from: pokerId });
+        for (const ws of sockets) ws.send(message);
+        return { delivered: 'inApp' };
+      }
+      if ((await tokensFor(this.env.DB, [target])).length === 0) return { delivered: 'none' };
+
+      // The D1 lookup let other calls in while it was out: the turn may have moved on, or been
+      // poked by someone else. Storage calls alone don't, so checking and claiming below is safe.
+      const current = await this.load();
+      if (current === null || pokeTurnKey(current) !== turn) {
+        throw new ValidationError('Too late to poke', "It's no longer their turn.");
+      }
+      await this.assertNotPoked(turn);
+      await this.ctx.storage.put('pokedTurn', turn);
+      this.ctx.waitUntil(sendNotices(this.env, [pokeNotice(match, target)]));
+      return { delivered: 'push' };
+    });
+  }
+
+  // Refuses a poke for a turn that's already been poked.
+  private async assertNotPoked(turn: string): Promise<void> {
+    if ((await this.ctx.storage.get<string>('pokedTurn')) === turn) {
+      throw new ValidationError('Already poked', 'Someone has already poked them this turn.');
+    }
+  }
+
   // Runs `action` against the stored match, turning a broken rule into a 400 result. Anything else
   // thrown is a bug, and propagates.
   private async read<T>(action: (match: MatchState) => T | Promise<T>): Promise<MatchResult<T>> {
@@ -186,7 +284,7 @@ export class MatchDO extends DurableObject<Env> {
     return this.read(async (match) => {
       const next = await action(match);
       await this.save(next);
-      this.broadcast(next);
+      this.publish(match, next);
       await this.scheduleBotsIfNeeded(next);
       return next;
     });
@@ -218,7 +316,9 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   // Runs one bot action per firing. Alarm-driven changes never pass through routes/matches.ts,
-  // which syncs the D1 lobby index for everything else, so it's synced here.
+  // which syncs the D1 lobby index for everything else, so it's synced here - by the same rules:
+  // a bot's ready-up or play refreshes the summary row, and its bid or trump call (which the
+  // routes don't sync either) writes nothing.
   async alarm(): Promise<void> {
     const match = await this.load();
     if (match === null) return;
@@ -228,9 +328,14 @@ export class MatchDO extends DurableObject<Env> {
 
     const next = this.applyBotAction(match, action);
     await this.save(next);
-    this.broadcast(next);
-    await syncLobbyIndex(this.env.DB, next);
+    // Scheduled straight after the save: the saved match already points at the next bot action,
+    // so if anything below threw first, the runtime's retry would fire that action unpaced, and
+    // once its retries ran out a match waiting on a bot would be stuck.
     await this.scheduleBotsIfNeeded(next);
+    this.publish(match, next);
+    if (action.kind === 'ready' || action.kind === 'play') {
+      await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));
+    }
   }
 
   // Uses the Hibernation API (`this.ctx.acceptWebSocket`, not the plain `WebSocket` `accept()`)
@@ -269,7 +374,8 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   // Required by the Hibernation API even though clients don't send messages today - all match
-  // actions go through the REST routes, not over the socket.
+  // actions go through the REST routes, not over the socket. The server sends two kinds:
+  // `{ type: 'match', match }` on every change, and `{ type: 'poke', from }` to a poked player.
   async webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {}
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
@@ -282,6 +388,35 @@ export class MatchDO extends DurableObject<Env> {
     } else {
       ws.close();
     }
+  }
+
+  // Tells everyone about a change: each open socket gets the new match, and players who don't
+  // have the match open get a push notification for anything they need to know (push/notices.ts)
+  // - sent after the response, so a play never waits on the push service.
+  private publish(previous: MatchState | null, next: MatchState): void {
+    this.broadcast(next);
+    const watching = this.watchingPlayers();
+    const notices = pushNotices(previous, next).filter((n) => !watching.has(n.playerId));
+    if (notices.length > 0) this.ctx.waitUntil(sendNotices(this.env, notices));
+  }
+
+  // Players with a socket open on this match: they're looking at it, so need no push. (The app
+  // closes its socket when it goes to the background.)
+  private watchingPlayers(): Set<string> {
+    const ids = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as { playerId: string } | null;
+      if (attachment) ids.add(attachment.playerId);
+    }
+    return ids;
+  }
+
+  // Every socket `playerId` has open on this match - one per tab or device.
+  private socketsOf(playerId: string): WebSocket[] {
+    return this.ctx.getWebSockets().filter((ws) => {
+      const attachment = ws.deserializeAttachment() as { playerId: string } | null;
+      return attachment?.playerId === playerId;
+    });
   }
 
   // Each socket gets its own view - its player's hand, and only a count of everyone else's.

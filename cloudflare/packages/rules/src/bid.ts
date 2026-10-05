@@ -22,6 +22,12 @@ export enum Bid {
   SevenMarks = 294
 }
 
+// The points the bidding team must take to make `bid`: the bid itself for 30-42, and all 42 for
+// anything higher - every marks bid, and Plunge (169, which isn't a multiple of 42).
+export function pointsToMakeBid(bid: Bid): number {
+  return Math.min(bid, Bid.FortyTwo);
+}
+
 export function bidToPrettyString(bid: Bid | null | undefined): string {
   if (bid === null || bid === undefined) return 'N/A';
   return bid === Bid.Pass || bid === Bid.Plunge

@@ -8,7 +8,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { Bid, createDomino, Positions, Suit, Teams, type Domino, type MatchState, type Trick } from '@fortytwo/rules';
 import { Match } from './Match';
 
@@ -32,12 +32,17 @@ const {
   getMatchMock,
   searchUsersMock,
   getConfigMock,
+  getProfileMock,
   addBotsMock,
   useMatchSocketMock,
   toastErrorMock,
   toastInfoMock,
   rematchMock,
+  leaveMatchMock,
   navigateMock,
+  turnAlertsMock,
+  joinMatchMock,
+  pokeMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -48,12 +53,17 @@ const {
     getMatchMock: vi.fn(),
     searchUsersMock: vi.fn(),
     getConfigMock: vi.fn(),
+    getProfileMock: vi.fn(),
     addBotsMock: vi.fn(),
     useMatchSocketMock: vi.fn(),
     toastErrorMock: vi.fn(),
     toastInfoMock: vi.fn(),
     rematchMock: vi.fn(),
+    leaveMatchMock: vi.fn(),
     navigateMock: vi.fn(),
+    turnAlertsMock: vi.fn(() => null),
+    joinMatchMock: vi.fn(),
+    pokeMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -69,14 +79,22 @@ vi.mock('../api/client', () => ({
     getMatch: getMatchMock,
     searchUsers: searchUsersMock,
     getConfig: getConfigMock,
+    getProfile: getProfileMock,
     addBots: addBotsMock,
     rematch: rematchMock,
+    leaveMatch: leaveMatchMock,
+    joinMatch: joinMatchMock,
+    poke: pokeMock,
   }),
 }));
 
 vi.mock('../ui/toast', () => ({
   toastError: toastErrorMock,
   toastInfo: toastInfoMock,
+}));
+
+vi.mock('../match/TurnAlerts', () => ({
+  TurnAlerts: turnAlertsMock,
 }));
 
 vi.mock('../api/useMatchSocket', () => ({
@@ -105,6 +123,7 @@ beforeEach(() => {
   searchUsersMock.mockResolvedValue([]);
   // Bots are a dev-only aid, so off unless a test turns them on.
   getConfigMock.mockResolvedValue({ bots: false });
+  getProfileMock.mockResolvedValue({ user_id: 'p1', displayName: 'Me', highlightPlayable: false });
 });
 
 afterEach(() => {
@@ -161,6 +180,40 @@ function baseMatch(overrides: Partial<MatchState> = {}, gameOverrides: Partial<M
   };
 }
 
+  function finishedHandMatch(): MatchState {
+    // A finished game: TeamA (p1/p3) bid Thirty and won a single trick worth 31 (>= 30) - matches
+    // matchEngine.test.ts's `finishedGame` fixture shape closely enough to trip `gameWinningTeam`.
+    return baseMatch(
+      {
+        players: [
+          { playerId: 'p1', position: Positions.First, ready: false },
+          { playerId: 'p2', position: Positions.Second, ready: true },
+          { playerId: 'p3', position: Positions.Third, ready: false },
+          { playerId: 'p4', position: Positions.Fourth, ready: false },
+        ],
+      },
+      {
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        hands: [
+          { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: Bid.Thirty },
+          { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+          { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+        ],
+        tricks: [
+          {
+            playerId: 'p1',
+            team: Teams.TeamA,
+            suit: Suit.Sixes,
+            dominoes: [createDomino(5, 0), createDomino(5, 5), createDomino(6, 4), createDomino(4, 1)],
+          },
+        ],
+      }
+    );
+  }
+
 describe('Match', () => {
   describe('open seats', () => {
     // Just me and my partner so far - seats 1 and 3 (my left and right) are open.
@@ -208,6 +261,99 @@ describe('Match', () => {
       await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
     });
 
+    describe('leaving', () => {
+      let confirmSpy: MockInstance<typeof window.confirm>;
+      beforeEach(() => {
+        confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+        leaveMatchMock.mockResolvedValue(undefined);
+      });
+      afterEach(() => confirmSpy.mockRestore());
+
+      it('leaves the table and goes back to the lobby', async () => {
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+
+        expect(confirmSpy).toHaveBeenCalledWith('Leave this table?');
+        await waitFor(() => expect(leaveMatchMock).toHaveBeenCalledWith('match-1'));
+        await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/'));
+      });
+
+      it('offers Cancel match when no other human is seated', async () => {
+        const withBot = waitingMatch();
+        withBot.players = [PLAYERS[0], { playerId: 'bot-1', position: Positions.Third, ready: true }];
+        useMatchSocketMock.mockReturnValue({ match: withBot, connected: true });
+        renderMatch();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel match' }));
+
+        expect(confirmSpy).toHaveBeenCalledWith('Cancel this match? It will be deleted.');
+        await waitFor(() => expect(leaveMatchMock).toHaveBeenCalled());
+      });
+
+      it('does nothing when the confirm is dismissed', () => {
+        confirmSpy.mockReturnValue(false);
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+
+        expect(leaveMatchMock).not.toHaveBeenCalled();
+      });
+
+      it('is not offered once the hand is dealt', () => {
+        useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+        renderMatch();
+        expect(screen.queryByRole('button', { name: /leave table|cancel match/i })).toBeNull();
+      });
+
+      it('still sends the leaver to the lobby if their leave failed after the match was deleted', async () => {
+        // The DO deletes the match and closes the socket; only then does the request fail (e.g.
+        // the lobby-row cleanup after it).
+        let failLeave!: (error: Error) => void;
+        leaveMatchMock.mockReturnValue(new Promise((_resolve, reject) => (failLeave = reject)));
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: false, deleted: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+        await waitFor(() => expect(leaveMatchMock).toHaveBeenCalled());
+        expect(navigateMock).not.toHaveBeenCalled();
+        await act(async () => failLeave(new Error('Something went wrong')));
+
+        await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/', { replace: true }));
+      });
+
+      it("doesn't flash 'not a part of this match' while the leave is going through", async () => {
+        leaveMatchMock.mockReturnValue(new Promise(() => {}));
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+        // The broadcast without this player usually beats the DELETE reply back.
+        const withoutMe = waitingMatch();
+        withoutMe.players = [PLAYERS[2]];
+        useMatchSocketMock.mockReturnValue({ match: withoutMe, connected: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+
+        await waitFor(() => expect(leaveMatchMock).toHaveBeenCalled());
+        expect(screen.queryByText(/aren.t a part of this match/i)).toBeNull();
+      });
+
+      it('does not announce the deletion to the player whose own leave caused it', async () => {
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+        renderMatch();
+        // From the next render on, the socket reports the deletion - as it would once the leave
+        // lands and the DO closes every socket, this player's included.
+        useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: false, deleted: true });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
+
+        await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/'));
+        expect(toastInfoMock).not.toHaveBeenCalledWith('This match was deleted');
+      });
+    });
+
     it('has no open seats or bot controls once the table is full', async () => {
       getConfigMock.mockResolvedValue({ bots: true });
       useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
@@ -217,6 +363,39 @@ describe('Match', () => {
       expect(screen.queryAllByTestId('open-seat')).toHaveLength(0);
       expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
     });
+  });
+
+  it('sends everyone back to the lobby when the match is deleted under them', async () => {
+    useMatchSocketMock.mockReturnValue({ match: null, connected: false, deleted: true });
+    renderMatch();
+
+    await waitFor(() => expect(toastInfoMock).toHaveBeenCalledWith('This match was deleted'));
+    expect(navigateMock).toHaveBeenCalledWith('/', { replace: true });
+  });
+
+  it('shows why a match failed to load, instead of spinning forever', async () => {
+    getMatchMock.mockRejectedValue(Object.assign(new Error('Match not found!'), { status: 404 }));
+    useMatchSocketMock.mockReturnValue({ match: null, connected: false });
+    renderMatch();
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Match not found!');
+    expect(screen.getByRole('link', { name: /back to lobby/i }).getAttribute('href')).toBe('/');
+  });
+
+  it("shows a missing match's error straight away, without the default retries", async () => {
+    getMatchMock.mockRejectedValue(Object.assign(new Error('Match not found!'), { status: 404 }));
+    useMatchSocketMock.mockReturnValue({ match: null, connected: false });
+    // React Query's real defaults (3 retries with backoff), not renderMatch's retry-free client.
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <Match />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Match not found!');
+    expect(getMatchMock).toHaveBeenCalledTimes(1);
   });
 
   it('shows BiddingPanel and hides Hand play interaction during the bidding phase', () => {
@@ -384,14 +563,11 @@ describe('Match', () => {
     await waitFor(() => expect(playDominoMock).toHaveBeenCalledWith('match-1', { top: domino.top, bottom: domino.bottom }));
   });
 
-  // Regression test: after MY OWN play mutation resolves successfully, there's a real gap before
-  // the WebSocket broadcast confirming the new turn actually arrives - `useMatchSocket` only ever
-  // updates `match` from a broadcast, never from the mutation's own REST response (client.ts's
-  // playDomino DOES return the fresh MatchState, but Match.tsx never reads `playMutation.data`).
-  // Without accounting for that gap, `canPlay` briefly reads true again the instant
-  // `playMutation.isPending` flips back to false but the (stale) `match` still shows ME as
-  // `currentPlayerId` - letting a second play/preselect attempt fire immediately and get rejected
-  // server-side with "It's not your turn!".
+  // Regression test: after MY OWN play's request resolves, there's a real gap before the WebSocket
+  // broadcast confirming it arrives - `useMatchSocket` only ever updates `match` from a broadcast,
+  // never from the request's own REST response. The play stays in flight until that broadcast
+  // shows the domino gone from my hand; ending it when the request resolved would let a second
+  // play fire against the stale `match`, which the server turns away with "It's not your turn!".
   it("keeps a player's hand non-clickable after their own play resolves, even before the match broadcast confirms the turn moved on", async () => {
     playDominoMock.mockResolvedValue({} as MatchState);
     const domino: Domino = createDomino(1, 2);
@@ -419,22 +595,21 @@ describe('Match', () => {
 
     fireEvent.click(tiles[0]);
     await waitFor(() => expect(playDominoMock).toHaveBeenCalled());
+    await act(async () => {});
 
-    // The mutation has resolved, but `match` (from the still-unmoved mock above) hasn't - the
+    // The request has resolved, but `match` (from the still-unmoved mock above) hasn't - the
     // remaining tile must NOT be clickable/playable again yet.
-    await waitFor(() => {
-      expect(screen.getAllByTestId('domino')[0].classList.contains('clickable')).toBe(false);
-    });
+    const handTiles = within(screen.getByTestId('hand')).getAllByTestId('domino');
+    expect(handTiles).toHaveLength(1);
+    expect(handTiles[0].classList.contains('clickable')).toBe(false);
   });
 
-  // Regression test: `awaitingTurnAdvance`'s clearing condition used to be
-  // `holdGame?.currentPlayerId !== myPlayerId` - sound for normal turn rotation, but false
-  // whenever the mover ALSO wins the trick they just completed: the engine then sets
-  // `currentPlayerId` right back to that same player as leader of the next trick
-  // (matchEngine.ts's `playDomino`: `currentPlayerId = currentTrick.playerId` on a full trick),
-  // so `currentPlayerId` never actually changes across the broadcast. That stuck
-  // `awaitingTurnAdvance` at `true` forever, permanently disabling `canPlay` until a full page
-  // refresh reset the component's state from scratch.
+  // Regression test: the wait for my play to land once ended when `currentPlayerId` moved off me -
+  // sound for normal turn rotation, but never true when the mover ALSO wins the trick they just
+  // completed: the engine then sets `currentPlayerId` right back to that same player as leader of
+  // the next trick (matchEngine.ts's `playDomino`: `currentPlayerId = currentTrick.playerId` on a
+  // full trick). That left `canPlay` disabled until a full page refresh. A play in flight now
+  // ends when the broadcast shows the domino gone from my hand.
   it("lets a player who wins a trick they completed play again once the broadcast confirms it, even though currentPlayerId never changes", async () => {
     playDominoMock.mockResolvedValue({} as MatchState);
     const winningDomino: Domino = createDomino(6, 6); // highest trump - guaranteed trick winner.
@@ -560,6 +735,148 @@ describe('Match', () => {
     fireEvent.doubleClick(handTiles[0]); // (4,0)
 
     expect(handTiles[0].classList.contains('preselected')).toBe(true);
+  });
+
+  describe("someone who isn't seated", () => {
+    it('offers the open seats, saying who each would partner, and takes the one picked', async () => {
+      joinMatchMock.mockResolvedValue(baseMatch());
+      currentUserId.value = 'p5';
+      const players = PLAYERS.filter((p) => p.playerId !== 'p3');
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ players }), connected: true });
+      renderMatch();
+
+      const picker = screen.getByRole('group', { name: /pick a seat/i });
+      const seat = within(picker).getByRole('button', { name: /sit here/i });
+      expect(seat.textContent).toContain('with p1');
+      fireEvent.click(seat);
+
+      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('match-1', 2));
+    });
+
+    it('says when the match is full', () => {
+      currentUserId.value = 'p5';
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+
+      expect(screen.getByRole('heading', { name: /this match is full/i })).not.toBeNull();
+      expect(screen.queryByRole('group', { name: /pick a seat/i })).toBeNull();
+      expect(screen.getByRole('link', { name: /back to matches/i }).getAttribute('href')).toBe('/');
+    });
+  });
+
+  describe('optimistic play', () => {
+    // p1 to play on Sixes, holding `mine`; the others' hands don't matter to the page.
+    function playingMatch(mine: Domino[], gameOverrides: Partial<MatchState['currentGame']> = {}): MatchState {
+      return baseMatch(
+        {},
+        {
+          bid: Bid.Thirty,
+          biddingPlayerId: 'p1',
+          trump: Suit.Sixes,
+          currentPlayerId: 'p1',
+          hands: [
+            { playerId: 'p1', team: Teams.TeamA, dominoes: mine, bid: Bid.Thirty },
+            { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+            { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
+            { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
+          ],
+          ...gameOverrides,
+        }
+      );
+    }
+    // A tile's halves, lower first (the table may draw a domino either way up).
+    const labelOf = (tile: HTMLElement) =>
+      [...tile.querySelectorAll<HTMLElement>('[data-value]')]
+        .map((half) => Number(half.dataset.value))
+        .sort((a, b) => a - b)
+        .join('-');
+    const hand = () => within(screen.getByTestId('hand')).queryAllByTestId('domino').map(labelOf);
+    const trick = () => within(screen.getByLabelText(/current trick/i)).queryAllByTestId('domino').map(labelOf);
+
+    it('puts a legal play on the table and moves the turn on before the server answers', async () => {
+      // Never resolves: the server hasn't answered.
+      playDominoMock.mockReturnValue(new Promise(() => {}));
+      useMatchSocketMock.mockReturnValue({ match: playingMatch([createDomino(1, 2), createDomino(3, 4)]), connected: true });
+      renderMatch();
+
+      fireEvent.click(within(screen.getByTestId('hand')).getAllByTestId('domino')[0]);
+
+      expect(hand()).toEqual(['3-4']);
+      expect(trick()).toEqual(['1-2']);
+      expect(screen.getByText('p2 to play')).not.toBeNull();
+      await waitFor(() => expect(playDominoMock).toHaveBeenCalledWith('match-1', { top: 1, bottom: 2 }));
+    });
+
+    it("refuses an illegal play on the spot with the rule's toast, sending nothing", () => {
+      // A six was led, and I hold one, so the 1-2 doesn't follow.
+      const match = playingMatch([createDomino(1, 2), createDomino(6, 3)], {
+        currentPlayerId: 'p1',
+        currentTrick: { playerId: 'p4', team: Teams.TeamB, suit: Suit.Sixes, dominoes: [createDomino(6, 5), null, null, null] },
+      });
+      useMatchSocketMock.mockReturnValue({ match, connected: true });
+      renderMatch();
+
+      fireEvent.click(within(screen.getByTestId('hand')).getAllByTestId('domino')[0]);
+
+      expect(playDominoMock).not.toHaveBeenCalled();
+      expect(toastErrorMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'You must follow suit!' }));
+      expect(hand()).toEqual(['1-2', '3-6']);
+      expect(trick()).toEqual(['5-6']);
+    });
+
+    it('puts a play the server turns away back in its place in the hand', async () => {
+      let refuse: (error: Error) => void = () => {};
+      playDominoMock.mockReturnValue(new Promise((_, reject) => (refuse = reject)));
+      useMatchSocketMock.mockReturnValue({
+        match: playingMatch([createDomino(1, 2), createDomino(3, 4), createDomino(5, 5)]),
+        connected: true,
+      });
+      renderMatch();
+
+      fireEvent.click(within(screen.getByTestId('hand')).getAllByTestId('domino')[1]);
+      expect(hand()).toEqual(['1-2', '5-5']);
+
+      const error = new Error("It's not your turn!");
+      await act(async () => refuse(error));
+
+      expect(toastErrorMock).toHaveBeenCalledWith(error);
+      expect(hand()).toEqual(['1-2', '3-4', '5-5']);
+      expect(trick()).toEqual([]);
+      expect(within(screen.getByTestId('hand')).getAllByTestId('domino')[0].classList.contains('clickable')).toBe(true);
+    });
+
+    it('holds a trick my play completes on the table, through the broadcast that files it', () => {
+      playDominoMock.mockReturnValue(new Promise(() => {}));
+      const played = [createDomino(6, 1), createDomino(6, 2), createDomino(6, 3)];
+      const before = playingMatch([createDomino(6, 6), createDomino(3, 4)], {
+        currentTrick: { playerId: 'p4', team: Teams.TeamB, suit: Suit.Sixes, dominoes: [...played, null] },
+      });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      const ui = () => (
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      useMatchSocketMock.mockReturnValue({ match: before, connected: true });
+      const { rerender } = render(ui());
+
+      fireEvent.click(within(screen.getByTestId('hand')).getAllByTestId('domino')[0]);
+      expect(trick()).toEqual(['1-6', '2-6', '3-6', '6-6']);
+      const tilesBefore = within(screen.getByLabelText(/current trick/i)).getAllByTestId('domino');
+
+      // The server files the trick, which the 6-6 won, and I lead the next.
+      const after = playingMatch([createDomino(3, 4)], {
+        tricks: [{ playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [...played, createDomino(6, 6)] }],
+      });
+      useMatchSocketMock.mockReturnValue({ match: after, connected: true });
+      act(() => rerender(ui()));
+
+      expect(trick()).toEqual(['1-6', '2-6', '3-6', '6-6']);
+      for (const tile of tilesBefore) expect(tile.isConnected).toBe(true);
+      expect(hand()).toEqual(['3-4']);
+    });
   });
 
   it('calls bid with the right Bid value when a bid button is clicked', async () => {
@@ -690,40 +1007,6 @@ describe('Match', () => {
   // `readyUp` is the ONLY mechanism that deals a new hand once the current one has a winner, so
   // without this UI a match would play its first hand to completion and then never continue.
   describe('Ready Up', () => {
-    function finishedHandMatch(): MatchState {
-      // A finished game: TeamA (p1/p3) bid Thirty and won a single trick worth 31 (>= 30) - matches
-      // matchEngine.test.ts's `finishedGame` fixture shape closely enough to trip `gameWinningTeam`.
-      return baseMatch(
-        {
-          players: [
-            { playerId: 'p1', position: Positions.First, ready: false },
-            { playerId: 'p2', position: Positions.Second, ready: true },
-            { playerId: 'p3', position: Positions.Third, ready: false },
-            { playerId: 'p4', position: Positions.Fourth, ready: false },
-          ],
-        },
-        {
-          bid: Bid.Thirty,
-          biddingPlayerId: 'p1',
-          trump: Suit.Sixes,
-          hands: [
-            { playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: Bid.Thirty },
-            { playerId: 'p2', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
-            { playerId: 'p3', team: Teams.TeamA, dominoes: [], bid: Bid.Pass },
-            { playerId: 'p4', team: Teams.TeamB, dominoes: [], bid: Bid.Pass },
-          ],
-          tricks: [
-            {
-              playerId: 'p1',
-              team: Teams.TeamA,
-              suit: Suit.Sixes,
-              dominoes: [createDomino(5, 0), createDomino(5, 5), createDomino(6, 4), createDomino(4, 1)],
-            },
-          ],
-        }
-      );
-    }
-
     it('shows a Ready Up button once the current hand has a winner, and hides it once bidding is happening', () => {
       const finished = finishedHandMatch();
       useMatchSocketMock.mockReturnValue({ match: finished, connected: true });
@@ -1175,7 +1458,7 @@ describe('Match', () => {
       expect(container.querySelector('.player-team-tricks .badge')?.textContent).toBe('1');
     });
 
-    it('trims each side to its last 2 tricks once the bid is big enough (so a big hand keeps a short pile)', () => {
+    it('keeps only the last 2 tricks taken in view, split between the sides, once the bid is big enough', () => {
       const tricksFor = (team: Teams, count: number): Trick[] =>
         Array.from({ length: count }, () => ({
           playerId: 'p1',
@@ -1188,6 +1471,40 @@ describe('Match', () => {
         {},
         {
           bid: Bid.EightyFour, // > FortyTwo (42), not Plunge -> stacking kicks in.
+          biddingPlayerId: 'p1',
+          trump: Suit.Sixes,
+          // Alternating, so the last two taken are one each.
+          tricks: [Teams.TeamA, Teams.TeamB, Teams.TeamA, Teams.TeamB, Teams.TeamA, Teams.TeamB].flatMap((t) =>
+            tricksFor(t, 1)
+          ),
+        }
+      );
+      useMatchSocketMock.mockReturnValue({ match, connected: true });
+
+      const { container } = render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+
+      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(1);
+      expect(container.querySelectorAll('.opponent-tricks .trick-history-row')).toHaveLength(1);
+    });
+
+    it('shows nothing of a side whose tricks are all older than the last 2 taken', () => {
+      const tricksFor = (team: Teams, count: number): Trick[] =>
+        Array.from({ length: count }, () => ({
+          playerId: 'p1',
+          team,
+          suit: Suit.Sixes,
+          dominoes: [createDomino(0, 0), createDomino(0, 0), createDomino(0, 0), createDomino(0, 0)],
+        }));
+      const match = baseMatch(
+        {},
+        {
+          bid: Bid.EightyFour,
           biddingPlayerId: 'p1',
           trump: Suit.Sixes,
           tricks: [...tricksFor(Teams.TeamA, 3), ...tricksFor(Teams.TeamB, 3)],
@@ -1203,7 +1520,7 @@ describe('Match', () => {
         </QueryClientProvider>
       );
 
-      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(2);
+      expect(container.querySelectorAll('.player-team-tricks .trick-history-row')).toHaveLength(0);
       expect(container.querySelectorAll('.opponent-tricks .trick-history-row')).toHaveLength(2);
     });
   });
@@ -1344,10 +1661,20 @@ describe('Match', () => {
       return { ...base, games: { [Teams.TeamA]: [base.currentGame] }, ...overrides };
     }
 
-    it('opens the summary dialog once the match is over', () => {
+    // The summary waits to be asked for, from the hand-over rail.
+    function openSummary() {
+      const rail = screen.getByRole('region', { name: /hand over/i });
+      fireEvent.click(within(rail).getByRole('button', { name: /match summary/i }));
+    }
+
+    it("doesn't open the summary by itself when the match is over, but opens it from the rail", () => {
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
 
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(within(screen.getByRole('region', { name: /hand over/i })).getByText(/you won the match/i)).not.toBeNull();
+
+      openSummary();
       const dialog = screen.getByRole('dialog', { name: /you won the match/i });
       expect(within(dialog).getByText('Game 1')).not.toBeNull();
     });
@@ -1363,6 +1690,7 @@ describe('Match', () => {
       rematchMock.mockResolvedValue(finishedMatch());
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
+      openSummary();
 
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^rematch/i }));
 
@@ -1372,6 +1700,7 @@ describe('Match', () => {
     it('shows my vote as waiting, with the count', () => {
       useMatchSocketMock.mockReturnValue({ match: finishedMatch({ rematchVotes: ['p1', 'p2'] }), connected: true });
       renderMatch();
+      openSummary();
 
       expect(
         within(screen.getByRole('dialog')).getByRole('button', { name: /waiting for rematch \(2 of 4\)/i })
@@ -1381,6 +1710,7 @@ describe('Match', () => {
     it('closes to the table, leaving a way back to the summary', () => {
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
+      openSummary();
 
       fireEvent.click(screen.getByRole('button', { name: /close/i }));
       expect(screen.queryByRole('dialog')).toBeNull();
@@ -1391,12 +1721,11 @@ describe('Match', () => {
       expect(screen.getByRole('dialog')).not.toBeNull();
     });
 
-    it('can vote from the rail with the dialog closed', async () => {
+    it('can vote from the rail without opening the summary', async () => {
       rematchMock.mockResolvedValue(finishedMatch());
       useMatchSocketMock.mockReturnValue({ match: finishedMatch(), connected: true });
       renderMatch();
 
-      fireEvent.click(screen.getByRole('button', { name: /close/i }));
       const rail = screen.getByRole('region', { name: /hand over/i });
       fireEvent.click(within(rail).getByRole('button', { name: /^rematch/i }));
 
@@ -1454,7 +1783,7 @@ describe('Match', () => {
       });
       rerenderMatch(view);
 
-      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'p2 bids first');
+      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'p2 bids first', 'center');
     });
 
     it("says \"You bid first\" when it's me", () => {
@@ -1467,7 +1796,218 @@ describe('Match', () => {
       });
       rerenderMatch(view);
 
-      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'You bid first');
+      expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'You bid first', 'center');
+    });
+  });
+
+  describe('turn alerts', () => {
+    type Call = { kind: string; title: string; body: string } | null;
+    function lastCall(): Call {
+      const calls = turnAlertsMock.mock.calls as unknown as [{ call: Call; tag: string }][];
+      return calls[calls.length - 1][0].call;
+    }
+
+    it('calls me for my bid, worded like the push notices', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+      expect(lastCall()).toEqual({ kind: 'turn', title: 'Your bid', body: 'Game 1 is waiting on you.' });
+      const calls = turnAlertsMock.mock.calls as unknown as [{ tag: string }][];
+      expect(calls[calls.length - 1][0].tag).toBe('match-1');
+    });
+
+    it("doesn't call me while it's someone else's turn", () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({}, { currentPlayerId: 'p2' }), connected: true });
+      renderMatch();
+      expect(lastCall()).toBeNull();
+    });
+
+    it('calls me to name trump', () => {
+      const hands = baseMatch().currentGame.hands.map((h, i) => ({ ...h, bid: i === 0 ? Bid.Thirty : Bid.Pass }));
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { hands, bid: Bid.Thirty, biddingPlayerId: 'p1' }),
+        connected: true,
+      });
+      renderMatch();
+      expect(lastCall()).toMatchObject({ kind: 'turn', title: 'Name trump' });
+    });
+
+    it('calls me to lead', () => {
+      const hands = baseMatch().currentGame.hands.map((h, i) => ({ ...h, bid: i === 0 ? Bid.Thirty : Bid.Pass }));
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({}, { hands, bid: Bid.Thirty, biddingPlayerId: 'p1', trump: Suit.Sixes }),
+        connected: true,
+      });
+      renderMatch();
+      expect(lastCall()).toMatchObject({ kind: 'turn', title: 'Your lead' });
+    });
+
+    // Like the push notices: playing out a decided hand is optional, so the call is to ready up - the
+    // next hand deals once all four have, played out or not.
+    it('calls me to ready up once the hand is decided, not to play it out', () => {
+      const base = finishedHandMatch();
+      const decided = {
+        ...base,
+        currentGame: {
+          ...base.currentGame,
+          currentPlayerId: 'p1',
+          hands: base.currentGame.hands.map((h) =>
+            h.playerId === 'p1' ? { ...h, dominoes: [createDomino(1, 2)] } : h
+          ),
+        },
+      };
+      useMatchSocketMock.mockReturnValue({ match: decided, connected: true });
+      renderMatch();
+      expect(lastCall()).toEqual({ kind: 'handOver', title: 'Hand over', body: 'Ready up for the next hand.' });
+    });
+
+    it("doesn't call me once I'm ready", () => {
+      const base = finishedHandMatch();
+      const ready = { ...base, players: base.players.map((p) => ({ ...p, ready: p.playerId === 'p1' || p.ready })) };
+      useMatchSocketMock.mockReturnValue({ match: ready, connected: true });
+      renderMatch();
+      expect(lastCall()).toBeNull();
+    });
+
+    it("calls me again when I'm poked, worded like the poke's push notice", () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+      expect(lastCall()?.kind).toBe('turn');
+
+      const onPoke = useMatchSocketMock.mock.calls.at(-1)![2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      expect(lastCall()).toEqual({ kind: 'poke', title: "You've been poked", body: 'Game 1 is waiting on you.' });
+    });
+
+    it('lets a poke go once its turn has passed', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      const view = renderMatch();
+      const onPoke = useMatchSocketMock.mock.calls.at(-1)![2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      // Bidding went round and came back to me: a new turn, with nothing poked yet.
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({ updatedOn: '2026-01-01T00:05:00.000Z' }),
+        connected: true,
+      });
+      view.rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      expect(lastCall()?.kind).toBe('turn');
+    });
+
+    it('ignores a poke that lands while my bid is on its way', async () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      bidMock.mockReturnValue(new Promise(() => {}));
+      renderMatch();
+      fireEvent.click(screen.getByRole('button', { name: /^30$/ }));
+      await waitFor(() => expect(bidMock).toHaveBeenCalled());
+
+      const onPoke = useMatchSocketMock.mock.calls.at(-1)![2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      expect(lastCall()?.kind).not.toBe('poke');
+    });
+
+    it('calls me to see the match out, until I ask for a rematch', () => {
+      useMatchSocketMock.mockReturnValue({ match: { ...finishedHandMatch(), winningTeam: Teams.TeamA }, connected: true });
+      const view = renderMatch();
+      expect(lastCall()).toEqual({
+        kind: 'matchOver',
+        title: 'Match over',
+        body: 'See how it ended, or ask for a rematch.',
+      });
+      view.unmount();
+
+      useMatchSocketMock.mockReturnValue({
+        match: { ...finishedHandMatch(), winningTeam: Teams.TeamA, rematchVotes: ['p1'] },
+        connected: true,
+      });
+      renderMatch();
+      expect(lastCall()).toBeNull();
+    });
+  });
+
+  describe('poke', () => {
+    // p2's turn to bid, and it began `ago` ms before now.
+    const p2sTurn = (ago: number) =>
+      baseMatch({ updatedOn: new Date(Date.now() - ago).toISOString() }, { currentPlayerId: 'p2' });
+    const HALF_HOUR = 30 * 60 * 1000;
+
+    it('offers to poke the player whose turn has waited 30 minutes, then hides once they are poked', async () => {
+      useMatchSocketMock.mockReturnValue({ match: p2sTurn(HALF_HOUR + 1000), connected: true });
+      pokeMock.mockResolvedValue({ delivered: 'push' });
+      renderMatch();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Poke p2' }));
+
+      await waitFor(() => expect(toastInfoMock).toHaveBeenCalledWith('Poked p2'));
+      expect(pokeMock).toHaveBeenCalledWith('match-1');
+      expect(screen.queryByRole('button', { name: 'Poke p2' })).toBeNull();
+    });
+
+    it("says when the poke couldn't reach them, and leaves the button up", async () => {
+      useMatchSocketMock.mockReturnValue({ match: p2sTurn(HALF_HOUR + 1000), connected: true });
+      pokeMock.mockResolvedValue({ delivered: 'none' });
+      renderMatch();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Poke p2' }));
+
+      await waitFor(() => expect(toastInfoMock).toHaveBeenCalledWith("p2 doesn't have notifications on"));
+      expect(screen.getByRole('button', { name: 'Poke p2' })).toBeTruthy();
+    });
+
+    it('waits out the 30 minutes, and never offers a poke on my own turn', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        useMatchSocketMock.mockReturnValue({ match: p2sTurn(HALF_HOUR - 60_000), connected: true });
+        renderMatch();
+        await act(async () => {});
+        expect(screen.queryByRole('button', { name: /^Poke/ })).toBeNull();
+
+        await act(async () => {
+          vi.advanceTimersByTime(60_000);
+        });
+        expect(screen.getByRole('button', { name: 'Poke p2' })).toBeTruthy();
+      } finally {
+        vi.useRealTimers();
+      }
+
+      cleanup();
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({ updatedOn: new Date(Date.now() - 2 * HALF_HOUR).toISOString() }),
+        connected: true,
+      });
+      renderMatch();
+      await act(async () => {});
+      expect(screen.queryByRole('button', { name: /^Poke/ })).toBeNull();
+    });
+
+    it("tells me when I'm poked", () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+
+      const onPoke = useMatchSocketMock.mock.calls[0][2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      expect(toastInfoMock).toHaveBeenCalledWith('p2 poked you', "It's your turn", 'center');
+    });
+
+    it('ignores a poke that lands while my bid is on its way', async () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      bidMock.mockReturnValue(new Promise(() => {}));
+      renderMatch();
+
+      fireEvent.click(screen.getByRole('button', { name: /^30$/ }));
+      await waitFor(() => expect(bidMock).toHaveBeenCalled());
+      const onPoke = useMatchSocketMock.mock.calls.at(-1)![2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      expect(toastInfoMock).not.toHaveBeenCalledWith('p2 poked you', "It's your turn", 'center');
     });
   });
 });

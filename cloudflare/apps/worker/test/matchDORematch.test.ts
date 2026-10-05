@@ -1,10 +1,11 @@
 // The rematch flow at MatchDO's RPC boundary: votes collect on the finished match, and the vote
 // that completes them creates the rematch's own DO before the old match records its id.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { Positions, Teams, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import type { MatchDO } from '../src/matchDO';
+import { failingDb } from './failingDb';
 
 const testEnv = env as unknown as Env;
 
@@ -194,5 +195,35 @@ describe('MatchDO rematch', () => {
     const alarm = await runInDurableObject(stub, async (_instance, state) => state.storage.getAlarm());
     expect(alarm).not.toBeNull();
     await settleBots('rematch-retry-bots');
+  });
+
+  it('still creates the rematch when the lobby index is down, and lists it when retried', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const previous = finishedMatch('rematch-no-db-previous', ['nodb-p1', 'nodb-p2', 'nodb-p3', 'nodb-p4']);
+    const stub = stubFor('rematch-no-db');
+    const dealOrder = shuffledDominoOrder();
+    try {
+      await runInDurableObject(stub, async (instance: MatchDO) => {
+        const withEnv = instance as unknown as { env: Env };
+        const realEnv = withEnv.env;
+        withEnv.env = { ...realEnv, DB: failingDb() };
+        try {
+          expect((await instance.createRematch('rematch-no-db', previous, dealOrder)).id).toBe('rematch-no-db');
+        } finally {
+          withEnv.env = realEnv;
+        }
+      });
+      expect(logged).toHaveBeenCalledWith('Failed to sync the lobby index for match rematch-no-db', expect.any(Error));
+    } finally {
+      logged.mockRestore();
+    }
+    const lobbyRow = () =>
+      testEnv.DB.prepare('SELECT player_count FROM matches WHERE id = ?').bind('rematch-no-db').first<{ player_count: number }>();
+    expect(await lobbyRow()).toBeNull();
+
+    // The voter's retry finds the match already made, and this time its lobby rows are written.
+    await stub.createRematch('rematch-no-db', previous, dealOrder);
+
+    expect((await lobbyRow())?.player_count).toBe(4);
   });
 });

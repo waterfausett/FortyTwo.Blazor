@@ -1,5 +1,6 @@
 import Swal from 'sweetalert2';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ValidationError } from '@fortytwo/rules';
 import { ApiError } from '../api/client';
 import { toastError, toastInfo } from './toast';
 
@@ -31,6 +32,13 @@ describe('toastError', () => {
     expect(container.textContent).toBe('If you have a Six, <b>you</b> must play it');
     expect(container.querySelector('code')?.textContent).toBe('Six');
     expect(container.querySelector('b')).toBeNull();
+  });
+
+  it('shows a rule caught here first the same as the server\'s', () => {
+    toastError(new ValidationError('You must follow suit!', 'If you have a <code>Six</code>, you must play it'));
+
+    expect(Swal.getTitle()?.textContent).toBe('You must follow suit!');
+    expect(Swal.getHtmlContainer()?.querySelector('code')?.textContent).toBe('Six');
   });
 
   it("falls back to a plain Error's message as the title", () => {

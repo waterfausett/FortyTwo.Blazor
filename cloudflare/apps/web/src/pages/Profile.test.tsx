@@ -32,6 +32,8 @@ const PROFILE_FIXTURE: UserProfile = {
   email: 'player@example.com',
   displayName: 'Old Name',
   picture: 'https://example.com/old-picture.png',
+  highlightPlayable: false,
+  pushNotifications: true,
   user_metadata: { displayName: 'Old Name', theme: 'Light', picture: 'https://example.com/old-picture.png' },
 };
 
@@ -99,7 +101,23 @@ describe('Profile', () => {
       expect(patchProfileMock).toHaveBeenCalledWith({
         displayName: 'New Name',
         picture: 'https://example.com/new-picture.png',
+        highlightPlayable: false,
       })
+    );
+  });
+
+  it('saves the highlight-playable setting, starting from the stored one', async () => {
+    getProfileMock.mockResolvedValue({ ...PROFILE_FIXTURE, highlightPlayable: true });
+    patchProfileMock.mockResolvedValue(undefined);
+    renderProfile();
+
+    const checkbox = (await screen.findByLabelText(/highlight playable dominoes/i)) as HTMLInputElement;
+    await waitFor(() => expect(checkbox.checked).toBe(true));
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() =>
+      expect(patchProfileMock).toHaveBeenCalledWith(expect.objectContaining({ highlightPlayable: false }))
     );
   });
 
@@ -125,5 +143,11 @@ describe('Profile', () => {
 
     const banner = await screen.findByRole('alert');
     expect(banner.textContent).toMatch(/something went wrong/i);
+  });
+
+  it('offers the turn alert settings', async () => {
+    getProfileMock.mockResolvedValue(PROFILE_FIXTURE);
+    renderProfile();
+    expect(await screen.findByRole('region', { name: /turn alerts/i })).not.toBeNull();
   });
 });
