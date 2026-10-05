@@ -16,6 +16,7 @@ import { Auth0Provider, useAuth0 } from 'react-native-auth0';
 import { colors, fonts } from '@/components/theme';
 import { ToastHost } from '@/components/ToastHost';
 import { config } from '@/config';
+import { DEV_BYPASS } from '@/dev/devBypass';
 import { setSignedIn, takePendingLink } from '@/linking/incomingLink';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
 
@@ -31,7 +32,8 @@ function RootStack() {
   // The web app's fonts (components/theme.ts). A font that fails to load falls back to the
   // system font rather than blocking the app.
   const [fontsLoaded, fontError] = useFonts({ Barlow_400Regular, Barlow_500Medium, Barlow_600SemiBold, ZillaSlab_700Bold });
-  const signedIn = user != null;
+  // The dev bypass (src/dev/devBypass.ts) acts signed in, with no device to register.
+  const signedIn = DEV_BYPASS || user != null;
   const ready = !isLoading && (fontsLoaded || fontError != null);
   const pathname = usePathname();
 
@@ -39,7 +41,7 @@ function RootStack() {
   // player has signed in - unless the router already opened it, as it does at launch when the
   // stored session turns out to be signed in.
   setSignedIn(signedIn);
-  usePushNotifications(ready && signedIn);
+  usePushNotifications(!DEV_BYPASS && ready && signedIn);
   useEffect(() => {
     if (!ready || !signedIn) return;
     const link = takePendingLink();
