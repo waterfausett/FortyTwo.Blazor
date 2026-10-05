@@ -1868,6 +1868,51 @@ describe('Match', () => {
       expect(lastCall()).toBeNull();
     });
 
+    it("calls me again when I'm poked, worded like the poke's push notice", () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+      expect(lastCall()?.kind).toBe('turn');
+
+      const onPoke = useMatchSocketMock.mock.calls.at(-1)![2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      expect(lastCall()).toEqual({ kind: 'poke', title: "You've been poked", body: 'Game 1 is waiting on you.' });
+    });
+
+    it('lets a poke go once its turn has passed', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      const view = renderMatch();
+      const onPoke = useMatchSocketMock.mock.calls.at(-1)![2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      // Bidding went round and came back to me: a new turn, with nothing poked yet.
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({ updatedOn: '2026-01-01T00:05:00.000Z' }),
+        connected: true,
+      });
+      view.rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      expect(lastCall()?.kind).toBe('turn');
+    });
+
+    it('ignores a poke that lands while my bid is on its way', async () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      bidMock.mockReturnValue(new Promise(() => {}));
+      renderMatch();
+      fireEvent.click(screen.getByRole('button', { name: /^30$/ }));
+      await waitFor(() => expect(bidMock).toHaveBeenCalled());
+
+      const onPoke = useMatchSocketMock.mock.calls.at(-1)![2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      expect(lastCall()?.kind).not.toBe('poke');
+    });
+
     it('calls me to see the match out, until I ask for a rematch', () => {
       useMatchSocketMock.mockReturnValue({ match: { ...finishedHandMatch(), winningTeam: Teams.TeamA }, connected: true });
       const view = renderMatch();

@@ -15,7 +15,8 @@
 // flashes the tab and notifies, per their Profile settings.
 //
 // Once the player whose turn it is has sat on it for 30 minutes, anyone else at the table gets a
-// Poke button (match/usePoke.ts); a player poked while they have this page open gets a toast.
+// Poke button (match/usePoke.ts); a player poked while they have this page open gets a toast, and
+// TurnAlerts calls them back as for a new turn.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -68,6 +69,7 @@ import {
   teamTrickPoints,
   trickLeaderId,
   trickPlayOrder,
+  pokeTurnKey,
 } from '@fortytwo/client';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
@@ -102,14 +104,21 @@ export function Match(): JSX.Element {
   // and the hook is retrying; the initial connect alone doesn't count. While down, the table may be
   // stale (a turn may already have passed), so the page says so and holds every action until the
   // socket is back.
-  // What a poke needs when it lands, from state further down: the sender's display name, and
-  // whether a move of mine is already in flight - then the poke is moot. (The Worker only sends a
-  // poke while it's still my turn, and the socket keeps its messages in order, so that's the one
-  // way one can land late.)
-  const pokedRef = useRef<{ names?: Map<string, string>; moving: boolean }>({ moving: false });
+  // What a poke needs when it lands, from state further down: the sender's display name, the turn
+  // it's for, and whether a move of mine is already in flight - then the poke is moot. (The Worker
+  // only sends a poke while it's still my turn, and the socket keeps its messages in order, so
+  // that's the one way one can land late.)
+  const pokedRef = useRef<{ names?: Map<string, string>; turn: string | null; moving: boolean }>({
+    turn: null,
+    moving: false,
+  });
+  // The turn I was last poked on (@fortytwo/client's pokeTurnKey), so TurnAlerts can call me back
+  // for it - the toast alone goes unseen in a background tab. Stale once that turn has passed.
+  const [pokedTurn, setPokedTurn] = useState<string | null>(null);
   const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken, (from) => {
     if (pokedRef.current.moving) return;
     toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
+    setPokedTurn(pokedRef.current.turn);
   });
   const client = apiClient(getToken);
 
@@ -300,9 +309,10 @@ export function Match(): JSX.Element {
   useEffect(() => {
     pokedRef.current = {
       names: namesQuery.data,
+      turn: liveMatch ? pokeTurnKey(liveMatch) : null,
       moving: playing != null || bidMutation.isPending || setTrumpMutation.isPending,
     };
-  }, [namesQuery.data, playing, bidMutation.isPending, setTrumpMutation.isPending]);
+  }, [namesQuery.data, liveMatch, playing, bidMutation.isPending, setTrumpMutation.isPending]);
 
   const myLiveHand = holdGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
   const inFlight = playing != null && myLiveHand.some((d) => d.id === playing.id) ? playing : null;
@@ -511,7 +521,11 @@ export function Match(): JSX.Element {
             ? 'Your play'
             : 'Your lead'
           : null;
-    return title ? { kind: 'turn', title, body: `${game.name} is waiting on you.` } : null;
+    if (!title) return null;
+    const body = `${game.name} is waiting on you.`;
+    // Poked on this turn: a call of its own, so it alerts again - in the poke push's words.
+    if (pokedTurn === pokeTurnKey(match)) return { kind: 'poke', title: "You've been poked", body };
+    return { kind: 'turn', title, body };
   }
 
   // Gates which dominoes Hand will let a player preselect (double-click before their turn): only a

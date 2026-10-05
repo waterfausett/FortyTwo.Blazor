@@ -67,9 +67,10 @@ function notify(title: string, body: string, tag: string): Notification | null {
 }
 
 // What the table is waiting on the player for, in the push notices' words: their turn ("Your
-// lead" / "Game 3 is waiting on you."), or a hand or the match over.
+// lead" / "Game 3 is waiting on you."), a poke on that turn from someone tired of waiting, or a
+// hand or the match over.
 export interface TableCall {
-  kind: 'turn' | 'handOver' | 'matchOver';
+  kind: 'turn' | 'poke' | 'handOver' | 'matchOver';
   title: string;
   body: string;
 }
