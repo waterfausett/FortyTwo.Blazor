@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@fortytwo/api-types": "*",
+    "@fortytwo/bot": "*",
     "@fortytwo/rules": "*",
     "hono": "^4.6.0",
     "jose": "^5.9.0"

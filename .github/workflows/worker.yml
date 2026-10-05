@@ -51,6 +51,7 @@ jobs:
       - run: npm ci
       - run: npm test -w @fortytwo/rules
       - run: npm test -w @fortytwo/client
+      - run: npm test -w @fortytwo/bot
       - run: npm test -w @fortytwo/worker
       - run: npm test -w @fortytwo/web
       # Typechecks the web app and the packages it references.
@@ -66,6 +67,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true # the bot's weights (apps/web/public/models/*.bin) are Git LFS objects
       - uses: actions/setup-node@v4
         with:
           node-version: 24

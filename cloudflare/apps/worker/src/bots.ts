@@ -1,8 +1,8 @@
-// Dumb, deterministic "auto-play" players used when AUTO_PLAY_BOTS is set (index.ts's Env), seated
-// on demand in whichever seats real players leave open, so a match can be exercised locally without
-// four real accounts. Bots aren't smart: they pass unless forced to bid, set trump to their
-// most-held suit, and play the first legal domino they hold - just enough to keep a match moving
-// for UI/flow testing.
+// Bots seated on demand in whichever seats real players leave open (unless BOTS_ENABLED is 'false',
+// see index.ts's Env). They are the ML bot (@fortytwo/bot, loaded by mlBot.ts) when it is
+// available; the simple rules below are its fallback for any model problem. The simple bots aren't
+// smart: they pass unless forced to bid, set trump to their most-held suit, and play the first
+// legal domino they hold - just enough to keep a match moving.
 import {
   Bid,
   Domino,
@@ -14,7 +14,13 @@ import {
   gameWinningTeam,
   BOT_IDS,
   isBot,
+  patchPlayerReady,
+  placeBid,
+  playDomino,
+  setTrump,
+  shuffledDominoOrder,
 } from '@fortytwo/rules';
+import type { Bot } from '@fortytwo/bot';
 
 // Defined in the rules package so the web client can tell bots apart too; re-exported here for
 // the Worker code that already imports them from this file.
@@ -87,4 +93,49 @@ export function findNextBotAction(match: MatchState): BotAction | null {
     return { kind: 'setTrump', playerId: currentPlayerId };
   }
   return { kind: 'play', playerId: currentPlayerId };
+}
+
+export function botsEnabled(env: { BOTS_ENABLED?: string }): boolean {
+  return env.BOTS_ENABLED !== 'false';
+}
+
+function simple(match: MatchState, action: BotAction): MatchState {
+  const hand = match.currentGame.hands.find((h) => h.playerId === action.playerId)!;
+  switch (action.kind) {
+    case 'ready':
+      return patchPlayerReady(match, action.playerId, true, shuffledDominoOrder());
+    case 'bid':
+      return placeBid(match, action.playerId, decideBid(match.currentGame, hand));
+    case 'setTrump':
+      return setTrump(match, action.playerId, decideTrump(hand));
+    case 'play':
+      return playDomino(match, action.playerId, decideDomino(match.currentGame, hand));
+  }
+}
+
+function ml(match: MatchState, action: BotAction, bot: Bot): MatchState {
+  switch (action.kind) {
+    case 'ready':
+      return simple(match, action);
+    case 'bid':
+      return placeBid(match, action.playerId, bot.decideBid(match, action.playerId));
+    case 'setTrump':
+      return setTrump(match, action.playerId, bot.decideTrump(match, action.playerId));
+    case 'play':
+      return playDomino(match, action.playerId, bot.decideDomino(match, action.playerId));
+  }
+}
+
+// Performs exactly one bot action. The ML bot decides when it's loaded; if it throws or its move
+// is illegal (the rules functions throw), that action falls back to the simple rules, so a model
+// problem never stalls a match.
+export function applyBotAction(match: MatchState, action: BotAction, bot: Bot | null): MatchState {
+  if (bot !== null) {
+    try {
+      return ml(match, action, bot);
+    } catch (e) {
+      console.error(`ML bot ${action.kind} for ${action.playerId} failed, using the simple bot: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return simple(match, action);
 }

@@ -1,6 +1,6 @@
-// Exercises the dev-only bots end to end against the real MatchDO: seating bots on demand (one
+// Exercises the bots end to end against the real MatchDO: seating bots on demand (one
 // seat, or every open seat), then the alarm-paced bot loop carrying bidding/trump/play forward up
-// to a human's next turn. AUTO_PLAY_BOTS only gates the REST route that seats bots, so these tests
+// to a human's next turn. BOTS_ENABLED only gates the REST route that seats bots, so these tests
 // can call MatchDO directly without it.
 import { describe, it, expect, vi } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';

@@ -134,7 +134,7 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
     // how it reached them - `'none'` when it couldn't, which leaves the turn's poke unused.
     poke: (id: string): Promise<PokeResult> => request<PokeResult>(`/api/matches/${id}/poke`, { method: 'POST' }),
 
-    // Dev-only (the Worker's AUTO_PLAY_BOTS): seats a bot at `position`, or at every open seat
+    // Seats (unless the Worker's BOTS_ENABLED is 'false'): a bot at `position`, or at every open seat
     // when no position is given.
     addBots: (id: string, position?: number): Promise<MatchState> =>
       request<MatchState>(`/api/matches/${id}/bots`, {

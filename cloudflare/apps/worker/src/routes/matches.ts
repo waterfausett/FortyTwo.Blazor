@@ -16,7 +16,7 @@ import {
   listJoinable,
   listMatchPlayers,
 } from '../lobby';
-import { isBot } from '../bots';
+import { botsEnabled, isBot } from '../bots';
 import { getUsers, MAX_USER_IDS } from '../auth0Management';
 import { toUserResponse } from './users';
 import * as field from '../requestBody';
@@ -125,11 +125,11 @@ matches.post('/:id/players', async (c) => {
   return replyWithMatch(c, result, { lobbySync: 'seats' });
 });
 
-// Dev-only (AUTO_PLAY_BOTS): seats a bot at `{ position }`, or at every open seat when no position
+// Seats (unless BOTS_ENABLED is 'false') a bot at `{ position }`, or at every open seat when no position
 // is given, so a few people can test together and let bots make up the numbers. Only a player
 // already at the table can add bots (checked by MatchDO's `addBots`).
 matches.post('/:id/bots', async (c) => {
-  if (c.env.AUTO_PLAY_BOTS !== 'true') return c.json({ title: 'Not found' }, 404);
+  if (!botsEnabled(c.env)) return c.json({ title: 'Not found' }, 404);
   const body = await readBody(c);
   const positions = body.position !== undefined ? [field.position(body)] : undefined;
   const result = await matchStub(c.env, c.req.param('id')).addBots(c.get('user').sub, positions);

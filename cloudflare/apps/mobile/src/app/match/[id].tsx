@@ -109,7 +109,7 @@ export default function MatchScreen() {
   // they want notifications.
   const profile = useProfile().data;
   const highlightPlayable = profile?.highlightPlayable ?? false;
-  // Bots are a dev-only testing aid (the Worker's AUTO_PLAY_BOTS).
+  // Bots can be switched off server-side (the Worker's BOTS_ENABLED).
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
 
   const bid = useMutation({ mutationFn: (value: Bid) => api.bid(id, value), onError: toastError });

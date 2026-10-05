@@ -35,7 +35,8 @@ import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
 import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
 import type { PokeResult } from '@fortytwo/api-types';
-import { BOT_IDS, decideBid, decideTrump, decideDomino, findNextBotAction, type BotAction } from './bots';
+import { BOT_IDS, applyBotAction, findNextBotAction } from './bots';
+import { getMlBot } from './mlBot';
 
 // One tick's worth of "thinking time" before a bot acts, via the DO alarm API - so a client sees
 // each bot bid/play arrive as its own WebSocket broadcast instead of the whole rest of the hand
@@ -290,22 +291,6 @@ export class MatchDO extends DurableObject<Env> {
     });
   }
 
-  // Performs exactly one bot action - whichever `findNextBotAction` (bots.ts) says is next - via
-  // the same rules functions the RPC methods use for real players.
-  private applyBotAction(match: MatchState, action: BotAction): MatchState {
-    const hand = match.currentGame.hands.find((h) => h.playerId === action.playerId)!;
-    switch (action.kind) {
-      case 'ready':
-        return patchPlayerReady(match, action.playerId, true, shuffledDominoOrder());
-      case 'bid':
-        return placeBid(match, action.playerId, decideBid(match.currentGame, hand));
-      case 'setTrump':
-        return setTrump(match, action.playerId, decideTrump(hand));
-      case 'play':
-        return playDomino(match, action.playerId, decideDomino(match.currentGame, hand));
-    }
-  }
-
   // Schedules the next bot action a beat in the future (via the alarm API) if one is pending,
   // rather than resolving it inline - each bot move then arrives as its own broadcast, matching
   // the pacing a real remote player's move would have.
@@ -326,7 +311,7 @@ export class MatchDO extends DurableObject<Env> {
     const action = findNextBotAction(match);
     if (action === null) return;
 
-    const next = this.applyBotAction(match, action);
+    const next = applyBotAction(match, action, await getMlBot(this.env));
     await this.save(next);
     // Scheduled straight after the save: the saved match already points at the next bot action,
     // so if anything below threw first, the runtime's retry would fire that action unpaced, and

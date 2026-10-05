@@ -12,6 +12,8 @@ workers_dev = true
 # SPA's router can handle deep links like /match/:id. Build the web app before deploying.
 # /.well-known/* is the Worker's so a missing assetlinks.json is a 404, not the SPA's index.html.
 [assets]
+# The bot's weights (/models/bot.{json,bin}) are read through this binding (mlBot.ts).
+binding = "ASSETS"
 directory = "../web/dist"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/matches/*", "/health", "/.well-known/*"]

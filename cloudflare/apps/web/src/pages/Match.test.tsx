@@ -121,7 +121,7 @@ beforeEach(() => {
   getMatchMock.mockResolvedValue(null);
   // No display names by default, so seats show raw player ids ('p2', ...) as most tests expect.
   searchUsersMock.mockResolvedValue([]);
-  // Bots are a dev-only aid, so off unless a test turns them on.
+  // Bots can be switched off server-side, so off unless a test turns them on.
   getConfigMock.mockResolvedValue({ bots: false });
   getProfileMock.mockResolvedValue({ user_id: 'p1', displayName: 'Me', highlightPlayable: false });
 });

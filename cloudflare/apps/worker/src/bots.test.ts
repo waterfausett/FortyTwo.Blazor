@@ -4,12 +4,16 @@ import {
   Suit,
   Teams,
   createDomino,
+  createMatch,
   createTrick,
+  shuffledDominoOrder,
+  takeSeat,
   type Game,
   type Hand,
   type MatchState,
 } from '@fortytwo/rules';
-import { isBot, decideBid, decideTrump, decideDomino, findNextBotAction } from './bots';
+import type { Bot } from '@fortytwo/bot';
+import { isBot, decideBid, decideTrump, decideDomino, findNextBotAction, applyBotAction, botsEnabled } from './bots';
 
 function emptyHand(playerId: string, dominoes: ReturnType<typeof createDomino>[] = [], bid: Bid | null = null): Hand {
   return { playerId, team: Teams.TeamA, dominoes, bid };
@@ -213,5 +217,56 @@ describe('findNextBotAction', () => {
       }),
     });
     expect(findNextBotAction(match)).toBeNull();
+  });
+});
+
+// A dealt match (a human in seat 0, bots in 1-3) with bot-1 to open the bidding.
+function botToBid(): MatchState {
+  let m = createMatch('human');
+  m = takeSeat(m, 'bot-1', 1);
+  m = takeSeat(m, 'bot-2', 2);
+  m = takeSeat(m, 'bot-3', 3, shuffledDominoOrder(() => 0.5));
+  return { ...m, currentGame: { ...m.currentGame, firstActionBy: 'bot-1', currentPlayerId: 'bot-1' } };
+}
+const bidOf = (m: MatchState, id: string) => m.currentGame.hands.find((h) => h.playerId === id)!.bid;
+const unused = () => {
+  throw new Error('not used in this test');
+};
+
+describe('applyBotAction with an ML bot', () => {
+  it('uses the ML decision when it is legal', () => {
+    const match = botToBid();
+    const action = findNextBotAction(match)!;
+    expect(action).toEqual({ kind: 'bid', playerId: 'bot-1' });
+    const bot: Bot = { decideBid: () => Bid.ThirtyFive, decideTrump: unused, decideDomino: unused };
+    expect(bidOf(applyBotAction(match, action, bot), 'bot-1')).toBe(Bid.ThirtyFive);
+  });
+
+  it('falls back when the ML decision is illegal', () => {
+    const match = botToBid();
+    const action = findNextBotAction(match)!;
+    const bot: Bot = { decideBid: () => 999 as Bid, decideTrump: unused, decideDomino: unused };
+    expect(bidOf(applyBotAction(match, action, bot), 'bot-1')).toBe(Bid.Pass); // the simple bot passes
+  });
+
+  it('falls back when the ML bot throws', () => {
+    const match = botToBid();
+    const action = findNextBotAction(match)!;
+    const bot: Bot = { decideBid: unused, decideTrump: unused, decideDomino: unused };
+    expect(bidOf(applyBotAction(match, action, bot), 'bot-1')).toBe(Bid.Pass);
+  });
+
+  it('missing model falls back to the simple bots', () => {
+    const match = botToBid();
+    const action = findNextBotAction(match)!;
+    expect(bidOf(applyBotAction(match, action, null), 'bot-1')).toBe(Bid.Pass);
+  });
+});
+
+describe('botsEnabled', () => {
+  it('is on unless BOTS_ENABLED is exactly "false"', () => {
+    expect(botsEnabled({})).toBe(true);
+    expect(botsEnabled({ BOTS_ENABLED: 'true' })).toBe(true);
+    expect(botsEnabled({ BOTS_ENABLED: 'false' })).toBe(false);
   });
 });

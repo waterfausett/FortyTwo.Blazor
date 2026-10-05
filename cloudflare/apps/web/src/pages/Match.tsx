@@ -208,7 +208,7 @@ export function Match(): JSX.Element {
   // profile page's query, so a change saved there shows up here.
   const profileQuery = useQuery({ queryKey: ['profile'], queryFn: () => client.getProfile(), staleTime: Infinity });
   const highlightPlayable = profileQuery.data?.highlightPlayable ?? false;
-  // Bots are a dev-only testing aid (the Worker's AUTO_PLAY_BOTS), so the controls for them only
+  // Bots can be switched off server-side (the Worker's BOTS_ENABLED), so the controls for them only
   // show when the Worker says they're available.
   const configQuery = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig(), staleTime: Infinity });
   const botsEnabled = configQuery.data?.bots ?? false;

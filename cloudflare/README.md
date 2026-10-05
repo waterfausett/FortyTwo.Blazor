@@ -19,7 +19,7 @@ An npm workspace:
 How a move travels: the web app calls a REST route; the route validates the body and calls the
 match's `MatchDO` over Durable Object RPC; `MatchDO` applies the rule, saves the match, and
 broadcasts it to every connected socket, each player seeing only their own hand. The route then
-updates the D1 lobby index. Bot moves (a dev-only testing aid) run on the Durable Object's alarm.
+updates the D1 lobby index. Bot moves run on the Durable Object's alarm.
 
 ## Setup
 
@@ -34,7 +34,7 @@ The Worker reads its settings from `apps/worker/.dev.vars` (gitignored):
 | `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` | Validate players' access tokens. |
 | `AUTH0_API_CLIENT_ID`, `AUTH0_API_CLIENT_SECRET`, `AUTH0_API_AUDIENCE` | Call Auth0's Management API for profiles and display names. |
 | `ALLOWED_ORIGIN` | The web app's origin, for CORS. Defaults to `http://localhost:5173`. |
-| `AUTO_PLAY_BOTS` | `true` lets players seat bots in open seats. Never set in a deployed environment. |
+| `BOTS_ENABLED` | Bots can fill open seats unless this is exactly `false` (a kill switch; also settable in the Cloudflare dashboard without a deploy). The bots are the ML bot from `ml/`, with weights in `apps/web/public/models` (Git LFS, so run `git lfs pull` after cloning), refreshed with `ml export`; they fall back to simple rules if the model can't be loaded. |
 | `EXPO_ACCESS_TOKEN` | Only once "enhanced push security" is on for the Expo project: an Expo access token the Worker sends push notifications with (see [Push notifications](#push-notifications)). A secret: `npx wrangler secret put EXPO_ACCESS_TOKEN`. |
 | `ANDROID_APP_FINGERPRINTS` | The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links (see [Invite links](#invite-links)). Not secret. |
 
