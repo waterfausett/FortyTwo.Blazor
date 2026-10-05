@@ -1,4 +1,4 @@
-"""`ml train`, `ml eval`, `ml eval-bidding`, `ml gen-bids`, `ml train-bids`, `ml export`, and `ml play-demo`.
+"""`ml train`, `ml eval`, `ml eval-bidding`, `ml gen-bids`, `ml train-bids`, `ml export`, `ml export-fixtures`, and `ml play-demo`.
 
 Agents (`load_agent`): dumb, heuristic, a checkpoint path, `sim:<checkpoint.pt>` (simulation bidding)
 and `fast:<bidnet.pt>` (BidNet bidding)."""
@@ -155,6 +155,11 @@ def main(argv: list[str] | None = None) -> int:
     x.add_argument("--out", required=True, type=Path, help="e.g. ../cloudflare/apps/web/public/models")
     x.add_argument("--name", default="bot")
 
+    f = sub.add_parser("export-fixtures", help="Stage 4: golden fixtures for the TS bot's parity tests")
+    f.add_argument("--out", required=True, type=Path)
+    f.add_argument("--hands", type=int, default=300)
+    f.add_argument("--seed", type=int, default=0)
+
     d = sub.add_parser("play-demo", help="print one hand, decision by decision")
     d.add_argument("--agent", default="heuristic")
     d.add_argument("--seed", type=int, default=0)
@@ -232,6 +237,10 @@ def main(argv: list[str] | None = None) -> int:
             "play": here[0], "playStep": here[1], "bidnet": str(args.bidnet), "bidnetTrainHands": meta.get("train_hands"),
         })
         print(f"wrote {args.out / (args.name + '.bin')} ({manifest['totalBytes']} bytes, sha256 {manifest['sha256'][:12]}...)")
+    elif args.command == "export-fixtures":
+        from .export_fixtures import generate_fixtures
+
+        generate_fixtures(args.out, args.hands, args.seed)
     elif args.command == "bench-train":
         import dataclasses
         import tempfile

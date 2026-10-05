@@ -1,0 +1,109 @@
+{
+ "format": 1,
+ "totalBytes": 33212,
+ "sha256": "b2655f4bd56d50f14b3ad58f4f4db7fc3866d7b79373e63cda16884f54c33538",
+ "playInputDim": 363,
+ "bidInputLayout": 1,
+ "makeThreshold": 0.6,
+ "overbidPartnerThreshold": 0.9,
+ "tensors": {
+  "play.net.0.weight": {
+   "shape": [
+    16,
+    363
+   ],
+   "offset": 0
+  },
+  "play.net.0.bias": {
+   "shape": [
+    16
+   ],
+   "offset": 23232
+  },
+  "play.net.2.weight": {
+   "shape": [
+    1,
+    16
+   ],
+   "offset": 23296
+  },
+  "play.net.2.bias": {
+   "shape": [
+    1
+   ],
+   "offset": 23360
+  },
+  "bid.body.0.weight": {
+   "shape": [
+    16,
+    36
+   ],
+   "offset": 23364
+  },
+  "bid.body.0.bias": {
+   "shape": [
+    16
+   ],
+   "offset": 25668
+  },
+  "bid.points_head.weight": {
+   "shape": [
+    98,
+    16
+   ],
+   "offset": 25732
+  },
+  "bid.points_head.bias": {
+   "shape": [
+    98
+   ],
+   "offset": 32004
+  },
+  "bid.binary_head.weight": {
+   "shape": [
+    12,
+    16
+   ],
+   "offset": 32396
+  },
+  "bid.binary_head.bias": {
+   "shape": [
+    12
+   ],
+   "offset": 33164
+  }
+ },
+ "play": {
+  "layers": [
+   {
+    "weight": "play.net.0.weight",
+    "bias": "play.net.0.bias"
+   },
+   {
+    "weight": "play.net.2.weight",
+    "bias": "play.net.2.bias"
+   }
+  ]
+ },
+ "bid": {
+  "body": [
+   {
+    "weight": "bid.body.0.weight",
+    "bias": "bid.body.0.bias"
+   }
+  ],
+  "pointsHead": {
+   "weight": "bid.points_head.weight",
+   "bias": "bid.points_head.bias"
+  },
+  "binaryHead": {
+   "weight": "bid.binary_head.weight",
+   "bias": "bid.binary_head.bias"
+  }
+ },
+ "provenance": {
+  "tiny": true,
+  "seed": 0,
+  "exported": "2026-10-05T18:23:28+00:00"
+ }
+}

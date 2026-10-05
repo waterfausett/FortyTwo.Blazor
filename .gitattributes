@@ -61,3 +61,6 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+cloudflare/packages/bot/test/fixtures/*.bin binary
+cloudflare/packages/bot/test/fixtures/*.gz binary
