@@ -1,7 +1,7 @@
 // The player's profile, as on the web profile page: the name the table calls them, a picture URL
 // with a live preview, their email (read-only), and their game settings. Name and picture save
 // together with the button; a setting saves as soon as it's flipped. All of it is stored on their
-// profile, so it applies on the web too.
+// profile, so it applies on the web too. Signing out is here too, at the bottom.
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,19 +16,29 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi } from '@/api/useApi';
+import { clearCachedToken } from '@/auth/tokenCache';
 import { useProfile, useSaveProfile } from '@/api/useProfile';
 import { MAX_DISPLAY_NAME_LENGTH, profileErrors } from '@/components/profileErrors';
 import { colors, fonts } from '@/components/theme';
 import { toastInfo } from '@/components/toast';
-import { registerDevice } from '@/notifications/push';
+import { registerDevice, unregisterDevice } from '@/notifications/push';
 
 export default function Profile() {
   const profile = useProfile();
   const save = useSaveProfile();
   const api = useApi();
   const insets = useSafeAreaInsets();
+  const { clearSession } = useAuth0();
+  // This device stops getting the player's notifications before the session goes, while the
+  // request can still be signed as them.
+  const signOut = async () => {
+    await unregisterDevice(api).catch(() => {});
+    clearCachedToken();
+    await clearSession();
+  };
 
   // Turning notifications on asks for the OS permission if it hasn't been asked yet. Off, the
   // device is unregistered as the setting saves (usePushNotifications).
@@ -183,6 +193,14 @@ export default function Profile() {
         </View>
 
         <Text style={styles.note}>Your profile and settings apply on the web too.</Text>
+
+        <Pressable
+          style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed]}
+          onPress={() => void signOut()}
+          accessibilityRole="button"
+        >
+          <Text style={styles.signOutText}>Sign out</Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -222,4 +240,7 @@ const styles = StyleSheet.create({
   settingLabel: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 16 },
   hint: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
   note: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12, textAlign: 'center' },
+  signOut: { marginTop: 10, paddingVertical: 14, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.danger },
+  signOutPressed: { backgroundColor: 'rgba(224, 122, 95, 0.12)' },
+  signOutText: { color: colors.danger, fontFamily: fonts.uiBold, fontSize: 16 },
 });
