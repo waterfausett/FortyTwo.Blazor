@@ -105,6 +105,18 @@ def test_train_bids_cli(tmp_path, capsys):
     assert meta["train_hands"] == 6 and "mae_30" in meta["gold"]
 
 
+def test_train_bids_sizes_the_network(tmp_path):
+    from fortytwo_ml.bidding.model import load_bidnet
+
+    path = tmp_path / "m.pt"
+    save_checkpoint(path, QNet(hidden=16, layers=1), step=0, config={})
+    main(["gen-bids", "--model", str(path), "--out", str(tmp_path / "d"), "--hands", "4", "--sim-deals", "2", "--workers", "1"])
+    assert main(["train-bids", "--data", str(tmp_path / "d"), "--out", str(tmp_path / "run"), "--epochs", "1",
+                 "--hidden", "24", "--layers", "2", "--lr", "0.003"]) == 0
+    net, _ = load_bidnet(tmp_path / "run" / "bidnet.pt")
+    assert (net.hidden, net.layers) == (24, 2)
+
+
 def _fast_files(tmp_path, play_step=0):
     from fortytwo_ml.bidding.model import BidNet, save_bidnet
 

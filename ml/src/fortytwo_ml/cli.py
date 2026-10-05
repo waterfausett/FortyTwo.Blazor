@@ -15,6 +15,7 @@ from .agents.heuristic_bot import HeuristicBot
 from .agents.model_agent import ModelAgent
 from .agents.sim_bidder import SimAgent
 from .bidding.model import load_bidnet
+from .bidding.train import BidTrainConfig
 from .contracts import DEFAULT_MIX, ContractSampler, contract_kind
 from .engine.dominoes import domino_id
 from .engine.enums import Suit
@@ -144,6 +145,9 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--out", required=True, type=Path, help="run folder; bidnet.pt is written here")
     t.add_argument("--epochs", type=int, default=100)
     t.add_argument("--seed", type=int, default=0)
+    t.add_argument("--hidden", type=int, default=BidTrainConfig.hidden, help="units per hidden layer")
+    t.add_argument("--layers", type=int, default=BidTrainConfig.layers, help="hidden layers")
+    t.add_argument("--lr", type=float, default=BidTrainConfig.lr, help="Adam learning rate")
 
     d = sub.add_parser("play-demo", help="print one hand, decision by decision")
     d.add_argument("--agent", default="heuristic")
@@ -187,14 +191,16 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "train-bids":
         from .bidding.data import load_bids
         from .bidding.model import save_bidnet
-        from .bidding.train import BidTrainConfig, gold_report, train_bidnet
+        from .bidding.train import gold_report, train_bidnet
 
         data = load_bids(args.data)
         gold = load_bids(args.gold) if args.gold else None
         if gold is not None and (gold.play_checkpoint, gold.play_step) != (data.play_checkpoint, data.play_step):
             raise ValueError(f"the gold set was simulated with {gold.play_checkpoint} (step {gold.play_step}), "
                              f"the training data with {data.play_checkpoint} (step {data.play_step})")
-        result = train_bidnet(data, BidTrainConfig(epochs=args.epochs, seed=args.seed))
+        result = train_bidnet(data, BidTrainConfig(
+            hidden=args.hidden, layers=args.layers, epochs=args.epochs, lr=args.lr, seed=args.seed
+        ))
         meta = {"play_checkpoint": data.play_checkpoint, "play_path": data.play_path, "play_step": data.play_step,
                 "train_hands": int(len(data.hands)), "val_loss": result.val_loss, "gold": {}}
         if gold is not None:
