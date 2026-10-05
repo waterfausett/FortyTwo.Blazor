@@ -3,8 +3,12 @@ import type { Dense } from './weights';
 // y = Wx + b (W row-major [outDim][inDim], as torch stores it), with optional ReLU. Math is in
 // float64; the Python model runs float32, so results agree to about 1e-6.
 export function dense(layer: Dense, x: ArrayLike<number>, relu: boolean): Float64Array {
+  return denseInto(layer, x, relu, new Float64Array(layer.outDim));
+}
+
+// Same as dense, writing into a caller-owned buffer (must not alias x).
+function denseInto(layer: Dense, x: ArrayLike<number>, relu: boolean, out: Float64Array): Float64Array {
   const { inDim, outDim, w, b } = layer;
-  const out = new Float64Array(outDim);
   for (let o = 0; o < outDim; o++) {
     let s = b[o];
     const row = o * inDim;
@@ -30,13 +34,21 @@ export function scoreCandidates(play: Dense[], obsDim: number, rows: ArrayLike<n
   const [first, ...rest] = play;
   const shared = Float64Array.from(first.b);
   addColumns(first, rows[0], 0, obsDim, shared);
+  // Two ping-pong buffers sized for the widest layer, reused across layers and candidates.
+  const width = Math.max(...play.map((l) => l.outDim));
+  let bufA = new Float64Array(width);
+  let bufB = new Float64Array(width);
   return rows.map((row) => {
-    let h: Float64Array = Float64Array.from(shared);
-    addColumns(first, row, obsDim, first.inDim, h);
-    for (let o = 0; o < h.length; o++) if (h[o] < 0) h[o] = 0;
-    rest.forEach((layer, k) => {
-      h = dense(layer, h, k < rest.length - 1);
-    });
-    return h[0];
+    const hidden = first.outDim;
+    for (let o = 0; o < hidden; o++) bufA[o] = shared[o];
+    addColumns(first, row, obsDim, first.inDim, bufA);
+    for (let o = 0; o < hidden; o++) if (bufA[o] < 0) bufA[o] = 0;
+    let cur = bufA;
+    let nxt = bufB;
+    for (let k = 0; k < rest.length; k++) {
+      denseInto(rest[k], cur, k < rest.length - 1, nxt);
+      [cur, nxt] = [nxt, cur];
+    }
+    return cur[0];
   });
 }
