@@ -5,7 +5,7 @@ import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
 import { JoinMatchPanel } from '../JoinMatchPanel';
 import { SeatPicker } from '../SeatPicker';
-import { Table, type SeatInfo } from '../Table';
+import { PENDING_SPINNER_DELAY_MS, Table, type SeatInfo } from '../Table';
 import { TrickHistory } from '../TrickHistory';
 
 function biddingGame(overrides: Partial<Game> = {}): Game {
@@ -246,7 +246,9 @@ describe('Table', () => {
 
       // A play that lands promptly never flashes the spinner.
       expect(screen.queryByLabelText('Sending your play')).toBeNull();
-      await act(() => jest.advanceTimersByTime(500));
+      await act(() => jest.advanceTimersByTime(PENDING_SPINNER_DELAY_MS - 1));
+      expect(screen.queryByLabelText('Sending your play')).toBeNull();
+      await act(() => jest.advanceTimersByTime(1));
       expect(screen.getByLabelText('Sending your play')).toBeTruthy();
     } finally {
       jest.useRealTimers();
@@ -259,7 +261,7 @@ describe('Table', () => {
       const trick: Trick = { playerId: null, team: null, suit: null, dominoes: [createDomino(1, 2), createDomino(4, 5), null, null] };
       await render(<Table seats={seats} trick={trick} slotSeats={[...slotSeats]} winningSlot={null} />);
 
-      await act(() => jest.advanceTimersByTime(500));
+      await act(() => jest.advanceTimersByTime(PENDING_SPINNER_DELAY_MS));
       expect(screen.queryByLabelText('Sending your play')).toBeNull();
     } finally {
       jest.useRealTimers();
