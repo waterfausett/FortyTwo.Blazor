@@ -13,8 +13,8 @@ const buf = readFileSync(new URL('bot.bin', models));
 const bot = createBot(loadWeights(manifest, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)));
 const cold = performance.now() - t0;
 
-const times: Record<string, number[]> = { bid: [], trump: [], play: [] };
-for (const h of fixtureHands().slice(0, 150)) {
+// Untimed warm-up on hands outside the timed set, after timing the very first decision (cold JIT).
+function replay(h: ReturnType<typeof fixtureHands>[number], record?: Record<string, number[]>) {
   let match = startHand(h);
   for (const s of h.steps) {
     const id = PLAYERS[s.seat];
@@ -22,11 +22,19 @@ for (const h of fixtureHands().slice(0, 150)) {
     if (s.phase === 'bid') bot.decideBid(match, id);
     else if (s.phase === 'trump') bot.decideTrump(match, id);
     else bot.decideDomino(match, id);
-    times[s.phase].push(performance.now() - start);
+    const dt = performance.now() - start;
+    if (first === undefined) first = dt;
+    record?.[s.phase].push(dt);
     match = applyStep(match, s);
   }
 }
+let first: number | undefined;
+const all = fixtureHands();
+for (const h of all.slice(150, 170)) replay(h);
+const times: Record<string, number[]> = { bid: [], trump: [], play: [] };
+for (const h of all.slice(0, 150)) replay(h, times);
 const pct = (xs: number[], p: number) => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(p * xs.length))];
+console.log(`first decision (cold JIT): ${first!.toFixed(1)} ms`);
 console.log(`cold load (read + views + createBot): ${cold.toFixed(1)} ms`);
 for (const [phase, xs] of Object.entries(times)) {
   console.log(`${phase}: n=${xs.length} median ${pct(xs, 0.5).toFixed(2)} ms  p95 ${pct(xs, 0.95).toFixed(2)} ms  max ${pct(xs, 1).toFixed(2)} ms`);
