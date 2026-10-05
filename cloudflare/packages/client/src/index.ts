@@ -9,5 +9,6 @@ export * from './lobby';
 export * from './matchSocket';
 export * from './matchView';
 export * from './optimistic';
+export * from './poke';
 export * from './summary';
 export * from './table';

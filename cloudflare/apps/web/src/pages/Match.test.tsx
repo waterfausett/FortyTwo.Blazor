@@ -41,6 +41,7 @@ const {
   leaveMatchMock,
   navigateMock,
   joinMatchMock,
+  pokeMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -60,6 +61,7 @@ const {
     leaveMatchMock: vi.fn(),
     navigateMock: vi.fn(),
     joinMatchMock: vi.fn(),
+    pokeMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -80,6 +82,7 @@ vi.mock('../api/client', () => ({
     rematch: rematchMock,
     leaveMatch: leaveMatchMock,
     joinMatch: joinMatchMock,
+    poke: pokeMock,
   }),
 }));
 
@@ -1788,6 +1791,85 @@ describe('Match', () => {
       rerenderMatch(view);
 
       expect(toastInfoMock).toHaveBeenCalledWith('Game 2 dealt', 'You bid first', 'center');
+    });
+  });
+
+  describe('poke', () => {
+    // p2's turn to bid, and it began `ago` ms before now.
+    const p2sTurn = (ago: number) =>
+      baseMatch({ updatedOn: new Date(Date.now() - ago).toISOString() }, { currentPlayerId: 'p2' });
+    const HALF_HOUR = 30 * 60 * 1000;
+
+    it('offers to poke the player whose turn has waited 30 minutes, then hides once they are poked', async () => {
+      useMatchSocketMock.mockReturnValue({ match: p2sTurn(HALF_HOUR + 1000), connected: true });
+      pokeMock.mockResolvedValue({ delivered: 'push' });
+      renderMatch();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Poke p2' }));
+
+      await waitFor(() => expect(toastInfoMock).toHaveBeenCalledWith('Poked p2'));
+      expect(pokeMock).toHaveBeenCalledWith('match-1');
+      expect(screen.queryByRole('button', { name: 'Poke p2' })).toBeNull();
+    });
+
+    it("says when the poke couldn't reach them, and leaves the button up", async () => {
+      useMatchSocketMock.mockReturnValue({ match: p2sTurn(HALF_HOUR + 1000), connected: true });
+      pokeMock.mockResolvedValue({ delivered: 'none' });
+      renderMatch();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Poke p2' }));
+
+      await waitFor(() => expect(toastInfoMock).toHaveBeenCalledWith("p2 doesn't have notifications on"));
+      expect(screen.getByRole('button', { name: 'Poke p2' })).toBeTruthy();
+    });
+
+    it('waits out the 30 minutes, and never offers a poke on my own turn', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        useMatchSocketMock.mockReturnValue({ match: p2sTurn(HALF_HOUR - 60_000), connected: true });
+        renderMatch();
+        await act(async () => {});
+        expect(screen.queryByRole('button', { name: /^Poke/ })).toBeNull();
+
+        await act(async () => {
+          vi.advanceTimersByTime(60_000);
+        });
+        expect(screen.getByRole('button', { name: 'Poke p2' })).toBeTruthy();
+      } finally {
+        vi.useRealTimers();
+      }
+
+      cleanup();
+      useMatchSocketMock.mockReturnValue({
+        match: baseMatch({ updatedOn: new Date(Date.now() - 2 * HALF_HOUR).toISOString() }),
+        connected: true,
+      });
+      renderMatch();
+      await act(async () => {});
+      expect(screen.queryByRole('button', { name: /^Poke/ })).toBeNull();
+    });
+
+    it("tells me when I'm poked", () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+
+      const onPoke = useMatchSocketMock.mock.calls[0][2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      expect(toastInfoMock).toHaveBeenCalledWith('p2 poked you', "It's your turn", 'center');
+    });
+
+    it('ignores a poke that lands while my bid is on its way', async () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      bidMock.mockReturnValue(new Promise(() => {}));
+      renderMatch();
+
+      fireEvent.click(screen.getByRole('button', { name: /^30$/ }));
+      await waitFor(() => expect(bidMock).toHaveBeenCalled());
+      const onPoke = useMatchSocketMock.mock.calls.at(-1)![2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      expect(toastInfoMock).not.toHaveBeenCalledWith('p2 poked you', "It's your turn", 'center');
     });
   });
 });

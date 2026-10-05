@@ -168,6 +168,13 @@ matches.post('/:id/rematch', async (c) => {
   return replyWithMatch(c, result, { lobbySync: 'summary' });
 });
 
+// Pokes the player whose turn it is, once it's waited long enough (MatchDO's `poke`). The reply
+// says how it reached them - a push, a nudge in the app, or not at all.
+matches.post('/:id/poke', async (c) => {
+  const result = await matchStub(c.env, c.req.param('id')).poke(c.get('user').sub);
+  return result.ok ? c.json(result.value) : refusal(c, result);
+});
+
 matches.patch('/:id/games/current', async (c) => {
   const suit = field.suit(await readBody(c));
   return replyWithMatch(c, await matchStub(c.env, c.req.param('id')).setTrump(c.get('user').sub, suit));

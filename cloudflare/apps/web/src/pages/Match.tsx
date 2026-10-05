@@ -11,6 +11,9 @@
 // Rejected actions (an illegal play, a stale bid) pop a SweetAlert2 toast (ui/toast.ts). When the
 // match ends, the hand-over rail offers a rematch and a summary dialog (components/MatchSummary.tsx)
 // for anyone who wants it; a toast marks each new hand.
+//
+// Once the player whose turn it is has sat on it for 30 minutes, anyone else at the table gets a
+// Poke button (match/usePoke.ts); a player poked while they have this page open gets a toast.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -64,6 +67,7 @@ import {
 } from '@fortytwo/client';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
+import { usePoke } from '../match/usePoke';
 import '../styles/match.css';
 
 // How long a just-completed trick stays put in the center of the board (as if still "in
@@ -94,7 +98,15 @@ export function Match(): JSX.Element {
   // and the hook is retrying; the initial connect alone doesn't count. While down, the table may be
   // stale (a turn may already have passed), so the page says so and holds every action until the
   // socket is back.
-  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken);
+  // What a poke needs when it lands, from state further down: the sender's display name, and
+  // whether a move of mine is already in flight - then the poke is moot. (The Worker only sends a
+  // poke while it's still my turn, and the socket keeps its messages in order, so that's the one
+  // way one can land late.)
+  const pokedRef = useRef<{ names?: Map<string, string>; moving: boolean }>({ moving: false });
+  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken, (from) => {
+    if (pokedRef.current.moving) return;
+    toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
+  });
   const client = apiClient(getToken);
 
   // Initial load + reconnect-catchup: `useMatchSocket` starts at `null` and only fills once a
@@ -130,6 +142,8 @@ export function Match(): JSX.Element {
     enabled: seatedIds.length > 0,
     staleTime: Infinity,
   });
+
+  const poke = usePoke(liveMatch, myPlayerId, () => client.poke(matchId!), (id) => namesQuery.data?.get(id) ?? id);
 
   const bidMutation = useMutation({
     mutationFn: (bid: Bid) => client.bid(matchId!, bid),
@@ -279,6 +293,13 @@ export function Match(): JSX.Element {
   }, []);
 
   // My hand as the server last sent it, and the play in flight while that hand still holds it.
+  useEffect(() => {
+    pokedRef.current = {
+      names: namesQuery.data,
+      moving: playing != null || bidMutation.isPending || setTrumpMutation.isPending,
+    };
+  }, [namesQuery.data, playing, bidMutation.isPending, setTrumpMutation.isPending]);
+
   const myLiveHand = holdGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
   const inFlight = playing != null && myLiveHand.some((d) => d.id === playing.id) ? playing : null;
   useEffect(() => {
@@ -689,6 +710,17 @@ export function Match(): JSX.Element {
               <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
                 {status}
               </p>
+            )}
+
+            {poke.target != null && (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary rail-poke"
+                disabled={poke.pending}
+                onClick={poke.poke}
+              >
+                Poke {nameFor(poke.target)}
+              </button>
             )}
 
             {canBid && (

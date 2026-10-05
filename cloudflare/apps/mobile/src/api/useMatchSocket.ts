@@ -32,7 +32,9 @@ function useAppInForeground(): boolean {
 
 export function useMatchSocket(
   matchId: string,
-  getToken: () => Promise<string>
+  getToken: () => Promise<string>,
+  // Someone poked this player on their turn; `from` is who.
+  onPoke?: (from: string) => void
 ): { match: MatchState | null; connected: boolean; reconnecting: boolean; deleted: boolean } {
   // Both are tagged with the matchId they belong to, so the very first render for a new matchId
   // never shows the previous match's state (or its "connected") while the new socket comes up.
@@ -48,6 +50,11 @@ export function useMatchSocket(
   useEffect(() => {
     getTokenRef.current = getToken;
   }, [getToken]);
+  // The same for onPoke.
+  const onPokeRef = useRef(onPoke);
+  useEffect(() => {
+    onPokeRef.current = onPoke;
+  }, [onPoke]);
 
   const foreground = useAppInForeground();
 
@@ -66,6 +73,7 @@ export function useMatchSocket(
         setDroppedFrom(null);
       },
       onMatch: (match) => setLatest({ matchId, match }),
+      onPoke: (from) => onPokeRef.current?.(from),
       onDrop: () => {
         setConnectedTo(null);
         setDroppedFrom(matchId);

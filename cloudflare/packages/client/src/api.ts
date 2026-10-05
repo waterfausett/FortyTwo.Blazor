@@ -14,12 +14,13 @@ import type {
   ClientConfig,
   MatchPage,
   MatchSummary,
+  PokeResult,
   ProfilePatch,
   PublicUser,
   UserProfile,
 } from '@fortytwo/api-types';
 
-export type { MatchPage, MatchSummary, PublicUser, UserProfile };
+export type { MatchPage, MatchSummary, PokeResult, PublicUser, UserProfile };
 
 // Keeps the Worker's title and detail apart so a toast can show them as heading and body;
 // `message` still joins them for callers that just print it.
@@ -128,6 +129,10 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
         method: 'POST',
         body: JSON.stringify({ domino }),
       }),
+
+    // Nudges the player whose turn it is, once it has waited long enough (poke.ts). Resolves with
+    // how it reached them - `'none'` when it couldn't, which leaves the turn's poke unused.
+    poke: (id: string): Promise<PokeResult> => request<PokeResult>(`/api/matches/${id}/poke`, { method: 'POST' }),
 
     // Dev-only (the Worker's AUTO_PLAY_BOTS): seats a bot at `position`, or at every open seat
     // when no position is given.

@@ -549,6 +549,32 @@ describe('match routes', () => {
     });
   });
 
+  describe('POST /api/matches/:id/poke', () => {
+    it("refuses a turn that hasn't waited long enough, then says when nobody could be reached", async () => {
+      const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4'].map((sub) => signToken(sub)));
+      const { id } = (await (await api('/api/matches', tokens[0], { method: 'POST' })).json()) as { id: string };
+      for (const position of [1, 2, 3]) {
+        const join = await api(`/api/matches/${id}/players`, tokens[position], { method: 'POST', body: JSON.stringify({ position }) });
+        await join.arrayBuffer();
+      }
+      const match = (await (await api(`/api/matches/${id}`, tokens[0])).json()) as MatchState;
+      const poker = tokens[match.players.find((p) => p.playerId !== match.currentGame.currentPlayerId)!.position];
+
+      const early = await api(`/api/matches/${id}/poke`, poker, { method: 'POST' });
+      expect(early.status).toBe(400);
+      expect(((await early.json()) as { title: string }).title).toBe('Too soon to poke');
+
+      const stub = testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(id));
+      await runInDurableObject(stub, async (_instance, state) => {
+        const stored = (await state.storage.get<MatchState>('match'))!;
+        await state.storage.put('match', { ...stored, updatedOn: '2026-01-01T00:00:00.000Z' });
+      });
+      const res = await api(`/api/matches/${id}/poke`, poker, { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ delivered: 'none' });
+    });
+  });
+
   describe('malformed request bodies', () => {
     // Each is rejected at the route boundary, before the match is touched, with the same
     // { title, detail } shape the client renders for a rule violation.

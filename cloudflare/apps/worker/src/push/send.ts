@@ -42,7 +42,8 @@ export function messagesFor(notices: Notice[], tokens: { token: string; userId: 
         body: notice.body,
         data: { url: `/match/${notice.matchId}` },
         sound: 'default' as const,
-        priority: notice.kind === 'turn' ? ('high' as const) : ('default' as const),
+        // Both say it's the player's turn.
+        priority: notice.kind === 'turn' || notice.kind === 'poke' ? ('high' as const) : ('default' as const),
         channelId: ANDROID_CHANNEL_ID,
         collapseId: `match-${notice.matchId}`,
         tag: `match-${notice.matchId}`,

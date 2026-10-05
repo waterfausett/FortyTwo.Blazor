@@ -1,5 +1,6 @@
 // Receives live MatchState updates from MatchDO's broadcast socket (apps/worker/src/matchDO.ts -
-// every change to a match broadcasts `{ type: 'match', match }` to connected sockets). A dropped
+// every change to a match broadcasts `{ type: 'match', match }` to connected sockets), and the
+// `{ type: 'poke', from }` a player gets when someone pokes them on their turn. A dropped
 // connection is retried with exponential backoff. Framework-free, so each app wraps it in its own
 // hook (apps/web/src/api/useMatchSocket.ts) and supplies its own wake-up signals.
 import type { MatchState } from '@fortytwo/rules';
@@ -21,12 +22,26 @@ interface MatchSocketMessage {
   match: MatchState;
 }
 
+interface PokeSocketMessage {
+  type: 'poke';
+  from: string;
+}
+
 function isMatchSocketMessage(value: unknown): value is MatchSocketMessage {
   return (
     typeof value === 'object' &&
     value !== null &&
     (value as { type?: unknown }).type === 'match' &&
     'match' in value
+  );
+}
+
+function isPokeSocketMessage(value: unknown): value is PokeSocketMessage {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'poke' &&
+    typeof (value as { from?: unknown }).from === 'string'
   );
 }
 
@@ -39,6 +54,8 @@ export interface MatchSocketOptions {
   // A socket opened.
   onOpen: () => void;
   onMatch: (match: MatchState) => void;
+  // Someone poked this player: it's their turn and they've sat on it a while. `from` is the poker.
+  onPoke?: (from: string) => void;
   // A socket closed on us - a live one dropping, or a connect attempt failing. A retry follows.
   onDrop: () => void;
   // The server deleted the match (the last human left, or it expired). Follows an onDrop; no retry
@@ -58,6 +75,7 @@ export function connectMatchSocket({
   getToken,
   onOpen,
   onMatch,
+  onPoke,
   onDrop,
   onDeleted,
   subscribeWake,
@@ -106,6 +124,7 @@ export function connectMatchSocket({
         return; // Ignore malformed frames.
       }
       if (isMatchSocketMessage(data)) onMatch(data.match);
+      else if (isPokeSocketMessage(data)) onPoke?.(data.from);
     });
 
     ws.addEventListener('close', (event: { code: number }) => {
