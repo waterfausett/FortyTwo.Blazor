@@ -126,7 +126,8 @@ matches.post('/:id/players', async (c) => {
 });
 
 // Seats a bot at `{ position }`, or at every open seat when no position is given, so bots can make
-// up the numbers (404 when BOTS_ENABLED is 'false'). Only a player already at the table can add bots (checked by MatchDO's `addBots`).
+// up the numbers (404 when BOTS_ENABLED is 'false'). Only a player already at the table can add
+// bots (checked by MatchDO's `addBots`).
 matches.post('/:id/bots', async (c) => {
   if (!botsEnabled(c.env)) return c.json({ title: 'Not found' }, 404);
   const body = await readBody(c);

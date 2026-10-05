@@ -20,7 +20,8 @@ export interface Env {
   AUTH0_API_AUDIENCE: string;
   ALLOWED_ORIGIN?: string;
   // Bots (the ML bot, falling back to simple rules) can fill open seats unless this is exactly
-  // 'false': a kill switch settable in the Cloudflare dashboard without a deploy.
+  // 'false': a kill switch settable in the Cloudflare dashboard without a deploy. Off, it also
+  // stops the ML bot in matches that already have bots: those bots play on by the simple rules.
   BOTS_ENABLED?: string;
   // The static-assets binding (wrangler.toml's [assets]); mlBot.ts reads the bot's weights from it.
   ASSETS?: Fetcher;

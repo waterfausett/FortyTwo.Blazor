@@ -35,7 +35,7 @@ import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
 import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
 import type { PokeResult } from '@fortytwo/api-types';
-import { BOT_IDS, applyBotAction, findNextBotAction } from './bots';
+import { BOT_IDS, applyBotAction, botsEnabled, findNextBotAction } from './bots';
 import { getMlBot } from './mlBot';
 
 // One tick's worth of "thinking time" before a bot acts, via the DO alarm API - so a client sees
@@ -307,7 +307,9 @@ export class MatchDO extends DurableObject<Env> {
   async alarm(): Promise<void> {
     // Resolved before the match is read: the first call in an isolate makes outgoing ASSETS fetches,
     // which don't hold input gates, so a request could change the match between load and save.
-    const bot = await getMlBot(this.env);
+    // With the kill switch off (BOTS_ENABLED 'false') bots already seated play on by the simple
+    // rules, so no ML inference runs at all.
+    const bot = botsEnabled(this.env) ? await getMlBot(this.env) : null;
     const match = await this.load();
     if (match === null) return;
 

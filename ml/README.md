@@ -155,6 +155,38 @@ Stage 3 passes if:
 `eval-bidding` runs on 7 worker processes by default (`--workers`). Results are identical for any
 worker count. A 1,000-deal run with a `sim` side now takes about an hour.
 
+## Stage 4: shipping the bot
+
+The Worker's bots run the play network and BidNet in TypeScript (`cloudflare/packages/bot`).
+`ml export` writes the pair it ships, and `ml export-fixtures` writes the golden data that keeps
+the TS port in step with Python.
+
+```sh
+uv run ml export --play runs/stage1-c/ckpt-latest.pt --bidnet runs/bidnet-2/bidnet.pt --out ../cloudflare/apps/web/public/models
+uv run ml export-fixtures --out ../cloudflare/packages/bot/test/fixtures
+```
+
+`export` writes `bot.bin` (every tensor as little-endian float32) and `bot.json` (shapes, offsets,
+the bin's sha256, the encoder layouts, the bidding thresholds and where the weights came from). It
+refuses a bidnet trained on simulations by a different play checkpoint than `--play`.
+
+`export-fixtures` writes a tiny random bot (`tiny-bot.*`) and about 300 hands it bid and played
+(`hands.jsonl.gz`), with every decision's encodings, network outputs and choice. It's
+deterministic for a `--seed`. The TS tests replay them and must match exactly.
+
+After a retrain, or after changing the encoders or the bidding rules:
+
+1. Retrain (`ml train`, then `ml gen-bids` and `ml train-bids` against the new play checkpoint).
+2. Re-export with `ml export`. If the encoders changed, the manifest's `playInputDim` (from
+   `features.py`) or `bidInputLayout` (`bidding/model.py`) changes too, and the Worker refuses the
+   model until the TS encoders and `cloudflare/packages/bot/src/weights.ts` are ported to match.
+3. If any code the bot runs changed, regenerate the fixtures with `ml export-fixtures`. Then run
+   `npm test -w @fortytwo/bot` in `cloudflare/`, and `npm run bench -w @fortytwo/bot` to check
+   the decision times still fit the Workers Free plan.
+4. Commit `bot.json`, `bot.bin` and the fixtures. `bot.bin` goes in through Git LFS
+   (`.gitattributes` tracks it), so `git lfs install` once first. The bot package's
+   `realManifest.test.ts` checks that `bot.json`'s sha256 matches the committed bin.
+
 ## Layout
 
 | Path | What it is |
