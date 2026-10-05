@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
 import { JoinMatchPanel } from '../JoinMatchPanel';
 import { SeatPicker } from '../SeatPicker';
+import { PENDING_SPINNER_DELAY_MS, Table, type SeatInfo } from '../Table';
 import { TrickHistory } from '../TrickHistory';
 
 function biddingGame(overrides: Partial<Game> = {}): Game {
@@ -118,6 +119,44 @@ describe('SeatPicker', () => {
   });
 });
 
+describe('Table', () => {
+  const seat = (name: string, dominoCount: number | null, overrides: Partial<SeatInfo> = {}): SeatInfo => ({
+    name,
+    side: 'them',
+    isActive: false,
+    isDealer: false,
+    bid: null,
+    isHighBidder: false,
+    trump: null,
+    ready: null,
+    dominoCount,
+    ...overrides,
+  });
+
+  it('seats everyone on the felt, with a face-down tile for each domino another player holds', async () => {
+    await render(
+      <Table
+        seats={{
+          bottom: seat('You', null, { side: 'us' }),
+          left: seat('Ann', 7),
+          top: seat('Bo', 6, { side: 'us', isActive: true }),
+          right: null,
+        }}
+        trick={null}
+        slotSeats={[null, null, null, null]}
+        winningSlot={null}
+      />,
+    );
+
+    expect(screen.getByLabelText('Table')).toBeTruthy();
+    expect(screen.getByText('You')).toBeTruthy();
+    expect(screen.getByLabelText('7 dominoes')).toBeTruthy();
+    expect(screen.getByLabelText('6 dominoes')).toBeTruthy();
+    expect(screen.getByLabelText('Bo, to act')).toBeTruthy();
+    expect(screen.getByText('Open seat')).toBeTruthy();
+  });
+});
+
 describe('TrickHistory', () => {
   const trick = (team: Teams, ...pairs: [number, number][]): Trick => ({
     playerId: 'p1',
@@ -191,5 +230,41 @@ describe('JoinMatchPanel', () => {
     expect(screen.queryByText('Sit here')).toBeNull();
     await fireEvent.press(screen.getByText('Back to matches'));
     expect(onLobby).toHaveBeenCalled();
+  });
+});
+
+describe('Table', () => {
+  const seats = { top: null, left: null, right: null, bottom: null };
+  const slotSeats = ['left', 'bottom', null, null] as const;
+
+  it('shows a spinner on my unconfirmed play once it has waited a moment', async () => {
+    jest.useFakeTimers();
+    try {
+      const mine = createDomino(4, 5);
+      const trick: Trick = { playerId: null, team: null, suit: null, dominoes: [createDomino(1, 2), mine, null, null] };
+      await render(<Table seats={seats} trick={trick} slotSeats={[...slotSeats]} winningSlot={null} pendingId={mine.id} />);
+
+      // A play that lands promptly never flashes the spinner.
+      expect(screen.queryByLabelText('Sending your play')).toBeNull();
+      await act(() => jest.advanceTimersByTime(PENDING_SPINNER_DELAY_MS - 1));
+      expect(screen.queryByLabelText('Sending your play')).toBeNull();
+      await act(() => jest.advanceTimersByTime(1));
+      expect(screen.getByLabelText('Sending your play')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('shows no spinner when nothing is pending', async () => {
+    jest.useFakeTimers();
+    try {
+      const trick: Trick = { playerId: null, team: null, suit: null, dominoes: [createDomino(1, 2), createDomino(4, 5), null, null] };
+      await render(<Table seats={seats} trick={trick} slotSeats={[...slotSeats]} winningSlot={null} />);
+
+      await act(() => jest.advanceTimersByTime(PENDING_SPINNER_DELAY_MS));
+      expect(screen.queryByLabelText('Sending your play')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

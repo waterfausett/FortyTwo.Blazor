@@ -6,10 +6,10 @@
 //   - it's their turn: to bid, to name trump, or to play;
 //   - the hand they're in has been decided: ready up for the next one, or the match is over;
 //   - the game has started: the last seat was taken and the first hand dealt, or a rematch dealt.
-// Bots never get one.
+// Bots never get one. A poke (poke.ts) is the one notice not worked out here: a player sends it.
 import { gameWinningTeam, handSize, isBot, type Game, type MatchState } from '@fortytwo/rules';
 
-export type NoticeKind = 'turn' | 'handOver' | 'matchOver' | 'started';
+export type NoticeKind = 'turn' | 'handOver' | 'matchOver' | 'started' | 'poke';
 
 export interface Notice {
   playerId: string;
@@ -20,7 +20,7 @@ export interface Notice {
 }
 
 // All four seated and a hand dealt (describeMatch's isTableReady, in @fortytwo/client).
-function isDealt(match: MatchState): boolean {
+export function isDealt(match: MatchState): boolean {
   const game = match.currentGame;
   return (
     match.players.length === 4 &&

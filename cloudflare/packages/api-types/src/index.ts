@@ -23,6 +23,22 @@ export interface MatchSummary {
   seats: (string | null)[];
 }
 
+// One page of a lobby list (GET /api/matches). `nextCursor` goes back as `?cursor=` for the next
+// page; null on the last one.
+export interface MatchPage {
+  matches: MatchSummary[];
+  nextCursor: string | null;
+}
+
+// How a poke (POST /api/matches/:id/poke) reached the player whose turn it is: a push
+// notification, a nudge on the match they have open, or not at all - they don't have the match
+// open and have no device to notify. Only a poke that got through uses up the turn's one poke.
+export type PokeDelivery = 'push' | 'inApp' | 'none';
+
+export interface PokeResult {
+  delivered: PokeDelivery;
+}
+
 // Feature switches the Worker turns on per environment (GET /api/config).
 export interface ClientConfig {
   bots: boolean;

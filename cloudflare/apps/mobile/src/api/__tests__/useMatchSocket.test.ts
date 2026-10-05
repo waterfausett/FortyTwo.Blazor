@@ -136,6 +136,19 @@ describe('useMatchSocket', () => {
     expect(MockWebSocket.instances).toHaveLength(2);
   });
 
+  it('reports the match deleted, and stops reconnecting, when the server closes with 4404', async () => {
+    const { result } = await renderHook(() => useMatchSocket('match-1', async () => 'tok'));
+    await flush();
+    await act(async () => MockWebSocket.instances[0].emit('open'));
+    expect(result.current.deleted).toBe(false);
+
+    await act(async () => MockWebSocket.instances[0].emit('close', { code: 4404 }));
+    await flush(60_000);
+
+    expect(result.current.deleted).toBe(true);
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
   it('stops listening and closes the socket on unmount', async () => {
     const { unmount } = await renderHook(() => useMatchSocket('match-1', async () => 'tok'));
     await flush();

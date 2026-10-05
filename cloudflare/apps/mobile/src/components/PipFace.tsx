@@ -1,12 +1,13 @@
 // A single domino half standing in for a suit, as on the web (apps/web/src/components/PipFace.tsx):
 // shows trump at a glance on the bidder's seat, the scoreboard and the trump picker. Follow Me
 // (Suit.None) and Low have no pip count, so they show a short word on the same tile instead.
+import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Suit, isLow, suitToPrettyString } from '@fortytwo/rules';
 import { PIP_COLORS, pipCenters } from './Domino';
 import { colors, fonts } from './theme';
 
-export function PipFace({ suit, size = 26 }: { suit: Suit; size?: number }) {
+export const PipFace = memo(function PipFace({ suit, size = 26 }: { suit: Suit; size?: number }) {
   const label = suitToPrettyString(suit);
   const face = [styles.face, { width: size, height: size, borderRadius: size * 0.18 }];
 
@@ -43,7 +44,7 @@ export function PipFace({ suit, size = 26 }: { suit: Suit; size?: number }) {
       <View pointerEvents="none" style={[styles.outline, { borderRadius: size * 0.18 }]} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   face: { backgroundColor: colors.bone },

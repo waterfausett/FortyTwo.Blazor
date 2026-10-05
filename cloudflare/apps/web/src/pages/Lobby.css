@@ -239,3 +239,8 @@
     transition: none;
   }
 }
+
+.lobby-load-more {
+  display: block;
+  margin: 0.75rem auto 0;
+}

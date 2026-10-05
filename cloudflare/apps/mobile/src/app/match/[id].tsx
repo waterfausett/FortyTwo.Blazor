@@ -1,11 +1,13 @@
 // The match screen: scores and contract, the table, and what this player can do right now - bid,
-// name trump, play a domino by tapping it, ready up for the next hand, or ask for a rematch. Live
+// name trump, play a domino by tapping it, ready up for the next hand, ask for a rematch, or - before
+// the first deal - leave the table (or cancel the match, when no other human is seated) - or poke
+// whoever the table has been waiting on for 30 minutes (match/usePoke.ts). Live
 // state comes from the match socket; what the state allows comes from @fortytwo/client's
 // describeMatch, which the web match page uses too.
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -31,6 +33,8 @@ import {
   Bid,
   bidToPrettyString,
   handSize,
+  hasBeenDealt,
+  isBot,
   isLow,
   lowDoublesToPrettyString,
   matchScores,
@@ -50,7 +54,7 @@ import { Hand, type DragState } from '@/components/Hand';
 import { JoinMatchPanel } from '@/components/JoinMatchPanel';
 import { MatchSummary } from '@/components/MatchSummary';
 import { PipFace } from '@/components/PipFace';
-import { toastError } from '@/components/toast';
+import { toastError, toastInfo } from '@/components/toast';
 import { Table, TABLE_RESIZE_MS, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
 import { TrumpPicker } from '@/components/TrumpPicker';
@@ -58,6 +62,7 @@ import { colors, fonts } from '@/components/theme';
 import { shareInvite } from '@/linking/invite';
 import { askOnceForPush } from '@/notifications/push';
 import { useLatch } from '@/match/useLatch';
+import { usePoke } from '@/match/usePoke';
 import { useSettled } from '@/match/useSettled';
 import { useTrickHold } from '@/match/useTrickHold';
 
@@ -70,10 +75,23 @@ export default function MatchScreen() {
   // Room at the bottom of the scroll, above the phone's gesture bar or navigation buttons.
   const bottomInset = useSafeAreaInsets().bottom;
 
-  const { match: socketMatch, connected, reconnecting } = useMatchSocket(id, getToken);
+  // What a poke needs when it lands, from state below: the sender's display name, and whether a
+  // move of mine is already in flight - then the poke is moot. (The Worker only sends a poke while
+  // it's still my turn, and the socket keeps its messages in order, so that's the one way one can
+  // land late.)
+  const pokedRef = useRef<{ names?: Map<string, string>; moving: boolean }>({ moving: false });
+  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(id, getToken, (from) => {
+    if (pokedRef.current.moving) return;
+    toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
+  });
   // The socket sends the match as soon as it connects; this fills the moment before that, and
   // stands in while the socket is down.
-  const matchQuery = useQuery({ queryKey: ['match', id], queryFn: () => api.getMatch(id) });
+  const matchQuery = useQuery({
+    queryKey: ['match', id],
+    queryFn: () => api.getMatch(id),
+    // A match that doesn't exist (deleted, or a stale link) won't appear on a retry - say so now.
+    retry: (failureCount, error) => (error as { status?: number }).status !== 404 && failureCount < 3,
+  });
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
   const seatedIds = (liveMatch?.players.map((p) => p.playerId) ?? []).sort();
@@ -86,6 +104,7 @@ export default function MatchScreen() {
     enabled: seatedIds.length > 0,
     staleTime: Infinity,
   });
+  const poke = usePoke(liveMatch, myPlayerId, () => api.poke(id), (playerId) => names.data?.get(playerId) ?? playerId);
   // The player's settings: whether to outline the playable dominoes (opted into), and whether
   // they want notifications.
   const profile = useProfile().data;
@@ -101,6 +120,33 @@ export default function MatchScreen() {
   // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
   // then seats the player here; the lobby's lists change too.
   const queryClient = useQueryClient();
+
+  // Set (by the button, before the request goes out) while this player's own leave is in flight:
+  // if it deletes the match, their socket gets the same "deleted" close as everyone else's, and
+  // they shouldn't be told about it.
+  const leavingRef = useRef(false);
+  const leave = useMutation({
+    mutationFn: () => api.leaveMatch(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
+      router.dismissTo('/');
+    },
+    onError: (error) => {
+      leavingRef.current = false;
+      toastError(error);
+    },
+  });
+
+  // The match was deleted (its last human left, or it expired) - there's nothing left to show.
+  // Re-checked when this player's own leave fails, since by then the match may be gone anyway.
+  const leaveFailed = leave.isError;
+  useEffect(() => {
+    if (!deleted || leavingRef.current) return;
+    toastInfo('This match was deleted');
+    queryClient.invalidateQueries({ queryKey: ['matches'] });
+    router.dismissTo('/');
+  }, [deleted, leaveFailed, queryClient]);
+
   const join = useMutation({
     mutationFn: (position: number) => api.joinMatch(id, position),
     onSuccess: (joined) => {
@@ -121,6 +167,9 @@ export default function MatchScreen() {
       toastError(error);
     },
   });
+  useEffect(() => {
+    pokedRef.current = { names: names.data, moving: playing != null || bid.isPending || trump.isPending };
+  }, [names.data, playing, bid.isPending, trump.isPending]);
   const liveGame = liveMatch?.currentGame ?? null;
   const myLiveHand = liveGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
   // Still in my hand, as far as the server has said - so still to be shown as played.
@@ -208,6 +257,15 @@ export default function MatchScreen() {
     );
   }
   if (!liveMatch.players.some((p) => p.playerId === myPlayerId)) {
+    // Having just left, the table's broadcast without this player usually arrives before the
+    // leave's own reply navigates away - that's not a seat picker to show them.
+    if (leave.isPending || leave.isSuccess) {
+      return (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.brass} accessibilityLabel="Leaving match" />
+        </View>
+      );
+    }
     const seats = [0, 1, 2, 3].map((position) => {
       const player = liveMatch.players.find((p) => p.position === position);
       return player ? (names.data?.get(player.playerId) ?? player.playerId) : null;
@@ -293,6 +351,25 @@ export default function MatchScreen() {
   const seats: Record<Seat, SeatInfo | null> = { bottom: null, left: null, top: null, right: null };
   for (const p of match.players) seats[seatFor(match.players, myPlayerId, p.playerId)!] = seatInfo(p.playerId);
   const emptySeatCount = openSeats(match.players, myPlayerId).length;
+  // The last human out deletes the match, so for them leaving is cancelling it.
+  const onlyHumanSeated = match.players.every((p) => p.playerId === myPlayerId || isBot(p.playerId));
+  function confirmLeave() {
+    Alert.alert(
+      onlyHumanSeated ? 'Cancel this match?' : 'Leave this table?',
+      onlyHumanSeated ? 'It will be deleted.' : undefined,
+      [
+        { text: 'Stay', style: 'cancel' },
+        {
+          text: onlyHumanSeated ? 'Cancel match' : 'Leave',
+          style: 'destructive',
+          onPress: () => {
+            leavingRef.current = true;
+            leave.mutate();
+          },
+        },
+      ],
+    );
+  }
 
   const handWinnerIsUs = view.handWinner === myTeam;
   const contractBid =
@@ -349,6 +426,7 @@ export default function MatchScreen() {
           trick={view.isTableReady ? trick : null}
           slotSeats={slotSeats}
           winningSlot={winningSlot}
+          pendingId={inFlight?.id ?? null}
           dropRef={tableRef}
           dropActive={drag.overDropZone}
           sweepTo={sweepTo}
@@ -376,6 +454,18 @@ export default function MatchScreen() {
                     accessibilityRole="button"
                   >
                     <Text style={styles.smallButtonText}>Fill with bots</Text>
+                  </Pressable>
+                )}
+                {!hasBeenDealt(match) && (
+                  <Pressable
+                    style={[styles.smallButton, styles.dangerButton, leave.isPending && styles.buttonDisabled]}
+                    disabled={leave.isPending}
+                    onPress={confirmLeave}
+                    accessibilityRole="button"
+                  >
+                    <Text style={[styles.smallButtonText, styles.dangerButtonText]}>
+                      {onlyHumanSeated ? 'Cancel match' : 'Leave table'}
+                    </Text>
                   </Pressable>
                 )}
               </View>
@@ -439,9 +529,21 @@ export default function MatchScreen() {
             // Keyed by phase rather than by the words, so a new phase eases in but each turn's
             // status doesn't flicker.
             <Fade key={view.isPlayingPhase ? 'play' : 'wait'}>
-              <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
-                {status}
-              </Text>
+              <View style={styles.statusLine}>
+                <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
+                  {status}
+                </Text>
+                {poke.target != null && (
+                  <Pressable
+                    style={[styles.smallButton, poke.pending && styles.buttonDisabled]}
+                    disabled={poke.pending}
+                    onPress={poke.poke}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.smallButtonText}>Poke {nameFor(poke.target)}</Text>
+                  </Pressable>
+                )}
+              </View>
             </Fade>
           )
         )}
@@ -579,6 +681,8 @@ const styles = StyleSheet.create({
   waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   smallButton: { borderWidth: 1, borderColor: colors.brass, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   smallButtonText: { color: colors.brass, fontFamily: fonts.uiBold },
+  dangerButton: { borderColor: colors.danger },
+  dangerButtonText: { color: colors.danger },
   matchOver: {
     alignItems: 'center',
     gap: 8,
@@ -603,6 +707,7 @@ const styles = StyleSheet.create({
   handOverText: { flex: 1, gap: 2 },
   handOverTitle: { color: colors.bone, fontFamily: fonts.display, fontSize: 20 },
   handOverDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
+  statusLine: { alignItems: 'center', gap: 8 },
   status: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   muted: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center' },
   spacer: { flexGrow: 1 },

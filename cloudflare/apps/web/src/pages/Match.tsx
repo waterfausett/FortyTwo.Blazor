@@ -13,6 +13,9 @@
 // for anyone who wants it; a toast marks each new hand. When the table starts waiting on the player
 // - their turn, or a hand over and them not yet ready - TurnAlerts (match/TurnAlerts.tsx) chimes,
 // flashes the tab and notifies, per their Profile settings.
+//
+// Once the player whose turn it is has sat on it for 30 minutes, anyone else at the table gets a
+// Poke button (match/usePoke.ts); a player poked while they have this page open gets a toast.
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -30,6 +33,8 @@ import {
   isLow,
   lowDoublesToPrettyString,
   rematchAgreed,
+  hasBeenDealt,
+  isBot,
 } from '@fortytwo/rules';
 import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
@@ -66,6 +71,7 @@ import {
 } from '@fortytwo/client';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
+import { usePoke } from '../match/usePoke';
 import '../styles/match.css';
 
 // How long a just-completed trick stays put in the center of the board (as if still "in
@@ -96,7 +102,15 @@ export function Match(): JSX.Element {
   // and the hook is retrying; the initial connect alone doesn't count. While down, the table may be
   // stale (a turn may already have passed), so the page says so and holds every action until the
   // socket is back.
-  const { match: socketMatch, connected, reconnecting } = useMatchSocket(matchId ?? '', getToken);
+  // What a poke needs when it lands, from state further down: the sender's display name, and
+  // whether a move of mine is already in flight - then the poke is moot. (The Worker only sends a
+  // poke while it's still my turn, and the socket keeps its messages in order, so that's the one
+  // way one can land late.)
+  const pokedRef = useRef<{ names?: Map<string, string>; moving: boolean }>({ moving: false });
+  const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken, (from) => {
+    if (pokedRef.current.moving) return;
+    toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
+  });
   const client = apiClient(getToken);
 
   // Initial load + reconnect-catchup: `useMatchSocket` starts at `null` and only fills once a
@@ -110,6 +124,8 @@ export function Match(): JSX.Element {
     queryKey: ['match', matchId],
     queryFn: () => client.getMatch(matchId!),
     enabled: !!matchId,
+    // A match that doesn't exist (deleted, or a stale link) won't appear on a retry - say so now.
+    retry: (failureCount, error) => (error as { status?: number }).status !== 404 && failureCount < 3,
   });
 
   // Prefer the socket's state once it has ANY value (it's the live source of truth once connected);
@@ -130,6 +146,8 @@ export function Match(): JSX.Element {
     enabled: seatedIds.length > 0,
     staleTime: Infinity,
   });
+
+  const poke = usePoke(liveMatch, myPlayerId, () => client.poke(matchId!), (id) => namesQuery.data?.get(id) ?? id);
 
   const bidMutation = useMutation({
     mutationFn: (bid: Bid) => client.bid(matchId!, bid),
@@ -190,6 +208,32 @@ export function Match(): JSX.Element {
     mutationFn: (position?: number) => client.addBots(matchId!, position),
     onError: toastError,
   });
+
+  // Set (by the button, before the request goes out) while this player's own leave is in flight:
+  // if it deletes the match, their socket gets the same "deleted" close as everyone else's, and
+  // they shouldn't be told about it.
+  const leavingRef = useRef(false);
+  const leaveMutation = useMutation({
+    mutationFn: () => client.leaveMatch(matchId!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['matches'] });
+      navigate('/');
+    },
+    onError: (error) => {
+      leavingRef.current = false;
+      toastError(error);
+    },
+  });
+
+  // The match was deleted (its last human left, or it expired) - there's nothing left to show.
+  // Re-checked when this player's own leave fails, since by then the match may be gone anyway.
+  const leaveFailed = leaveMutation.isError;
+  useEffect(() => {
+    if (!deleted || leavingRef.current) return;
+    toastInfo('This match was deleted');
+    void queryClient.invalidateQueries({ queryKey: ['matches'] });
+    navigate('/', { replace: true });
+  }, [deleted, leaveFailed, navigate, queryClient]);
 
   // Trick-hold state: `revealedTrickCount` is how many of `game.tricks` have finished their hold
   // (see TRICK_HOLD_MS above) and are allowed to appear in the side piles/point totals. Any trick
@@ -253,6 +297,13 @@ export function Match(): JSX.Element {
   }, []);
 
   // My hand as the server last sent it, and the play in flight while that hand still holds it.
+  useEffect(() => {
+    pokedRef.current = {
+      names: namesQuery.data,
+      moving: playing != null || bidMutation.isPending || setTrumpMutation.isPending,
+    };
+  }, [namesQuery.data, playing, bidMutation.isPending, setTrumpMutation.isPending]);
+
   const myLiveHand = holdGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
   const inFlight = playing != null && myLiveHand.some((d) => d.id === playing.id) ? playing : null;
   useEffect(() => {
@@ -299,6 +350,17 @@ export function Match(): JSX.Element {
     );
   }
 
+  // A match that can't be loaded - most often one that was deleted - says so rather than leaving
+  // the loading spinner up forever.
+  if (!liveMatch && matchQuery.isError) {
+    return (
+      <div role="alert" className="match-error">
+        <p>{matchQuery.error.message}</p>
+        <Link to="/">Back to lobby</Link>
+      </div>
+    );
+  }
+
   if (!liveMatch || !myPlayerId) {
     return <div className="spinner" role="status" aria-label="Loading match" />;
   }
@@ -306,6 +368,11 @@ export function Match(): JSX.Element {
   // Someone who isn't seated - typically arriving from an invite link - picks a seat, or learns
   // the match is full.
   if (!liveMatch.players.some((p) => p.playerId === myPlayerId)) {
+    // Having just left, the table's broadcast without this player usually arrives before the
+    // leave's own reply navigates away - that's not a seat picker to show them.
+    if (leaveMutation.isPending || leaveMutation.isSuccess) {
+      return <div className="spinner" role="status" aria-label="Leaving match" />;
+    }
     const seats = [0, 1, 2, 3].map((position) => {
       const player = liveMatch.players.find((p) => p.position === position);
       return player ? (namesQuery.data?.get(player.playerId) ?? player.playerId) : null;
@@ -349,6 +416,8 @@ export function Match(): JSX.Element {
   } = view;
   const scores = matchScores(match);
   const canPlay = view.isMyTurnToPlay && connected && playing == null;
+  // Leaving deletes the match when nobody else human is seated, so the button says so.
+  const onlyHumanSeated = match.players.every((p) => p.playerId === myPlayerId || isBot(p.playerId));
 
   // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
   // itself always reflects the true, immediate server state (used above for e.g. `isHandOver`,
@@ -568,6 +637,21 @@ export function Match(): JSX.Element {
                         Fill with bots
                       </button>
                     )}
+                    {!hasBeenDealt(match) && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        disabled={leaveMutation.isPending}
+                        onClick={() => {
+                          if (window.confirm(onlyHumanSeated ? 'Cancel this match? It will be deleted.' : 'Leave this table?')) {
+                            leavingRef.current = true;
+                            leaveMutation.mutate();
+                          }
+                        }}
+                      >
+                        {onlyHumanSeated ? 'Cancel match' : 'Leave table'}
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <TrickDisplay
@@ -578,6 +662,7 @@ export function Match(): JSX.Element {
                     sweepTo={sweepTo}
                     sweepMode={sweepMode}
                     sweepTarget={sweepTarget}
+                    pendingId={inFlight?.id ?? null}
                   />
                 )}
               </div>
@@ -657,6 +742,17 @@ export function Match(): JSX.Element {
               <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
                 {status}
               </p>
+            )}
+
+            {poke.target != null && (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary rail-poke"
+                disabled={poke.pending}
+                onClick={poke.poke}
+              >
+                Poke {nameFor(poke.target)}
+              </button>
             )}
 
             {canBid && (

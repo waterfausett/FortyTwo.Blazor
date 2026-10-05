@@ -2,10 +2,14 @@
 // seat, or every open seat), then the alarm-paced bot loop carrying bidding/trump/play forward up
 // to a human's next turn. AUTO_PLAY_BOTS only gates the REST route that seats bots, so these tests
 // can call MatchDO directly without it.
-import { describe, it, expect } from 'vitest';
-import { env, runDurableObjectAlarm } from 'cloudflare:test';
+import { describe, it, expect, vi } from 'vitest';
+import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { Bid, Suit, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import type { MatchDO } from '../src/matchDO';
+import { syncLobbyIndex } from '../src/lobby';
+import { countLobbyWrites } from './lobbyWrites';
+import { failingDb } from './failingDb';
 
 const testEnv = env as unknown as Env;
 
@@ -109,5 +113,65 @@ describe('MatchDO bot auto-play', () => {
     // again - even if a bot won and had to lead the next trick.
     expect(match.currentGame.tricks).toHaveLength(1);
     expect(match.currentGame.currentPlayerId).toBe('human-1');
+  });
+
+  // The alarm syncs the lobby by the routes' rules: bot moves never change who's seated, so they
+  // never rewrite match_players (and bids and trump calls write nothing at all).
+  it('leaves the lobby index alone while bots bid and play', async () => {
+    const lobbyWrites = await countLobbyWrites(testEnv.DB);
+    const stub = stubFor('bots-lobby-sync');
+    await stub.create('human-1', 'bots-lobby-sync');
+    let match = valueOf(await stub.addBots('human-1'));
+    // Seeded here, as the route that seats bots would: these tests call the DO directly.
+    await syncLobbyIndex(testEnv.DB, match);
+    const before = await lobbyWrites(match.id);
+    expect(before.match_players).toBe(4);
+
+    await stub.bid('human-1', Bid.Thirty);
+    await runAllPendingAlarms(stub);
+    match = valueOf(await stub.setTrump('human-1', Suit.Sixes));
+    await stub.playDomino('human-1', match.currentGame.hands.find((h) => h.playerId === 'human-1')!.dominoes[0]);
+    await runAllPendingAlarms(stub);
+
+    expect(valueOf(await stub.getMatch()).currentGame.tricks).toHaveLength(1);
+    // The matches row isn't written either: the match is moments old, well inside
+    // SUMMARY_REFRESH_MS.
+    expect(await lobbyWrites(match.id)).toEqual(before);
+  });
+
+  // Each bot play syncs the lobby's summary row. If that write fails, the bots must still play on:
+  // nothing a human can do would schedule them again.
+  it('keeps the bots playing while the lobby index is down', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const stub = stubFor('bots-no-db');
+    await stub.create('human-1', 'bots-no-db');
+    await stub.addBots('human-1');
+    await stub.bid('human-1', Bid.Thirty);
+    await runAllPendingAlarms(stub);
+    let match = valueOf(await stub.setTrump('human-1', Suit.Sixes));
+
+    // `MatchDO.env` is protected, so the instance is viewed through a public `{ env }` to swap in
+    // a D1 that fails. The swap lasts for this instance, so the alarms below run with it too.
+    let realEnv: Env | undefined;
+    await runInDurableObject(stub, async (instance: MatchDO) => {
+      const withEnv = instance as unknown as { env: Env };
+      realEnv = withEnv.env;
+      withEnv.env = { ...realEnv, DB: failingDb() };
+    });
+    try {
+      const lead = match.currentGame.hands.find((h) => h.playerId === 'human-1')!.dominoes[0];
+      await stub.playDomino('human-1', lead);
+      await runAllPendingAlarms(stub);
+
+      match = valueOf(await stub.getMatch());
+      expect(match.currentGame.tricks).toHaveLength(1);
+      expect(match.currentGame.currentPlayerId).toBe('human-1');
+      expect(logged).toHaveBeenCalledWith('Failed to sync the lobby index for match bots-no-db', expect.any(Error));
+    } finally {
+      await runInDurableObject(stub, async (instance: MatchDO) => {
+        (instance as unknown as { env: Env }).env = realEnv!;
+      });
+      logged.mockRestore();
+    }
   });
 });

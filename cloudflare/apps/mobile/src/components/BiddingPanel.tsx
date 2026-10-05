@@ -37,11 +37,11 @@ export function BiddingPanel({ game, myPlayerId, onBid, disabled = false }: Bidd
 export const pickerStyles = StyleSheet.create({
   panel: { gap: 10, padding: 12, borderRadius: 10, backgroundColor: 'rgba(20, 13, 9, 0.45)' },
   prompt: { color: colors.bone, fontFamily: fonts.display, fontSize: 18 },
-  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   option: {
     minWidth: 58,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: colors.bone,
     borderRightWidth: 2,

@@ -4,6 +4,7 @@ import { requireAuth, type AuthedUser } from './auth/verifyJwt';
 import matchesRoutes from './routes/matches';
 import usersRoutes from './routes/users';
 import { BadRequestError } from './requestBody';
+import { expireIdleMatches } from './expiry';
 import { assetLinks } from './appLinks';
 import type { MatchDO } from './matchDO';
 import type { ClientConfig } from '@fortytwo/api-types';
@@ -93,5 +94,14 @@ app.get('/api/config', (c) => c.json({ bots: c.env.AUTO_PLAY_BOTS === 'true' } s
 app.route('/api/matches', matchesRoutes);
 app.route('/api/users', usersRoutes);
 
-export default app;
+export { app };
+
+// The Worker's entry points: every request goes through the Hono app; the daily cron
+// (wrangler.toml's [triggers]) runs the expiry sweep.
+export default {
+  fetch: app.fetch,
+  scheduled(controller, env, ctx) {
+    ctx.waitUntil(expireIdleMatches(env, controller.scheduledTime));
+  },
+} satisfies ExportedHandler<Env>;
 export { MatchDO } from './matchDO';

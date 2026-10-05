@@ -35,6 +35,13 @@ async function ensureChannel(): Promise<void> {
   });
 }
 
+// The device's own token (FCM's on Android, APNs' on iOS), as last seen. On Android every
+// getDevicePushTokenAsync also fires the push-token listeners with the token it got - so a listener
+// that registered again on every event would set off another, and another, without end: a
+// constant stream of native calls and requests that held up everything else. A token is only new
+// if it differs from this.
+let lastDeviceToken: string | null = null;
+
 // The token that identifies this device to Expo's push service, or null without permission.
 // `ask` shows the OS prompt if the player hasn't been asked yet.
 export async function devicePushToken({ ask }: { ask: boolean }): Promise<string | null> {
@@ -46,8 +53,24 @@ export async function devicePushToken({ ask }: { ask: boolean }): Promise<string
   if (status !== 'granted') return null;
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
+  // Passed on, so Expo doesn't ask the OS for it a second time.
+  const device = await Notifications.getDevicePushTokenAsync();
+  lastDeviceToken = String(device.data);
+  const { data } = await Notifications.getExpoPushTokenAsync({ projectId, devicePushToken: device });
   return data;
+}
+
+// Calls `onChange` when the OS hands the device a new token - not for the same token again, which
+// Android reports each time it's fetched (above). One seen before any was fetched is taken as the
+// first rather than a change: it comes from a fetch under way, which registers it.
+export function addPushTokenChangeListener(onChange: () => void): { remove(): void } {
+  return Notifications.addPushTokenListener((token) => {
+    const data = String(token.data);
+    if (data === lastDeviceToken) return;
+    const changed = lastDeviceToken != null;
+    lastDeviceToken = data;
+    if (changed) onChange();
+  });
 }
 
 function platform(): 'android' | 'ios' {

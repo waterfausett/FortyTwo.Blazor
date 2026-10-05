@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { CredentialsManagerError, CredentialsManagerErrorCodes, useAuth0 } from 'react-native-auth0';
+import { clearCachedToken, getCachedToken } from '@/auth/tokenCache';
 
 // Errors that mean the stored session can't be renewed: nothing stored, no refresh token, or the
 // refresh token was rejected (expired or revoked). Signing in again is the only way out.
@@ -14,18 +15,20 @@ export function requiresLogin(error: unknown): boolean {
 }
 
 // The getToken every createApiClient/useMatchSocket caller passes in. The credentials manager
-// returns the stored access token, renewing it with the refresh token when it has expired. When
-// it can't, the stored credentials are cleared, which signs the user out: the root layout then
-// shows the sign-in screen.
+// returns the stored access token, renewing it with the refresh token when it has expired; it's
+// kept in memory until shortly before then (tokenCache). When it can't be renewed, the stored
+// credentials are cleared, which signs the user out: the root layout then shows the sign-in screen.
 export function useGetToken(): () => Promise<string> {
   const { getCredentials, clearCredentials } = useAuth0();
 
   return useCallback(async () => {
     try {
-      const { accessToken } = await getCredentials();
-      return accessToken;
+      return await getCachedToken(() => getCredentials());
     } catch (error) {
-      if (requiresLogin(error)) await clearCredentials();
+      if (requiresLogin(error)) {
+        clearCachedToken();
+        await clearCredentials();
+      }
       throw error;
     }
   }, [getCredentials, clearCredentials]);
