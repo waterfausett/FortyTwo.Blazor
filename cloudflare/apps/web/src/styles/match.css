@@ -674,7 +674,7 @@
   box-shadow: 0 0.2em 0.8em rgba(0, 0, 0, 0.4);
   z-index: 501;
   pointer-events: none;
-  animation: pending-in 200ms ease-out 400ms both;
+  animation: pending-in 200ms ease-out 1500ms both;
 }
 
 .trick-pending-ring {
