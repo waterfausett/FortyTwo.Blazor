@@ -2,8 +2,8 @@
 // their turn has come, or the hand is over and they've yet to ready up (or vote on a rematch, once
 // the match is over). Match.tsx works out that call; this draws nothing, and is only rendered once
 // the match has loaded, so whatever the page opens on (which the player is already looking at)
-// never counts as a new call. The on-page cue for a turn is styles/match.css's one-shot flash on
-// `.active`; this adds what reaches past the page:
+// never counts as a new call. On the page, the active seat's glow and the rail already show whose
+// turn it is; this adds what reaches past the page:
 //
 //   - a chime, per the player's Sound setting (match/alertPrefs.ts): while away, always, or never;
 //   - while away, a tab title that blinks the call ("● Your lead") and a favicon with a brass dot,

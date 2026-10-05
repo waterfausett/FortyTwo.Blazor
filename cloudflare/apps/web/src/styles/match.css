@@ -4,9 +4,7 @@
    right, and the hand along the bottom, with the other three players seated around the table.
 
    Motion is reserved for what just happened: a played domino slides in from its player's seat,
-   and a finished trick sweeps off to the winning team's pile. The active seat breathes slowly,
-   and when the turn comes round to us the rail and our seat flash brass once (match/TurnAlerts.tsx
-   handles the cues for when we've looked away).
+   and a finished trick sweeps off to the winning team's pile. The active seat breathes slowly.
    All of it is switched off under prefers-reduced-motion.
 
    The palette, fonts, .action-button and PipFace's .pip-face live in hall.css, shared site-wide. */
@@ -431,23 +429,6 @@
 }
 
 
-/* Our own seat flashes brass as the turn arrives, then settles into the breathe above. */
-.seat-bottom.active .seat-plate {
-  animation:
-    turn-start-plate 0.4s ease-out 3,
-    seat-breathe 2.4s ease-in-out 1.2s infinite;
-}
-
-@keyframes turn-start-plate {
-  40% {
-    background: rgba(201, 164, 92, 0.45);
-    box-shadow:
-      inset 3px 0 0 var(--team),
-      0 0 0 2px var(--brass),
-      0 0 34px rgba(201, 164, 92, 0.9);
-  }
-}
-
 @keyframes seat-breathe {
   50% {
     box-shadow:
@@ -675,6 +656,49 @@
   z-index: 500;
 }
 
+/* My play, still on its way to the server: a small spinning ring over the tile. It waits a
+   moment before showing, so a play that lands promptly never flashes it. Under reduced motion the
+   ring shows at once and holds still - the dashed ring still reads as waiting. */
+.trick-pending {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3.6em;
+  height: 3.6em;
+  margin: -1.8em 0 0 -1.8em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(20, 13, 9, 0.72);
+  box-shadow: 0 0.2em 0.8em rgba(0, 0, 0, 0.4);
+  z-index: 501;
+  pointer-events: none;
+  animation: pending-in 200ms ease-out 1500ms both;
+}
+
+.trick-pending-ring {
+  width: 2.2em;
+  height: 2.2em;
+  border-radius: 50%;
+  border: 0.35em dashed var(--brass);
+  border-top-style: solid;
+  animation: pending-spin 900ms linear infinite;
+}
+
+@keyframes pending-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes pending-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .trick-slot-winner .domino {
   box-shadow:
     0 0 0 0.35em var(--brass),
@@ -797,18 +821,6 @@
   box-shadow:
     inset 0 2px 0 var(--brass),
     0 -14px 30px -18px rgba(201, 164, 92, 0.8);
-  animation: turn-start-rail 1.2s ease-out;
-}
-
-/* Plays once, each time the rail turns active: the turn has just come to us. */
-@keyframes turn-start-rail {
-  0%,
-  30% {
-    box-shadow:
-      inset 0 3px 0 var(--brass),
-      inset 0 24px 40px -24px rgba(201, 164, 92, 0.55),
-      0 -24px 44px -16px rgba(201, 164, 92, 1);
-  }
 }
 
 .rail-status {
@@ -816,6 +828,11 @@
   text-align: center;
   color: var(--ink-muted);
   font-weight: 500;
+}
+
+.rail-poke {
+  display: block;
+  margin: 0 auto 0.5rem;
 }
 
 .player.active .rail-status {
