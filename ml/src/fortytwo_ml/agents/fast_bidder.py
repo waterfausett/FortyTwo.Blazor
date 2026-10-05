@@ -9,9 +9,8 @@ from ..model import QNet, load_checkpoint
 from ..bidding.data import checkpoint_label
 from ..bidding.model import BidNet, load_bidnet
 from ..sim.decide import DEFAULT_MAKE_THRESHOLD, BidDecision, DecideConfig, choose_bid
-from ..sim.probe import options_from_table
+from ..sim.probe import HIGH_TRUMPS, options_from_table
 from .bid_support import BidPlans, bid_context
-from .heuristic_bot import best_suit
 from .model_agent import ModelAgent
 
 
@@ -41,7 +40,10 @@ class FastBidder:
     def trump(self, state: HandState, seat: int) -> int:
         legal = state.legal_actions()
         if state.high_bid == PLUNGE and state.bidder != seat:
-            return best_suit(state.hand(seat))[0]  # partner's plunge: rare, so the heuristic suit
+            # Partner's plunge: the trump with the best chance of taking every point, from our own
+            # hand's table (named suits, then follow-me; the first maximum wins a tie).
+            table = self.bidnet.table(state.hand(seat))
+            return max(legal, key=lambda t: table.high[HIGH_TRUMPS.index(t)])
         plan = self.plans.current(state, seat)
         if plan is not None and plan[1] in legal:
             return plan[1]

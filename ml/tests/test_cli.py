@@ -156,3 +156,20 @@ def test_play_demo_fast(tmp_path, capsys):
     _, bidnet = _fast_files(tmp_path)
     assert main(["play-demo", "--agent", f"fast:{bidnet}", "--seed", "3"]) == 0
     assert "top options" in capsys.readouterr().out
+
+
+def test_export_refuses_a_bidnet_from_another_play_model(tmp_path):
+    from fortytwo_ml.bidding.model import BidNet, save_bidnet
+
+    play = tmp_path / "run" / "m.pt"
+    play.parent.mkdir()
+    save_checkpoint(play, QNet(hidden=16, layers=1), step=3, config={})
+    bidnet = tmp_path / "b.pt"
+    save_bidnet(bidnet, BidNet(hidden=8, layers=1), {"play_checkpoint": "run/m.pt", "play_path": str(play),
+                                                    "play_step": 9, "train_hands": 1, "val_loss": 0.0, "gold": {}})
+    with pytest.raises(ValueError, match="step 9"):
+        main(["export", "--play", str(play), "--bidnet", str(bidnet), "--out", str(tmp_path / "out")])
+    save_bidnet(bidnet, BidNet(hidden=8, layers=1), {"play_checkpoint": "run/m.pt", "play_path": str(play),
+                                                    "play_step": 3, "train_hands": 1, "val_loss": 0.0, "gold": {}})
+    assert main(["export", "--play", str(play), "--bidnet", str(bidnet), "--out", str(tmp_path / "out")]) == 0
+    assert (tmp_path / "out" / "bot.bin").exists() and (tmp_path / "out" / "bot.json").exists()

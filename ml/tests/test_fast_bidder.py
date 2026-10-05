@@ -7,7 +7,6 @@ from conftest import deal_with
 from fortytwo_ml.agents.base import run_hand
 from fortytwo_ml.agents.bid_support import bid_context
 from fortytwo_ml.agents.fast_bidder import FastAgent, FastBidder, play_checkpoint_mismatch
-from fortytwo_ml.agents.heuristic_bot import best_suit
 from fortytwo_ml.bidding.model import BidNet
 from fortytwo_ml.engine.enums import PASS, PLUNGE, Suit
 from fortytwo_ml.engine.hand_state import HandState, Phase
@@ -70,11 +69,14 @@ def test_trump_without_a_plan_uses_the_table_at_the_actual_bid():
     assert bidder.trump(state, 3) == Suit.SIXES
 
 
-def test_partner_plunge_trump_is_the_heuristic_suit():
+def test_partner_plunge_trump_is_the_best_42_level_table_entry():
     state = HandState.deal(deal_with({1: [(0, 0), (1, 1), (2, 2), (3, 3)]}), opener=0)
     for b in (PASS, PLUNGE, PASS, PASS):
         state.apply(b)
-    assert FastBidder(StubNet(_table())).trump(state, 3) == best_suit(state.hand(3))[0]
+    high = np.full(8, 0.1)
+    high[7] = 0.7  # follow-me is the namer's best 42-level option
+    table = BidTable(np.full((7, 12), 0.1), high, np.full(3, 0.1), None)
+    assert FastBidder(StubNet(table)).trump(state, 3) == Suit.NONE
 
 
 def test_fast_agents_play_full_auctions_legally():
