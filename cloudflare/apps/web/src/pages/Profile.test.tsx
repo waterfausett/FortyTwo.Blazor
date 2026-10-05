@@ -144,4 +144,10 @@ describe('Profile', () => {
     const banner = await screen.findByRole('alert');
     expect(banner.textContent).toMatch(/something went wrong/i);
   });
+
+  it('offers the turn alert settings', async () => {
+    getProfileMock.mockResolvedValue(PROFILE_FIXTURE);
+    renderProfile();
+    expect(await screen.findByRole('region', { name: /turn alerts/i })).not.toBeNull();
+  });
 });
