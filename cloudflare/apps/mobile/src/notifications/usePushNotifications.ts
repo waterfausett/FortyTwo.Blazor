@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { useApi } from '@/api/useApi';
 import { useProfile } from '@/api/useProfile';
 import { noteIncomingLink } from '@/linking/incomingLink';
-import { addPushTokenChangeListener, notificationRoute, registerDevice, unregisterDevice } from './push';
+import { addPushTokenChangeListener, isNewTap, notificationRoute, registerDevice, unregisterDevice } from './push';
 
 export function usePushNotifications(signedIn: boolean): void {
   const api = useApi();
@@ -27,20 +27,21 @@ export function usePushNotifications(signedIn: boolean): void {
 
   // A tapped notification opens its match - straight away when signed in, or after sign-in
   // (incomingLink.ts) otherwise. Covers one that launched the app as well as one tapped while
-  // it's running.
+  // it's running - each tap once, however many ways it arrives (isNewTap).
   useEffect(() => {
-    const open = (notification: Notifications.Notification) => {
-      const route = notificationRoute(notification);
+    const open = (response: Notifications.NotificationResponse) => {
+      if (!isNewTap(response)) return;
+      const route = notificationRoute(response.notification);
       if (route == null) return;
       if (signedIn) router.push(route);
       else noteIncomingLink(route);
     };
     const launchedBy = Notifications.getLastNotificationResponse();
     if (launchedBy) {
-      open(launchedBy.notification);
+      open(launchedBy);
       Notifications.clearLastNotificationResponse();
     }
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => open(response.notification));
+    const subscription = Notifications.addNotificationResponseReceivedListener(open);
     return () => subscription.remove();
   }, [signedIn]);
 }

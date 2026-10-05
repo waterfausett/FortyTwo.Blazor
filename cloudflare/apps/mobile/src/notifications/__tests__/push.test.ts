@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import type { Api } from '@/api/useApi';
-import { addPushTokenChangeListener, askOnceForPush, notificationRoute, registerDevice, unregisterDevice } from '../push';
+import { addPushTokenChangeListener, askOnceForPush, isNewTap, notificationRoute, registerDevice, unregisterDevice } from '../push';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: { eas: { projectId: 'project-1' } } } } }));
 jest.mock('expo-notifications', () => ({
@@ -117,5 +117,20 @@ describe('notificationRoute', () => {
     expect(notificationRoute(tapped({ url: 'https://evil.example/x' }))).toBeNull();
     expect(notificationRoute(tapped({}))).toBeNull();
     expect(notificationRoute(tapped(null))).toBeNull();
+  });
+});
+
+describe('isNewTap', () => {
+  const tap = (identifier: string) =>
+    ({ notification: { request: { identifier } }, actionIdentifier: 'expo.modules.notifications.actions.DEFAULT' }) as unknown as Notifications.NotificationResponse;
+
+  it('opens a tap once, though it arrives both as the last response and as an event', () => {
+    expect(isNewTap(tap('a'))).toBe(true);
+    expect(isNewTap(tap('a'))).toBe(false);
+  });
+
+  it('opens the next tap, on another notification', () => {
+    expect(isNewTap(tap('b'))).toBe(true);
+    expect(isNewTap(tap('c'))).toBe(true);
   });
 });
