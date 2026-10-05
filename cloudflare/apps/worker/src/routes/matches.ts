@@ -1,10 +1,13 @@
 // Hono routes for matches. Each one calls the match's MatchDO over RPC, syncs the D1 lobby index
 // (lobby.ts) when the change can show up in the lobby, and replies with the match as the caller
-// may see it. D1 syncing lives here, not in the DO, except for the changes no route makes.
+// may see it. D1 syncing lives here, not in the DO, except for the changes no route makes. Syncing
+// is best-effort (lobby.ts's `bestEffort`): the DO has saved the change by then, so a D1 failure is
+// logged, not returned as a 500.
 import { Hono, type Context } from 'hono';
 import type { AppEnv, Env } from '../index';
 import type { MatchResult } from '../matchDO';
 import {
+  bestEffort,
   syncLobbyIndex,
   refreshMatchSummary,
   deleteFromLobbyIndex,
@@ -43,15 +46,16 @@ async function replyWithMatch(
   { lobbySync }: { lobbySync?: 'seats' | 'summary' } = {}
 ) {
   if (!result.ok) return refusal(c, result);
-  if (lobbySync === 'seats') await syncLobbyIndex(c.env.DB, result.value);
-  if (lobbySync === 'summary') await refreshMatchSummary(c.env.DB, result.value);
+  const match = result.value;
+  if (lobbySync === 'seats') await bestEffort(match.id, () => syncLobbyIndex(c.env.DB, match));
+  if (lobbySync === 'summary') await bestEffort(match.id, () => refreshMatchSummary(c.env.DB, match));
   return c.json(matchViewFor(result.value, c.get('user').sub));
 }
 
 matches.post('/', async (c) => {
   const matchId = crypto.randomUUID();
   const match = await matchStub(c.env, matchId).create(c.get('user').sub, matchId);
-  await syncLobbyIndex(c.env.DB, match);
+  await bestEffort(matchId, () => syncLobbyIndex(c.env.DB, match));
   return c.json(matchViewFor(match, c.get('user').sub), 201);
 });
 
@@ -148,11 +152,12 @@ matches.delete('/:id/players', async (c) => {
   const result = await matchStub(c.env, matchId).leave(c.get('user').sub);
   if (!result.ok && result.status !== 404) return refusal(c, result);
   if (!result.ok || result.value.deleted) {
-    await deleteFromLobbyIndex(c.env.DB, matchId);
+    await bestEffort(matchId, () => deleteFromLobbyIndex(c.env.DB, matchId));
     return c.body(null, 204);
   }
-  await syncLobbyIndex(c.env.DB, result.value.match);
-  return c.json(matchViewFor(result.value.match, c.get('user').sub));
+  const { match } = result.value;
+  await bestEffort(matchId, () => syncLobbyIndex(c.env.DB, match));
+  return c.json(matchViewFor(match, c.get('user').sub));
 });
 
 // A vote to play the same four again once the match is over. The vote that completes the table

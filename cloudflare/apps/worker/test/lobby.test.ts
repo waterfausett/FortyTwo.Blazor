@@ -13,6 +13,7 @@ import {
 } from '../src/lobby';
 import { Teams, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import { countLobbyWrites } from './lobbyWrites';
 
 const testEnv = env as unknown as Env;
 
@@ -166,6 +167,24 @@ describe('lobby', () => {
       await refreshMatchSummary(testEnv.DB, matchAt(justAfter, Teams.TeamB));
 
       expect(await row()).toEqual({ ...indexed, status: 'completed', updatedOn: justAfter });
+    });
+
+    it('restores a match missing from the lobby, seats and all', async () => {
+      await testEnv.DB.prepare('DELETE FROM matches WHERE id = ?').bind('m1').run();
+      const justAfter = msAfterIndexed(1000);
+
+      await refreshMatchSummary(testEnv.DB, matchAt(justAfter));
+
+      expect(await row()).toEqual({ ...indexed, updatedOn: justAfter });
+      expect((await listActive(testEnv.DB, 'p3')).rows.map((r) => r.id)).toEqual(['m1']);
+    });
+
+    it('writes no seats, and no row, for a match that is already listed', async () => {
+      const lobbyWrites = await countLobbyWrites(testEnv.DB);
+
+      await refreshMatchSummary(testEnv.DB, matchAt(msAfterIndexed(1000)));
+
+      expect(await lobbyWrites('m1')).toEqual({ match_players: 0, matches: 0 });
     });
   });
 

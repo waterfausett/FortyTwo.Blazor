@@ -29,7 +29,7 @@ import {
   type Suit,
   type Teams,
 } from '@fortytwo/rules';
-import { syncLobbyIndex, refreshMatchSummary } from './lobby';
+import { bestEffort, syncLobbyIndex, refreshMatchSummary } from './lobby';
 import { pushNotices } from './push/notices';
 import { sendNotices } from './push/send';
 import { BOT_IDS, decideBid, decideTrump, decideDomino, findNextBotAction, type BotAction } from './bots';
@@ -93,11 +93,14 @@ export class MatchDO extends DurableObject<Env> {
 
   // The other way a match comes into being: the finished match's DO (`rematch` below) calls this
   // on the rematch's DO. Returns an existing match untouched, so a retried call can't redeal it.
+  // No route touches this match on its way in, so the lobby index is synced here, as alarm() does.
   async createRematch(matchId: string, previous: MatchState, dealOrder: Domino[]): Promise<MatchState> {
     const stored = await this.load();
     if (stored !== null) {
-      // A retry: the first attempt may have failed before its bots were scheduled.
+      // A retry: the first attempt may have failed before its bots were scheduled or its lobby
+      // rows were written.
       await this.scheduleBotsIfNeeded(stored);
+      await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, stored));
       return stored;
     }
 
@@ -105,8 +108,7 @@ export class MatchDO extends DurableObject<Env> {
     await this.save(match);
     this.publish(null, match);
     await this.scheduleBotsIfNeeded(match);
-    // No route touches this match on its way in, so the lobby index is synced here, as alarm() does.
-    await syncLobbyIndex(this.env.DB, match);
+    await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, match));
     return match;
   }
 
@@ -282,9 +284,14 @@ export class MatchDO extends DurableObject<Env> {
 
     const next = this.applyBotAction(match, action);
     await this.save(next);
-    this.publish(match, next);
-    if (action.kind === 'ready' || action.kind === 'play') await refreshMatchSummary(this.env.DB, next);
+    // Scheduled straight after the save: the saved match already points at the next bot action,
+    // so if anything below threw first, the runtime's retry would fire that action unpaced, and
+    // once its retries ran out a match waiting on a bot would be stuck.
     await this.scheduleBotsIfNeeded(next);
+    this.publish(match, next);
+    if (action.kind === 'ready' || action.kind === 'play') {
+      await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));
+    }
   }
 
   // Uses the Hibernation API (`this.ctx.acceptWebSocket`, not the plain `WebSocket` `accept()`)

@@ -1,7 +1,8 @@
 // D1-backed "lobby index": a lightweight, denormalized summary of matches for the lobby UI's
 // listing/filtering needs. The Durable Object (matchDO.ts) remains the sole source of truth for
 // match state; this index is synced from it after each change - by routes/matches.ts, or by
-// MatchDO itself for the changes no route makes (bot moves, a rematch).
+// MatchDO itself for the changes no route makes (bot moves, a rematch). Every sync runs through
+// `bestEffort`: by then the match is already saved, so a D1 failure must not fail the change.
 import { teamForPosition, type MatchPlayerState, type MatchState, type Teams } from '@fortytwo/rules';
 import type { MatchSummary } from '@fortytwo/api-types';
 
@@ -23,6 +24,18 @@ export interface LobbyPage {
   next: LobbyCursor | null;
 }
 
+// Runs a lobby index write for `matchId`, logging rather than throwing if it fails. The change it
+// mirrors has already been saved in the match's DO, so failing now would only tell the client a
+// move went wrong when it didn't (and a retry would then be refused). The index lags until the
+// match's next successful sync catches it up (or, for a stale or orphaned row, the expiry sweep).
+export async function bestEffort(matchId: string, write: () => Promise<void>): Promise<void> {
+  try {
+    await write();
+  } catch (error) {
+    console.error(`Failed to sync the lobby index for match ${matchId}`, error);
+  }
+}
+
 // Brings a match's summary row and seated players up to date. For a change to who's seated: a
 // create, join, leave, bots or rematch. Anything else uses refreshMatchSummary, which writes far less.
 export async function syncLobbyIndex(db: D1Database, match: MatchState): Promise<void> {
@@ -42,19 +55,28 @@ export async function syncLobbyIndex(db: D1Database, match: MatchState): Promise
 // that moved more recently. (Rewriting every seat on every move used up the day's D1 writes.)
 export const SUMMARY_REFRESH_MS = 5 * 60 * 1000;
 
+// Also restores a match missing from the lobby altogether - one whose seats-changing sync failed
+// (see `bestEffort`), such as a rematch, which no later change of seats would ever re-sync. The
+// INSERT OR IGNORE writes nothing for a match that's already listed; when it does add the row,
+// the seats are written too.
 export async function refreshMatchSummary(db: D1Database, match: MatchState): Promise<void> {
+  const status = matchStatus(match);
   const refreshBefore = new Date(Date.parse(match.updatedOn) - SUMMARY_REFRESH_MS).toISOString();
-  await db.batch([
+  const [restored] = await db.batch([
+    db
+      .prepare('INSERT OR IGNORE INTO matches (id, status, player_count, updated_on) VALUES (?, ?, ?, ?)')
+      .bind(match.id, status, match.players.length, match.updatedOn),
     db
       .prepare(
         `UPDATE matches SET status = ?2, player_count = ?3, updated_on = ?4
          WHERE id = ?1 AND (status IS NOT ?2 OR player_count IS NOT ?3)`
       )
-      .bind(match.id, matchStatus(match), match.players.length, match.updatedOn),
+      .bind(match.id, status, match.players.length, match.updatedOn),
     db
       .prepare('UPDATE matches SET updated_on = ?2 WHERE id = ?1 AND updated_on < ?3')
       .bind(match.id, match.updatedOn, refreshBefore),
   ]);
+  if (restored.meta.changes > 0) await syncMatchPlayers(db, match.id, match.players);
 }
 
 function matchStatus(match: MatchState): MatchIndexRow['status'] {
