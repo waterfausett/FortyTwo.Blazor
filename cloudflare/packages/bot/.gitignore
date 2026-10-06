@@ -1,0 +1,3 @@
+# Output of the typecheck script's tsc -b (the package is a composite project). Not committed.
+dist/
+*.tsbuildinfo

@@ -54,8 +54,11 @@ jobs:
       - run: npm test -w @fortytwo/bot
       - run: npm test -w @fortytwo/worker
       - run: npm test -w @fortytwo/web
-      # Typechecks the web app and the packages it references.
+      # Typechecks the web app and the packages it references (rules, api-types, client).
       - run: npm run build -w @fortytwo/web
+      # vitest doesn't typecheck, and the web build doesn't reach these two.
+      - run: npm run typecheck -w @fortytwo/worker -w @fortytwo/bot
+      - run: npm run lint -w @fortytwo/web
 
   deploy:
     needs: test
