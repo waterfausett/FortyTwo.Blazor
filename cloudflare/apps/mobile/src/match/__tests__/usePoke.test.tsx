@@ -49,4 +49,25 @@ describe('usePoke', () => {
     expect(toastInfo).toHaveBeenCalledWith(`Poked name-${turn}`);
     expect(result.current.target).toBeNull();
   });
+
+  it("holds the poke back until the target's name has loaded", async () => {
+    jest.useFakeTimers();
+    const fresh = dealt();
+    const turn = fresh.currentGame.currentPlayerId!;
+    const me = ['p1', 'p2', 'p3', 'p4'].find((id) => id !== turn)!;
+    const match = { ...fresh, updatedOn: new Date(Date.now() - POKE_IDLE_MS - 1000).toISOString() };
+    let named = false;
+
+    const { result, rerender } = await renderHook(() => usePoke(match, me, jest.fn(), () => (named ? 'Bob' : null)), {
+      wrapper,
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(0);
+    });
+    expect(result.current.target).toBeNull();
+
+    named = true;
+    await rerender({});
+    expect(result.current.target).toBe(turn);
+  });
 });

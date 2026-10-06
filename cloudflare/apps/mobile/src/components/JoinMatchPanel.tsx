@@ -7,18 +7,20 @@ import { colors, fonts } from './theme';
 export interface JoinMatchPanelProps {
   // The display name at each position 0-3, or null for an open seat.
   seats: (string | null)[];
+  // The taken seats' names are still loading.
+  loading?: boolean;
   joining: boolean;
   onPick: (position: number) => void;
   onLobby: () => void;
 }
 
-export function JoinMatchPanel({ seats, joining, onPick, onLobby }: JoinMatchPanelProps) {
+export function JoinMatchPanel({ seats, loading, joining, onPick, onLobby }: JoinMatchPanelProps) {
   const open = seats.some((name) => name == null);
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>{open ? 'Pick a seat to join' : 'This match is full'}</Text>
       {open ? (
-        <SeatPicker seats={seats} disabled={joining} onPick={onPick} />
+        <SeatPicker seats={seats} loading={loading} disabled={joining} onPick={onPick} />
       ) : (
         <Text style={styles.text}>All four seats are taken.</Text>
       )}

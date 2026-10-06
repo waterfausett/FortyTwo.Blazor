@@ -117,6 +117,11 @@ describe('SeatPicker', () => {
     await fireEvent.press(screen.getByLabelText('Sit here, with Di'));
     expect(onPick).toHaveBeenCalledWith(1);
   });
+
+  it('shows placeholders, not names, for taken seats while names load', async () => {
+    await render(<SeatPicker seats={['', null, null, null]} loading disabled={false} onPick={jest.fn()} />);
+    expect(screen.getAllByLabelText('Loading name').length).toBeGreaterThan(0);
+  });
 });
 
 describe('Table', () => {

@@ -11,8 +11,10 @@
 import {
   Bid,
   Suit,
+  botDisplayName,
   createDomino,
   createMatch,
+  isBot,
   matchViewFor,
   patchPlayerReady,
   placeBid,
@@ -130,7 +132,9 @@ function move(id: string, action: (match: MatchState) => MatchState): Promise<Ma
 export const devMatchApi: Partial<Api> = {
   getMatch: (id) => later(300, () => seen(current(id))),
   searchUsers: (ids) =>
-    later(300, () => ids.map((user_id): PublicUser => ({ user_id, displayName: NAMES[user_id] ?? user_id }))),
+    later(300, () =>
+      ids.map((user_id): PublicUser => ({ user_id, displayName: isBot(user_id) ? botDisplayName(user_id) : (NAMES[user_id] ?? user_id) }))
+    ),
   getConfig: () => later(300, () => ({ bots: true })),
   bid: (id, bid) => move(id, (match) => placeBid(match, DEV_PLAYER_ID, bid)),
   setTrump: (id, suit) => move(id, (match) => setTrump(match, DEV_PLAYER_ID, suit)),

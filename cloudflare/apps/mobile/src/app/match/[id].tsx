@@ -18,6 +18,7 @@ import {
   isTrickStarted,
   isValidPlay,
   matchStatus,
+  nameText,
   openSeats,
   projectPlay,
   seatFor,
@@ -54,6 +55,7 @@ import { Fade, FADE_IN_MS } from '@/components/Fade';
 import { Hand, type DragState } from '@/components/Hand';
 import { JoinMatchPanel } from '@/components/JoinMatchPanel';
 import { MatchSummary } from '@/components/MatchSummary';
+import { NameSkeleton } from '@/components/NameSkeleton';
 import { PipFace } from '@/components/PipFace';
 import { toastError, toastInfo } from '@/components/toast';
 import { Table, TABLE_RESIZE_MS, type SeatInfo } from '@/components/Table';
@@ -65,6 +67,7 @@ import { DEV_PLAYER_ID } from '@/dev/devMatches';
 import { shareInvite } from '@/linking/invite';
 import { askOnceForPush } from '@/notifications/push';
 import { useLatch } from '@/match/useLatch';
+import { usePlayerNames } from '@/match/usePlayerNames';
 import { usePoke } from '@/match/usePoke';
 import { useSettled } from '@/match/useSettled';
 import { useTrickHold } from '@/match/useTrickHold';
@@ -89,10 +92,11 @@ export default function MatchScreen() {
   // move of mine is already in flight - then the poke is moot. (The Worker only sends a poke while
   // it's still my turn, and the socket keeps its messages in order, so that's the one way one can
   // land late.)
-  const pokedRef = useRef<{ names?: Map<string, string>; moving: boolean }>({ moving: false });
+  const pokedRef = useRef<{ nameOf?: (playerId: string) => string | null; moving: boolean }>({ moving: false });
   const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(id, getToken, (from) => {
     if (pokedRef.current.moving) return;
-    toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
+    const poker = pokedRef.current.nameOf?.(from) ?? null;
+    toastInfo(poker ? `${poker} poked you` : 'You were poked', "It's your turn", 'center');
   });
   // The socket sends the match as soon as it connects; this fills the moment before that, and
   // stands in while the socket is down.
@@ -104,17 +108,11 @@ export default function MatchScreen() {
   });
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
-  const seatedIds = (liveMatch?.players.map((p) => p.playerId) ?? []).sort();
-  const names = useQuery({
-    queryKey: ['playerNames', seatedIds],
-    queryFn: async () => {
-      const users = await api.searchUsers(seatedIds);
-      return new Map(users.map((u) => [u.user_id, u.displayName]));
-    },
-    enabled: seatedIds.length > 0,
-    staleTime: Infinity,
-  });
-  const poke = usePoke(liveMatch, myPlayerId, () => api.poke(id), (playerId) => names.data?.get(playerId) ?? playerId);
+  // Display names for everyone seated (match/usePlayerNames.ts). Until a name loads it reads null
+  // here and the screen shows a placeholder; one that can't be found reads "Player N". Never the id.
+  const names = usePlayerNames(liveMatch?.players ?? [], myPlayerId, (ids) => api.searchUsers(ids));
+  const nameOf = (playerId: string): string | null => nameText(names.nameFor(playerId));
+  const poke = usePoke(liveMatch, myPlayerId, () => api.poke(id), nameOf);
   // The player's settings: whether to outline the playable dominoes (opted into), and whether
   // they want notifications.
   const profile = useProfile().data;
@@ -190,8 +188,11 @@ export default function MatchScreen() {
     },
   });
   useEffect(() => {
-    pokedRef.current = { names: names.data, moving: playing != null || bid.isPending || trump.isPending };
-  }, [names.data, playing, bid.isPending, trump.isPending]);
+    pokedRef.current = {
+      nameOf: (playerId) => nameText(names.nameFor(playerId)),
+      moving: playing != null || bid.isPending || trump.isPending,
+    };
+  }, [names, playing, bid.isPending, trump.isPending]);
   const liveGame = liveMatch?.currentGame ?? null;
   const myLiveHand = liveGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
   // Still in my hand, as far as the server has said - so still to be shown as played.
@@ -291,13 +292,14 @@ export default function MatchScreen() {
     }
     const seats = [0, 1, 2, 3].map((position) => {
       const player = liveMatch.players.find((p) => p.position === position);
-      return player ? (names.data?.get(player.playerId) ?? player.playerId) : null;
+      return player ? (nameOf(player.playerId) ?? '') : null;
     });
     return (
       <>
         <Stack.Screen options={{ title: liveGame.name }} />
         <JoinMatchPanel
           seats={seats}
+          loading={!names.ready}
           joining={join.isPending}
           onPick={(position) => join.mutate(position)}
           onLobby={() => router.dismissTo('/')}
@@ -329,8 +331,8 @@ export default function MatchScreen() {
     setPlaying(domino);
     return play.mutateAsync(domino);
   }
-  const nameFor = (playerId: string | null) =>
-    playerId === myPlayerId ? 'You' : playerId == null ? '' : (names.data?.get(playerId) ?? playerId);
+  // For sentences: only rendered once names are ready (see the status and contract lines).
+  const nameFor = (playerId: string | null) => (playerId == null ? '' : (nameOf(playerId) ?? ''));
   const status = matchStatus(match, view, nameFor);
 
   // The trick on the table: the one just completed while it's held, else the one in progress.
@@ -363,7 +365,7 @@ export default function MatchScreen() {
     // While bidding is open everyone's bid shows; once trump is named, only the winning bid.
     const shownBid = game!.trump == null ? (hand?.bid ?? null) : highBidder ? game!.bid : null;
     return {
-      name: nameFor(playerId),
+      name: nameOf(playerId),
       side: player.position % 2 === myPosition % 2 ? 'us' : 'them',
       isActive: view.isTableReady && !view.isHandPlayedOut && game!.currentPlayerId === playerId,
       isDealer: view.dealer === playerId,
@@ -434,7 +436,7 @@ export default function MatchScreen() {
         <View style={styles.scoreboard} accessibilityLabel="Scores">
           <Score label="Us" marks={scores[myTeam] ?? 0} color={colors.us} />
           <View style={styles.contract}>
-            {contractBid && <Text style={styles.contractText}>{contractBid}</Text>}
+            {contractBid && (names.ready ? <Text style={styles.contractText}>{contractBid}</Text> : <NameSkeleton width={120} />)}
             {trumpLine && game.trump != null && (
               <View style={styles.trumpRow} accessibilityLabel={doublesLine ? undefined : `Trump: ${trumpLine}`}>
                 <PipFace suit={game.trump} size={20} />
@@ -569,8 +571,9 @@ export default function MatchScreen() {
             <Fade key={view.isPlayingPhase ? 'play' : 'wait'}>
               <View style={styles.statusLine}>
                 <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
-                  {status}
+                  {names.ready ? status : null}
                 </Text>
+                {!names.ready && <NameSkeleton width={160} />}
                 {poke.target != null && (
                   <Pressable
                     style={[styles.smallButton, poke.pending && styles.buttonDisabled]}
@@ -578,7 +581,7 @@ export default function MatchScreen() {
                     onPress={poke.poke}
                     accessibilityRole="button"
                   >
-                    <Text style={styles.smallButtonText}>Poke {nameFor(poke.target)}</Text>
+                    <Text style={styles.smallButtonText}>Poke {nameOf(poke.target)}</Text>
                   </Pressable>
                 )}
               </View>
