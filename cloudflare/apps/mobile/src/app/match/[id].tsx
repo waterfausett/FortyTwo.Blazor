@@ -294,12 +294,17 @@ export default function MatchScreen() {
       const player = liveMatch.players.find((p) => p.position === position);
       return player ? (nameOf(player.playerId) ?? '') : null;
     });
+    // Per seat, so a name that has loaded shows while another is still on its way.
+    const loading = [0, 1, 2, 3].map((position) => {
+      const player = liveMatch.players.find((p) => p.position === position);
+      return player != null && names.nameFor(player.playerId).status === 'loading';
+    });
     return (
       <>
         <Stack.Screen options={{ title: liveGame.name }} />
         <JoinMatchPanel
           seats={seats}
-          loading={!names.ready}
+          loading={loading}
           joining={join.isPending}
           onPick={(position) => join.mutate(position)}
           onLobby={() => router.dismissTo('/')}

@@ -9,19 +9,20 @@ import { colors, fonts } from './theme';
 export interface SeatPickerProps {
   // The display name at each position 0-3, or null for an open seat (MatchSummary.seats).
   seats: (string | null)[];
-  // The taken seats' names are still loading (a match opened from an invite).
-  loading?: boolean;
+  // Per seat position (0-3): that taken seat's name is still loading (a match opened from an
+  // invite). Missing or false means loaded, so a name that has arrived shows while others load.
+  loading?: readonly boolean[];
   disabled: boolean;
   onPick: (position: number) => void;
 }
 
-export function SeatPicker({ seats, loading = false, disabled, onPick }: SeatPickerProps) {
+export function SeatPicker({ seats, loading, disabled, onPick }: SeatPickerProps) {
   const seat = (position: number) => {
     const name = seats[position];
     if (name != null) {
       return (
         <View style={[styles.seat, styles.taken]}>
-          {loading ? (
+          {loading?.[position] ? (
             <NameSkeleton width={64} />
           ) : (
             <Text style={styles.takenText} numberOfLines={1}>
@@ -31,17 +32,19 @@ export function SeatPicker({ seats, loading = false, disabled, onPick }: SeatPic
         </View>
       );
     }
-    const partner = seats[(position + 2) % 4];
+    const partnerPosition = (position + 2) % 4;
+    const partner = seats[partnerPosition];
+    const partnerLoading = loading?.[partnerPosition] === true;
     return (
       <Pressable
         style={[styles.seat, styles.open, disabled && styles.disabled]}
         disabled={disabled}
         onPress={() => onPick(position)}
         accessibilityRole="button"
-        accessibilityLabel={`Sit here${partner != null && !loading ? `, with ${partner}` : ''}`}
+        accessibilityLabel={`Sit here${partner != null && !partnerLoading ? `, with ${partner}` : ''}`}
       >
         <Text style={styles.openText}>Sit here</Text>
-        {partner != null && loading ? (
+        {partner != null && partnerLoading ? (
           <NameSkeleton width={48} />
         ) : (
           <Text style={styles.hint} numberOfLines={1}>

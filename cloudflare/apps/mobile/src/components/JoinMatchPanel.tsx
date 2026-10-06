@@ -7,8 +7,8 @@ import { colors, fonts } from './theme';
 export interface JoinMatchPanelProps {
   // The display name at each position 0-3, or null for an open seat.
   seats: (string | null)[];
-  // The taken seats' names are still loading.
-  loading?: boolean;
+  // Per seat position: that taken seat's name is still loading.
+  loading?: readonly boolean[];
   joining: boolean;
   onPick: (position: number) => void;
   onLobby: () => void;

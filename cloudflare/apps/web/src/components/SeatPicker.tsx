@@ -15,13 +15,14 @@ export const SEAT_SIDES = ['bottom', 'left', 'top', 'right'] as const;
 export function SeatPicker({
   seats,
   disabled,
-  loading = false,
+  loading,
   onPick,
 }: {
   seats: (string | null)[];
   disabled: boolean;
-  // The taken seats' names are still loading (a match page opened from an invite).
-  loading?: boolean;
+  // Per seat position (0-3): that taken seat's name is still loading (a match page opened from an
+  // invite). Missing or false means loaded, so a name that has arrived shows while others load.
+  loading?: readonly boolean[];
   onPick: (position: number) => void;
 }): JSX.Element {
   return (
@@ -32,11 +33,12 @@ export function SeatPicker({
         if (name != null) {
           return (
             <span key={side} className={`seat-picker-seat seat-picker-${side} is-seated`}>
-              {loading ? <NameSkeleton /> : name}
+              {loading?.[position] ? <NameSkeleton /> : name}
             </span>
           );
         }
-        const partner = seats[(position + 2) % 4];
+        const partnerPosition = (position + 2) % 4;
+        const partner = seats[partnerPosition];
         return (
           <button
             key={side}
@@ -47,7 +49,7 @@ export function SeatPicker({
           >
             <span className="seat-picker-action">Sit here</span>
             <span className="seat-picker-hint">
-              {partner == null ? 'open seat' : loading ? <>with <NameSkeleton width="3em" /></> : `with ${partner}`}
+              {partner == null ? 'open seat' : loading?.[partnerPosition] ? <>with <NameSkeleton width="3em" /></> : `with ${partner}`}
             </span>
           </button>
         );
