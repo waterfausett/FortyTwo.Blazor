@@ -18,6 +18,11 @@ directory = "../web/dist"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/matches/*", "/health", "/.well-known/*"]
 
+# Workers Logs: keeps console output (e.g. the ML bot's load and fallback lines, mlBot.ts and
+# bots.ts) and invocation logs, searchable in the dashboard.
+[observability]
+enabled = true
+
 # Daily at 09:00 UTC: delete active matches idle for 14 days (src/expiry.ts).
 [triggers]
 crons = ["0 9 * * *"]

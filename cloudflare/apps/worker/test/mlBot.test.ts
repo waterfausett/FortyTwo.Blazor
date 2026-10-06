@@ -4,7 +4,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Bid, createMatch, shuffledDominoOrder, takeSeat } from '@fortytwo/rules';
 import { env, runInDurableObject } from 'cloudflare:test';
 import type { Env } from '../src/index';
-import { RETRY_MS, getMlBot, resetMlBotForTest } from '../src/mlBot';
+import { warmUpSteps } from '@fortytwo/bot';
+import { RETRY_MS, WARMING, getMlBot, resetMlBotForTest } from '../src/mlBot';
 
 const testEnv = env as unknown as Env;
 
@@ -59,25 +60,39 @@ describe('ML bot loading', () => {
   }
   const pointer = ['version https://git-lfs.github.com/spec/v1', 'oid sha256:abc', 'size 33212', ''].join(String.fromCharCode(10));
 
-  it('loads a real (tiny) model through the ASSETS load path, keeps it, and decides a bid', async () => {
+  // Calls getMlBot until it stops answering WARMING, the way successive alarms would.
+  async function untilReady(env: { ASSETS?: Fetcher }): Promise<{ result: Awaited<ReturnType<typeof getMlBot>>; calls: number }> {
+    for (let calls = 1; calls <= 20; calls++) {
+      const result = await getMlBot(env);
+      if (result !== WARMING) return { result, calls };
+    }
+    throw new Error('still warming after 20 calls');
+  }
+
+  it('loads a real (tiny) model through the ASSETS load path, one piece per call, keeps it, and decides a bid', async () => {
     const { assets, fetches } = counted(stubAssets(tinyBin()));
-    const bot = await getMlBot({ ASSETS: assets });
+    const { result: bot, calls } = await untilReady({ ASSETS: assets });
     expect(bot).not.toBeNull();
+    // One call loads, one per warm-up step, and the next has the bot.
+    expect(calls).toBe(1 + warmUpSteps().steps.length + 1);
     expect(await getMlBot({ ASSETS: assets })).toBe(bot);
     expect(fetches()).toBe(2); // bot.json and bot.bin, once
     let m = createMatch('human');
     m = takeSeat(m, 'bot-1', 1);
     m = takeSeat(m, 'bot-2', 2);
     m = takeSeat(m, 'bot-3', 3, shuffledDominoOrder(() => 0.5));
-    const bid = bot!.decideBid({ ...m, currentGame: { ...m.currentGame, firstActionBy: 'bot-1', currentPlayerId: 'bot-1' } }, 'bot-1');
+    if (bot === null || bot === WARMING) throw new Error('expected a bot');
+    const bid = bot.decideBid({ ...m, currentGame: { ...m.currentGame, firstActionBy: 'bot-1', currentPlayerId: 'bot-1' } }, 'bot-1');
     expect(Object.values(Bid)).toContain(bid);
   });
 
   it('loads concurrently without sharing a promise, keeping one bot', async () => {
     const { assets } = counted(stubAssets(tinyBin()));
-    const [a, b] = await Promise.all([getMlBot({ ASSETS: assets }), getMlBot({ ASSETS: assets })]);
+    const first = await Promise.all([getMlBot({ ASSETS: assets }), getMlBot({ ASSETS: assets })]);
+    expect(first).toEqual([WARMING, WARMING]); // both loaded; the first to arrive is warmed
+    const { result: a, calls } = await untilReady({ ASSETS: assets });
     expect(a).not.toBeNull();
-    expect(b).toBe(a); // the second to finish gets the first one's bot
+    expect(calls).toBe(warmUpSteps().steps.length + 1); // one warm-up, not two
     expect(await getMlBot({ ASSETS: assets })).toBe(a);
   });
 
@@ -102,7 +117,7 @@ describe('ML bot loading', () => {
     // After it: tried again, and a fixed model is picked up.
     now += 1;
     const fixed = counted(stubAssets(tinyBin()));
-    expect(await getMlBot({ ASSETS: fixed.assets })).not.toBeNull();
+    expect((await untilReady({ ASSETS: fixed.assets })).result).not.toBeNull();
     expect(fixed.fetches()).toBe(2);
     logged.mockRestore();
   });

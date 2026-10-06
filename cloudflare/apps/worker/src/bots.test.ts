@@ -13,7 +13,9 @@ import {
   type MatchState,
 } from '@fortytwo/rules';
 import type { Bot } from '@fortytwo/bot';
-import { isBot, decideBid, decideTrump, decideDomino, findNextBotAction, applyBotAction, botsEnabled } from './bots';
+import {
+  BOT_DELAY_MS, isBot, decideBid, decideTrump, decideDomino, findNextBotAction, applyBotAction, botDelayMs, botsEnabled,
+} from './bots';
 
 function emptyHand(playerId: string, dominoes: ReturnType<typeof createDomino>[] = [], bid: Bid | null = null): Hand {
   return { playerId, team: Teams.TeamA, dominoes, bid };
@@ -260,6 +262,30 @@ describe('applyBotAction with an ML bot', () => {
     const match = botToBid();
     const action = findNextBotAction(match)!;
     expect(bidOf(applyBotAction(match, action, null), 'bot-1')).toBe(Bid.Pass);
+  });
+});
+
+describe('botDelayMs', () => {
+  const play = { kind: 'play', playerId: 'bot-1' } as const;
+  const withTricks = (tricks: number, played: number): MatchState => {
+    const m = botToBid();
+    const currentTrick = createTrick();
+    for (let i = 0; i < played; i++) currentTrick.dominoes[i] = createDomino(i, 6);
+    return {
+      ...m,
+      currentGame: { ...m.currentGame, tricks: Array.from({ length: tricks }, () => createTrick()), currentTrick },
+    };
+  };
+
+  it('paces bids and trump by kind', () => {
+    expect(botDelayMs(botToBid(), { kind: 'bid', playerId: 'bot-1' })).toBe(BOT_DELAY_MS.bid);
+    expect(botDelayMs(botToBid(), { kind: 'setTrump', playerId: 'bot-1' })).toBe(BOT_DELAY_MS.setTrump);
+  });
+
+  it('waits longer before leading a trick when one has just finished', () => {
+    expect(botDelayMs(withTricks(0, 0), play)).toBe(BOT_DELAY_MS.play); // the hand's opening lead
+    expect(botDelayMs(withTricks(2, 1), play)).toBe(BOT_DELAY_MS.play); // following in a trick
+    expect(botDelayMs(withTricks(2, 0), play)).toBe(BOT_DELAY_MS.leadAfterTrick);
   });
 });
 

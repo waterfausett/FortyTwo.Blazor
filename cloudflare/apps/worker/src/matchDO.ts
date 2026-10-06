@@ -35,13 +35,12 @@ import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
 import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
 import type { PokeResult } from '@fortytwo/api-types';
-import { BOT_IDS, applyBotAction, botsEnabled, findNextBotAction } from './bots';
-import { getMlBot } from './mlBot';
+import { BOT_IDS, applyBotAction, botDelayMs, botsEnabled, findNextBotAction } from './bots';
+import { WARMING, getMlBot } from './mlBot';
 
-// One tick's worth of "thinking time" before a bot acts, via the DO alarm API - so a client sees
-// each bot bid/play arrive as its own WebSocket broadcast instead of the whole rest of the hand
-// resolving instantly the moment the human acts.
-const BOT_MOVE_DELAY_MS = 600;
+// While the ML bot loads and warms up in a fresh isolate, each piece gets its own alarm, this far
+// apart (see alarm()).
+const BOT_WARM_UP_TICK_MS = 100;
 
 // Sent to every socket when its match is deleted, so clients stop reconnecting to it. In the
 // 4000-4999 range the WebSocket protocol leaves for applications; the web app's useMatchSocket
@@ -293,10 +292,11 @@ export class MatchDO extends DurableObject<Env> {
 
   // Schedules the next bot action a beat in the future (via the alarm API) if one is pending,
   // rather than resolving it inline - each bot move then arrives as its own broadcast, matching
-  // the pacing a real remote player's move would have.
+  // the pacing a real remote player's move would have (bots.ts's botDelayMs).
   private async scheduleBotsIfNeeded(match: MatchState): Promise<void> {
-    if (findNextBotAction(match) !== null) {
-      await this.ctx.storage.setAlarm(Date.now() + BOT_MOVE_DELAY_MS);
+    const action = findNextBotAction(match);
+    if (action !== null) {
+      await this.ctx.storage.setAlarm(Date.now() + botDelayMs(match, action));
     }
   }
 
@@ -309,7 +309,14 @@ export class MatchDO extends DurableObject<Env> {
     // which don't hold input gates, so a request could change the match between load and save.
     // With the kill switch off (BOTS_ENABLED 'false') bots already seated play on by the simple
     // rules, so no ML inference runs at all.
-    const bot = botsEnabled(this.env) ? await getMlBot(this.env) : null;
+    const ml = botsEnabled(this.env) ? await getMlBot(this.env) : null;
+    if (ml === WARMING) {
+      // This invocation's CPU went on loading or warming up the model (getMlBot does one piece per
+      // call), so the bot acts in a later one, shortly: the pacing delay has already passed.
+      await this.ctx.storage.setAlarm(Date.now() + BOT_WARM_UP_TICK_MS);
+      return;
+    }
+    const bot = ml;
     const match = await this.load();
     if (match === null) return;
 

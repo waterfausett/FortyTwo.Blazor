@@ -95,6 +95,19 @@ export function findNextBotAction(match: MatchState): BotAction | null {
   return { kind: 'play', playerId: currentPlayerId };
 }
 
+// How long a bot "thinks" before each kind of action (matchDO.ts schedules it with the alarm API,
+// so the wait costs no CPU). Plays are slower than bids, so a table of bots doesn't rattle through
+// a hand, and a bot leading the next trick waits longer still, so everyone can see the finished
+// trick before the next one starts.
+export const BOT_DELAY_MS = { ready: 600, bid: 900, setTrump: 1000, play: 1100, leadAfterTrick: 2000 } as const;
+
+export function botDelayMs(match: MatchState, action: BotAction): number {
+  if (action.kind !== 'play') return BOT_DELAY_MS[action.kind];
+  const game = match.currentGame;
+  const leading = game.currentTrick.dominoes.every((d) => d === null);
+  return leading && game.tricks.length > 0 ? BOT_DELAY_MS.leadAfterTrick : BOT_DELAY_MS.play;
+}
+
 export function botsEnabled(env: { BOTS_ENABLED?: string }): boolean {
   return env.BOTS_ENABLED !== 'false';
 }

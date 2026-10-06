@@ -10,6 +10,7 @@ import type { MatchDO } from '../src/matchDO';
 import { syncLobbyIndex } from '../src/lobby';
 import { countLobbyWrites } from './lobbyWrites';
 import { failingDb } from './failingDb';
+import { warmUpSteps } from '@fortytwo/bot';
 import { resetMlBotForTest } from '../src/mlBot';
 
 const testEnv = env as unknown as Env;
@@ -194,7 +195,9 @@ describe('MatchDO bot auto-play', () => {
       return { assets, fetches: () => n };
     }
 
-    async function botsBidWith(name: string, botsEnabled: string, assets: Fetcher): Promise<MatchState> {
+    // A match where the human has opened the bidding and bot-1 is next, in a fresh isolate (no
+    // ML bot loaded yet).
+    async function humanHasBid(name: string, botsEnabled: string, assets: Fetcher) {
       resetMlBotForTest();
       const stub = stubFor(name);
       await stub.create('human-1', name);
@@ -204,6 +207,11 @@ describe('MatchDO bot auto-play', () => {
         withEnv.env = { ...withEnv.env, BOTS_ENABLED: botsEnabled, ASSETS: assets };
       });
       await stub.bid('human-1', Bid.Thirty);
+      return stub;
+    }
+
+    async function botsBidWith(name: string, botsEnabled: string, assets: Fetcher): Promise<MatchState> {
+      const stub = await humanHasBid(name, botsEnabled, assets);
       await runAllPendingAlarms(stub);
       return valueOf(await stub.getMatch());
     }
@@ -226,6 +234,23 @@ describe('MatchDO bot auto-play', () => {
 
       expect(fetches()).toBe(2);
       expect(match.currentGame.hands.every((h) => h.bid !== null)).toBe(true);
+    });
+
+    // Loading and each warm-up step get an alarm of their own (each a share of the Free plan's
+    // 10 ms CPU), and none of them touches the match; the alarm after them makes the bot's move.
+    it('spends the first alarms in a fresh isolate loading and warming up, without touching the match', async () => {
+      const { assets } = modelAssets();
+      const stub = await humanHasBid('bots-ml-warming', 'true', assets);
+      const before = valueOf(await stub.getMatch());
+
+      for (let tick = 0; tick < 1 + warmUpSteps().steps.length; tick++) {
+        expect(await runDurableObjectAlarm(stub)).toBe(true);
+        expect(valueOf(await stub.getMatch())).toEqual(before);
+      }
+      expect(await runDurableObjectAlarm(stub)).toBe(true);
+      const after = valueOf(await stub.getMatch());
+      expect(after.currentGame.hands.find((h) => h.playerId === 'bot-1')!.bid).not.toBeNull();
+      await runAllPendingAlarms(stub); // none left running when the test ends
     });
   });
 });

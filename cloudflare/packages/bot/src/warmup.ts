@@ -12,12 +12,12 @@ import {
   createDomino, createTrick, gameWinningTeam, placeBid, playDomino, setTrump, teamForPosition, type Domino, type MatchState,
 } from '@fortytwo/rules';
 import { bidTable } from './bidding';
-import { createBot } from './bot';
+import { createBot, type Bot } from './bot';
 import { toIndex } from './dominoes';
 import { OBS_DIM, encodeCandidates } from './encode';
 import { scoreCandidates } from './mlp';
 import { buildView } from './view';
-import { PLAY_INPUT_DIM, loadWeights, type Manifest } from './weights';
+import { PLAY_INPUT_DIM, loadWeights, type BotWeights, type Manifest } from './weights';
 
 const HIDDEN = 8;
 const PLAYERS = ['w0', 'w1', 'w2', 'w3'];
@@ -80,36 +80,67 @@ function deal(): MatchState {
   };
 }
 
-// Bids, names trump and plays two tricks of one synthetic hand through the bot (compiling all of
-// a real decision's code, with real type feedback), then runs the network kernels a few more
-// times on their own - the cheapest way to get their hot loops optimized. Returns the number of
-// plays made, for the test.
-export function warmUp(): number {
-  const w = syntheticWeights();
-  const bot = createBot(w);
-  let m = deal();
+// The warm-up as separate steps, to run in order, one per Worker invocation if need be: together
+// they cost more CPU than one alarm should spend (see mlBot.ts in the Worker). Each step is a
+// share of one synthetic hand - building the synthetic bot and deal, the first bid (which
+// compiles most of the bidding and rules code), the other bids, naming trump and the first play,
+// then the rest of two tricks and the network kernels a few more times on their own (the cheapest
+// way to get their hot loops optimized) - so each compiles part of a real decision's code with
+// real type feedback. Creating the steps costs nothing; `plays()` reports the plays made, for the
+// test.
+export function warmUpSteps(): { steps: (() => void)[]; plays: () => number } {
+  let w: BotWeights;
+  let bot: Bot;
+  let m: MatchState;
   let held: number[] = [];
   let rows: Float64Array[] = [];
   let plays = 0;
-  while (plays < PLAYS) {
-    const game = m.currentGame;
-    const id = game.currentPlayerId!;
-    if (game.hands.some((h) => h.bid === null)) m = placeBid(m, id, bot.decideBid(m, id));
-    else if (game.trump === null) m = setTrump(m, id, bot.decideTrump(m, id));
-    else if (gameWinningTeam(game) !== null) break;
-    else {
-      if (plays === 0) {
-        // The opening lead: all seven dominoes are legal, so seven candidate rows to reuse below.
-        held = game.hands.find((h) => h.playerId === id)!.dominoes.map(toIndex);
-        rows = encodeCandidates(buildView(m, id), held);
+
+  // Acts for whoever is next until `done` says to stop (or the hand is decided).
+  const act = (done: () => boolean) => {
+    while (!done()) {
+      const game = m.currentGame;
+      const id = game.currentPlayerId!;
+      if (game.hands.some((h) => h.bid === null)) m = placeBid(m, id, bot.decideBid(m, id));
+      else if (game.trump === null) m = setTrump(m, id, bot.decideTrump(m, id));
+      else if (gameWinningTeam(game) !== null) return;
+      else {
+        if (plays === 0) {
+          // The opening lead: all seven dominoes are legal, so seven candidate rows to reuse below.
+          held = game.hands.find((h) => h.playerId === id)!.dominoes.map(toIndex);
+          rows = encodeCandidates(buildView(m, id), held);
+        }
+        m = playDomino(m, id, bot.decideDomino(m, id));
+        plays++;
       }
-      m = playDomino(m, id, bot.decideDomino(m, id));
-      plays++;
     }
-  }
-  for (let r = 0; r < KERNEL_REPS; r++) {
-    for (let k = 1; k <= rows.length; k++) scoreCandidates(w.play, OBS_DIM, rows.slice(0, k));
-    bidTable(w, held);
-  }
-  return plays;
+  };
+
+  return {
+    steps: [
+      () => {
+        w = syntheticWeights();
+        bot = createBot(w);
+        m = deal();
+      },
+      () => act(() => m.currentGame.hands.some((h) => h.bid !== null)),
+      () => act(() => m.currentGame.hands.every((h) => h.bid !== null)),
+      () => act(() => plays >= 1),
+      () => {
+        act(() => plays >= PLAYS);
+        for (let r = 0; r < KERNEL_REPS; r++) {
+          for (let k = 1; k <= rows.length; k++) scoreCandidates(w.play, OBS_DIM, rows.slice(0, k));
+          bidTable(w, held);
+        }
+      },
+    ],
+    plays: () => plays,
+  };
+}
+
+// The whole warm-up at once. Returns the number of plays made, for the test.
+export function warmUp(): number {
+  const { steps, plays } = warmUpSteps();
+  for (const step of steps) step();
+  return plays();
 }

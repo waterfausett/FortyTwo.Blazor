@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gameWinningTeam } from '@fortytwo/rules';
-import { bidTable, createBot, legalPlays, toIndex, warmUp } from '../src/index';
+import { bidTable, createBot, legalPlays, toIndex, warmUp, warmUpSteps } from '../src/index';
 import { fixtureHands, fixtureWeights, tolerantEqual } from './fixtures';
 import { PLAYERS, applyStep, startHand } from './replay';
 
@@ -11,6 +11,14 @@ describe("the TS bot makes the Python bot's decisions", () => {
   // First, so the parity replay below runs on JIT-warmed code, as the Worker's bot does.
   it('warms up on a synthetic hand (bids, trump, two tricks)', () => {
     expect(warmUp()).toBe(8);
+  });
+
+  it('warms up the same way one step at a time (the Worker runs one step per alarm)', () => {
+    const { steps, plays } = warmUpSteps();
+    expect(steps).toHaveLength(5);
+    expect(plays()).toBe(0); // creating the steps does none of the work
+    for (const step of steps) step();
+    expect(plays()).toBe(8);
   });
 
   it('replays every fixture hand', () => {
