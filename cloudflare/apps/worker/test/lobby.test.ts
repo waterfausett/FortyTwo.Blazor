@@ -23,7 +23,7 @@ function seat(...playerIds: string[]) {
 }
 
 // Wipes both tables before each test so fixtures from one test can't leak into the next -
-// D1's local storage persists across tests within a single vitest-pool-workers run.
+// D1's local storage persists across tests within a single vitest-plugin run.
 beforeEach(async () => {
   await testEnv.DB.batch([
     testEnv.DB.prepare('DELETE FROM match_players'),

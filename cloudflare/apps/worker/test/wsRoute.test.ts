@@ -2,7 +2,8 @@
 // matchDOSocket.test.ts connects straight to the DO stub, so it can't catch the Worker failing to
 // route an upgrade to MatchDO at all - which it once did, 404ing every real connection.
 import { describe, it, expect, beforeAll } from 'vitest';
-import { env, fetchMock, SELF } from 'cloudflare:test';
+import { env, SELF } from 'cloudflare:test';
+import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import type { Env } from '../src/index';
 
@@ -68,7 +69,7 @@ describe('Worker /matches/:id/ws route', () => {
     const ws = upgradeRes.webSocket;
     expect(ws).toBeTruthy();
     // Mirrors matchDOSocket.test.ts's openSocket helper: the client-side WebSocket must be
-    // accept()-ed before it can be used/closed, or vitest-pool-workers' isolated-storage teardown
+    // accept()-ed before it can be used/closed, or vitest-plugin's isolated-storage teardown
     // fails with a dangling-resource EBUSY error across the test boundary.
     ws?.accept();
     ws?.close();

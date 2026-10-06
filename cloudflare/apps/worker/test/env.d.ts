@@ -1,11 +1,14 @@
-// Types `cloudflare:test`'s `env` as the worker's own bindings plus the test-only ones
-// vitest.config.ts adds through miniflare.
-import type { Env } from '../src/index';
+// Types `cloudflare:test`'s `env` (a Cloudflare.Env) as the worker's own bindings plus the
+// test-only ones vitest.config.ts adds through miniflare.
+import type { D1Migration } from 'cloudflare:test';
+import type { Env as WorkerEnv } from '../src/index';
 
-declare module 'cloudflare:test' {
-  interface ProvidedEnv extends Env {
-    TEST_MIGRATIONS: D1Migration[];
-    TINY_BOT_JSON: string;
-    TINY_BOT_BIN_B64: string;
+declare global {
+  namespace Cloudflare {
+    interface Env extends WorkerEnv {
+      TEST_MIGRATIONS: D1Migration[];
+      TINY_BOT_JSON: string;
+      TINY_BOT_BIN_B64: string;
+    }
   }
 }

@@ -1,7 +1,8 @@
 // MatchDO's `poke`: one poke per turn, delivered over the target's socket when they have the match
 // open, else as a push - and not used up when it can't be delivered at all.
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { env, fetchMock, runInDurableObject } from 'cloudflare:test';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { env, runInDurableObject } from 'cloudflare:test';
+import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { Bid, createDomino, type Domino, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
@@ -79,18 +80,19 @@ async function turnOf(stub: Stub): Promise<{ target: string; poker: string }> {
   return { target, poker: ['p1', 'p2', 'p3', 'p4'].find((id) => id !== target)! };
 }
 
-// Resolves with the messages the next request to Expo carries.
+// Resolves with the messages the next request to Expo carries. It polls rather than resolving from
+// the reply: the reply runs inside the Durable Object's request, and a test resumed from there can't
+// use its own stub any more.
 function expectPush(): Promise<{ to: string; title: string; priority: string; data: { url: string } }[]> {
-  return new Promise((resolve) => {
-    fetchMock
-      .get('https://exp.host')
-      .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
-      .reply((opts) => {
-        const messages = JSON.parse(String(opts.body));
-        resolve(messages);
-        return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
-      });
-  });
+  let messages: { to: string; title: string; priority: string; data: { url: string } }[] | undefined;
+  fetchMock
+    .get('https://exp.host')
+    .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
+    .reply((opts) => {
+      messages = JSON.parse(String(opts.body));
+      return { statusCode: 200, data: JSON.stringify({ data: messages!.map(() => ({ status: 'ok', id: 't' })) }) };
+    });
+  return vi.waitFor(() => messages ?? Promise.reject(new Error('no push yet')));
 }
 
 describe('MatchDO poke', () => {

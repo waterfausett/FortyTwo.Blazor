@@ -1,7 +1,8 @@
 // The /api/users routes through the real Worker (Auth0 mocked via fetchMock), plus unit tests for
 // toUserResponse's two fallback chains (picture and displayName) and toPublicUser's trimmed shape.
 import { describe, it, expect, beforeAll } from 'vitest';
-import { env, fetchMock, SELF } from 'cloudflare:test';
+import { env, SELF } from 'cloudflare:test';
+import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { toPublicUser, toUserResponse } from '../src/routes/users';
 import type { Auth0User } from '../src/auth0Management';

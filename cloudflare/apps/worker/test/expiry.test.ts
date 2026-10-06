@@ -39,7 +39,7 @@ async function lobbyRow(id: string) {
 }
 
 // Wipes both lobby-index tables before each test - D1's local storage persists across tests
-// within a single vitest-pool-workers run.
+// within a single vitest-plugin run.
 beforeEach(async () => {
   await testEnv.DB.batch([testEnv.DB.prepare('DELETE FROM match_players'), testEnv.DB.prepare('DELETE FROM matches')]);
 });

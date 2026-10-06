@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { env, fetchMock, runInDurableObject, SELF } from 'cloudflare:test';
+import { env, runInDurableObject, SELF } from 'cloudflare:test';
+import { fetchMock } from './fetchMock';
 import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { app, type Env } from '../src/index';
@@ -66,7 +67,7 @@ async function api(path: string, token: string, init: RequestInit = {}): Promise
 }
 
 // Wipes both lobby-index tables before each test, mirroring lobby.test.ts - D1's local storage
-// persists across tests within a single vitest-pool-workers run. (Each test creates its own
+// persists across tests within a single vitest-plugin run. (Each test creates its own
 // match with a fresh crypto.randomUUID() id, so DO storage itself never needs resetting.)
 beforeEach(async () => {
   await testEnv.DB.batch([
