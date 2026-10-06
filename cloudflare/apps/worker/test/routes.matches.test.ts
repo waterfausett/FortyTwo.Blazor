@@ -680,6 +680,24 @@ describe('match routes', () => {
       expect(row?.player_count).toBe(4);
     });
 
+    it('names a seated bot "Bot N" in the lobby list', async () => {
+      const p1 = await signToken('p1');
+      const p2 = await signToken('p2');
+      const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+      await apiWithBots(`/api/matches/${created.id}/bots`, p1, {
+        method: 'POST',
+        body: JSON.stringify({ position: 2 }),
+      });
+
+      // Only the bot's name is asserted: the human's Auth0 lookup isn't mocked here.
+      const res = await apiWithBots('/api/matches?filter=Joinable', p2);
+      expect(res.status).toBe(200);
+      const rows = (await res.json()) as { matches: { id: string; teams: string[][]; seats: (string | null)[] }[] };
+      const row = rows.matches.find((m) => m.id === created.id);
+      expect(row?.seats[2]).toBe('Bot 1');
+      expect(row?.teams.flat()).toContain('Bot 1');
+    });
+
     it('404s when bots are turned off', async () => {
       const p1 = await signToken('p1');
       const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
