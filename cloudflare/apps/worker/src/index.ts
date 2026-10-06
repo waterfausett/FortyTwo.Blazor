@@ -6,6 +6,7 @@ import usersRoutes from './routes/users';
 import { BadRequestError } from './requestBody';
 import { expireIdleMatches } from './expiry';
 import { assetLinks } from './appLinks';
+import { botsEnabled } from './bots';
 import type { MatchDO } from './matchDO';
 import type { ClientConfig } from '@fortytwo/api-types';
 
@@ -18,12 +19,12 @@ export interface Env {
   AUTH0_API_CLIENT_SECRET: string;
   AUTH0_API_AUDIENCE: string;
   ALLOWED_ORIGIN?: string;
-  // Dev-only testing aid (set via .dev.vars, gitignored - never present in a deployed environment):
-  // when === 'true', players can seat bots in a match's open seats (POST /api/matches/:id/bots) and
-  // MatchDO (matchDO.ts) drives their bids/trump/plays automatically, so one account - or a few
-  // people testing together - can play a full match. A string, not a boolean: .dev.vars is
-  // dotenv-style, so every value arrives as text.
-  AUTO_PLAY_BOTS?: string;
+  // Bots (the ML bot, falling back to simple rules) can fill open seats unless this is exactly
+  // 'false': a kill switch settable in the Cloudflare dashboard without a deploy. Off, it also
+  // stops the ML bot in matches that already have bots: those bots play on by the simple rules.
+  BOTS_ENABLED?: string;
+  // The static-assets binding (wrangler.toml's [assets]); mlBot.ts reads the bot's weights from it.
+  ASSETS?: Fetcher;
   // The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links
   // (appLinks.ts). Not secret: Android reads them from a public file.
   ANDROID_APP_FINGERPRINTS?: string;
@@ -90,7 +91,7 @@ app.use(
 );
 app.use('/api/*', requireAuth());
 // Feature switches the web app needs to know about - one worker flag drives both sides.
-app.get('/api/config', (c) => c.json({ bots: c.env.AUTO_PLAY_BOTS === 'true' } satisfies ClientConfig));
+app.get('/api/config', (c) => c.json({ bots: botsEnabled(c.env) } satisfies ClientConfig));
 app.route('/api/matches', matchesRoutes);
 app.route('/api/users', usersRoutes);
 

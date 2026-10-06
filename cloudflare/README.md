@@ -11,6 +11,7 @@ An npm workspace:
 | --- | --- |
 | `packages/rules` | `@fortytwo/rules`: the game's rules as pure functions over `MatchState`. The Worker enforces them; the web app uses them to show only legal bids, trumps and plays. |
 | `packages/api-types` | `@fortytwo/api-types`: the JSON shapes the REST API sends, shared by the Worker and the web app. Types only. |
+| `packages/bot` | `@fortytwo/bot`: the ML bot the Worker seats - a TypeScript port of the bidding and play networks trained in `ml/`, run on the weights `ml export` writes to `apps/web/public/models`. `npm run bench -w @fortytwo/bot` times it against the Workers Free plan's 10 ms of CPU per alarm. |
 | `packages/client` | `@fortytwo/client`: the client code that doesn't depend on how the app draws - the REST wrapper, the match socket's reconnect loop, what a seated player can see and do in a match (`describeMatch`), and table-geometry and match-summary helpers. No browser-only APIs or React, so a native app can share it; each app passes in its API origin and wake-up signals. |
 | `apps/worker` | `@fortytwo/worker`: the Hono API (`/api/*`), the match WebSocket (`/matches/:id/ws`), and `MatchDO`, the Durable Object that holds each match. |
 | `apps/web` | `@fortytwo/web`: the Vite + React front end, signing in through Auth0. |
@@ -19,7 +20,7 @@ An npm workspace:
 How a move travels: the web app calls a REST route; the route validates the body and calls the
 match's `MatchDO` over Durable Object RPC; `MatchDO` applies the rule, saves the match, and
 broadcasts it to every connected socket, each player seeing only their own hand. The route then
-updates the D1 lobby index. Bot moves (a dev-only testing aid) run on the Durable Object's alarm.
+updates the D1 lobby index. Bot moves run on the Durable Object's alarm.
 
 ## Setup
 
@@ -34,7 +35,7 @@ The Worker reads its settings from `apps/worker/.dev.vars` (gitignored):
 | `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` | Validate players' access tokens. |
 | `AUTH0_API_CLIENT_ID`, `AUTH0_API_CLIENT_SECRET`, `AUTH0_API_AUDIENCE` | Call Auth0's Management API for profiles and display names. |
 | `ALLOWED_ORIGIN` | The web app's origin, for CORS. Defaults to `http://localhost:5173`. |
-| `AUTO_PLAY_BOTS` | `true` lets players seat bots in open seats. Never set in a deployed environment. |
+| `BOTS_ENABLED` | Bots can fill open seats unless this is exactly `false` (a kill switch; also settable in the Cloudflare dashboard without a deploy). Turned off, it also stops the ML bot in matches that already have bots: they play on by the simple rules, so no match is left waiting on a bot. The bots are the ML bot from `ml/`, with weights in `apps/web/public/models` (Git LFS, so run `git lfs pull` after cloning), refreshed with `ml export`; they fall back to simple rules if the model can't be loaded. |
 | `EXPO_ACCESS_TOKEN` | Only once "enhanced push security" is on for the Expo project: an Expo access token the Worker sends push notifications with (see [Push notifications](#push-notifications)). A secret: `npx wrangler secret put EXPO_ACCESS_TOKEN`. |
 | `ANDROID_APP_FINGERPRINTS` | The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links (see [Invite links](#invite-links)). Not secret. |
 
@@ -65,6 +66,10 @@ Each package runs its own suite with `npm test`:
 
 - `packages/rules`: unit tests, plus `test/characterization.test.ts`, which replays games recorded
   from the original C# engine.
+- `packages/bot`: replays the fixture hands `ml export-fixtures` recorded from the Python bot and
+  checks every encoding, network output and decision matches; also checks the shipped
+  `bot.json` against the encoders and `bot.bin`'s sha256 (from the LFS pointer when the weights
+  aren't checked out).
 - `packages/client`: unit tests for the shared client helpers. The match socket is exercised
   through the web app's `useMatchSocket` tests.
 - `apps/worker`: runs inside workerd through `@cloudflare/vitest-pool-workers`, with real Durable

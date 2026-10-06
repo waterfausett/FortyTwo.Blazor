@@ -1,7 +1,7 @@
-// Exercises the dev-only bots end to end against the real MatchDO: seating bots on demand (one
+// Exercises the bots end to end against the real MatchDO: seating bots on demand (one
 // seat, or every open seat), then the alarm-paced bot loop carrying bidding/trump/play forward up
-// to a human's next turn. AUTO_PLAY_BOTS only gates the REST route that seats bots, so these tests
-// can call MatchDO directly without it.
+// to a human's next turn. The pool pins BOTS_ENABLED to 'false' and serves no model, so these
+// bots play by the simple rules; the kill switch only turns the ML bot off, not the alarm loop.
 import { describe, it, expect, vi } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { Bid, Suit, type MatchState } from '@fortytwo/rules';
@@ -10,6 +10,8 @@ import type { MatchDO } from '../src/matchDO';
 import { syncLobbyIndex } from '../src/lobby';
 import { countLobbyWrites } from './lobbyWrites';
 import { failingDb } from './failingDb';
+import { warmUpSteps } from '@fortytwo/bot';
+import { resetMlBotForTest } from '../src/mlBot';
 
 const testEnv = env as unknown as Env;
 
@@ -173,5 +175,82 @@ describe('MatchDO bot auto-play', () => {
       });
       logged.mockRestore();
     }
+  });
+
+  // The kill switch reaches matches that already have bots: their alarms use the simple rules and
+  // never load the ML bot, so the match still advances. Shown against an ASSETS that would serve
+  // a real (tiny) model, and checked against BOTS_ENABLED on, which does load it.
+  describe('with a model available', () => {
+    function modelAssets(): { assets: Fetcher; fetches: () => number } {
+      const bin = Uint8Array.from(atob(env.TINY_BOT_BIN_B64), (c) => c.charCodeAt(0));
+      const files: Record<string, BodyInit> = { '/models/bot.json': env.TINY_BOT_JSON, '/models/bot.bin': bin };
+      let n = 0;
+      const assets = {
+        fetch: async (req: Request) => {
+          n++;
+          const body = files[new URL(req.url).pathname];
+          return body === undefined ? new Response('not found', { status: 404 }) : new Response(body);
+        },
+      } as unknown as Fetcher;
+      return { assets, fetches: () => n };
+    }
+
+    // A match where the human has opened the bidding and bot-1 is next, in a fresh isolate (no
+    // ML bot loaded yet).
+    async function humanHasBid(name: string, botsEnabled: string, assets: Fetcher) {
+      resetMlBotForTest();
+      const stub = stubFor(name);
+      await stub.create('human-1', name);
+      await stub.addBots('human-1');
+      await runInDurableObject(stub, async (instance: MatchDO) => {
+        const withEnv = instance as unknown as { env: Env };
+        withEnv.env = { ...withEnv.env, BOTS_ENABLED: botsEnabled, ASSETS: assets };
+      });
+      await stub.bid('human-1', Bid.Thirty);
+      return stub;
+    }
+
+    async function botsBidWith(name: string, botsEnabled: string, assets: Fetcher): Promise<MatchState> {
+      const stub = await humanHasBid(name, botsEnabled, assets);
+      await runAllPendingAlarms(stub);
+      return valueOf(await stub.getMatch());
+    }
+
+    it("keeps bots playing by the simple rules, without the ML bot, when BOTS_ENABLED is 'false'", async () => {
+      const { assets, fetches } = modelAssets();
+      const match = await botsBidWith('bots-kill-switch', 'false', assets);
+
+      expect(fetches()).toBe(0);
+      // Every bot bid (the match advanced), each a simple bot's pass over the human's 30.
+      expect(match.currentGame.hands.filter((h) => h.playerId !== 'human-1').map((h) => h.bid)).toEqual([
+        Bid.Pass, Bid.Pass, Bid.Pass,
+      ]);
+      expect(match.currentGame.currentPlayerId).toBe('human-1');
+    });
+
+    it('loads the ML bot for those alarms when BOTS_ENABLED is on', async () => {
+      const { assets, fetches } = modelAssets();
+      const match = await botsBidWith('bots-ml-on', 'true', assets);
+
+      expect(fetches()).toBe(2);
+      expect(match.currentGame.hands.every((h) => h.bid !== null)).toBe(true);
+    });
+
+    // Loading and each warm-up step get an alarm of their own (each a share of the Free plan's
+    // 10 ms CPU), and none of them touches the match; the alarm after them makes the bot's move.
+    it('spends the first alarms in a fresh isolate loading and warming up, without touching the match', async () => {
+      const { assets } = modelAssets();
+      const stub = await humanHasBid('bots-ml-warming', 'true', assets);
+      const before = valueOf(await stub.getMatch());
+
+      for (let tick = 0; tick < 1 + warmUpSteps().steps.length; tick++) {
+        expect(await runDurableObjectAlarm(stub)).toBe(true);
+        expect(valueOf(await stub.getMatch())).toEqual(before);
+      }
+      expect(await runDurableObjectAlarm(stub)).toBe(true);
+      const after = valueOf(await stub.getMatch());
+      expect(after.currentGame.hands.find((h) => h.playerId === 'bot-1')!.bid).not.toBeNull();
+      await runAllPendingAlarms(stub); // none left running when the test ends
+    });
   });
 });

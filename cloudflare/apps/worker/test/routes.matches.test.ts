@@ -631,9 +631,9 @@ describe('match routes', () => {
   });
 
   describe('bots', () => {
-    // SELF always runs with the pool's global bindings (AUTO_PLAY_BOTS: 'false'), so these call
+    // SELF always runs with the pool's global bindings (BOTS_ENABLED: 'false'), so these call
     // the Hono app directly to switch the flag on for one request at a time.
-    async function apiWithBots(path: string, token: string, init: RequestInit = {}, autoPlayBots = 'true') {
+    async function apiWithBots(path: string, token: string, init: RequestInit = {}, botsEnabled = 'true') {
       return app.request(
         path,
         {
@@ -643,7 +643,7 @@ describe('match routes', () => {
             Authorization: `Bearer ${token}`,
           },
         },
-        { ...testEnv, AUTO_PLAY_BOTS: autoPlayBots }
+        { ...testEnv, BOTS_ENABLED: botsEnabled }
       );
     }
 
@@ -652,6 +652,10 @@ describe('match routes', () => {
 
       expect(await (await apiWithBots('/api/config', p1)).json()).toEqual({ bots: true });
       expect(await (await apiWithBots('/api/config', p1, {}, 'false')).json()).toEqual({ bots: false });
+      // Unset means on: BOTS_ENABLED is a kill switch.
+      const { BOTS_ENABLED: _pinned, ...unset } = testEnv;
+      const res = await app.request('/api/config', { headers: { Authorization: `Bearer ${p1}` } }, unset);
+      expect(await res.json()).toEqual({ bots: true });
     });
 
     it('seats a bot at a picked seat, then fills the rest and syncs the lobby', async () => {

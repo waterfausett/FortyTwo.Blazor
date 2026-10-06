@@ -1,0 +1,196 @@
+{
+ "format": 1,
+ "totalBytes": 6302140,
+ "sha256": "f021cdb545ba5fac7a97c2f10a12de75df02443aa9c367cfde7c63ba94b3aa68",
+ "playInputDim": 363,
+ "bidInputLayout": 1,
+ "makeThreshold": 0.6,
+ "overbidPartnerThreshold": 0.9,
+ "tensors": {
+  "play.net.0.weight": {
+   "shape": [
+    512,
+    363
+   ],
+   "offset": 0
+  },
+  "play.net.0.bias": {
+   "shape": [
+    512
+   ],
+   "offset": 743424
+  },
+  "play.net.2.weight": {
+   "shape": [
+    512,
+    512
+   ],
+   "offset": 745472
+  },
+  "play.net.2.bias": {
+   "shape": [
+    512
+   ],
+   "offset": 1794048
+  },
+  "play.net.4.weight": {
+   "shape": [
+    512,
+    512
+   ],
+   "offset": 1796096
+  },
+  "play.net.4.bias": {
+   "shape": [
+    512
+   ],
+   "offset": 2844672
+  },
+  "play.net.6.weight": {
+   "shape": [
+    512,
+    512
+   ],
+   "offset": 2846720
+  },
+  "play.net.6.bias": {
+   "shape": [
+    512
+   ],
+   "offset": 3895296
+  },
+  "play.net.8.weight": {
+   "shape": [
+    1,
+    512
+   ],
+   "offset": 3897344
+  },
+  "play.net.8.bias": {
+   "shape": [
+    1
+   ],
+   "offset": 3899392
+  },
+  "bid.body.0.weight": {
+   "shape": [
+    512,
+    36
+   ],
+   "offset": 3899396
+  },
+  "bid.body.0.bias": {
+   "shape": [
+    512
+   ],
+   "offset": 3973124
+  },
+  "bid.body.2.weight": {
+   "shape": [
+    512,
+    512
+   ],
+   "offset": 3975172
+  },
+  "bid.body.2.bias": {
+   "shape": [
+    512
+   ],
+   "offset": 5023748
+  },
+  "bid.body.4.weight": {
+   "shape": [
+    512,
+    512
+   ],
+   "offset": 5025796
+  },
+  "bid.body.4.bias": {
+   "shape": [
+    512
+   ],
+   "offset": 6074372
+  },
+  "bid.points_head.weight": {
+   "shape": [
+    98,
+    512
+   ],
+   "offset": 6076420
+  },
+  "bid.points_head.bias": {
+   "shape": [
+    98
+   ],
+   "offset": 6277124
+  },
+  "bid.binary_head.weight": {
+   "shape": [
+    12,
+    512
+   ],
+   "offset": 6277516
+  },
+  "bid.binary_head.bias": {
+   "shape": [
+    12
+   ],
+   "offset": 6302092
+  }
+ },
+ "play": {
+  "layers": [
+   {
+    "weight": "play.net.0.weight",
+    "bias": "play.net.0.bias"
+   },
+   {
+    "weight": "play.net.2.weight",
+    "bias": "play.net.2.bias"
+   },
+   {
+    "weight": "play.net.4.weight",
+    "bias": "play.net.4.bias"
+   },
+   {
+    "weight": "play.net.6.weight",
+    "bias": "play.net.6.bias"
+   },
+   {
+    "weight": "play.net.8.weight",
+    "bias": "play.net.8.bias"
+   }
+  ]
+ },
+ "bid": {
+  "body": [
+   {
+    "weight": "bid.body.0.weight",
+    "bias": "bid.body.0.bias"
+   },
+   {
+    "weight": "bid.body.2.weight",
+    "bias": "bid.body.2.bias"
+   },
+   {
+    "weight": "bid.body.4.weight",
+    "bias": "bid.body.4.bias"
+   }
+  ],
+  "pointsHead": {
+   "weight": "bid.points_head.weight",
+   "bias": "bid.points_head.bias"
+  },
+  "binaryHead": {
+   "weight": "bid.binary_head.weight",
+   "bias": "bid.binary_head.bias"
+  }
+ },
+ "provenance": {
+  "play": "stage1-c/ckpt-latest.pt",
+  "playStep": 230000,
+  "bidnet": "runs/bidnet-2/bidnet.pt",
+  "bidnetTrainHands": 100000,
+  "exported": "2026-10-05T19:06:26+00:00"
+ }
+}

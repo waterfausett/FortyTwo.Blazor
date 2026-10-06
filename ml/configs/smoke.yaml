@@ -1,0 +1,18 @@
+# Tiny CPU run for tests/CI: proves the pipeline end to end, learns nothing.
+device: cpu
+seed: 0
+actors: 2
+hidden: 64
+layers: 2
+batch_size: 64
+buffer_size: 10000
+min_buffer: 256
+weight_sync_every: 20
+total_steps: 200
+alpha_decay_steps: 100
+log_every: 20
+checkpoint_minutes: 60
+eval_every_steps: 100
+eval_deals: 10
+actor_send_hands: 2
+diag_decisions: 30
