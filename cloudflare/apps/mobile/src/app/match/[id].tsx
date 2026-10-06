@@ -42,7 +42,7 @@ import {
   suitToPrettyString,
   type Domino as DominoType,
   type MatchState,
-  type Suit,
+  Suit,
 } from '@fortytwo/rules';
 import { useApi } from '@/api/useApi';
 import { useProfile } from '@/api/useProfile';
@@ -67,6 +67,12 @@ import { useLatch } from '@/match/useLatch';
 import { usePoke } from '@/match/usePoke';
 import { useSettled } from '@/match/useSettled';
 import { useTrickHold } from '@/match/useTrickHold';
+
+// A Low trump's doubles rule, short enough for the scoreboard's middle column ("Low · doubles:
+// own suit"); the trump picker spells the rules out.
+function doublesRule(trump: Suit): string {
+  return trump === Suit.LowDoublesOwnSuit ? 'own suit' : lowDoublesToPrettyString(trump).toLowerCase();
+}
 
 export default function MatchScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -399,7 +405,7 @@ export default function MatchScreen() {
   const trumpLine =
     game.trump == null
       ? null
-      : `${suitToPrettyString(game.trump)}${isLow(game.trump) ? ` (doubles ${lowDoublesToPrettyString(game.trump)})` : ''}`;
+      : `${suitToPrettyString(game.trump)}${isLow(game.trump) ? ` · doubles: ${doublesRule(game.trump)}` : ''}`;
 
   return (
     <ScrollView
