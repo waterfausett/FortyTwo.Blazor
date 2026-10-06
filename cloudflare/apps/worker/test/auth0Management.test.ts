@@ -255,10 +255,12 @@ describe('auth0Management', () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(tokenResponse())
-        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+        .mockResolvedValueOnce(Response.json({ user_id: 'auth0|u1', user_metadata: { displayName: 'Adam' } }));
       vi.stubGlobal('fetch', fetchMock);
 
-      await mod.updateUser(testEnv, 'auth0|u1', { displayName: 'Adam' });
+      const user = await mod.updateUser(testEnv, 'auth0|u1', { displayName: 'Adam' });
+
+      expect(user).toEqual({ user_id: 'auth0|u1', user_metadata: { displayName: 'Adam' } });
 
       expect(fetchMock.mock.calls[1][0]).toBe('https://test-tenant.auth0.local/api/v2/users/auth0%7Cu1');
       const init = fetchMock.mock.calls[1][1] as RequestInit;

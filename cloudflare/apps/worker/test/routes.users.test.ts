@@ -5,6 +5,7 @@ import { env, fetchMock, SELF } from 'cloudflare:test';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { toPublicUser, toUserResponse } from '../src/routes/users';
 import type { Auth0User } from '../src/auth0Management';
+import { saveUsers } from '../src/users/publicUsers';
 
 // Must match the AUTH0_DOMAIN/AUTH0_AUDIENCE test-pool bindings in vitest.config.ts, as in
 // routes.matches.test.ts.
@@ -86,9 +87,25 @@ function mockUserPatch(): { path?: string; body?: unknown } {
     .reply((opts) => {
       seen.path = String(opts.path);
       seen.body = JSON.parse(String(opts.body));
-      return { statusCode: 200, data: '{}' };
+      const userId = decodeURIComponent(seen.path.slice('/api/v2/users/'.length));
+      const user = { user_id: userId, picture: 'https://example.com/auth0.png', ...(seen.body as object) };
+      return { statusCode: 200, data: JSON.stringify(user), responseOptions: { headers: { 'content-type': 'application/json' } } };
     });
   return seen;
+}
+
+// Answers the next Auth0 single-user fetch with `user`.
+function mockGetUser(user: Auth0User): void {
+  fetchMock
+    .get(`https://${AUTH0_DOMAIN}`)
+    .intercept({ path: `/api/v2/users/${encodeURIComponent(user.user_id)}`, method: 'GET' })
+    .reply(200, JSON.stringify(user), { headers: { 'content-type': 'application/json' } });
+}
+
+async function storedName(id: string): Promise<{ display_name: string; picture: string | null } | null> {
+  return env.DB.prepare('SELECT display_name, picture FROM users WHERE id = ?1')
+    .bind(id)
+    .first<{ display_name: string; picture: string | null }>();
 }
 
 describe('user routes', () => {
@@ -120,13 +137,51 @@ describe('user routes', () => {
       ]);
     });
 
-    it('looks each id up once', async () => {
+    it('asks Auth0 once per unknown player, never for bots', async () => {
       const seen = mockUserSearch([]);
-      await api('/api/users/search', 'auth0|p1', {
+      const res = await api('/api/users/search', 'auth0|p1', {
         method: 'POST',
         body: JSON.stringify(['auth0|p2', 'bot-1', 'auth0|p2']),
       });
-      expect(seen.query).toBe('user_id:("auth0|p2","bot-1")');
+      expect(seen.query).toBe('user_id:("auth0|p2")');
+      expect(await res.json()).toEqual([{ user_id: 'bot-1', displayName: 'Bot 1' }]);
+    });
+
+    it('answers from D1 for players it has seen, without asking Auth0', async () => {
+      await saveUsers(env.DB, [{ user_id: 'auth0|p2', displayName: 'Stored Two' }]);
+      // No search mock: with net connect disabled, an Auth0 call would fail and leave p2 out.
+      const res = await api('/api/users/search', 'auth0|p1', { method: 'POST', body: JSON.stringify(['auth0|p2']) });
+      expect(await res.json()).toEqual([{ user_id: 'auth0|p2', displayName: 'Stored Two' }]);
+    });
+
+    it('keeps what Auth0 finds for next time', async () => {
+      mockUserSearch([{ user_id: 'auth0|p2', nickname: 'two', picture: 'https://example.com/p2.png' }]);
+      await api('/api/users/search', 'auth0|p1', { method: 'POST', body: JSON.stringify(['auth0|p2']) });
+      expect(await storedName('auth0|p2')).toEqual({ display_name: 'two', picture: 'https://example.com/p2.png' });
+    });
+
+    it("leaves out ids Auth0 doesn't know", async () => {
+      mockUserSearch([{ user_id: 'auth0|p2', nickname: 'two' }]);
+      const res = await api('/api/users/search', 'auth0|p1', {
+        method: 'POST',
+        body: JSON.stringify(['auth0|p2', 'auth0|gone']),
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([{ user_id: 'auth0|p2', displayName: 'two' }]);
+    });
+
+    it('answers with what D1 has when Auth0 fails', async () => {
+      await saveUsers(env.DB, [{ user_id: 'auth0|p2', displayName: 'Stored Two' }]);
+      fetchMock
+        .get(`https://${AUTH0_DOMAIN}`)
+        .intercept({ path: (path: string) => path.startsWith('/api/v2/users?'), method: 'GET' })
+        .reply(500, 'down');
+      const res = await api('/api/users/search', 'auth0|p1', {
+        method: 'POST',
+        body: JSON.stringify(['auth0|p2', 'auth0|p3']),
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([{ user_id: 'auth0|p2', displayName: 'Stored Two' }]);
     });
 
     it.each([
@@ -148,7 +203,34 @@ describe('user routes', () => {
     });
   });
 
+  describe('GET /api/users/profile', () => {
+    it("keeps the caller's name and picture in D1", async () => {
+      mockGetUser({ user_id: 'auth0|p1', picture: 'https://example.com/p1.png', user_metadata: { displayName: 'One' } });
+      const res = await api('/api/users/profile', 'auth0|p1');
+      expect(res.status).toBe(200);
+      expect(await storedName('auth0|p1')).toEqual({ display_name: 'One', picture: 'https://example.com/p1.png' });
+    });
+
+    it('still returns the profile when saving the name fails', async () => {
+      await env.DB.exec('ALTER TABLE users RENAME TO users_gone');
+      try {
+        mockGetUser({ user_id: 'auth0|p1', user_metadata: { displayName: 'One' } });
+        const res = await api('/api/users/profile', 'auth0|p1');
+        expect(res.status).toBe(200);
+        expect(((await res.json()) as { displayName: string }).displayName).toBe('One');
+      } finally {
+        await env.DB.exec('ALTER TABLE users_gone RENAME TO users');
+      }
+    });
+  });
+
   describe('PATCH /api/users', () => {
+    it('updates the name other players see', async () => {
+      mockUserPatch();
+      await api('/api/users', 'auth0|p1', { method: 'PATCH', body: JSON.stringify({ displayName: 'New One' }) });
+      expect(await storedName('auth0|p1')).toEqual({ display_name: 'New One', picture: 'https://example.com/auth0.png' });
+    });
+
     it('stores only the known fields, trimmed, for the caller', async () => {
       const seen = mockUserPatch();
 

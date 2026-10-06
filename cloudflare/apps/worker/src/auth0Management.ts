@@ -143,11 +143,13 @@ export async function getUsers(env: Env, userIds: string[]): Promise<Auth0User[]
 }
 
 // Auth0 merges `user_metadata`, so this only changes the fields `patch` sets: JSON.stringify drops
-// `undefined` keys (an unset field must be `undefined`, not `null`, or it would be cleared).
-export async function updateUser(env: Env, userId: string, patch: ProfilePatch): Promise<void> {
-  await authorizedFetch(env, `api/v2/users/${encodeURIComponent(userId)}`, {
+// `undefined` keys (an unset field must be `undefined`, not `null`, or it would be cleared). Auth0
+// replies with the user as it now is.
+export async function updateUser(env: Env, userId: string, patch: ProfilePatch): Promise<Auth0User> {
+  const response = await authorizedFetch(env, `api/v2/users/${encodeURIComponent(userId)}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ user_metadata: patch }),
   });
+  return response.json();
 }

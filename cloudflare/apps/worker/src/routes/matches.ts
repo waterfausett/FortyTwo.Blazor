@@ -16,9 +16,8 @@ import {
   listJoinable,
   listMatchPlayers,
 } from '../lobby';
-import { botsEnabled, isBot } from '../bots';
-import { getUsers, MAX_USER_IDS } from '../auth0Management';
-import { toUserResponse } from './users';
+import { botsEnabled } from '../bots';
+import { publicUsers } from '../users/publicUsers';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
 import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
@@ -81,21 +80,11 @@ matches.get('/', async (c) => {
   return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });
 
-// Maps player ids to display names for the lobby list. Bots have no Auth0 account and keep their
-// id ("bot-1"). A failed Auth0 lookup just leaves ids unnamed - the list is still usable showing
-// raw ids, which beats failing the whole lobby over a cosmetic field.
+// Maps player ids to display names for the lobby list (users/publicUsers.ts: D1 first, Auth0 for
+// players it hasn't seen, bots by number). Anyone it can't name keeps their id - the list is still
+// usable, which beats failing the whole lobby over a cosmetic field.
 async function displayNames(env: Env, playerIds: string[]): Promise<Map<string, string>> {
-  const names = new Map<string, string>();
-  const humans = playerIds.filter((id) => !isBot(id));
-  try {
-    for (let i = 0; i < humans.length; i += MAX_USER_IDS) {
-      const users = await getUsers(env, humans.slice(i, i + MAX_USER_IDS));
-      for (const user of users) names.set(user.user_id, toUserResponse(user).displayName);
-    }
-  } catch (error) {
-    console.error('Failed to resolve player display names', error);
-  }
-  return names;
+  return new Map((await publicUsers(env, playerIds)).map((user) => [user.user_id, user.displayName]));
 }
 
 // The whole match as the caller may see it - backs the Match page's initial load and
