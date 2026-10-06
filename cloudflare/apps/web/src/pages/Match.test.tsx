@@ -11,6 +11,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { Bid, createDomino, Positions, Suit, Teams, type Domino, type MatchState, type Trick } from '@fortytwo/rules';
 import { Match } from './Match';
+import { PLAYER_NAMES_KEY } from '../match/usePlayerNames';
 
 beforeAll(() => {
   if (!('ResizeObserver' in globalThis)) {
@@ -119,7 +120,7 @@ beforeEach(() => {
   // it (nearly all of them, since `useMatchSocketMock` already supplies the match state they
   // assert on) don't hang on an unresolved query or an unhandled-rejection warning.
   getMatchMock.mockResolvedValue(null);
-  // No display names by default, so seats show raw player ids ('p2', ...) as most tests expect.
+  // Nothing found by default; renderMatch names the test players up front.
   searchUsersMock.mockResolvedValue([]);
   // Bots can be switched off server-side, so off unless a test turns them on.
   getConfigMock.mockResolvedValue({ bots: false });
@@ -132,8 +133,15 @@ afterEach(() => {
   currentUserId.value = 'p1';
 });
 
-function renderMatch() {
+// Every test player is already named after their id ('p2', ...), as if looked up before, so seats
+// show at once - most tests assert on those. `{ names: false }` starts with nothing looked up, for
+// the tests about loading names.
+function renderMatch({ names = true }: { names?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  if (names) {
+    const ids = ['p1', 'p2', 'p3', 'p4', 'bot-1'];
+    queryClient.setQueryData([PLAYER_NAMES_KEY, 'seeded'], new Map(ids.map((id) => [id, id])));
+  }
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
@@ -1096,21 +1104,33 @@ describe('Match', () => {
       return screen.getAllByTestId('remote-player').find((el) => el.querySelector('.seat-name')?.textContent === name)!;
     }
 
-    it("labels seats with players' display names, keeping the raw id for anyone without one", async () => {
+    it("labels seats with players' display names, and anyone the lookup can't name by their seat", async () => {
       searchUsersMock.mockResolvedValue([
         { user_id: 'p2', displayName: 'Bob' },
         { user_id: 'p3', displayName: 'Cara' },
       ]);
       useMatchSocketMock.mockReturnValue({ match: playingMatch(), connected: true });
-      renderMatch();
+      renderMatch({ names: false });
 
       await waitFor(() => expect(seatOf('Bob')).toBeDefined());
       expect(seatOf('Cara')).toBeDefined();
-      // p4 has no Auth0 record (e.g. a bot), so it keeps its id.
-      expect(seatOf('p4')).toBeDefined();
+      // p4 wasn't found, so it's called by its seat - never by its id.
+      expect(seatOf('Player 4')).toBeDefined();
+      expect(screen.queryByText('p4')).toBeNull();
       // The bid is credited by name too (p2 won it).
       expect(screen.getByText('Bob', { selector: '.contract-by' })).not.toBeNull();
-      expect(searchUsersMock).toHaveBeenCalledWith(['p1', 'p2', 'p3', 'p4']);
+      // The viewer is "You" and isn't looked up.
+      expect(searchUsersMock).toHaveBeenCalledWith(['p2', 'p3', 'p4']);
+    });
+
+    it('shows a placeholder, not ids, while names load', () => {
+      searchUsersMock.mockReturnValue(new Promise(() => {}));
+      useMatchSocketMock.mockReturnValue({ match: playingMatch(), connected: true });
+      renderMatch({ names: false });
+
+      expect(screen.getAllByText('Loading name').length).toBeGreaterThan(0);
+      for (const id of ['p2', 'p3', 'p4']) expect(screen.queryByText(id)).toBeNull();
+      expect(screen.queryByText(/is bidding|'s lead|is playing/)).toBeNull();
     });
 
     it('marks the dealer', () => {
@@ -1995,6 +2015,16 @@ describe('Match', () => {
       act(() => onPoke('p2'));
 
       expect(toastInfoMock).toHaveBeenCalledWith('p2 poked you', "It's your turn", 'center');
+    });
+
+    it("doesn't name a poker whose name hasn't loaded", () => {
+      searchUsersMock.mockReturnValue(new Promise(() => {}));
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch({ names: false });
+      const onPoke = useMatchSocketMock.mock.calls[0][2] as (from: string) => void;
+      act(() => onPoke('p2'));
+
+      expect(toastInfoMock).toHaveBeenCalledWith('You were poked', "It's your turn", 'center');
     });
 
     it('ignores a poke that lands while my bid is on its way', async () => {

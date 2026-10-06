@@ -42,6 +42,7 @@ import { useGetToken } from '../auth/useGetToken';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
 import { MatchSummary } from '../components/MatchSummary';
+import { NameSkeleton } from '../components/NameSkeleton';
 import { Hand } from '../components/Hand';
 import { PipFace } from '../components/PipFace';
 import { PlayDndContext, PlayDropZone } from '../components/PlayDnd';
@@ -70,10 +71,12 @@ import {
   trickLeaderId,
   trickPlayOrder,
   pokeTurnKey,
+  nameText,
 } from '@fortytwo/client';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
 import { usePoke } from '../match/usePoke';
+import { usePlayerNames } from '../match/usePlayerNames';
 import '../styles/match.css';
 
 // How long a just-completed trick stays put in the center of the board (as if still "in
@@ -104,11 +107,11 @@ export function Match(): JSX.Element {
   // and the hook is retrying; the initial connect alone doesn't count. While down, the table may be
   // stale (a turn may already have passed), so the page says so and holds every action until the
   // socket is back.
-  // What a poke needs when it lands, from state further down: the sender's display name, the turn
-  // it's for, and whether a move of mine is already in flight - then the poke is moot. (The Worker
-  // only sends a poke while it's still my turn, and the socket keeps its messages in order, so
-  // that's the one way one can land late.)
-  const pokedRef = useRef<{ names?: Map<string, string>; turn: string | null; moving: boolean }>({
+  // What a poke needs when it lands, from state further down: the sender's display name, once
+  // loaded, the turn it's for, and whether a move of mine is already in flight - then the poke is
+  // moot. (The Worker only sends a poke while it's still my turn, and the socket keeps its messages
+  // in order, so that's the one way one can land late.)
+  const pokedRef = useRef<{ nameOf?: (playerId: string) => string | null; turn: string | null; moving: boolean }>({
     turn: null,
     moving: false,
   });
@@ -117,7 +120,8 @@ export function Match(): JSX.Element {
   const [pokedTurn, setPokedTurn] = useState<string | null>(null);
   const { match: socketMatch, connected, reconnecting, deleted } = useMatchSocket(matchId ?? '', getToken, (from) => {
     if (pokedRef.current.moving) return;
-    toastInfo(`${pokedRef.current.names?.get(from) ?? from} poked you`, "It's your turn", 'center');
+    const poker = pokedRef.current.nameOf?.(from) ?? null;
+    toastInfo(poker ? `${poker} poked you` : 'You were poked', "It's your turn", 'center');
     setPokedTurn(pokedRef.current.turn);
   });
   const client = apiClient(getToken);
@@ -142,21 +146,12 @@ export function Match(): JSX.Element {
   // (re)connecting).
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
-  // Display names for everyone seated. Keyed on the sorted id list so it refetches only when
-  // someone joins, not on every broadcast. Until it resolves (or if it fails), and for bots, which
-  // have no Auth0 account, `nameFor` below falls back to the raw player id.
-  const seatedIds = (liveMatch?.players.map((p) => p.playerId) ?? []).sort();
-  const namesQuery = useQuery({
-    queryKey: ['playerNames', seatedIds],
-    queryFn: async () => {
-      const users = await client.searchUsers(seatedIds);
-      return new Map(users.map((u) => [u.user_id, u.displayName]));
-    },
-    enabled: seatedIds.length > 0,
-    staleTime: Infinity,
-  });
+  // Display names for everyone seated (match/usePlayerNames.ts). Until a name loads it reads null
+  // here and the page shows a placeholder; one that can't be found reads "Player N". Never the id.
+  const names = usePlayerNames(liveMatch?.players ?? [], myPlayerId, (ids) => client.searchUsers(ids));
+  const nameOf = (playerId: string): string | null => nameText(names.nameFor(playerId));
 
-  const poke = usePoke(liveMatch, myPlayerId, () => client.poke(matchId!), (id) => namesQuery.data?.get(id) ?? id);
+  const poke = usePoke(liveMatch, myPlayerId, () => client.poke(matchId!), nameOf);
 
   const bidMutation = useMutation({
     mutationFn: (bid: Bid) => client.bid(matchId!, bid),
@@ -308,11 +303,11 @@ export function Match(): JSX.Element {
   // My hand as the server last sent it, and the play in flight while that hand still holds it.
   useEffect(() => {
     pokedRef.current = {
-      names: namesQuery.data,
+      nameOf: (playerId) => nameText(names.nameFor(playerId)),
       turn: liveMatch ? pokeTurnKey(liveMatch) : null,
       moving: playing != null || bidMutation.isPending || setTrumpMutation.isPending,
     };
-  }, [namesQuery.data, liveMatch, playing, bidMutation.isPending, setTrumpMutation.isPending]);
+  }, [names, liveMatch, playing, bidMutation.isPending, setTrumpMutation.isPending]);
 
   const myLiveHand = holdGame?.hands.find((h) => h.playerId === myPlayerId)?.dominoes ?? [];
   const inFlight = playing != null && myLiveHand.some((d) => d.id === playing.id) ? playing : null;
@@ -347,10 +342,11 @@ export function Match(): JSX.Element {
     seenGameIdRef.current = dealtGame.id;
     if (previousId === null || previousId === dealtGame.id) return;
     const opener = dealtGame.firstActionBy;
-    const who =
-      opener === myPlayerId ? 'You bid first' : `${(opener && namesQuery.data?.get(opener)) ?? opener} bids first`;
+    const openerName = opener && opener !== myPlayerId ? nameText(names.nameFor(opener)) : null;
+    // Before names load there's no one to credit; the title alone says the hand is out.
+    const who = opener === myPlayerId ? 'You bid first' : openerName ? `${openerName} bids first` : undefined;
     toastInfo(`${dealtGame.name} dealt`, who, 'center');
-  }, [dealtGame, myPlayerId, namesQuery.data]);
+  }, [dealtGame, myPlayerId, names]);
 
   if (!matchId) {
     return (
@@ -385,14 +381,19 @@ export function Match(): JSX.Element {
     }
     const seats = [0, 1, 2, 3].map((position) => {
       const player = liveMatch.players.find((p) => p.position === position);
-      return player ? (namesQuery.data?.get(player.playerId) ?? player.playerId) : null;
+      return player ? (nameOf(player.playerId) ?? '') : null;
     });
     const open = seats.some((name) => name == null);
     return (
       <section className="match-join mat-panel" aria-label="Join this match">
         <h1 className="match-join-title">{open ? 'Pick a seat to join' : 'This match is full'}</h1>
         {open ? (
-          <SeatPicker seats={seats} disabled={joinMutation.isPending} onPick={(position) => joinMutation.mutate(position)} />
+          <SeatPicker
+            seats={seats}
+            loading={!names.ready}
+            disabled={joinMutation.isPending}
+            onPick={(position) => joinMutation.mutate(position)}
+          />
         ) : (
           <p className="match-join-note">All four seats are taken.</p>
         )}
@@ -462,8 +463,8 @@ export function Match(): JSX.Element {
 
   const { dealer, bidderTeam, target, handWinner, isMatchOver } = view;
 
-  const nameFor = (playerId: string | null): string =>
-    playerId === myPlayerId ? 'You' : playerId == null ? '' : (namesQuery.data?.get(playerId) ?? playerId);
+  // For sentences: only rendered once names are ready (see the status line), so '' never shows.
+  const nameFor = (playerId: string | null): string => (playerId == null ? '' : (nameOf(playerId) ?? ''));
 
   // The markers every seat plate (mine included) shows, keyed off a player id.
   function seatPropsFor(playerId: string) {
@@ -474,7 +475,7 @@ export function Match(): JSX.Element {
     // winning bidder's does, alongside the trump they named.
     const bid = game.trump == null ? (hand?.bid ?? null) : isHighBidder ? game.bid : null;
     return {
-      name: nameFor(playerId),
+      name: nameOf(playerId),
       side: player && player.position % 2 === myPosition % 2 ? ('us' as const) : ('them' as const),
       isActive: isTableReady && !isHandPlayedOut && game.currentPlayerId === playerId,
       isDealer: dealer === playerId,
@@ -569,7 +570,7 @@ export function Match(): JSX.Element {
             <span className={`contract-bid contract-${bidderTeam === me.team ? 'us' : 'them'}`}>
               <span className="contract-label">{game.trump == null ? 'High bid' : 'Bid'}</span>
               <span className="contract-value">{bidToPrettyString(game.bid)}</span>
-              <span className="contract-by">{nameFor(game.biddingPlayerId)}</span>
+              <span className="contract-by">{nameOf(game.biddingPlayerId) ?? <NameSkeleton />}</span>
             </span>
           ) : (
             isBiddingPhase && <span className="contract-bid contract-open">Bidding is open</span>
@@ -754,7 +755,7 @@ export function Match(): JSX.Element {
             {/* The bid/trump pickers carry their own prompt, so the status line steps aside. */}
             {!canBid && !canSelectTrump && status != null && (
               <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
-                {status}
+                {names.ready ? status : <NameSkeleton width="12em" />}
               </p>
             )}
 
@@ -765,7 +766,7 @@ export function Match(): JSX.Element {
                 disabled={poke.pending}
                 onClick={poke.poke}
               >
-                Poke {nameFor(poke.target)}
+                Poke {nameOf(poke.target)}
               </button>
             )}
 
