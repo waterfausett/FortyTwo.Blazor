@@ -150,8 +150,9 @@ it. `Get-Help apps/mobile/scripts/emulator.ps1` lists the commands.
 It runs the app with the **dev bypass** unless you pass `-SignIn`. With
 `EXPO_PUBLIC_DEV_BYPASS=1` in Metro's environment, a development build acts signed in and
 answers the lobby and profile from canned data in `apps/mobile/src/dev/devBypass.ts`, with no
-Auth0 or Worker. It's for working on screens; opening a match doesn't work. A release build
-compiles it out.
+Auth0 or Worker. It's for working on screens. For the match screen, open one of the canned
+matches in `apps/mobile/src/dev/devMatches.ts` (`emulator.ps1 open match/dev-bidding`, say):
+your moves go through the real rules, but no one else moves. A release build compiles it out.
 
 #### Running next to another checkout
 

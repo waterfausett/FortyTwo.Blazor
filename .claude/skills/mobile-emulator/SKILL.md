@@ -19,9 +19,16 @@ the background the first time), starts Metro for this checkout on a free port, a
 Give the first bundle about 30 seconds, then take a screenshot.
 
 - **Sign-in is bypassed** by default (`src/dev/devBypass.ts`, `EXPO_PUBLIC_DEV_BYPASS=1`): the
-  app acts signed in and the API answers from canned data. **Only the lobby and the profile
-  work.** Opening a match fails with "Not in the dev bypass". To show other data, edit the canned
-  data in `devBypass.ts`; Metro reloads it.
+  app acts signed in and the API answers from canned data. The lobby and the profile work, and
+  so do the canned matches in `src/dev/devMatches.ts`: `open match/dev-bidding`, `dev-trump`,
+  `dev-playing` or `dev-hand-over`. Your moves there go through the real rules, but nobody else
+  moves; opening the match again starts it over. Any other match fails with "Not in the dev
+  bypass". To show other data, edit the canned data in `devBypass.ts`; Metro reloads it.
+- **Timing races:** `devTiming` in `devMatches.ts` sets when a move's reply and its broadcast
+  arrive (broadcast first, as on a real table). Swap them to see the screen when the reply wins.
+  A flash is too quick for `shot`: record it with `adb -s emulator-5554 shell screenrecord
+  --time-limit 4 /sdcard/rec.mp4` while tapping, pull it, and tile frames with ffmpeg
+  (`-vf "fps=15,tile=6x6"`). From Git Bash, set `MSYS_NO_PATHCONV=1` first.
 - `up -SignIn` runs the real sign-in instead, which needs real Auth0 values in `.env.local`
   and a Worker.
 - `up -Rebuild`, or `build`, rebuilds the native app. Only needed after native changes: a new
