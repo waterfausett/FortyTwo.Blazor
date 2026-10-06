@@ -6,3 +6,8 @@ export const BOT_IDS = ['bot-1', 'bot-2', 'bot-3'] as const;
 export function isBot(playerId: string): boolean {
   return (BOT_IDS as readonly string[]).includes(playerId);
 }
+
+// What a bot is called at the table: bot-1 is "Bot 1". Bots have no account to take a name from.
+export function botDisplayName(playerId: string): string {
+  return `Bot ${playerId.slice('bot-'.length)}`;
+}
