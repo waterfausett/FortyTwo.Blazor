@@ -112,9 +112,21 @@ export default function MatchScreen() {
   // Bots can be switched off server-side (the Worker's BOTS_ENABLED).
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
 
-  const bid = useMutation({ mutationFn: (value: Bid) => api.bid(id, value), onError: toastError });
-  const trump = useMutation({ mutationFn: (suit: Suit) => api.setTrump(id, suit), onError: toastError });
-  const readyUp = useMutation({ mutationFn: () => api.readyUp(id, true), onError: toastError });
+  // A bid, trump call or ready-up counts as made from the moment it's sent until the socket's
+  // broadcast shows it. The request's own reply can arrive first, and going by that alone the bids
+  // fade back in (or "Ready up" comes back) until the broadcast lands. Each is kept by the game it
+  // was made in, so the next hand starts afresh; one turned away is forgotten.
+  const [sentIn, setSentIn] = useState<{ bid?: string; trump?: string; ready?: string }>({});
+  const sent = (move: keyof typeof sentIn) => ({
+    onMutate: () => setSentIn((s) => ({ ...s, [move]: liveMatch?.currentGame.id })),
+    onError: (error: Error) => {
+      setSentIn((s) => ({ ...s, [move]: undefined }));
+      toastError(error);
+    },
+  });
+  const bid = useMutation({ mutationFn: (value: Bid) => api.bid(id, value), ...sent('bid') });
+  const trump = useMutation({ mutationFn: (suit: Suit) => api.setTrump(id, suit), ...sent('trump') });
+  const readyUp = useMutation({ mutationFn: () => api.readyUp(id, true), ...sent('ready') });
   const rematch = useMutation({ mutationFn: () => api.rematch(id), onError: toastError });
   const addBots = useMutation({ mutationFn: () => api.addBots(id), onError: toastError });
   // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
@@ -290,6 +302,9 @@ export default function MatchScreen() {
   const { myTeam, opponentTeam } = view;
   const scores = matchScores(match);
   const canPlay = view.isMyTurnToPlay && connected && playing == null;
+  const bidSent = sentIn.bid === game.id;
+  const trumpSent = sentIn.trump === game.id;
+  const iAmReady = view.iAmReady || sentIn.ready === game.id;
 
   // Checked here first, by the same rule the server applies, so an illegal play never leaves the
   // hand: it's refused at once (a dragged domino springs back). A legal one leaves for the table.
@@ -499,16 +514,16 @@ export default function MatchScreen() {
                 <View style={styles.handOverText}>
                   <Text style={styles.handOverTitle}>{handWinnerIsUs ? 'We took the hand' : 'They took the hand'}</Text>
                   <Text style={styles.handOverDetail}>
-                    {view.iAmReady
-                      ? `Waiting for everyone (${view.readyCount} of 4 ready)`
+                    {iAmReady
+                      ? `Waiting for everyone (${view.readyCount + (view.iAmReady ? 0 : 1)} of 4 ready)`
                       : view.isHandPlayedOut
                         ? 'Ready up for the next hand'
                         : 'Play it out, or ready up'}
                   </Text>
                 </View>
                 <ActionButton
-                  label={view.iAmReady ? 'Ready' : 'Ready up'}
-                  disabled={view.iAmReady || !connected || readyUp.isPending}
+                  label={iAmReady ? 'Ready' : 'Ready up'}
+                  disabled={iAmReady || !connected}
                   onPress={() => readyUp.mutate()}
                 />
               </View>
@@ -517,11 +532,11 @@ export default function MatchScreen() {
         ) : view.canBid ? (
           // Fades out as soon as a bid is picked (and back, should it be turned away), rather than
           // dimming until the server answers and then vanishing.
-          <Fade key="bid" visible={!bid.isPending}>
+          <Fade key="bid" visible={!bidSent}>
             <BiddingPanel game={game} myPlayerId={myPlayerId} onBid={(b) => bid.mutate(b)} disabled={!connected} />
           </Fade>
         ) : view.canSelectTrump ? (
-          <Fade key="trump" visible={!trump.isPending}>
+          <Fade key="trump" visible={!trumpSent}>
             <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected} />
           </Fade>
         ) : (
