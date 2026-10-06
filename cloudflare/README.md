@@ -228,7 +228,8 @@ installs from that source the first time.
   `npx eas-cli@latest device:create`.
 - App versions: `version` in `app.json` is the version people see. The build number (Android's
   `versionCode`, iOS's `buildNumber`) is kept by EAS (`appVersionSource: remote`), and
-  production builds raise it by one each time.
+  preview and production builds raise it by one each time, so each build installs as an update.
+  Raise `version` when releasing changes people should be able to tell apart.
 - EAS uploads the whole git repository, and installs the npm workspace from `cloudflare/`.
   Uncommitted changes are included; gitignored files aren't.
 - EAS picks its build image from the Expo SDK version. SDK 57's image has Node 22 and npm 10,
