@@ -59,7 +59,9 @@ jobs:
 
   deploy:
     needs: test
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    # A manual run skips `changes`, and a skipped ancestor skips this job too unless the condition
+    # checks results itself, so require the test job's success explicitly.
+    if: ${{ !cancelled() && needs.test.result == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')) }}
     runs-on: ubuntu-latest
     environment: production
     env:
