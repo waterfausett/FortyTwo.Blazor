@@ -59,6 +59,8 @@ import { Table, TABLE_RESIZE_MS, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
 import { TrumpPicker } from '@/components/TrumpPicker';
 import { colors, fonts } from '@/components/theme';
+import { DEV_BYPASS } from '@/dev/devBypass';
+import { DEV_PLAYER_ID } from '@/dev/devMatches';
 import { shareInvite } from '@/linking/invite';
 import { askOnceForPush } from '@/notifications/push';
 import { useLatch } from '@/match/useLatch';
@@ -69,7 +71,8 @@ import { useTrickHold } from '@/match/useTrickHold';
 export default function MatchScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth0();
-  const myPlayerId = user?.sub;
+  // The dev bypass has no Auth0 user; it plays as its own player.
+  const myPlayerId = DEV_BYPASS ? DEV_PLAYER_ID : user?.sub;
   const api = useApi();
   const getToken = useGetToken();
   // Room at the bottom of the scroll, above the phone's gesture bar or navigation buttons.

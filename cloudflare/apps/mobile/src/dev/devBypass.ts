@@ -5,11 +5,12 @@
 // It can't reach a release build: `__DEV__` is false there, so this is always false and the
 // bundler drops the code behind it.
 //
-// Only the lobby and the profile work this way. Anything else - opening a match, its socket -
-// fails with "Not in the dev bypass".
+// The lobby and the profile work this way, and the canned matches in devMatches.ts (open
+// `match/dev-bidding` and the rest). Anything else fails with "Not in the dev bypass".
 import type { MatchState } from '@fortytwo/rules';
 import type { MatchPage, MatchSummary, ProfilePatch, UserProfile } from '@fortytwo/api-types';
 import type { Api } from '@/api/useApi';
+import { DEV_PLAYER_ID, devMatchApi } from './devMatches';
 
 export const DEV_BYPASS = __DEV__ && process.env.EXPO_PUBLIC_DEV_BYPASS === '1';
 
@@ -49,7 +50,7 @@ const LISTS: Record<'Active' | 'Joinable' | 'Completed', MatchSummary[]> = {
 };
 
 let profile: UserProfile = {
-  user_id: 'dev|bypass',
+  user_id: DEV_PLAYER_ID,
   email: 'you@example.com',
   displayName: 'You',
   highlightPlayable: true,
@@ -73,6 +74,7 @@ const handled: Partial<Api> = {
   // Creating or joining "works", landing on a match screen that can't load.
   createMatch: () => answer({ id: 'dev-new' } as MatchState),
   joinMatch: (id) => answer({ id } as MatchState),
+  ...devMatchApi,
 };
 
 export const devApi = new Proxy(handled, {

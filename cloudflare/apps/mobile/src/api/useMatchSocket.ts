@@ -9,6 +9,8 @@ import NetInfo from '@react-native-community/netinfo';
 import { connectMatchSocket } from '@fortytwo/client';
 import type { MatchState } from '@fortytwo/rules';
 import { config } from '@/config';
+import { DEV_BYPASS } from '@/dev/devBypass';
+import { connectDevMatchSocket } from '@/dev/devMatches';
 
 // A dropped network kills sockets: when it returns, reconnect now rather than sitting out the
 // backoff.
@@ -64,7 +66,8 @@ export function useMatchSocket(
 
   useEffect(() => {
     if (!foreground) return;
-    const disconnect = connectMatchSocket({
+    const connect = DEV_BYPASS ? connectDevMatchSocket : connectMatchSocket;
+    const disconnect = connect({
       matchId,
       origin: config.wsOrigin,
       getToken: () => getTokenRef.current(),
