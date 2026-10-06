@@ -6,10 +6,13 @@
 // Plain module state rather than React state: +native-intent.tsx runs outside the React tree.
 
 let signedIn = false;
-let pending: string | null = null;
+// Typed as the route it is, so the root layout can hand it to the typed router as is.
+type MatchRoute = `/match/${string}`;
+
+let pending: MatchRoute | null = null;
 
 // The app route a link points at, if it's a match link: `/match/<id>`.
-export function matchRoute(link: string): string | null {
+export function matchRoute(link: string): MatchRoute | null {
   const found = /(?:^|\/)match\/([^/?#]+)/.exec(link);
   return found ? `/match/${found[1]}` : null;
 }
@@ -28,7 +31,7 @@ export function noteIncomingLink(link: string): void {
 }
 
 // The match link waiting for sign-in, if any, cleared as it's taken.
-export function takePendingLink(): string | null {
+export function takePendingLink(): MatchRoute | null {
   const route = pending;
   pending = null;
   return route;

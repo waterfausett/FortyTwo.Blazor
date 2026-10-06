@@ -8,7 +8,7 @@ import { pickerStyles } from './BiddingPanel';
 import { PipFace } from './PipFace';
 import { colors, fonts } from './theme';
 
-const DOUBLES_DETAIL: Record<(typeof LOW_TRUMPS)[number], string> = {
+export const DOUBLES_DETAIL: Record<(typeof LOW_TRUMPS)[number], string> = {
   [Suit.Low]: 'Each double tops its suit',
   [Suit.LowDoublesLow]: 'Each double is the lowest of its suit',
   [Suit.LowDoublesOwnSuit]: 'Doubles form a suit, double-six highest',

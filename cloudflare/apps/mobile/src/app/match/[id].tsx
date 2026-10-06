@@ -42,13 +42,14 @@ import {
   suitToPrettyString,
   type Domino as DominoType,
   type MatchState,
-  type Suit,
+  Suit,
 } from '@fortytwo/rules';
 import { useApi } from '@/api/useApi';
 import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
+import { DoublesRuleModal } from '@/components/DoublesRuleModal';
 import { Fade, FADE_IN_MS } from '@/components/Fade';
 import { Hand, type DragState } from '@/components/Hand';
 import { JoinMatchPanel } from '@/components/JoinMatchPanel';
@@ -67,6 +68,12 @@ import { useLatch } from '@/match/useLatch';
 import { usePoke } from '@/match/usePoke';
 import { useSettled } from '@/match/useSettled';
 import { useTrickHold } from '@/match/useTrickHold';
+
+// A Low trump's doubles rule, short enough for the scoreboard's middle column ("Low · doubles:
+// suit"); tapping it opens DoublesRuleModal, which spells the rules out.
+function doublesRule(trump: Suit): string {
+  return trump === Suit.LowDoublesOwnSuit ? 'suit' : lowDoublesToPrettyString(trump).toLowerCase();
+}
 
 export default function MatchScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -240,6 +247,7 @@ export default function MatchScreen() {
   // The match summary only opens when asked for, from the hand-over panel's button: the end of
   // the match plays out on the table like any other hand.
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [doublesOpen, setDoublesOpen] = useState(false);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
@@ -396,10 +404,8 @@ export default function MatchScreen() {
       : view.isBiddingPhase
         ? 'Bidding is open'
         : null;
-  const trumpLine =
-    game.trump == null
-      ? null
-      : `${suitToPrettyString(game.trump)}${isLow(game.trump) ? ` (doubles ${lowDoublesToPrettyString(game.trump)})` : ''}`;
+  const doublesLine = game.trump != null && isLow(game.trump) ? `doubles: ${doublesRule(game.trump)}` : null;
+  const trumpLine = game.trump == null ? null : `${suitToPrettyString(game.trump)}${doublesLine ? ` · ${doublesLine}` : ''}`;
 
   return (
     <ScrollView
@@ -430,9 +436,23 @@ export default function MatchScreen() {
           <View style={styles.contract}>
             {contractBid && <Text style={styles.contractText}>{contractBid}</Text>}
             {trumpLine && game.trump != null && (
-              <View style={styles.trumpRow} accessibilityLabel={`Trump: ${trumpLine}`}>
+              <View style={styles.trumpRow} accessibilityLabel={doublesLine ? undefined : `Trump: ${trumpLine}`}>
                 <PipFace suit={game.trump} size={20} />
-                <Text style={styles.contractText}>{trumpLine}</Text>
+                <Text style={styles.contractText}>
+                  {suitToPrettyString(game.trump)}
+                  {doublesLine && ' ·'}
+                </Text>
+                {doublesLine && (
+                  <Pressable
+                    onPress={() => setDoublesOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Doubles rule: ${doublesRule(game.trump)}`}
+                    accessibilityHint="Shows how doubles play this hand"
+                    hitSlop={8}
+                  >
+                    <Text style={[styles.contractText, styles.doublesLink]}>{doublesLine}</Text>
+                  </Pressable>
+                )}
               </View>
             )}
           </View>
@@ -607,6 +627,7 @@ export default function MatchScreen() {
           />
         </Fade>
       )}
+      <DoublesRuleModal trump={doublesOpen ? game.trump : null} onClose={() => setDoublesOpen(false)} />
       {view.isMatchOver && (
         <MatchSummary
           visible={summaryOpen}
@@ -695,6 +716,8 @@ const styles = StyleSheet.create({
   contract: { flex: 1, alignItems: 'center', gap: 2 },
   trumpRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   contractText: { color: colors.bone, fontFamily: fonts.uiMedium, textAlign: 'center' },
+  // Underlined, as the one tappable part of the contract.
+  doublesLink: { textDecorationLine: 'underline' },
   waiting: { alignItems: 'center', gap: 10, padding: 8 },
   waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   smallButton: { borderWidth: 1, borderColor: colors.brass, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
