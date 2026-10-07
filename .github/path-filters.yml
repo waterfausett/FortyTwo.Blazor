@@ -1,19 +1,19 @@
 # Which changed files each CI workflow covers. The changes job in worker.yml and mobile.yml reads
 # this to decide whether to test (and, for the Worker, deploy).
 shared: &shared
-  - 'cloudflare/packages/**'
-  - 'cloudflare/package.json'
-  - 'cloudflare/package-lock.json'
+  - 'packages/**'
+  - 'package.json'
+  - 'package-lock.json'
   - '.github/path-filters.yml'
 
 worker:
   - *shared
-  - 'cloudflare/apps/worker/**'
-  - 'cloudflare/apps/web/**'
-  - 'cloudflare/version.txt' # so the worker release PR, which only changes this, runs the tests
+  - 'apps/worker/**'
+  - 'apps/web/**'
+  - 'version.txt' # so the worker release PR, which only changes this, runs the tests
   - '.github/workflows/worker.yml'
 
 mobile:
   - *shared
-  - 'cloudflare/apps/mobile/**'
+  - 'apps/mobile/**'
   - '.github/workflows/mobile.yml'

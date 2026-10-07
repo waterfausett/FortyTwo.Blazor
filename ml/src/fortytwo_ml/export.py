@@ -1,4 +1,4 @@
-"""Write the shipped bot's two networks for the TS Worker bot (cloudflare/packages/bot): one
+"""Write the shipped bot's two networks for the TS Worker bot (packages/bot): one
 little-endian float32 blob plus a JSON manifest naming every tensor's shape and byte offset."""
 import hashlib
 import json

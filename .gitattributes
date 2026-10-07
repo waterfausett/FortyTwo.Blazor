@@ -62,6 +62,6 @@
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
 
-cloudflare/packages/bot/test/fixtures/*.bin binary
-cloudflare/packages/bot/test/fixtures/*.gz binary
-cloudflare/apps/web/public/models/*.bin filter=lfs diff=lfs merge=lfs -text
+packages/bot/test/fixtures/*.bin binary
+packages/bot/test/fixtures/*.gz binary
+apps/web/public/models/*.bin filter=lfs diff=lfs merge=lfs -text

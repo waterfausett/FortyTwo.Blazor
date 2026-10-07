@@ -1,4 +1,4 @@
-"""Exact port of the Worker's dev-only bots (cloudflare/apps/worker/src/bots.ts)."""
+"""Exact port of the Worker's dev-only bots (apps/worker/src/bots.ts)."""
 from ..engine.dominoes import PIPS
 from ..engine.enums import NAMED_SUITS, PASS
 from ..engine.hand_state import HandState

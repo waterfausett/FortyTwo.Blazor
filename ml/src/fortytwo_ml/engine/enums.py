@@ -1,4 +1,4 @@
-"""Suit and Bid, with the same int values as cloudflare/packages/rules/src/{suit,bid}.ts."""
+"""Suit and Bid, with the same int values as packages/rules/src/{suit,bid}.ts."""
 from enum import IntEnum
 
 

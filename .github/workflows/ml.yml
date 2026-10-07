@@ -5,9 +5,9 @@ name: ML
 on:
   push:
     branches: [master]
-    paths: ['ml/**', 'cloudflare/packages/rules/**', '.github/workflows/ml.yml']
+    paths: ['ml/**', 'packages/rules/**', '.github/workflows/ml.yml']
   pull_request:
-    paths: ['ml/**', 'cloudflare/packages/rules/**', '.github/workflows/ml.yml']
+    paths: ['ml/**', 'packages/rules/**', '.github/workflows/ml.yml']
   workflow_dispatch:
 
 concurrency:
@@ -23,9 +23,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: cloudflare/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
-        working-directory: cloudflare
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked
         working-directory: ml
@@ -33,7 +32,6 @@ jobs:
         working-directory: ml
       - name: Generate fresh traces from the current TS rules
         run: npm run dump-traces -w @fortytwo/rules -- --count 2000 --seed ${{ github.run_id }} --out "$RUNNER_TEMP/fresh-traces.jsonl.gz"
-        working-directory: cloudflare
       - name: Parity against fresh traces
         run: uv run pytest tests/test_parity.py -q
         working-directory: ml

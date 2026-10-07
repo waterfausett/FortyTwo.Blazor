@@ -152,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
     x = sub.add_parser("export", help="Stage 4: write the bot's networks for the Worker (bot.bin + bot.json)")
     x.add_argument("--play", required=True, help="play checkpoint, e.g. runs/stage1-c/ckpt-latest.pt")
     x.add_argument("--bidnet", required=True, help="bidnet.pt from train-bids")
-    x.add_argument("--out", required=True, type=Path, help="e.g. ../cloudflare/apps/web/public/models")
+    x.add_argument("--out", required=True, type=Path, help="e.g. ../apps/web/public/models")
     x.add_argument("--name", default="bot")
 
     f = sub.add_parser("export-fixtures", help="Stage 4: golden fixtures for the TS bot's parity tests")
