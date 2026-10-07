@@ -1,7 +1,7 @@
 name: Mobile
 
 # Tests and typechecks the mobile app on every pull request and push that can affect it. Builds
-# ship through EAS (.eas/workflows), not here.
+# happen on EAS, not here: a mobile release starts one (release-please.yml).
 #
 # Which changes count as affecting it is defined in .github/path-filters.yml.
 on:

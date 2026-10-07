@@ -952,14 +952,12 @@
   box-shadow:
     0 0 0 0.4em var(--brass),
     0.4em 0.7em 1.2em rgba(0, 0, 0, 0.45);
-  border: none;
 }
 
 .hand .domino.playable {
   box-shadow:
     0 0 0 0.3em var(--brass),
     0.4em 0.7em 1.2em rgba(0, 0, 0, 0.45);
-  border: none;
 }
 
 .hand .domino.unplayable {
@@ -970,6 +968,12 @@
   box-shadow:
     0 0 0 0.4em var(--danger),
     0.4em 0.7em 1.2em rgba(0, 0, 0, 0.45);
+}
+
+/* The highlight ring replaces the tile's edge (domino.css's .domino::before). */
+.hand .domino.clickable:hover::before,
+.hand .domino.playable::before,
+.hand .domino.preselected::before {
   border: none;
 }
 
