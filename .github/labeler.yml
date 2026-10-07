@@ -1,0 +1,75 @@
+# Path-based PR labels, applied by .github/workflows/labeler.yml
+# Format: actions/labeler v5 — https://github.com/actions/labeler
+# Labels stack: a PR touching cloudflare/packages/rules/test/ gets both `packages` and `tests`.
+
+claude:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.claude/**'
+          - '**/CLAUDE.md'
+          - '**/AGENTS.md'
+
+github:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+
+worker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'cloudflare/apps/worker/**'
+
+web:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'cloudflare/apps/web/**'
+
+mobile:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'cloudflare/apps/mobile/**'
+
+packages:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'cloudflare/packages/**'
+          - 'cloudflare/package.json'
+          - 'cloudflare/package-lock.json'
+
+ml:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'ml/**'
+
+blazor:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'FortyTwo/**'
+          - 'FortyTwo.Entity/**'
+          - 'FortyTwo.Tests/**'
+          - 'FortyTwo.Shared.Tests/**'
+          - 'FortyTwo.sln'
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '**/README.md'
+
+docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/Dockerfile'
+          - '**/Dockerfile.*'
+          - '**/.dockerignore'
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/test/**'
+          - '**/tests/**'
+          - '**/__tests__/**'
+          - '**/*.test.ts'
+          - '**/*.test.tsx'
+          - 'FortyTwo.Tests/**'
+          - 'FortyTwo.Shared.Tests/**'
