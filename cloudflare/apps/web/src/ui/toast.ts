@@ -49,13 +49,19 @@ export function toastError(error: unknown): void {
 }
 
 // A heads-up rather than an error - e.g. the next hand being dealt while you looked away. Turn
-// notifications (#2) can build on this.
-export function toastInfo(title: string, text?: string, position: SweetAlertPosition = 'bottom-end'): void {
+// notifications (#2) can build on this. `timer` (ms) overrides the usual 3 seconds.
+export function toastInfo(
+  title: string,
+  text?: string,
+  position: SweetAlertPosition = 'bottom-end',
+  timer?: number
+): void {
   void Toast.fire({
     icon: 'info',
     title,
     text,
     position,
+    ...(timer !== undefined && { timer }),
     customClass: { popup: 'hall-toast hall-toast--info' },
   });
 }

@@ -345,7 +345,7 @@ export function Match(): JSX.Element {
     const openerName = opener && opener !== myPlayerId ? nameText(names.nameFor(opener)) : null;
     // Before names load there's no one to credit; the title alone says the hand is out.
     const who = opener === myPlayerId ? 'You bid first' : openerName ? `${openerName} bids first` : undefined;
-    toastInfo(`${dealtGame.name} dealt`, who, 'center');
+    toastInfo(`${dealtGame.name} dealt`, who, 'center', 1800);
   }, [dealtGame, myPlayerId, names]);
 
   if (!matchId) {

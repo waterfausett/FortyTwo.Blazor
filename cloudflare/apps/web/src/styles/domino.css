@@ -20,13 +20,24 @@
     -webkit-border-radius: .8em;
     -moz-border-radius: .8em;
     border-radius: .8em;
-    border-top: solid 1px var(--domino-border-color);
-    border-left: solid 1px var(--domino-border-color);
     -moz-box-shadow: .3em .3em 0em .12em var(--domino-border-color);
     -webkit-box-shadow: .3em .3em 0em .12em var(--domino-border-color);
     box-shadow: .3em .3em 0em .12em var(--domino-border-color);
     z-index: 400;
 }
+
+    /* The tile's top/left edge, drawn over the face rather than as a border: a border would move
+       the box the pips are positioned in 1px right and down, off centre - noticeably so on small
+       tiles like the trick piles'. The pip positions below are symmetric about each half's centre. */
+    .domino::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-top: solid 1px var(--domino-border-color);
+        border-left: solid 1px var(--domino-border-color);
+        border-radius: inherit;
+        pointer-events: none;
+    }
 
     .domino.horizontal {
         margin: -2.4em 3.6em;
@@ -65,7 +76,7 @@
             width: 5.5em;
             height: .2em;
             position: absolute;
-            top: 5.7em;
+            top: 5.9em;
             left: .25em;
             background-color: var(--domino-border-color);
         }
@@ -76,42 +87,42 @@
         }
 
         .domino .TL456 {
-            top: 0.8em;
+            top: 0.9em;
             left: 0.9em;
         }
 
         .domino .TL23456 {
-            top: 4.0em;
+            top: 3.9em;
             left: 0.9em;
         }
 
         .domino .TC135 {
             top: 2.4em;
-            left: 2.45em;
+            left: 2.4em;
         }
 
         .domino .TR6 {
             top: 2.4em;
-            left: 4.0em;
+            left: 3.9em;
         }
 
         .domino .TR456 {
-            top: 4.0em;
-            left: 4.0em;
+            top: 3.9em;
+            left: 3.9em;
         }
 
         .domino .TR23456 {
-            top: 0.8em;
-            left: 4.0em;
+            top: 0.9em;
+            left: 3.9em;
         }
 
         .domino .BL6 {
-            top: 8.3em;
+            top: 8.4em;
             left: 0.9em;
         }
 
         .domino .BL456 {
-            top: 6.7em;
+            top: 6.9em;
             left: 0.9em;
         }
 
@@ -121,23 +132,23 @@
         }
 
         .domino .BC135 {
-            top: 8.3em;
-            left: 2.45em;
+            top: 8.4em;
+            left: 2.4em;
         }
 
         .domino .BR6 {
-            top: 8.3em;
-            left: 4.0em;
+            top: 8.4em;
+            left: 3.9em;
         }
 
         .domino .BR456 {
             top: 9.9em;
-            left: 4.0em;
+            left: 3.9em;
         }
 
         .domino .BR23456 {
-            top: 6.7em;
-            left: 4.0em;
+            top: 6.9em;
+            left: 3.9em;
         }
 
     .sortable-chosen .domino,
@@ -145,12 +156,16 @@
         -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
         -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
         box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
-        border: none;
     }
 
     .domino.preselected {
         -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
         -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
         box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
+    }
+
+    .sortable-chosen .domino::before,
+    .domino.clickable:hover::before,
+    .domino.preselected::before {
         border: none;
     }
