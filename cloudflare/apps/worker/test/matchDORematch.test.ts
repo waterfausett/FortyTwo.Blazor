@@ -2,10 +2,13 @@
 // that completes them creates the rematch's own DO before the old match records its id.
 import { describe, it, expect, vi } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
-import { Positions, Teams, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
+import { shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import type { MatchDO } from '../src/matchDO';
 import { failingDb } from './failingDb';
+import { finishedMatch } from './finishedMatch';
+import { fetchMock } from './fetchMock';
+import { saveToken } from '../src/push/tokens';
 
 const testEnv = env as unknown as Env;
 
@@ -17,40 +20,6 @@ function stubFor(name: string) {
 function valueOf<T>(result: { ok: true; value: T } | { ok: false }): T {
   if (!result.ok) throw new Error(`expected an ok result, got ${JSON.stringify(result)}`);
   return result.value;
-}
-
-// A match that just ended (TeamA reached 7), written straight into the DO's storage - playing a
-// whole match through the RPCs would bury what these tests are about.
-function finishedMatch(
-  id: string,
-  playerIds = ['p1', 'p2', 'p3', 'p4'],
-  winningTeam: Teams | null = Teams.TeamA
-): MatchState {
-  return {
-    id,
-    createdOn: '2026-01-01T00:00:00.000Z',
-    updatedOn: '2026-01-01T00:00:00.000Z',
-    winningTeam,
-    games: {},
-    players: playerIds.map((playerId, position) => ({ playerId, position: position as Positions, ready: false })),
-    currentGame: {
-      id: 'g9',
-      name: 'Game 9',
-      firstActionBy: playerIds[0],
-      bid: null,
-      biddingPlayerId: null,
-      trump: null,
-      currentPlayerId: playerIds[0],
-      hands: playerIds.map((playerId, position) => ({
-        playerId,
-        team: position % 2 === 0 ? Teams.TeamA : Teams.TeamB,
-        dominoes: [],
-        bid: null,
-      })),
-      currentTrick: { playerId: null, team: null, suit: null, dominoes: [null, null, null, null] },
-      tricks: [],
-    },
-  };
 }
 
 async function seed(name: string, match: MatchState) {
@@ -91,6 +60,45 @@ describe('MatchDO rematch', () => {
       ['p4', 3],
     ]);
     expect(created.currentGame.hands.every((h) => h.dominoes.length === 7)).toBe(true);
+  });
+
+  // Nobody hears that a rematch is dealt: anyone on the finished match's screen - the one whose vote
+  // completes the agreement, at least - is taken to it, and everyone else hears when it's their
+  // turn. So only its first bidder (the seat after the last match's opener, p1) is pushed, and not
+  // even them when it's their vote that starts it.
+  it('pushes only the first bidder, unless their vote started it', async () => {
+    const players = ['push-p1', 'push-p2', 'push-p3', 'push-p4'];
+    for (const id of players) await saveToken(testEnv.DB, id, `ExponentPushToken[${id}]`, 'android');
+    const sent: { to: string; title: string; data: { url: string } }[] = [];
+    fetchMock.activate();
+    fetchMock.disableNetConnect();
+    fetchMock
+      .get('https://exp.host')
+      .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
+      .reply((opts) => {
+        const messages = JSON.parse(String(opts.body)) as typeof sent;
+        sent.push(...messages);
+        return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
+      })
+      .persist();
+    const rematchOnLastVoteBy = async (name: string, lastVoter: string) => {
+      const stub = await seed(name, finishedMatch(name, players));
+      for (const id of players.filter((p) => p !== lastVoter)) await stub.rematch(id);
+      return valueOf(await stub.rematch(lastVoter)).rematchId!;
+    };
+
+    // The first bidder starts this one, so it pushes nothing; had it, that push would be sent
+    // before the next rematch's, and show up below.
+    await rematchOnLastVoteBy('rematch-push-bidder', 'push-p2');
+    const pushed = await rematchOnLastVoteBy('rematch-push-other', 'push-p4');
+
+    // Polls rather than resolving a promise from the reply, which runs inside the Durable Object.
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent).toEqual([
+      expect.objectContaining({ to: 'ExponentPushToken[push-p2]', title: 'Your bid', data: { url: `/match/${pushed}` } }),
+    ]);
+    // D1 isn't reset between tests.
+    await testEnv.DB.prepare('DELETE FROM push_tokens').run();
   });
 
   it('counts bots as agreeing, so one human can start it alone', async () => {

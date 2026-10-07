@@ -6,6 +6,7 @@ import { Teams, createDomino, type Domino } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import { saveToken } from '../src/push/tokens';
 import type { MatchDO } from '../src/matchDO';
+import { finishedMatch } from './finishedMatch';
 
 const testEnv = env as unknown as Env;
 
@@ -312,5 +313,50 @@ describe('MatchDO push notifications', () => {
     expect(sentTo).toEqual(['ExponentPushToken[p1]', 'ExponentPushToken[p3]', 'ExponentPushToken[p4]']);
 
     ws?.close();
+  });
+
+  // A rematch's first bidder (the seat after the last match's opener) is told to bid - unless
+  // they have the finished match open, which takes them to the rematch. Their socket is on the
+  // finished match, not the rematch, so the finished match names them on the way.
+  it("doesn't push a rematch's first bidder who has the finished match open", async () => {
+    const players = ['rm-p1', 'rm-p2', 'rm-p3', 'rm-p4'];
+    for (const id of players) await saveToken(testEnv.DB, id, `ExponentPushToken[${id}]`, 'android');
+    const sent: { to: string; data: { url: string } }[] = [];
+    fetchMock
+      .get('https://exp.host')
+      .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
+      .reply((opts) => {
+        const messages = JSON.parse(String(opts.body)) as typeof sent;
+        sent.push(...messages);
+        return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
+      })
+      .persist();
+    // Every vote but rm-p4's, then rm-p4's, which creates the rematch.
+    const rematchOf = async (name: string, beforeLastVote: (stub: ReturnType<typeof stubFor>) => Promise<void>) => {
+      const stub = stubFor(name);
+      await runInDurableObject(stub, (_instance, state) => state.storage.put('match', finishedMatch(name, players)));
+      for (const id of players.slice(0, 3)) await stub.rematch(id);
+      await beforeLastVote(stub);
+      const result = await stub.rematch('rm-p4');
+      if (!result.ok) throw new Error(JSON.stringify(result));
+      return result.value.rematchId!;
+    };
+
+    let ws: WebSocket | undefined;
+    await rematchOf('rematch-watched', async (stub) => {
+      ({ ws } = await openSocket(stub, `/ws?token=${await signToken({ sub: 'rm-p2' })}`));
+    });
+    ws?.close();
+    // The same with nobody watching pushes rm-p2. Were the first one pushed too, it would be sent
+    // before this one, and show up below.
+    const unwatched = await rematchOf('rematch-unwatched', async () => {});
+
+    // Polls rather than resolving a promise from the reply, which runs inside the Durable Object.
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent).toEqual([
+      expect.objectContaining({ to: 'ExponentPushToken[rm-p2]', data: { url: `/match/${unwatched}` } }),
+    ]);
+    // D1 isn't reset between tests.
+    await testEnv.DB.prepare('DELETE FROM push_tokens').run();
   });
 });

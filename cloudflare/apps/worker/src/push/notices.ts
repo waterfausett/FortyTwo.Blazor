@@ -5,7 +5,9 @@
 // At most one notice per player for a change, the most pressing:
 //   - it's their turn: to bid, to name trump, or to play;
 //   - the hand they're in has been decided: ready up for the next one, or the match is over;
-//   - the game has started: the last seat was taken and the first hand dealt, or a rematch dealt.
+//   - the game has started: the last seat was taken and the first hand dealt. Not for a rematch:
+//     anyone with the finished match open is taken to it, and everyone else hears when it's their
+//     turn, which comes round to every player in the first round of bidding.
 // Bots never get one. A poke (poke.ts) is the one notice not worked out here: a player sends it.
 import { gameWinningTeam, handSize, isBot, type Game, type MatchState } from '@fortytwo/rules';
 
@@ -46,11 +48,10 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
   const justDealt = dealt && (previous === null || !isDealt(previous));
   const sameGame = previous?.currentGame.id === game.id;
 
-  // The game has started: the table just filled and the first hand was dealt, or this is a
-  // rematch, which arrives already dealt.
-  if (justDealt) {
-    const body = previous === null ? 'The rematch is dealt.' : 'All four seats are taken and the first hand is dealt.';
-    for (const id of humans) add(id, 'started', 'Game on', body);
+  // The game has started: the table just filled and the first hand was dealt. A rematch, which
+  // arrives already dealt (no previous), says nothing of it.
+  if (justDealt && previous !== null) {
+    for (const id of humans) add(id, 'started', 'Game on', 'All four seats are taken and the first hand is dealt.');
   }
 
   // The hand was just decided.

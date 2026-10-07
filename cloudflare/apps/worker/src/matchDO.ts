@@ -97,7 +97,15 @@ export class MatchDO extends DurableObject<Env> {
   // The other way a match comes into being: the finished match's DO (`rematch` below) calls this
   // on the rematch's DO. Returns an existing match untouched, so a retried call can't redeal it.
   // No route touches this match on its way in, so the lobby index is synced here, as alarm() does.
-  async createRematch(matchId: string, previous: MatchState, dealOrder: Domino[]): Promise<MatchState> {
+  // `onTheWay` are the players on the finished match's screen - the one whose vote completed the
+  // agreement, and anyone else with it open - which takes them straight here. No socket of theirs
+  // is open on this match yet, so they're named to count as watching it, and aren't pushed.
+  async createRematch(
+    matchId: string,
+    previous: MatchState,
+    dealOrder: Domino[],
+    onTheWay: string[] = []
+  ): Promise<MatchState> {
     const stored = await this.load();
     if (stored !== null) {
       // A retry: the first attempt may have failed before its bots were scheduled or its lobby
@@ -109,7 +117,7 @@ export class MatchDO extends DurableObject<Env> {
 
     const match = createRematch(matchId, previous, dealOrder);
     await this.save(match);
-    this.publish(null, match);
+    this.publish(null, match, onTheWay);
     await this.scheduleBotsIfNeeded(match);
     await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, match));
     return match;
@@ -217,7 +225,8 @@ export class MatchDO extends DurableObject<Env> {
       }
 
       const rematchDO = this.env.MATCH_DO.get(this.env.MATCH_DO.idFromName(rematchId));
-      await rematchDO.createRematch(rematchId, next, shuffledDominoOrder());
+      const onTheWay = [...new Set([playerId, ...this.watchingPlayers()])];
+      await rematchDO.createRematch(rematchId, next, shuffledDominoOrder(), onTheWay);
       return { ...next, rematchId };
     });
   }
@@ -389,10 +398,12 @@ export class MatchDO extends DurableObject<Env> {
 
   // Tells everyone about a change: each open socket gets the new match, and players who don't
   // have the match open get a push notification for anything they need to know (push/notices.ts)
-  // - sent after the response, so a play never waits on the push service.
-  private publish(previous: MatchState | null, next: MatchState): void {
+  // - sent after the response, so a play never waits on the push service. `onTheWay` are players
+  // counted as watching though no socket of theirs is open yet.
+  private publish(previous: MatchState | null, next: MatchState, onTheWay: string[] = []): void {
     this.broadcast(next);
     const watching = this.watchingPlayers();
+    for (const id of onTheWay) watching.add(id);
     const notices = pushNotices(previous, next).filter((n) => !watching.has(n.playerId));
     if (notices.length > 0) this.ctx.waitUntil(sendNotices(this.env, notices));
   }
