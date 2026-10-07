@@ -66,13 +66,15 @@ async function api(path: string, token: string, init: RequestInit = {}): Promise
   });
 }
 
-// Wipes both lobby-index tables before each test, mirroring lobby.test.ts - D1's local storage
-// persists across tests within a single vitest-plugin run. (Each test creates its own
-// match with a fresh crypto.randomUUID() id, so DO storage itself never needs resetting.)
+// Wipes the lobby-index tables and stored player names before each test, mirroring
+// lobby.test.ts - D1's local storage persists across tests within a single vitest-plugin run.
+// (Each test creates its own match with a fresh crypto.randomUUID() id, so DO storage itself
+// never needs resetting.)
 beforeEach(async () => {
   await testEnv.DB.batch([
     testEnv.DB.prepare('DELETE FROM match_players'),
     testEnv.DB.prepare('DELETE FROM matches'),
+    testEnv.DB.prepare('DELETE FROM users'),
   ]);
 });
 
