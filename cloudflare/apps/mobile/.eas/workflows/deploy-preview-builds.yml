@@ -1,5 +1,11 @@
 name: Create Preview Builds
 
+# Runs on a mobile release: merging the mobile release PR tags the commit mobile-vX.Y.Z
+# (.github/workflows/release-please.yml). Can also be run by hand with `eas workflow:run`.
+on:
+  push:
+    tags: ['mobile-v*']
+
 jobs:
   build_android:
     type: build

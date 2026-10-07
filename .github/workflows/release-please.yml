@@ -3,7 +3,8 @@ name: Release Please
 # Keeps a release PR open for each of the worker (Worker + web app) and the mobile app, built from
 # the Conventional Commit subjects merged to master since its last release. Merging a release PR
 # tags that commit (worker-v1.2.0, mobile-v1.0.2), publishes the GitHub Release, and ships it:
-# the worker deploys, and the mobile app gets an EAS preview build.
+# the worker deploys from here, and the mobile tag starts an EAS preview build
+# (cloudflare/apps/mobile/.eas/workflows/deploy-preview-builds.yml).
 #
 # What belongs to which release is set in release-please-config.json.
 on:
@@ -20,12 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       worker: ${{ steps.release.outputs['cloudflare--release_created'] }}
-      mobile: ${{ steps.release.outputs['cloudflare/apps/mobile--release_created'] }}
     steps:
       # Uses the default GITHUB_TOKEN, so the release PRs it opens don't start the CI workflows,
       # and their required checks never report: merge them with the admin bypass. The tags and
-      # releases it creates don't start other workflows either, which is why shipping happens in
-      # this workflow rather than on a `release` or tag event.
+      # releases it creates don't start other GitHub workflows either, which is why the deploy
+      # happens in this workflow rather than on a `release` or tag event. EAS still sees the tags.
       - uses: googleapis/release-please-action@v4
         id: release
         with:
@@ -37,30 +37,3 @@ jobs:
     if: needs.release-please.outputs.worker == 'true'
     uses: ./.github/workflows/deploy-worker.yml
     secrets: inherit
-
-  # The app isn't in the stores yet, so a mobile release is an Android preview build (an APK
-  # installable from a link). EAS raises the build number itself (eas.json).
-  build-mobile:
-    needs: release-please
-    if: needs.release-please.outputs.mobile == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: cloudflare
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-    steps:
-      - if: env.EXPO_TOKEN == ''
-        run: |
-          echo "::error::Add an EXPO_TOKEN secret (an expo.dev access token) to build the release."
-          exit 1
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: cloudflare/package-lock.json
-      - run: npm ci
-      # Starts the build on EAS and returns; it finishes on expo.dev, which has the install link.
-      - run: npx eas-cli@latest build --profile preview --platform android --non-interactive --no-wait
-        working-directory: cloudflare/apps/mobile

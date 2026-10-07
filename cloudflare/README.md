@@ -357,13 +357,13 @@ release it goes in, and a commit that changes both goes in both. Changes to the 
 only go in the worker release, though the mobile app builds with them too.
 
 Merging a release PR tags the commit, publishes the GitHub Release with the changelog, and then,
-in `.github/workflows/release-please.yml`:
+for each release:
 
 - **worker:** runs the deploy above.
-- **mobile:** raises `version` in `app.json` (in the release PR) and starts
-  `eas build --profile preview --platform android`. The build finishes on expo.dev, which has the
-  install link. It needs an `EXPO_TOKEN` secret in GitHub: an access token from expo.dev, under
-  Account settings, Access tokens.
+- **mobile:** nothing; the release PR already raised `version` in `app.json`. The
+  `mobile-vX.Y.Z` tag starts the EAS workflow `apps/mobile/.eas/workflows/deploy-preview-builds.yml`
+  through Expo's GitHub app, which builds the tagged commit. The build is on expo.dev, which has the
+  install link.
 
 Release Please uses the default `GITHUB_TOKEN`, so CI doesn't run on its release PRs and their
 required checks never report. Merge them with the admin bypass; the commits in them already passed
