@@ -157,13 +157,13 @@ worker count. A 1,000-deal run with a `sim` side now takes about an hour.
 
 ## Stage 4: shipping the bot
 
-The Worker's bots run the play network and BidNet in TypeScript (`cloudflare/packages/bot`).
+The Worker's bots run the play network and BidNet in TypeScript (`packages/bot`).
 `ml export` writes the pair it ships, and `ml export-fixtures` writes the golden data that keeps
 the TS port in step with Python.
 
 ```sh
-uv run ml export --play runs/stage1-c/ckpt-latest.pt --bidnet runs/bidnet-2/bidnet.pt --out ../cloudflare/apps/web/public/models
-uv run ml export-fixtures --out ../cloudflare/packages/bot/test/fixtures
+uv run ml export --play runs/stage1-c/ckpt-latest.pt --bidnet runs/bidnet-2/bidnet.pt --out ../apps/web/public/models
+uv run ml export-fixtures --out ../packages/bot/test/fixtures
 ```
 
 `export` writes `bot.bin` (every tensor as little-endian float32) and `bot.json` (shapes, offsets,
@@ -179,9 +179,9 @@ After a retrain, or after changing the encoders or the bidding rules:
 1. Retrain (`ml train`, then `ml gen-bids` and `ml train-bids` against the new play checkpoint).
 2. Re-export with `ml export`. If the encoders changed, the manifest's `playInputDim` (from
    `features.py`) or `bidInputLayout` (`bidding/model.py`) changes too, and the Worker refuses the
-   model until the TS encoders and `cloudflare/packages/bot/src/weights.ts` are ported to match.
+   model until the TS encoders and `packages/bot/src/weights.ts` are ported to match.
 3. If any code the bot runs changed, regenerate the fixtures with `ml export-fixtures`. Then run
-   `npm test -w @fortytwo/bot` in `cloudflare/`, and `npm run bench -w @fortytwo/bot` to check
+   `npm test -w @fortytwo/bot` from the repo root, and `npm run bench -w @fortytwo/bot` to check
    the decision times still fit the Workers Free plan.
 4. Commit `bot.json`, `bot.bin` and the fixtures. `bot.bin` goes in through Git LFS
    (`.gitattributes` tracks it), so `git lfs install` once first. The bot package's
@@ -191,7 +191,7 @@ After a retrain, or after changing the encoders or the bidding rules:
 
 | Path | What it is |
 | --- | --- |
-| `src/fortytwo_ml/engine` | The rules for one hand, ported from `cloudflare/packages/rules`, plus the match loop. |
+| `src/fortytwo_ml/engine` | The rules for one hand, ported from `packages/rules`, plus the match loop. |
 | `src/fortytwo_ml/agents` | The agent protocol, the Worker's dumb bot, a heuristic bot, and the model agent. |
 | `src/fortytwo_ml/contracts.py` | Where self-play training hands get their contract. |
 | `src/fortytwo_ml/features.py` | What the model sees. |
@@ -207,8 +207,8 @@ recorded from the TS engine and checks the seat to act, the legal actions, and t
 step. After changing the TS rules, port the change and regenerate the fixture:
 
 ```sh
-cd cloudflare
-npm run dump-traces -w @fortytwo/rules -- --count 5000 --seed 42 --out ../../../ml/tests/fixtures/ts-traces.jsonl.gz
+cd ..
+npm run dump-traces -w @fortytwo/rules -- --count 5000 --seed 42 --out ../../ml/tests/fixtures/ts-traces.jsonl.gz
 ```
 
 CI also generates a fresh batch of traces from the current TS engine on every run, so an unported
