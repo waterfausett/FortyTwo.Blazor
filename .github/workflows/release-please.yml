@@ -1,0 +1,39 @@
+name: Release Please
+
+# Keeps a release PR open for each of the worker (Worker + web app) and the mobile app, built from
+# the Conventional Commit subjects merged to master since its last release. Merging a release PR
+# tags that commit (worker-v1.2.0, mobile-v0.2.0), publishes the GitHub Release, and ships it:
+# the worker deploys from here, and the mobile tag starts an EAS preview build
+# (cloudflare/apps/mobile/.eas/workflows/deploy-preview-builds.yml).
+#
+# What belongs to which release is set in release-please-config.json.
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release PRs / GitHub Releases
+    runs-on: ubuntu-latest
+    outputs:
+      worker: ${{ steps.release.outputs['cloudflare--release_created'] }}
+    steps:
+      # Uses the default GITHUB_TOKEN, so the release PRs it opens don't start the CI workflows,
+      # and their required checks never report: merge them with the admin bypass. The tags and
+      # releases it creates don't start other GitHub workflows either, which is why the deploy
+      # happens in this workflow rather than on a `release` or tag event. EAS still sees the tags.
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  deploy-worker:
+    needs: release-please
+    if: needs.release-please.outputs.worker == 'true'
+    uses: ./.github/workflows/deploy-worker.yml
+    secrets: inherit
