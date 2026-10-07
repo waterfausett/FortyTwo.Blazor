@@ -282,9 +282,16 @@
 }
 
 .trick-history .domino {
-  /* Half the edge: see domino.css. */
-  --face-shift: 0.125em;
-  box-shadow: 0.25em 0.25em 0 0 var(--bone-edge);
+  /* At this size the edge is a single pixel, so it's drawn the same way all round, inside the
+     tile, rather than as domino.css's shadow on the right and bottom. An edge drawn two ways is
+     rounded to the screen's pixels two ways, which left the face a pixel off the tile's middle at
+     some display scales - and the pips, centred on the tile, a pixel off the face's. */
+  --face-shift: 0em;
+  box-shadow: none;
+}
+
+.trick-history .domino::before {
+  border: solid 1px var(--bone-edge);
 }
 
 /* Grows in from smaller, never larger: the pile scrolls on overflow, so a row that briefly
@@ -592,9 +599,10 @@
 }
 
 .trick-slot .domino {
-  /* Centred on the face, not the whole tile: at this size the thick edge and the drop shadow read
-     as the tile's side, so measured against them the pips looked pushed right. */
-  --face-shift: 0em;
+  /* Centred on the face, not the whole tile: here the thick edge and the drop shadow read as the
+     tile's side, so measured against them the pips looked pushed right. The face starts after
+     domino.css's 1px left edge, so its middle is half of that right of the tile's. */
+  --face-shift: 0.5px;
   box-shadow:
     0.3em 0.3em 0 0.05em var(--bone-edge),
     0.5em 0.8em 1.4em rgba(0, 0, 0, 0.4);
