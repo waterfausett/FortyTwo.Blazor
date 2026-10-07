@@ -12,6 +12,7 @@
     "cloudflare/apps/mobile": {
       "component": "mobile",
       "package-name": "mobile",
+      "bump-minor-pre-major": true,
       "extra-files": [
         {
           "type": "json",

@@ -229,7 +229,7 @@ installs from that source the first time.
 - App versions: `version` in `app.json` is the version people see. The build number (Android's
   `versionCode`, iOS's `buildNumber`) is kept by EAS (`appVersionSource: remote`), and
   preview and production builds raise it by one each time, so each build installs as an update.
-  Raise `version` when releasing changes people should be able to tell apart.
+  `version` is raised by the mobile release (see [Releases](#releases)), not by hand.
 - EAS uploads the whole git repository, and installs the npm workspace from `cloudflare/`.
   Uncommitted changes are included; gitignored files aren't.
 - EAS picks its build image from the Expo SDK version. SDK 57's image has Node 22 and npm 10,
@@ -340,7 +340,7 @@ two releases, and merging one ships it:
 | Release | Covers | Tag | Ships as |
 | --- | --- | --- | --- |
 | `worker` | Everything in `cloudflare/` except `apps/mobile`: the Worker, the web app and the shared packages | `worker-v1.2.0` | A deploy of the Worker |
-| `mobile` | `apps/mobile` | `mobile-v1.0.2` | An Android preview build on EAS (the app isn't in the stores yet) |
+| `mobile` | `apps/mobile` | `mobile-v0.2.0` | An Android preview build on EAS (the app isn't in the stores yet) |
 
 The release PRs are built from commit subjects, which are PR titles, since PRs are squash-merged.
 A title has to be a [Conventional Commit](https://www.conventionalcommits.org/), which a check on
@@ -364,6 +364,11 @@ for each release:
   `mobile-vX.Y.Z` tag starts the EAS workflow `apps/mobile/.eas/workflows/deploy-preview-builds.yml`
   through Expo's GitHub app, which builds the tagged commit. The build is on expo.dev, which has the
   install link.
+
+The mobile app stays on 0.x while it's in preview: a breaking change (`feat!:`) raises the minor
+version, not the major. For the store launch, set `"release-as": "1.0.0"` on the mobile package in
+`release-please-config.json` for that one release, then remove it. Android installs an update by
+the build number alone, so `version` can start at 0.x even after the 1.0.x preview builds.
 
 Release Please uses the default `GITHUB_TOKEN`, so CI doesn't run on its release PRs and their
 required checks never report. Merge them with the admin bypass; the commits in them already passed

@@ -2,7 +2,7 @@ name: Release Please
 
 # Keeps a release PR open for each of the worker (Worker + web app) and the mobile app, built from
 # the Conventional Commit subjects merged to master since its last release. Merging a release PR
-# tags that commit (worker-v1.2.0, mobile-v1.0.2), publishes the GitHub Release, and ships it:
+# tags that commit (worker-v1.2.0, mobile-v0.2.0), publishes the GitHub Release, and ships it:
 # the worker deploys from here, and the mobile tag starts an EAS preview build
 # (cloudflare/apps/mobile/.eas/workflows/deploy-preview-builds.yml).
 #
