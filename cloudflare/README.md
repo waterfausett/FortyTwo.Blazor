@@ -309,8 +309,10 @@ copy the device's token from the `push_tokens` table and send a test from
 ## Deploying
 
 The Worker serves the web app's build as static assets, so the whole game is one `wrangler deploy`
-on one origin. `.github/workflows/cloudflare.yml` tests every pull request, and on a push to
-`master` (or a manual run) builds the web app, applies new D1 migrations and deploys.
+on one origin. `.github/workflows/worker.yml` tests every pull request and push to `master`, but
+merging doesn't deploy: a worker release does (see [Releases](#releases)). The deploy, in
+`.github/workflows/deploy-worker.yml`, builds the web app, applies new D1 migrations and runs
+`wrangler deploy`. To deploy without a release, run Deploy Worker from the Actions tab.
 
 One-time setup:
 
@@ -329,3 +331,43 @@ To deploy by hand instead, `cd apps/worker && npm run deploy` builds the web app
 build also loads `apps/web/.env.local`, so override its localhost origins in
 `apps/web/.env.production.local` with empty values (`VITE_API_ORIGIN=` and `VITE_WS_ORIGIN=`), and
 put the Auth0 settings there if they differ from dev.
+
+## Releases
+
+[Release Please](https://github.com/googleapis/release-please) keeps a release PR open for each of
+two releases, and merging one ships it:
+
+| Release | Covers | Tag | Ships as |
+| --- | --- | --- | --- |
+| `worker` | Everything in `cloudflare/` except `apps/mobile`: the Worker, the web app and the shared packages | `worker-v1.2.0` | A deploy of the Worker |
+| `mobile` | `apps/mobile` | `mobile-v1.0.2` | An Android preview build on EAS (the app isn't in the stores yet) |
+
+The release PRs are built from commit subjects, which are PR titles, since PRs are squash-merged.
+A title has to be a [Conventional Commit](https://www.conventionalcommits.org/), which a check on
+each PR enforces:
+
+- `feat(mobile): ...` is a new feature: it raises the minor version and goes in the changelog.
+- `fix(worker): ...` is a fix: it raises the patch version and goes in the changelog.
+- `feat!: ...`, or a `BREAKING CHANGE:` footer, raises the major version.
+- `chore`, `ci`, `docs`, `refactor`, `test` and the like don't count toward a release.
+
+The scope is optional, and one of the PR label areas (`worker`, `web`, `mobile`, `eas`,
+`packages`, `ml`, ...). It only labels the changelog entry: the files a commit changes decide which
+release it goes in, and a commit that changes both goes in both. Changes to the shared packages
+only go in the worker release, though the mobile app builds with them too.
+
+Merging a release PR tags the commit, publishes the GitHub Release with the changelog, and then,
+in `.github/workflows/release-please.yml`:
+
+- **worker:** runs the deploy above.
+- **mobile:** raises `version` in `app.json` (in the release PR) and starts
+  `eas build --profile preview --platform android`. The build finishes on expo.dev, which has the
+  install link. It needs an `EXPO_TOKEN` secret in GitHub: an access token from expo.dev, under
+  Account settings, Access tokens.
+
+Release Please uses the default `GITHUB_TOKEN`, so CI doesn't run on its release PRs and their
+required checks never report. Merge them with the admin bypass; the commits in them already passed
+CI on their own PRs.
+
+Each release's changelog is in `CHANGELOG.md` next to its `version.txt`: `cloudflare/` for the
+worker, `apps/mobile/` for the app.
