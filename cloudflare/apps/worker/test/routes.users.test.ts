@@ -1,6 +1,6 @@
 // The /api/users routes through the real Worker (Auth0 mocked via fetchMock), plus unit tests for
 // toUserResponse's two fallback chains (picture and displayName) and toPublicUser's trimmed shape.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env, SELF } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
@@ -116,6 +116,11 @@ describe('user routes', () => {
   });
 
   describe('POST /api/users/search', () => {
+    // D1 lasts the whole file, so forget the players earlier tests stored.
+    beforeEach(async () => {
+      await env.DB.exec('DELETE FROM users');
+    });
+
     it("returns only other players' public fields", async () => {
       mockUserSearch([
         {
