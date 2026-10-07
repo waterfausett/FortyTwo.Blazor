@@ -269,6 +269,13 @@ describe('Match', () => {
       await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
     });
 
+    it('offers an invite while seats are open', async () => {
+      useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
+      renderMatch();
+
+      expect(await screen.findByRole('button', { name: /invite friends/i })).toBeTruthy();
+    });
+
     describe('leaving', () => {
       let confirmSpy: MockInstance<typeof window.confirm>;
       beforeEach(() => {

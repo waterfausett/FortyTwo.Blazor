@@ -75,6 +75,7 @@ import {
 } from '@fortytwo/client';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
+import { shareInvite } from '../match/invite';
 import { usePoke } from '../match/usePoke';
 import { usePlayerNames } from '../match/usePlayerNames';
 import '../styles/match.css';
@@ -647,6 +648,11 @@ export function Match(): JSX.Element {
                 {!isTableReady ? (
                   <div className="table-waiting">
                     <p>{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
+                    {emptySeats.length > 0 && (
+                      <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => void shareInvite(match.id)}>
+                        Invite friends
+                      </button>
+                    )}
                     {botsEnabled && emptySeats.length > 0 && (
                       <button
                         type="button"
