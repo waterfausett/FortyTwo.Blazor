@@ -285,6 +285,13 @@
   box-shadow: 0.25em 0.25em 0 0 var(--bone-edge);
 }
 
+/* That edge sits outside the tile, on its right and bottom, so the tile you see is that much wider
+   and taller than its face: the pips and line move by half of it to sit in the middle of the whole
+   tile rather than just the face. */
+.trick-history .domino span {
+  translate: 0.125em 0.125em;
+}
+
 /* Grows in from smaller, never larger: the pile scrolls on overflow, so a row that briefly
    outgrew it would flash scrollbars while it settled. */
 @keyframes pile-in {
