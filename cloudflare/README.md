@@ -374,5 +374,9 @@ Release Please uses the default `GITHUB_TOKEN`, so CI doesn't run on its release
 required checks never report. Merge them with the admin bypass; the commits in them already passed
 CI on their own PRs.
 
+The two release PRs both change `.release-please-manifest.json`, so merging one leaves the other
+in conflict until Release Please's next run, which rebuilds it from `master` (`always-update`). That
+run happens right after the merge, so wait for it before merging the other one.
+
 Each release's changelog is in `CHANGELOG.md` next to its `version.txt`: `cloudflare/` for the
 worker, `apps/mobile/` for the app.

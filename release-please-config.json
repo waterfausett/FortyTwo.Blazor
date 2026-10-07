@@ -3,6 +3,7 @@
   "bootstrap-sha": "10249b2fbd966a134e9234b3a6ce392ef343d71f",
   "release-type": "simple",
   "separate-pull-requests": true,
+  "always-update": true,
   "packages": {
     "cloudflare": {
       "component": "worker",
