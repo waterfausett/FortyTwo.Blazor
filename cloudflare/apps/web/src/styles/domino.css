@@ -24,6 +24,11 @@
     -webkit-box-shadow: .3em .3em 0em .12em var(--domino-border-color);
     box-shadow: .3em .3em 0em .12em var(--domino-border-color);
     z-index: 400;
+    /* How far the pips and line sit right of and below the face's centre. The tile's right and
+       bottom edge is a shadow outside the box, so the tile as seen is wider and taller than its
+       face: half that edge puts them in the middle of the whole tile. Wherever a rule swaps the
+       edge for a ring all the way round, this goes back to 0. */
+    --face-shift: .21em;
 }
 
     /* The tile's top/left edge, drawn over the face rather than as a border: a border would move
@@ -44,6 +49,7 @@
     }
 
     .domino span {
+        translate: var(--face-shift) var(--face-shift);
         width: 1.2em;
         height: 1.2em;
         position: absolute;
@@ -153,12 +159,14 @@
 
     .sortable-chosen .domino,
     .domino.clickable:hover {
+        --face-shift: 0em;
         -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
         -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
         box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-hover-color);
     }
 
     .domino.preselected {
+        --face-shift: 0em;
         -moz-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
         -webkit-box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
         box-shadow: 0.1em 0.1em 0.1em 0.5em var(--domino-preselected-color);
