@@ -10,6 +10,7 @@ worker:
   - *shared
   - 'cloudflare/apps/worker/**'
   - 'cloudflare/apps/web/**'
+  - 'cloudflare/version.txt' # so the worker release PR, which only changes this, runs the tests
   - '.github/workflows/worker.yml'
 
 mobile:

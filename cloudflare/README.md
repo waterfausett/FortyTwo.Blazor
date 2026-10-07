@@ -309,7 +309,7 @@ copy the device's token from the `push_tokens` table and send a test from
 ## Deploying
 
 The Worker serves the web app's build as static assets, so the whole game is one `wrangler deploy`
-on one origin. `.github/workflows/worker.yml` tests every pull request and push to `master`, but
+on one origin. `.github/workflows/worker.yml` tests every pull request, but
 merging doesn't deploy: a worker release does (see [Releases](#releases)). The deploy, in
 `.github/workflows/deploy-worker.yml`, builds the web app, applies new D1 migrations and runs
 `wrangler deploy`. To deploy without a release, run Deploy Worker from the Actions tab.
@@ -370,9 +370,19 @@ version, not the major. For the store launch, set `"release-as": "1.0.0"` on the
 `release-please-config.json` for that one release, then remove it. Android installs an update by
 the build number alone, so `version` can start at 0.x even after the 1.0.x preview builds.
 
-Release Please uses the default `GITHUB_TOKEN`, so CI doesn't run on its release PRs and their
-required checks never report. Merge them with the admin bypass; the commits in them already passed
-CI on their own PRs.
+Release Please acts as a GitHub App rather than with the default `GITHUB_TOKEN`, because GitHub
+doesn't start workflows for anything `GITHUB_TOKEN` does: CI wouldn't run on the release PRs. With
+the app, a release PR is tested like any other. It's rebuilt from `master` on every Release Please
+run, so its checks test exactly what the release ships, and they're the only CI on `master`'s code
+as a whole: the test workflows run on pull requests, not on pushes to `master`.
+
+One-time setup of the app (one app can serve several repositories):
+
+1. Create a GitHub App under your account's Developer settings, with the webhook off and
+   repository permissions Contents and Pull requests set to read and write. Only on this account.
+2. Generate a private key for it (a `.pem` file), and install it on this repository.
+3. In this repository, add the variable `RELEASE_APP_ID` (the app's ID) and the secret
+   `RELEASE_APP_PRIVATE_KEY` (the whole `.pem` file).
 
 The two release PRs both change `.release-please-manifest.json`, so merging one leaves the other
 in conflict until Release Please's next run, which rebuilds it from `master` (`always-update`). That

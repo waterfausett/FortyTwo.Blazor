@@ -10,6 +10,8 @@ permissions:
 jobs:
   lint:
     name: Conventional Commit title
+    # Release Please titles its own PRs (chore(master): release worker 1.2.0).
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-latest
     steps:
       # release-please reads the squash-merge commit subject, which GitHub seeds from the PR title.
