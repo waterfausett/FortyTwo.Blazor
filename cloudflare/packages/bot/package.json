@@ -7,8 +7,9 @@
   "types": "src/index.ts",
   "scripts": {
     "test": "vitest run",
+    "typecheck": "tsc -b",
     "bench": "tsx bench/bench.ts"
   },
   "dependencies": { "@fortytwo/rules": "*" },
-  "devDependencies": { "tsx": "^4.23.15", "typescript": "^5.6.0", "vitest": "^2.1.0" }
+  "devDependencies": { "tsx": "^4.23.15", "typescript": "^5.6.0", "vitest": "^4.1.11" }
 }

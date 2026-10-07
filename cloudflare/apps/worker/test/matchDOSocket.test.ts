@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { env, fetchMock, runInDurableObject } from 'cloudflare:test';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { env, runInDurableObject } from 'cloudflare:test';
+import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { Teams, createDomino, type Domino } from '@fortytwo/rules';
 import type { Env } from '../src/index';
@@ -69,7 +70,7 @@ async function createdBy(name: string, firstPlayerId = 'p1') {
 // accepting the returned client-side WebSocket (which owns the response going forward), or, when
 // no WebSocket comes back (a rejected upgrade), by reading its body as text. This must happen
 // unconditionally, before any assertion that might throw, so a failing assertion can never leave a
-// Response body or socket dangling across the test boundary - vitest-pool-workers' isolated
+// Response body or socket dangling across the test boundary - vitest-plugin's isolated
 // storage then fails to tear down (EBUSY on Windows).
 async function openSocket(
   stub: ReturnType<typeof stubFor>,
@@ -293,22 +294,21 @@ describe('MatchDO push notifications', () => {
     await stub.takeSeat('p3', 2);
     const { ws } = await openSocket(stub, `/ws?token=${await signToken({ sub: 'p2' })}`);
 
-    let sentTo: string[] = [];
-    const sent = new Promise<void>((resolve) => {
-      fetchMock
-        .get('https://exp.host')
-        .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
-        .reply((opts) => {
-          const messages = JSON.parse(String(opts.body)) as { to: string }[];
-          sentTo = messages.map((m) => m.to).sort();
-          resolve();
-          return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
-        });
-    });
+    let sentTo: string[] | undefined;
+    fetchMock
+      .get('https://exp.host')
+      .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
+      .reply((opts) => {
+        const messages = JSON.parse(String(opts.body)) as { to: string }[];
+        sentTo = messages.map((m) => m.to).sort();
+        return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
+      });
 
     // The last seat fills the table and deals: everyone hears the game is on, but p2 is watching.
     await stub.takeSeat('p4', 3, dealOrder);
-    await sent;
+    // Polls rather than resolving a promise from the reply: that runs inside the Durable Object's
+    // request, and a test resumed from there can't touch its socket or stub any more.
+    await vi.waitFor(() => expect(sentTo).toBeDefined());
     expect(sentTo).toEqual(['ExponentPushToken[p1]', 'ExponentPushToken[p3]', 'ExponentPushToken[p4]']);
 
     ws?.close();

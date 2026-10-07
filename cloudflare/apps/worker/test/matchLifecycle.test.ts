@@ -2,7 +2,8 @@
 // together, through the REAL Worker (SELF.fetch), with no mocking of internal layers. The only mocked boundary is the external Auth0 JWKS fetch, via
 // `fetchMock`, mirroring the pattern established in routes.matches.test.ts/auth0Management.test.ts.
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { env, fetchMock, SELF } from 'cloudflare:test';
+import { env, SELF } from 'cloudflare:test';
+import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import type { Env } from '../src/index';
 import { Bid, Suit, isOfSuit, type Domino } from '@fortytwo/rules';

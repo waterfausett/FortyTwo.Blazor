@@ -1,5 +1,6 @@
-import { describe, expect, it, beforeAll, afterEach } from 'vitest';
-import { env, fetchMock } from 'cloudflare:test';
+import { describe, expect, it, beforeAll, beforeEach, afterEach } from 'vitest';
+import { env } from 'cloudflare:test';
+import { fetchMock } from './fetchMock';
 import type { Env } from '../src/index';
 import { messagesFor, sendNotices } from '../src/push/send';
 import { TOKEN_REFRESH_MS, saveToken } from '../src/push/tokens';
@@ -11,6 +12,11 @@ const turn = (playerId: string): Notice => ({ playerId, kind: 'turn', title: 'Yo
 beforeAll(() => {
   fetchMock.activate();
   fetchMock.disableNetConnect();
+});
+
+// Storage lasts the whole file, so each test starts with no devices registered.
+beforeEach(async () => {
+  await testEnv.DB.prepare('DELETE FROM push_tokens').run();
 });
 
 afterEach(() => fetchMock.assertNoPendingInterceptors());
