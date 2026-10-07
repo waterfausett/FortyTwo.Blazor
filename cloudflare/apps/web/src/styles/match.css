@@ -427,24 +427,23 @@
   transition: box-shadow 200ms ease;
 }
 
+/* Whoever is to act: a steady ring and a glow in their team's colour, the glow slowly swelling and
+   fading, as on mobile. */
 .seat.active .seat-plate {
   background: rgba(58, 42, 22, 0.85);
   box-shadow:
     inset 3px 0 0 var(--team),
-    0 0 0 2px var(--brass),
-    /*0 0 26px rgba(201, 164, 92, 0.7);*/
-    0 0 26px var(--team);
+    0 0 0 2px var(--team),
+    0 0 16px 2px var(--team);
   animation: seat-breathe 2.4s ease-in-out infinite;
 }
-
 
 @keyframes seat-breathe {
   50% {
     box-shadow:
       inset 3px 0 0 var(--team),
-      /*0 0 0 2px var(--brass),*/
       0 0 0 2px var(--team),
-      0 0 12px rgba(201, 164, 92, 0.35);
+      0 0 16px 2px color-mix(in srgb, var(--team) 30%, transparent);
   }
 }
 
