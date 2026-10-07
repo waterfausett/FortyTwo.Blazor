@@ -111,11 +111,9 @@ describe('pushNotices', () => {
     expect(summary(notices)).toEqual(['p1:handOver:Hand over', 'p2:handOver:Hand over', 'p3:handOver:Hand over', 'p4:handOver:Hand over']);
   });
 
-  it('says a rematch is dealt, telling its first bidder to bid', () => {
+  it("only tells a rematch's first bidder to bid", () => {
     const rematch = takeSeat(threeSeated(), 'p4', 3, deck());
-    const notices = pushNotices(null, rematch);
-    expect(notices.find((n) => n.playerId === rematch.currentGame.currentPlayerId)).toMatchObject({ kind: 'turn' });
-    expect(notices.filter((n) => n.kind === 'started')[0].body).toBe('The rematch is dealt.');
+    expect(summary(pushNotices(null, rematch))).toEqual([`${rematch.currentGame.currentPlayerId}:turn:Your bid`]);
   });
 
   it('has nothing to say while the table is filling', () => {
