@@ -18,6 +18,7 @@ import type { Seat } from '@fortytwo/client';
 import type { Suit, Trick } from '@fortytwo/rules';
 import { PipFace } from './PipFace';
 import { Domino } from './Domino';
+import { NameSkeleton } from './NameSkeleton';
 import { colors, fonts } from './theme';
 import { TRICK_SWEEP_MS } from '@/match/useTrickHold';
 
@@ -29,7 +30,8 @@ const FELT_PADDING = 8;
 const GAP = 4;
 
 export interface SeatInfo {
-  name: string;
+  // Null while it loads.
+  name: string | null;
   side: 'us' | 'them';
   isActive: boolean;
   isDealer: boolean;
@@ -70,14 +72,20 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
   return (
     <View
       style={[styles.plate, { width }, info.isActive && [styles.active, { boxShadow: `0 0 0 2px ${team}` }]]}
-      accessibilityLabel={`${info.name}${info.isActive ? ', to act' : ''}`}
+      accessibilityLabel={`${info.name ?? 'Loading name'}${info.isActive ? ', to act' : ''}`}
     >
       {info.isActive && <PulsingGlow color={team} />}
       <View style={[styles.teamStripe, { backgroundColor: team }]} />
       <View style={styles.nameRow}>
-        <Text style={styles.name} numberOfLines={1}>
-          {info.name}
-        </Text>
+        {info.name != null ? (
+          <Text style={styles.name} numberOfLines={1}>
+            {info.name}
+          </Text>
+        ) : (
+          <View style={styles.nameSkeleton}>
+            <NameSkeleton />
+          </View>
+        )}
         {info.isDealer && (
           <View style={styles.dealer} accessibilityLabel="Dealer">
             <Text style={styles.dealerText}>D</Text>
@@ -513,6 +521,7 @@ const styles = StyleSheet.create({
   openText: { color: colors.inkMuted, fontFamily: fonts.ui },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   name: { flex: 1, color: colors.bone, fontFamily: fonts.uiBold, fontSize: 14 },
+  nameSkeleton: { flex: 1 },
   dealer: {
     backgroundColor: colors.bone,
     borderRadius: 8,

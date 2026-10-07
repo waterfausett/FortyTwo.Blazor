@@ -2,6 +2,7 @@
 // a button in each open one. Used by the lobby's Join flow and by a match page opened by someone
 // who isn't seated (an invite link). Styles in SeatPicker.css.
 import type { JSX } from 'react';
+import { NameSkeleton } from './NameSkeleton';
 import './SeatPicker.css';
 
 // A table seen from above, indexed by seat position: the creator's seat (0) nearest you, then
@@ -14,10 +15,14 @@ export const SEAT_SIDES = ['bottom', 'left', 'top', 'right'] as const;
 export function SeatPicker({
   seats,
   disabled,
+  loading,
   onPick,
 }: {
   seats: (string | null)[];
   disabled: boolean;
+  // Per seat position (0-3): that taken seat's name is still loading (a match page opened from an
+  // invite). Missing or false means loaded, so a name that has arrived shows while others load.
+  loading?: readonly boolean[];
   onPick: (position: number) => void;
 }): JSX.Element {
   return (
@@ -28,11 +33,12 @@ export function SeatPicker({
         if (name != null) {
           return (
             <span key={side} className={`seat-picker-seat seat-picker-${side} is-seated`}>
-              {name}
+              {loading?.[position] ? <NameSkeleton /> : name}
             </span>
           );
         }
-        const partner = seats[(position + 2) % 4];
+        const partnerPosition = (position + 2) % 4;
+        const partner = seats[partnerPosition];
         return (
           <button
             key={side}
@@ -42,7 +48,9 @@ export function SeatPicker({
             onClick={() => onPick(position)}
           >
             <span className="seat-picker-action">Sit here</span>
-            <span className="seat-picker-hint">{partner != null ? `with ${partner}` : 'open seat'}</span>
+            <span className="seat-picker-hint">
+              {partner == null ? 'open seat' : loading?.[partnerPosition] ? <>with <NameSkeleton width="3em" /></> : `with ${partner}`}
+            </span>
           </button>
         );
       })}

@@ -6,11 +6,13 @@ import type { JSX } from 'react';
 import type { Bid, Suit } from '@fortytwo/rules';
 import { bidToPrettyString } from '@fortytwo/rules';
 import type { Seat as SeatPosition } from '@fortytwo/client';
+import { NameSkeleton } from './NameSkeleton';
 import { PipFace } from './PipFace';
 
 export interface SeatProps {
   seat: SeatPosition;
-  name: string;
+  // Null while it loads.
+  name: string | null;
   side: 'us' | 'them';
   isActive: boolean;
   isDealer: boolean;
@@ -54,8 +56,8 @@ export function Seat({
       data-testid={seat === 'bottom' ? 'my-seat' : 'remote-player'}
     >
       <div className="seat-plate">
-        <span className="seat-name" title={name}>
-          {name}
+        <span className="seat-name" title={name ?? undefined}>
+          {name ?? <NameSkeleton />}
         </span>
         <span className="seat-markers">
           {isDealer && (

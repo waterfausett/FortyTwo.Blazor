@@ -12,7 +12,7 @@ export function usePoke(
   match: MatchState | null,
   myPlayerId: string | undefined,
   poke: () => Promise<PokeResult>,
-  nameOf: (playerId: string) => string
+  nameOf: (playerId: string) => string | null
 ): { target: string | null; poke: () => void; pending: boolean } {
   const target = pokeTarget(match, myPlayerId);
   const turn = match && target ? pokeTurnKey(match) : null;
@@ -31,18 +31,21 @@ export function usePoke(
   const mutation = useMutation({
     mutationFn: (_poked: { target: string; turn: string }) => poke(),
     onSuccess: ({ delivered }, poked) => {
+      const name = nameOf(poked.target);
       // A poke that reached nobody leaves the turn's poke unused, so the button stays.
       if (delivered === 'none') {
-        toastInfo(`${nameOf(poked.target)} doesn't have notifications on`);
+        toastInfo(name ? `${name} doesn't have notifications on` : "They don't have notifications on");
         return;
       }
       setPokedTurn(poked.turn);
-      toastInfo(`Poked ${nameOf(poked.target)}`);
+      toastInfo(name ? `Poked ${name}` : 'Poked');
     },
     onError: toastError,
   });
 
-  const showing = target != null && turn != null && idleTurn === turn && pokedTurn !== turn;
+  // Held back until the target's name has loaded, so the button never reads "Poke auth0|...".
+  const showing =
+    target != null && turn != null && idleTurn === turn && pokedTurn !== turn && nameOf(target) != null;
   return {
     target: showing ? target : null,
     poke: () => {

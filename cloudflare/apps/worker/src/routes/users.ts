@@ -1,51 +1,41 @@
-// Hono routes for player profiles, backed by Auth0's Management API (auth0Management.ts).
+// Hono routes for player profiles, backed by Auth0's Management API (auth0Management.ts) and the D1 `users` table
+// of display names (users/publicUsers.ts).
 import { Hono } from 'hono';
 import type { AppEnv } from '../index';
-import { getUser, getUsers, updateUser, type Auth0User } from '../auth0Management';
+import { getUser, updateUser } from '../auth0Management';
 import { BadRequestError, profilePatch, readBody, readUserIds } from '../requestBody';
 import { isExpoPushToken, removeToken, saveToken } from '../push/tokens';
-import type { PublicUser, UserProfile } from '@fortytwo/api-types';
+import { toPublicUser, toUserResponse } from '../users/profile';
+import { publicUsers, rememberUser } from '../users/publicUsers';
+
+// They live in users/profile.ts (so users/publicUsers.ts can use them without importing the routes);
+// re-exported here for the tests that import them from this module.
+export { toPublicUser, toUserResponse };
 
 const users = new Hono<AppEnv>();
 
-// An Auth0 user plus what to show them as, and their settings:
-//   picture: their own user_metadata.picture when it isn't blank, else Auth0's.
-//   displayName: user_metadata.displayName ?? nickname ?? name ?? email ?? "Unknown User ({id})".
-//   highlightPlayable: off unless they've turned it on.
-//   pushNotifications: on unless they've turned it off.
-export function toUserResponse(u: Auth0User): UserProfile {
-  const effectivePicture = u.user_metadata?.picture?.trim() ? u.user_metadata.picture : u.picture;
-  const displayName =
-    u.user_metadata?.displayName ?? u.nickname ?? u.name ?? u.email ?? `Unknown User (${u.user_id})`;
-  return {
-    ...u,
-    picture: effectivePicture,
-    displayName,
-    highlightPlayable: u.user_metadata?.highlightPlayable === true,
-    pushNotifications: u.user_metadata?.pushNotifications !== false,
-  };
-}
-
-// What any player may see of another: enough to show them at the table, and nothing that
-// identifies them outside the game (email, real name).
-export function toPublicUser(u: Auth0User): PublicUser {
-  const { user_id, displayName, picture } = toUserResponse(u);
-  return { user_id, displayName, picture };
-}
-
-// The caller's own full profile - the only route that returns email and name.
+// The caller's own full profile - the only route that returns email and name. Fetching it also
+// refreshes what other players see of them (users/publicUsers.ts), which is how a name changed
+// outside the app reaches the table.
 users.get('/profile', async (c) => {
   const user = await getUser(c.env, c.get('user').sub);
+  await rememberUser(c.env.DB, user);
   return c.json(toUserResponse(user));
 });
 
+// A player Auth0 couldn't be asked about would otherwise stay "Player N" for the rest of the
+// match (the apps never look a name up twice), so that's a 503 the apps retry, not a short list.
 users.post('/search', async (c) => {
-  const found = await getUsers(c.env, await readUserIds(c));
-  return c.json(found.map(toPublicUser));
+  const { users: found, complete } = await publicUsers(c.env, await readUserIds(c));
+  if (!complete) {
+    return c.json({ title: 'Try again', detail: "Some players' names couldn't be looked up just now." }, 503);
+  }
+  return c.json(found);
 });
 
 users.patch('/', async (c) => {
-  await updateUser(c.env, c.get('user').sub, profilePatch(await readBody(c)));
+  const user = await updateUser(c.env, c.get('user').sub, profilePatch(await readBody(c)));
+  await rememberUser(c.env.DB, user);
   return c.body(null, 200);
 });
 

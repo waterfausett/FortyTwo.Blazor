@@ -59,5 +59,5 @@ export {
   hasBeenDealt,
   hasHumanPlayers,
 } from './matchEngine';
-export { BOT_IDS, isBot } from './botIds';
+export { BOT_IDS, botDisplayName, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';
