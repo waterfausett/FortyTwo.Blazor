@@ -36,6 +36,15 @@ packages:
           - 'cloudflare/package.json'
           - 'cloudflare/package-lock.json'
 
+# Not `eas-build`: that label asks EAS to start a build, so it stays a manual choice.
+eas:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'cloudflare/apps/mobile/.eas/**'
+          - 'cloudflare/apps/mobile/eas.json'
+          - 'cloudflare/apps/mobile/app.json'
+          - 'cloudflare/apps/mobile/app.config.js'
+
 ml:
   - changed-files:
       - any-glob-to-any-file:
