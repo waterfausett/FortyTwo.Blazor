@@ -52,9 +52,11 @@ async function storedUsers(db: D1Database, ids: string[]): Promise<PublicUser[]>
 }
 
 // What each id is shown as: bots by number, everyone else from D1, and from Auth0 (then saved) for
-// anyone D1 hasn't seen. Ids that can't be resolved - unknown to Auth0, or Auth0 unreachable - are
-// left out, and the client shows them as "Player N".
-export async function publicUsers(env: Env, ids: string[]): Promise<PublicUser[]> {
+// anyone D1 hasn't seen. Ids Auth0 doesn't know are left out, and the client shows them as
+// "Player N". `complete` is false when Auth0 couldn't be asked about the players D1 hasn't seen -
+// that's likely to pass (a blip, or its rate limit), so a caller may ask again rather than settle
+// for what D1 had.
+export async function publicUsers(env: Env, ids: string[]): Promise<{ users: PublicUser[]; complete: boolean }> {
   const unique = [...new Set(ids)];
   const bots = unique.filter(isBot).map((id): PublicUser => ({ user_id: id, displayName: botDisplayName(id) }));
   const humans = unique.filter((id) => !isBot(id));
@@ -63,6 +65,7 @@ export async function publicUsers(env: Env, ids: string[]): Promise<PublicUser[]
   const missing = humans.filter((id) => !known.has(id));
 
   const fetched: PublicUser[] = [];
+  let complete = true;
   try {
     for (let i = 0; i < missing.length; i += MAX_USER_IDS) {
       const users = await getUsers(env, missing.slice(i, i + MAX_USER_IDS));
@@ -70,11 +73,12 @@ export async function publicUsers(env: Env, ids: string[]): Promise<PublicUser[]
     }
   } catch (error) {
     console.error('Failed to look players up in Auth0', error);
+    complete = false;
   }
   try {
     await saveUsers(env.DB, fetched);
   } catch (error) {
     console.error('Failed to save player names', error);
   }
-  return [...bots, ...stored, ...fetched];
+  return { users: [...bots, ...stored, ...fetched], complete };
 }

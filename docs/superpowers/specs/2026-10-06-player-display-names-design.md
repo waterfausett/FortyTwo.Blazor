@@ -60,8 +60,8 @@ deleting an account must delete its row.
   2. Everyone else: one `SELECT id, display_name, picture FROM users WHERE id IN (…)`.
   3. Ids D1 misses: Auth0 `getUsers` in chunks of `MAX_USER_IDS`; each result is mapped with
      `toPublicUser` and saved with `saveUser`.
-  4. If Auth0 fails, log and return what D1 (and bots) gave. Ids that couldn't be resolved are
-     left out of the result.
+  4. If Auth0 fails, log it and return what D1 (and bots) gave, marked incomplete
+     (`{ users, complete: false }`). Ids Auth0 doesn't know are left out of the result.
 
 `botDisplayName(id)` lives in `packages/rules/src/botIds.ts` next to `BOT_IDS`: `bot-1` ->
 `Bot 1`.
@@ -72,7 +72,10 @@ deleting an account must delete its row.
   how D1 catches up with renames made outside the app (each app fetches the profile at launch).
 - `PATCH /api/users`: `updateUser` returns the updated `Auth0User` (Auth0's PATCH replies with
   it; today the function returns `void`), and the route saves `toPublicUser(updated)`.
-- `POST /api/users/search`: becomes `publicUsers(env, ids)`. Validation (`readUserIds`) stays.
+- `POST /api/users/search`: becomes `publicUsers(env, ids)`. Validation (`readUserIds`) stays. An
+  incomplete lookup (Auth0 failed for players D1 hasn't seen) is a 503 `{ title: 'Try again' }`, which
+  the apps' react-query retries; otherwise a blip would leave "Player N" for the rest of the match.
+  (Added after the final review.)
 - Lobby (`GET /api/matches`): `displayNames` in `routes/matches.ts` becomes a thin wrapper over
   `publicUsers`, so lobby lists read D1 and get bot names too.
 
@@ -84,7 +87,7 @@ deleting an account must delete its row.
   unchanged); a changed one does.
 - `PATCH /api/users` updates the row.
 - Bots get "Bot N" from search and the lobby.
-- When Auth0 fails, search returns only what D1 has, and the lobby still lists.
+- When Auth0 fails for a player D1 hasn't seen, search answers 503, and the lobby still lists.
 
 ## Client (web + mobile)
 

@@ -170,7 +170,7 @@ describe('user routes', () => {
       expect(await res.json()).toEqual([{ user_id: 'auth0|p2', displayName: 'two' }]);
     });
 
-    it('answers with what D1 has when Auth0 fails', async () => {
+    it('asks the client to try again when Auth0 fails for a player D1 has not seen', async () => {
       await saveUsers(env.DB, [{ user_id: 'auth0|p2', displayName: 'Stored Two' }]);
       fetchMock
         .get(`https://${AUTH0_DOMAIN}`)
@@ -180,8 +180,8 @@ describe('user routes', () => {
         method: 'POST',
         body: JSON.stringify(['auth0|p2', 'auth0|p3']),
       });
-      expect(res.status).toBe(200);
-      expect(await res.json()).toEqual([{ user_id: 'auth0|p2', displayName: 'Stored Two' }]);
+      expect(res.status).toBe(503);
+      expect((await titleAndDetail(res)).title).toBe('Try again');
     });
 
     it.each([

@@ -81,10 +81,11 @@ matches.get('/', async (c) => {
 });
 
 // Maps player ids to display names for the lobby list (users/publicUsers.ts: D1 first, Auth0 for
-// players it hasn't seen, bots by number). Anyone it can't name keeps their id - the list is still
-// usable, which beats failing the whole lobby over a cosmetic field.
+// players it hasn't seen, bots by number). Anyone it can't name keeps their id, even when Auth0
+// is down - the list is still usable, which beats failing the whole lobby over a cosmetic field.
 async function displayNames(env: Env, playerIds: string[]): Promise<Map<string, string>> {
-  return new Map((await publicUsers(env, playerIds)).map((user) => [user.user_id, user.displayName]));
+  const { users } = await publicUsers(env, playerIds);
+  return new Map(users.map((user) => [user.user_id, user.displayName]));
 }
 
 // The whole match as the caller may see it - backs the Match page's initial load and

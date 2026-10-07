@@ -23,8 +23,14 @@ users.get('/profile', async (c) => {
   return c.json(toUserResponse(user));
 });
 
+// A player Auth0 couldn't be asked about would otherwise stay "Player N" for the rest of the
+// match (the apps never look a name up twice), so that's a 503 the apps retry, not a short list.
 users.post('/search', async (c) => {
-  return c.json(await publicUsers(c.env, await readUserIds(c)));
+  const { users: found, complete } = await publicUsers(c.env, await readUserIds(c));
+  if (!complete) {
+    return c.json({ title: 'Try again', detail: "Some players' names couldn't be looked up just now." }, 503);
+  }
+  return c.json(found);
 });
 
 users.patch('/', async (c) => {

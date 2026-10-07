@@ -35,7 +35,8 @@ describe('publicUsers', () => {
   it('reads stored players from D1 and names bots, without asking Auth0', async () => {
     // fetchMock isn't active in this file, so an Auth0 call would fail and leave auth0|b out.
     await saveUsers(testEnv.DB, [{ user_id: 'auth0|b', displayName: 'Bea', picture: 'b.png' }]);
-    const found = await publicUsers(testEnv, ['auth0|b', 'bot-2', 'auth0|b']);
+    const { users: found, complete } = await publicUsers(testEnv, ['auth0|b', 'bot-2', 'auth0|b']);
+    expect(complete).toBe(true);
     expect(found).toEqual(
       expect.arrayContaining([
         { user_id: 'auth0|b', displayName: 'Bea', picture: 'b.png' },
@@ -45,8 +46,11 @@ describe('publicUsers', () => {
     expect(found).toHaveLength(2);
   });
 
-  it('returns what it has when Auth0 cannot be reached', async () => {
+  it('returns what it has, marked incomplete, when Auth0 cannot be reached', async () => {
     await saveUsers(testEnv.DB, [{ user_id: 'auth0|c', displayName: 'Cy' }]);
-    expect(await publicUsers(testEnv, ['auth0|c', 'auth0|nobody'])).toEqual([{ user_id: 'auth0|c', displayName: 'Cy' }]);
+    expect(await publicUsers(testEnv, ['auth0|c', 'auth0|nobody'])).toEqual({
+      users: [{ user_id: 'auth0|c', displayName: 'Cy' }],
+      complete: false,
+    });
   });
 });
