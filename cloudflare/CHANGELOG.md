@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.0.2...worker-v1.0.3) (2026-10-07)
+
+
+### Bug Fixes
+
+* **web:** glow in the team's colour around whoever is to act, as on mobile ([#101](https://github.com/waterfausett/FortyTwo.Blazor/issues/101)) ([78ee2f0](https://github.com/waterfausett/FortyTwo.Blazor/commit/78ee2f07b578f43c160a70eff63ca3105c138032))
+
 ## [1.0.2](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.0.1...worker-v1.0.2) (2026-10-07)
 
 
