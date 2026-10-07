@@ -592,7 +592,9 @@
 }
 
 .trick-slot .domino {
-  --face-shift: 0.175em;
+  /* Centred on the face, not the whole tile: at this size the thick edge and the drop shadow read
+     as the tile's side, so measured against them the pips looked pushed right. */
+  --face-shift: 0em;
   box-shadow:
     0.3em 0.3em 0 0.05em var(--bone-edge),
     0.5em 0.8em 1.4em rgba(0, 0, 0, 0.4);
