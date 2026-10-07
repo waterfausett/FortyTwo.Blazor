@@ -22,13 +22,19 @@ jobs:
     outputs:
       worker: ${{ steps.release.outputs['cloudflare--release_created'] }}
     steps:
-      # Uses the default GITHUB_TOKEN, so the release PRs it opens don't start the CI workflows,
-      # and their required checks never report: merge them with the admin bypass. The tags and
-      # releases it creates don't start other GitHub workflows either, which is why the deploy
-      # happens in this workflow rather than on a `release` or tag event. EAS still sees the tags.
+      # Acts as the release GitHub App, not the default GITHUB_TOKEN: GitHub doesn't start
+      # workflows for what GITHUB_TOKEN does, so CI wouldn't run on the release PRs. With the
+      # app's token they're tested like any other PR. Each release PR is rebuilt from master on
+      # every run (always-update), so its checks test exactly what the release ships.
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - uses: googleapis/release-please-action@v4
         id: release
         with:
+          token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 

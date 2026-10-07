@@ -1,12 +1,10 @@
 name: Mobile
 
-# Tests and typechecks the mobile app on every pull request and push that can affect it. Builds
-# happen on EAS, not here: a mobile release starts one (release-please.yml).
+# Tests and typechecks the mobile app on every pull request that can affect it, release PRs
+# included. Builds happen on EAS, not here: a mobile release's tag starts one.
 #
 # Which changes count as affecting it is defined in .github/path-filters.yml.
 on:
-  push:
-    branches: [master]
   pull_request:
   workflow_dispatch:
 
@@ -19,7 +17,7 @@ defaults:
     working-directory: cloudflare
 
 jobs:
-  # The workflow runs on every push and pull request so the required check below always reports.
+  # The workflow runs on every pull request so the required check below always reports.
   # This job skips the rest when nothing it covers changed.
   changes:
     if: github.event_name != 'workflow_dispatch'
