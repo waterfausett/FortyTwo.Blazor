@@ -79,12 +79,14 @@ function matchTitle(notice: Notice, names: ReadonlyMap<string, string>): string 
   return `${team(ownTeam)} vs ${team(otherTeam(ownTeam))}`;
 }
 
-// "Hand over · Us 5, Them 3. Ready up for the next hand."
+// "Hand over · Us 5, Them 3. Ready up for the next hand.", and any note on a line of its own.
+// Android shows the note once the notification is expanded; iOS shows it straight away.
 function noticeBody(notice: Notice): string {
   const ownTeam = myTeam(notice);
   const score = notice.marks && `Us ${notice.marks[ownTeam]}, Them ${notice.marks[otherTeam(ownTeam)]}`;
   const rest = [score, notice.detail].filter((part) => part != null).join('. ');
-  return rest ? `${notice.headline} · ${rest}` : notice.headline;
+  const body = rest ? `${notice.headline} · ${rest}` : notice.headline;
+  return notice.note != null ? `${body}\n${notice.note}` : body;
 }
 
 function myTeam(notice: Notice): Teams {

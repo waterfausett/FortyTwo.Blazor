@@ -14,6 +14,7 @@
 // recipient's side, which needs names this pure code doesn't have.
 import {
   Teams,
+  bidToPrettyString,
   gameWinningTeam,
   handSize,
   isBot,
@@ -32,6 +33,8 @@ export interface Notice {
   headline: string;
   // Anything more to say, as a sentence.
   detail?: string;
+  // A line of its own under the rest: "You won the bid! (34)".
+  note?: string;
   matchId: string;
   // Who sits where, to name the match by its teams.
   players: MatchPlayerRef[];
@@ -45,7 +48,8 @@ export function noticeFor(
   playerId: string,
   kind: NoticeKind,
   headline: string,
-  detail?: string
+  detail?: string,
+  note?: string
 ): Notice {
   const scores = matchScores(match);
   return {
@@ -53,6 +57,7 @@ export function noticeFor(
     kind,
     headline,
     ...(detail != null && { detail }),
+    ...(note != null && { note }),
     matchId: match.id,
     players: match.players.map(({ playerId, position }) => ({ playerId, position })),
     ...(kind !== 'started' && kind !== 'poke' && { marks: { [Teams.TeamA]: scores[Teams.TeamA] ?? 0, [Teams.TeamB]: scores[Teams.TeamB] ?? 0 } }),
@@ -75,12 +80,19 @@ function turnTitle(game: Game): string {
   return game.currentTrick.dominoes.some((d) => d !== null) ? 'Your play' : 'Your lead';
 }
 
+// What the bidder won the bid with, once they're to name trump - if the hand says.
+function bidNote(game: Game): string | undefined {
+  return game.trump == null && game.bid != null && game.hands.every((h) => h.bid != null)
+    ? `You won the bid! (${bidToPrettyString(game.bid)})`
+    : undefined;
+}
+
 export function pushNotices(previous: MatchState | null, next: MatchState): Notice[] {
   const notices = new Map<string, Notice>();
   const game = next.currentGame;
   const humans = next.players.map((p) => p.playerId).filter((id) => !isBot(id));
-  const add = (playerId: string, kind: NoticeKind, headline: string, detail?: string) =>
-    notices.set(playerId, noticeFor(next, playerId, kind, headline, detail));
+  const add = (playerId: string, kind: NoticeKind, headline: string, detail?: string, note?: string) =>
+    notices.set(playerId, noticeFor(next, playerId, kind, headline, detail, note));
 
   const dealt = isDealt(next);
   const justDealt = dealt && (previous === null || !isDealt(previous));
@@ -106,7 +118,7 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
   const current = game.currentPlayerId;
   const turnMoved = justDealt || !sameGame || previous!.currentGame.currentPlayerId !== current;
   if (dealt && !decided && current != null && !isBot(current) && turnMoved) {
-    add(current, 'turn', turnTitle(game));
+    add(current, 'turn', turnTitle(game), undefined, bidNote(game));
   }
 
   return [...notices.values()];

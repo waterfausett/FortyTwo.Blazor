@@ -110,6 +110,10 @@ describe('messagesFor', () => {
       return { body: m.body, ttl: m.ttl };
     };
     expect(sent(turn('p1'))).toEqual({ body: 'Your bid · Us 4, Them 3', ttl: 12 * 3600 });
+    expect(sent(notice('p1', 'turn', 'Name trump', { note: 'You won the bid! (34)' }))).toEqual({
+      body: 'Name trump · Us 4, Them 3\nYou won the bid! (34)',
+      ttl: 12 * 3600,
+    });
     expect(sent(notice('p1', 'poke', "You've been poked", { marks: undefined, detail: 'The table is waiting on you.' }))).toEqual({
       body: "You've been poked · The table is waiting on you.",
       ttl: 12 * 3600,

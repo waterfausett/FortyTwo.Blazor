@@ -92,6 +92,8 @@ describe('pushNotices', () => {
         expect(summary(notices)).toEqual([`${next.currentGame.currentPlayerId}:turn:Your bid`]);
       } else {
         expect(summary(notices)).toEqual([`${bidder}:turn:Name trump`]);
+        // The bid is settled by now, so the bidder hears what they won it with.
+        expect(notices[0].note).toBe('You won the bid! (30)');
       }
       match = next;
     }
