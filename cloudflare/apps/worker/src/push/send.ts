@@ -36,6 +36,11 @@ const TTL_SECONDS: Record<NoticeKind, number> = {
   started: 1 * HOUR,
 };
 
+// The notices the app offers a button on: Ready up on a hand over, Rematch on a match over. The ids
+// must match the categories the app registers (apps/mobile/src/notifications/push.ts). A button
+// opens the app and does as the match screen's own would.
+const CATEGORIES: Partial<Record<NoticeKind, string>> = { handOver: 'handOver', matchOver: 'matchOver' };
+
 interface ExpoMessage {
   to: string;
   title: string;
@@ -48,6 +53,8 @@ interface ExpoMessage {
   collapseId: string;
   tag: string;
   ttl: number;
+  // Which buttons the app shows on it (CATEGORIES).
+  categoryId?: string;
 }
 
 interface ExpoTicket {
@@ -79,14 +86,15 @@ function matchTitle(notice: Notice, names: ReadonlyMap<string, string>): string 
   return `${team(ownTeam)} vs ${team(otherTeam(ownTeam))}`;
 }
 
-// "Hand over · Us 5, Them 3. Ready up for the next hand.", and any note on a line of its own.
-// Android shows the note once the notification is expanded; iOS shows it straight away.
+// The score, then what happened on a line of its own: "Us 5, Them 3" over "We took the hand.
+// Ready for the next one?". Android shows the second line once the notification is expanded; iOS
+// shows both. With no score to tell: "You've been poked · The table is waiting on you."
 function noticeBody(notice: Notice): string {
   const ownTeam = myTeam(notice);
-  const score = notice.marks && `Us ${notice.marks[ownTeam]}, Them ${notice.marks[otherTeam(ownTeam)]}`;
-  const rest = [score, notice.detail].filter((part) => part != null).join('. ');
-  const body = rest ? `${notice.headline} · ${rest}` : notice.headline;
-  return notice.note != null ? `${body}\n${notice.note}` : body;
+  if (notice.marks) {
+    return `Us ${notice.marks[ownTeam]}, Them ${notice.marks[otherTeam(ownTeam)]}\n${notice.detail ?? notice.headline}`;
+  }
+  return notice.detail != null ? `${notice.headline} · ${notice.detail}` : notice.headline;
 }
 
 function myTeam(notice: Notice): Teams {
@@ -119,6 +127,7 @@ export function messagesFor(
         collapseId: `match-${notice.matchId}`,
         tag: `match-${notice.matchId}`,
         ttl: TTL_SECONDS[notice.kind],
+        ...(CATEGORIES[notice.kind] && { categoryId: CATEGORIES[notice.kind] }),
       }))
   );
 }

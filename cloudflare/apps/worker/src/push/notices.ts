@@ -19,6 +19,7 @@ import {
   handSize,
   isBot,
   matchScores,
+  teamForPosition,
   type Game,
   type MatchPlayerRef,
   type MatchState,
@@ -31,10 +32,9 @@ export interface Notice {
   kind: NoticeKind;
   // What happened, in a few words: "Your bid", "Hand over".
   headline: string;
-  // Anything more to say, as a sentence.
+  // What happened, said in full, from the player's side: "We took the hand. Ready for the next
+  // one?". Shown in the headline's place under a score, and after the headline otherwise.
   detail?: string;
-  // A line of its own under the rest: "You won the bid! (34)".
-  note?: string;
   matchId: string;
   // Who sits where, to name the match by its teams.
   players: MatchPlayerRef[];
@@ -48,8 +48,7 @@ export function noticeFor(
   playerId: string,
   kind: NoticeKind,
   headline: string,
-  detail?: string,
-  note?: string
+  detail?: string
 ): Notice {
   const scores = matchScores(match);
   return {
@@ -57,7 +56,6 @@ export function noticeFor(
     kind,
     headline,
     ...(detail != null && { detail }),
-    ...(note != null && { note }),
     matchId: match.id,
     players: match.players.map(({ playerId, position }) => ({ playerId, position })),
     ...(kind !== 'started' && kind !== 'poke' && { marks: { [Teams.TeamA]: scores[Teams.TeamA] ?? 0, [Teams.TeamB]: scores[Teams.TeamB] ?? 0 } }),
@@ -81,7 +79,7 @@ function turnTitle(game: Game): string {
 }
 
 // What the bidder won the bid with, once they're to name trump - if the hand says.
-function bidNote(game: Game): string | undefined {
+function bidDetail(game: Game): string | undefined {
   return game.trump == null && game.bid != null && game.hands.every((h) => h.bid != null)
     ? `You won the bid! (${bidToPrettyString(game.bid)})`
     : undefined;
@@ -91,8 +89,9 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
   const notices = new Map<string, Notice>();
   const game = next.currentGame;
   const humans = next.players.map((p) => p.playerId).filter((id) => !isBot(id));
-  const add = (playerId: string, kind: NoticeKind, headline: string, detail?: string, note?: string) =>
-    notices.set(playerId, noticeFor(next, playerId, kind, headline, detail, note));
+  const add = (playerId: string, kind: NoticeKind, headline: string, detail?: string) =>
+    notices.set(playerId, noticeFor(next, playerId, kind, headline, detail));
+  const teamOf = (id: string) => teamForPosition(next.players.find((p) => p.playerId === id)!.position);
 
   const dealt = isDealt(next);
   const justDealt = dealt && (previous === null || !isDealt(previous));
@@ -104,12 +103,18 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
     for (const id of humans) add(id, 'started', 'Game on', "All four seats are taken and we're ready to go!");
   }
 
-  // The hand was just decided.
-  const decided = gameWinningTeam(game) !== null;
+  // The hand was just decided. Each side hears who took it (or the match), as the match screen
+  // says it.
+  const handWinner = gameWinningTeam(game);
+  const decided = handWinner !== null;
   if (sameGame && decided && gameWinningTeam(previous!.currentGame) === null) {
     for (const id of humans) {
-      if (next.winningTeam != null) add(id, 'matchOver', 'Match over', 'See how it ended, or ask for a rematch.');
-      else add(id, 'handOver', 'Hand over', 'Ready up for the next hand.');
+      const ours = teamOf(id) === (next.winningTeam ?? handWinner);
+      if (next.winningTeam != null) {
+        add(id, 'matchOver', 'Match over', `${ours ? 'You won the match!' : 'They won the match.'} Up for a rematch?`);
+      } else {
+        add(id, 'handOver', 'Hand over', `${ours ? 'We took the hand.' : 'They took the hand.'} Ready for the next one?`);
+      }
     }
   }
 
@@ -118,7 +123,7 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
   const current = game.currentPlayerId;
   const turnMoved = justDealt || !sameGame || previous!.currentGame.currentPlayerId !== current;
   if (dealt && !decided && current != null && !isBot(current) && turnMoved) {
-    add(current, 'turn', turnTitle(game), undefined, bidNote(game));
+    add(current, 'turn', turnTitle(game), bidDetail(game));
   }
 
   return [...notices.values()];

@@ -95,7 +95,7 @@ describe('MatchDO rematch', () => {
     // Polls rather than resolving a promise from the reply, which runs inside the Durable Object.
     await vi.waitFor(() => expect(sent).toHaveLength(1));
     expect(sent).toEqual([
-      expect.objectContaining({ to: 'ExponentPushToken[push-p2]', body: expect.stringMatching(/^Your bid · /), data: { url: `/match/${pushed}` } }),
+      expect.objectContaining({ to: 'ExponentPushToken[push-p2]', body: expect.stringMatching(/\nYour bid$/), data: { url: `/match/${pushed}` } }),
     ]);
     // D1 isn't reset between tests.
     await testEnv.DB.prepare('DELETE FROM push_tokens').run();

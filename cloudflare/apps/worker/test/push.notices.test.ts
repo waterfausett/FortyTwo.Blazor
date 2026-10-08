@@ -5,6 +5,7 @@ import {
   Suit,
   Teams,
   gameValue,
+  teamForPosition,
   createDomino,
   createMatch,
   gameWinningTeam,
@@ -93,7 +94,7 @@ describe('pushNotices', () => {
       } else {
         expect(summary(notices)).toEqual([`${bidder}:turn:Name trump`]);
         // The bid is settled by now, so the bidder hears what they won it with.
-        expect(notices[0].note).toBe('You won the bid! (30)');
+        expect(notices[0].detail).toBe('You won the bid! (30)');
       }
       match = next;
     }
@@ -128,7 +129,25 @@ describe('pushNotices', () => {
     const after = decidedBy!.after;
     const winner = gameWinningTeam(after.currentGame)!;
     expect(notices[0].marks?.[winner]).toBe(gameValue(after.currentGame));
-    expect(notices[0].detail).toBe('Ready up for the next hand.');
+    // Each side hears who took it, as the app's ready-up banner says.
+    const teamOf = (id: string) => teamForPosition(after.players.find((p) => p.playerId === id)!.position);
+    for (const n of notices) {
+      expect(n.detail).toBe(
+        teamOf(n.playerId) === winner ? 'We took the hand. Ready for the next one?' : 'They took the hand. Ready for the next one?'
+      );
+    }
+
+    // Had the winners been on 6 marks already, the same play would have won them the match. (Each
+    // earlier hand needs its own id: the engine files a hand only once.)
+    const earlier = Array.from({ length: 6 }, (_, i) => ({ ...after.currentGame, id: `earlier-${i}` }));
+    const nearlyWon = { ...decidedBy!.before, games: { [winner]: earlier } };
+    const won = legalPlay(nearlyWon);
+    expect(won.winningTeam).toBe(winner);
+    const matchOver = pushNotices(nearlyWon, won);
+    expect(summary(matchOver)).toEqual(['p1:matchOver:Match over', 'p2:matchOver:Match over', 'p3:matchOver:Match over', 'p4:matchOver:Match over']);
+    for (const n of matchOver) {
+      expect(n.detail).toBe(teamOf(n.playerId) === winner ? 'You won the match! Up for a rematch?' : 'They won the match. Up for a rematch?');
+    }
   });
 
   it("only tells a rematch's first bidder to bid", () => {
