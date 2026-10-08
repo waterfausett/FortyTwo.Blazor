@@ -110,8 +110,8 @@ describe('messagesFor', () => {
       return { body: m.body, ttl: m.ttl };
     };
     expect(sent(turn('p1'))).toEqual({ body: 'Your bid · Us 4, Them 3', ttl: 12 * 3600 });
-    expect(sent(notice('p1', 'poke', "You've been poked", { detail: 'The table is waiting on you.' }))).toEqual({
-      body: "You've been poked · Us 4, Them 3. The table is waiting on you.",
+    expect(sent(notice('p1', 'poke', "You've been poked", { marks: undefined, detail: 'The table is waiting on you.' }))).toEqual({
+      body: "You've been poked · The table is waiting on you.",
       ttl: 12 * 3600,
     });
     expect(sent(notice('p1', 'handOver', 'Hand over', { detail: 'Ready up for the next hand.' }))).toEqual({

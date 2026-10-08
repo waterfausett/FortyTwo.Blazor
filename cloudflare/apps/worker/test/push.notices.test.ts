@@ -66,6 +66,7 @@ describe('pushNotices', () => {
       ['p3', 2],
       ['p4', 3],
     ]);
+    expect(notices.find((n) => n.kind === 'started')).toMatchObject({ detail: "All four seats are taken and we're ready to go!" });
     expect(notices.find((n) => n.kind === 'started')?.marks).toBeUndefined();
     expect(notices.find((n) => n.kind === 'turn')?.marks).toEqual({ [Teams.TeamA]: 0, [Teams.TeamB]: 0 });
   });

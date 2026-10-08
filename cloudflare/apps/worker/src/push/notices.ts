@@ -35,7 +35,8 @@ export interface Notice {
   matchId: string;
   // Who sits where, to name the match by its teams.
   players: MatchPlayerRef[];
-  // Each team's marks, or none when there's no score worth telling (the game on, at 0-0).
+  // Each team's marks, or none when the score isn't worth telling: at the game on it's 0-0, and a
+  // poke is about a turn, not how the match stands.
   marks?: Record<Teams, number>;
 }
 
@@ -54,7 +55,7 @@ export function noticeFor(
     ...(detail != null && { detail }),
     matchId: match.id,
     players: match.players.map(({ playerId, position }) => ({ playerId, position })),
-    ...(kind !== 'started' && { marks: { [Teams.TeamA]: scores[Teams.TeamA] ?? 0, [Teams.TeamB]: scores[Teams.TeamB] ?? 0 } }),
+    ...(kind !== 'started' && kind !== 'poke' && { marks: { [Teams.TeamA]: scores[Teams.TeamA] ?? 0, [Teams.TeamB]: scores[Teams.TeamB] ?? 0 } }),
   };
 }
 
@@ -88,7 +89,7 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
   // The game has started: the table just filled and the first hand was dealt. A rematch, which
   // arrives already dealt (no previous), says nothing of it.
   if (justDealt && previous !== null) {
-    for (const id of humans) add(id, 'started', 'Game on', 'All four seats are taken and the first hand is dealt.');
+    for (const id of humans) add(id, 'started', 'Game on', "All four seats are taken and we're ready to go!");
   }
 
   // The hand was just decided.
