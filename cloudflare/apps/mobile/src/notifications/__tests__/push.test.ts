@@ -1,6 +1,15 @@
 import * as Notifications from 'expo-notifications';
 import type { Api } from '@/api/useApi';
-import { addPushTokenChangeListener, askOnceForPush, isNewTap, notificationRoute, registerDevice, unregisterDevice } from '../push';
+import {
+  addPushTokenChangeListener,
+  askOnceForPush,
+  isNewTap,
+  notificationRoute,
+  registerCategories,
+  registerDevice,
+  takeNotificationAction,
+  unregisterDevice,
+} from '../push';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: { eas: { projectId: 'project-1' } } } } }));
 jest.mock('expo-notifications', () => ({
@@ -11,6 +20,8 @@ jest.mock('expo-notifications', () => ({
   getDevicePushTokenAsync: jest.fn(async () => ({ type: 'android', data: 'fcm-1' })),
   getExpoPushTokenAsync: jest.fn(async () => ({ type: 'expo', data: 'ExponentPushToken[device]' })),
   addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })),
+  setNotificationCategoryAsync: jest.fn(async () => ({})),
+  DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
   AndroidImportance: { HIGH: 4 },
 }));
 
@@ -132,5 +143,46 @@ describe('isNewTap', () => {
   it('opens the next tap, on another notification', () => {
     expect(isNewTap(tap('b'))).toBe(true);
     expect(isNewTap(tap('c'))).toBe(true);
+  });
+});
+
+describe('registerCategories', () => {
+  it("gives the Worker's hand over and match over notices their Ready up and Rematch buttons, which open the app", async () => {
+    await registerCategories();
+    expect(mocked.setNotificationCategoryAsync).toHaveBeenCalledWith('handOver', [
+      { identifier: 'ready', buttonTitle: 'Ready up', options: { opensAppToForeground: true } },
+    ]);
+    expect(mocked.setNotificationCategoryAsync).toHaveBeenCalledWith('matchOver', [
+      { identifier: 'rematch', buttonTitle: 'Rematch', options: { opensAppToForeground: true } },
+    ]);
+  });
+});
+
+describe('takeNotificationAction', () => {
+  const pressed = (actionIdentifier: string, url = '/match/m1') =>
+    ({
+      notification: { request: { identifier: 'n1', content: { data: { url } } } },
+      actionIdentifier,
+    }) as unknown as Notifications.NotificationResponse;
+  const api = () =>
+    ({ readyUp: jest.fn(async () => ({})), rematch: jest.fn(async () => ({})) }) as unknown as Api & {
+      readyUp: jest.Mock;
+      rematch: jest.Mock;
+    };
+
+  it("does what the match screen's button would, for the match the notice is about", async () => {
+    const a = api();
+    expect(await takeNotificationAction(a, pressed('ready'))).toBe(true);
+    expect(a.readyUp).toHaveBeenCalledWith('m1', true);
+    expect(await takeNotificationAction(a, pressed('rematch'))).toBe(true);
+    expect(a.rematch).toHaveBeenCalledWith('m1');
+  });
+
+  it('does nothing for a plain tap, or a notice that names no match', async () => {
+    const a = api();
+    expect(await takeNotificationAction(a, pressed('expo.modules.notifications.actions.DEFAULT'))).toBe(false);
+    expect(await takeNotificationAction(a, pressed('ready', '/profile'))).toBe(false);
+    expect(a.readyUp).not.toHaveBeenCalled();
+    expect(a.rematch).not.toHaveBeenCalled();
   });
 });

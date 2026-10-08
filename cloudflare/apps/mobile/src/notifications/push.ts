@@ -1,6 +1,7 @@
 // Push notifications: the Worker sends one when it's the player's turn, a hand they're in ends, or
 // a game of theirs starts - unless they have that match open (worker: push/notices.ts). This
-// registers the device for them and opens the match when one is tapped.
+// registers the device for them and opens the match when one is tapped. A hand over carries a
+// Ready up button and a match over a Rematch button, which open the match and do the same.
 //
 // A device is registered only once the player has given the OS permission and has notifications
 // on in their profile (on unless turned off). Permission is asked for when they first sit at a
@@ -23,6 +24,23 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
+
+// The buttons on the Worker's hand over and match over notices (push/send.ts's CATEGORIES, by the
+// same ids). Each opens the app, which then does what the match screen's button does: opening it
+// lets the player see it happen, and a request sent from the background could go unanswered.
+const READY_ACTION = 'ready';
+const REMATCH_ACTION = 'rematch';
+export async function registerCategories(): Promise<void> {
+  await Notifications.setNotificationCategoryAsync('handOver', [
+    { identifier: READY_ACTION, buttonTitle: 'Ready up', options: { opensAppToForeground: true } },
+  ]);
+  await Notifications.setNotificationCategoryAsync('matchOver', [
+    { identifier: REMATCH_ACTION, buttonTitle: 'Rematch', options: { opensAppToForeground: true } },
+  ]);
+}
+// Registered on launch, before any notification can arrive. A notice that comes before they are
+// (or on a device where this failed) shows without its button, and a tap still opens the match.
+void registerCategories().catch(() => {});
 
 // Android sends notifications through a channel, which must exist before a token is asked for
 // (and before Android 13+ will show the permission prompt).
@@ -118,4 +136,16 @@ export function isNewTap(response: Notifications.NotificationResponse): boolean 
 export function notificationRoute(notification: Notifications.Notification): string | null {
   const url = notification.request.content.data?.url;
   return typeof url === 'string' && url.startsWith('/') ? url : null;
+}
+
+// Does what a notice's button asks, for the match the notice is about: readies up, or asks for a
+// rematch. Returns whether there was anything to do - not for a plain tap. The match screen, which
+// the button also opens, shows how it went.
+export async function takeNotificationAction(api: Api, response: Notifications.NotificationResponse): Promise<boolean> {
+  const matchId = notificationRoute(response.notification)?.match(/^\/match\/([^/?#]+)$/)?.[1];
+  if (matchId == null) return false;
+  if (response.actionIdentifier === READY_ACTION) await api.readyUp(matchId, true);
+  else if (response.actionIdentifier === REMATCH_ACTION) await api.rematch(matchId);
+  else return false;
+  return true;
 }

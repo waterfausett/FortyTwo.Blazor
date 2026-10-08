@@ -1,12 +1,20 @@
 // Keeps this device's push registration in step with the signed-in player (src/notifications/
-// push.ts), and opens the match a tapped notification is about.
+// push.ts), and opens the match a tapped notification is about - taking the action too, when it was
+// one of its buttons.
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { type Href, router, usePathname } from 'expo-router';
 import { useApi } from '@/api/useApi';
 import { useProfile } from '@/api/useProfile';
 import { noteIncomingLink } from '@/linking/incomingLink';
-import { addPushTokenChangeListener, isNewTap, notificationRoute, registerDevice, unregisterDevice } from './push';
+import {
+  addPushTokenChangeListener,
+  isNewTap,
+  notificationRoute,
+  registerDevice,
+  takeNotificationAction,
+  unregisterDevice,
+} from './push';
 
 export function usePushNotifications(signedIn: boolean): void {
   const api = useApi();
@@ -40,10 +48,21 @@ export function usePushNotifications(signedIn: boolean): void {
       if (!isNewTap(response)) return;
       const route = notificationRoute(response.notification);
       if (route == null) return;
-      if (!signedIn) noteIncomingLink(route);
-      else if (route === pathname.current) return;
-      else if (pathname.current.startsWith('/match/')) router.replace(route as Href);
-      else router.push(route as Href);
+      if (!signedIn) {
+        // Signing in comes first; the button's action is left to the player, on the match.
+        noteIncomingLink(route);
+        return;
+      }
+      if (route !== pathname.current) {
+        if (pathname.current.startsWith('/match/')) router.replace(route as Href);
+        else router.push(route as Href);
+      }
+      // A button's notification stays in the shade on Android once pressed; it's done with.
+      void takeNotificationAction(api, response)
+        .then((took) => {
+          if (took) return Notifications.dismissNotificationAsync(response.notification.request.identifier);
+        })
+        .catch(() => {});
     };
     const launchedBy = Notifications.getLastNotificationResponse();
     if (launchedBy) {
@@ -52,5 +71,5 @@ export function usePushNotifications(signedIn: boolean): void {
     }
     const subscription = Notifications.addNotificationResponseReceivedListener(open);
     return () => subscription.remove();
-  }, [signedIn]);
+  }, [api, signedIn]);
 }
