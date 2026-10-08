@@ -9,16 +9,53 @@
 //     anyone with the finished match open is taken to it, and everyone else hears when it's their
 //     turn, which comes round to every player in the first round of bidding.
 // Bots never get one. A poke (poke.ts) is the one notice not worked out here: a player sends it.
-import { gameWinningTeam, handSize, isBot, type Game, type MatchState } from '@fortytwo/rules';
+//
+// A notice says what happened, not how to show it: send.ts names the match by its teams from each
+// recipient's side, which needs names this pure code doesn't have.
+import {
+  Teams,
+  gameWinningTeam,
+  handSize,
+  isBot,
+  matchScores,
+  type Game,
+  type MatchPlayerRef,
+  type MatchState,
+} from '@fortytwo/rules';
 
 export type NoticeKind = 'turn' | 'handOver' | 'matchOver' | 'started' | 'poke';
 
 export interface Notice {
   playerId: string;
   kind: NoticeKind;
-  title: string;
-  body: string;
+  // What happened, in a few words: "Your bid", "Hand over".
+  headline: string;
+  // Anything more to say, as a sentence.
+  detail?: string;
   matchId: string;
+  // Who sits where, to name the match by its teams.
+  players: MatchPlayerRef[];
+  // Each team's marks, or none when there's no score worth telling (the game on, at 0-0).
+  marks?: Record<Teams, number>;
+}
+
+export function noticeFor(
+  match: MatchState,
+  playerId: string,
+  kind: NoticeKind,
+  headline: string,
+  detail?: string
+): Notice {
+  const scores = matchScores(match);
+  return {
+    playerId,
+    kind,
+    headline,
+    ...(detail != null && { detail }),
+    matchId: match.id,
+    players: match.players.map(({ playerId, position }) => ({ playerId, position })),
+    ...(kind !== 'started' && { marks: { [Teams.TeamA]: scores[Teams.TeamA] ?? 0, [Teams.TeamB]: scores[Teams.TeamB] ?? 0 } }),
+  };
 }
 
 // All four seated and a hand dealt (describeMatch's isTableReady, in @fortytwo/client).
@@ -41,8 +78,8 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
   const notices = new Map<string, Notice>();
   const game = next.currentGame;
   const humans = next.players.map((p) => p.playerId).filter((id) => !isBot(id));
-  const add = (playerId: string, kind: NoticeKind, title: string, body: string) =>
-    notices.set(playerId, { playerId, kind, title, body, matchId: next.id });
+  const add = (playerId: string, kind: NoticeKind, headline: string, detail?: string) =>
+    notices.set(playerId, noticeFor(next, playerId, kind, headline, detail));
 
   const dealt = isDealt(next);
   const justDealt = dealt && (previous === null || !isDealt(previous));
@@ -68,7 +105,7 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
   const current = game.currentPlayerId;
   const turnMoved = justDealt || !sameGame || previous!.currentGame.currentPlayerId !== current;
   if (dealt && !decided && current != null && !isBot(current) && turnMoved) {
-    add(current, 'turn', turnTitle(game), `${game.name} is waiting on you.`);
+    add(current, 'turn', turnTitle(game));
   }
 
   return [...notices.values()];

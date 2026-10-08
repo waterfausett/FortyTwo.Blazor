@@ -69,7 +69,7 @@ describe('MatchDO rematch', () => {
   it('pushes only the first bidder, unless their vote started it', async () => {
     const players = ['push-p1', 'push-p2', 'push-p3', 'push-p4'];
     for (const id of players) await saveToken(testEnv.DB, id, `ExponentPushToken[${id}]`, 'android');
-    const sent: { to: string; title: string; data: { url: string } }[] = [];
+    const sent: { to: string; body: string; data: { url: string } }[] = [];
     fetchMock.activate();
     fetchMock.disableNetConnect();
     fetchMock
@@ -95,7 +95,7 @@ describe('MatchDO rematch', () => {
     // Polls rather than resolving a promise from the reply, which runs inside the Durable Object.
     await vi.waitFor(() => expect(sent).toHaveLength(1));
     expect(sent).toEqual([
-      expect.objectContaining({ to: 'ExponentPushToken[push-p2]', title: 'Your bid', data: { url: `/match/${pushed}` } }),
+      expect.objectContaining({ to: 'ExponentPushToken[push-p2]', body: expect.stringMatching(/^Your bid · /), data: { url: `/match/${pushed}` } }),
     ]);
     // D1 isn't reset between tests.
     await testEnv.DB.prepare('DELETE FROM push_tokens').run();

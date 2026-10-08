@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   Bid,
   Suit,
+  Teams,
+  gameValue,
   createDomino,
   createMatch,
   gameWinningTeam,
@@ -29,7 +31,7 @@ function threeSeated(): MatchState {
   return takeSeat(match, 'p3', 2);
 }
 
-const summary = (notices: Notice[]) => notices.map((n) => `${n.playerId}:${n.kind}:${n.title}`).sort();
+const summary = (notices: Notice[]) => notices.map((n) => `${n.playerId}:${n.kind}:${n.headline}`).sort();
 
 function legalPlay(match: MatchState): MatchState {
   const turn = match.currentGame.currentPlayerId!;
@@ -53,9 +55,19 @@ describe('pushNotices', () => {
 
     const notices = pushNotices(before, after);
     expect(notices).toHaveLength(4);
-    expect(notices.find((n) => n.playerId === first)).toMatchObject({ kind: 'turn', title: 'Your bid' });
-    expect(notices.filter((n) => n.kind === 'started').map((n) => n.title)).toEqual(['Game on', 'Game on', 'Game on']);
+    expect(notices.find((n) => n.playerId === first)).toMatchObject({ kind: 'turn', headline: 'Your bid' });
+    expect(notices.filter((n) => n.kind === 'started').map((n) => n.headline)).toEqual(['Game on', 'Game on', 'Game on']);
     expect(notices.every((n) => n.matchId === after.id)).toBe(true);
+    // Each carries the seats, so send.ts can name the match by its teams. The game on has no score
+    // to tell (it's 0-0); the first bid does, like every other notice.
+    expect(notices[0].players.map((p) => [p.playerId, p.position])).toEqual([
+      ['p1', 0],
+      ['p2', 1],
+      ['p3', 2],
+      ['p4', 3],
+    ]);
+    expect(notices.find((n) => n.kind === 'started')?.marks).toBeUndefined();
+    expect(notices.find((n) => n.kind === 'turn')?.marks).toEqual({ [Teams.TeamA]: 0, [Teams.TeamB]: 0 });
   });
 
   it('leaves bots out', () => {
@@ -109,6 +121,11 @@ describe('pushNotices', () => {
     expect(decidedBy).not.toBeNull();
     const notices = pushNotices(decidedBy!.before, decidedBy!.after);
     expect(summary(notices)).toEqual(['p1:handOver:Hand over', 'p2:handOver:Hand over', 'p3:handOver:Hand over', 'p4:handOver:Hand over']);
+    // The score counts the hand just decided.
+    const after = decidedBy!.after;
+    const winner = gameWinningTeam(after.currentGame)!;
+    expect(notices[0].marks?.[winner]).toBe(gameValue(after.currentGame));
+    expect(notices[0].detail).toBe('Ready up for the next hand.');
   });
 
   it("only tells a rematch's first bidder to bid", () => {
