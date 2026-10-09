@@ -1164,11 +1164,13 @@
 /* ---------- Match over: the summary dialog ---------- */
 
 /* Dims everything behind the dialog so the table reads as finished; closing the dialog uncovers
-   it. Fixed rather than absolute: .match isn't a positioning context. */
+   it. Fixed rather than absolute: .match isn't a positioning context. The z-index clears the
+   table's own layers - dominoes sit at 400 (domino.css), the trick tags at 500/501 - which would
+   otherwise paint over the dialog. */
 .match-summary-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 600;
   display: flex;
   align-items: center;
   justify-content: center;
