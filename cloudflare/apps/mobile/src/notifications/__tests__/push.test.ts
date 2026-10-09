@@ -1,4 +1,6 @@
 import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
+import { Platform } from 'react-native';
 import type { Api } from '@/api/useApi';
 import {
   addPushTokenChangeListener,
@@ -24,6 +26,7 @@ jest.mock('expo-notifications', () => ({
   DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
   AndroidImportance: { HIGH: 4 },
 }));
+jest.mock('expo-task-manager', () => ({ isTaskRegisteredAsync: jest.fn(async () => true) }));
 
 const mocked = Notifications as jest.Mocked<typeof Notifications>;
 const permission = (status: string, canAskAgain = true) =>
@@ -59,7 +62,34 @@ describe('registerDevice', () => {
       projectId: 'project-1',
       devicePushToken: { type: 'android', data: 'fcm-1' },
     });
-    expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', expect.stringMatching(/android|ios/));
+    expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', expect.stringMatching(/android|ios/), expect.any(Boolean));
+  });
+
+  // Android draws the notices with buttons without them unless the app does (drawNotice.ts).
+  it('says, on Android, whether the app draws its own notices', async () => {
+    mocked.getPermissionsAsync.mockResolvedValue(permission('granted'));
+    const os = jest.replaceProperty(Platform, 'OS', 'android');
+    const isRegistered = TaskManager.isTaskRegisteredAsync as jest.Mock;
+    const api = fakeApi();
+
+    await registerDevice(api, { ask: false });
+    expect(api.registerPushToken).toHaveBeenLastCalledWith('ExponentPushToken[device]', 'android', true);
+    expect(isRegistered).toHaveBeenCalledWith('draw-notice');
+
+    isRegistered.mockResolvedValueOnce(false);
+    await registerDevice(api, { ask: false });
+    expect(api.registerPushToken).toHaveBeenLastCalledWith('ExponentPushToken[device]', 'android', false);
+    os.restore();
+  });
+
+  it("doesn't on iOS, which adds the buttons itself", async () => {
+    mocked.getPermissionsAsync.mockResolvedValue(permission('granted'));
+    const os = jest.replaceProperty(Platform, 'OS', 'ios');
+    const api = fakeApi();
+
+    await registerDevice(api, { ask: false });
+    expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', 'ios', false);
+    os.restore();
   });
 
   it("doesn't ask for permission unless told to, and registers nothing without it", async () => {
