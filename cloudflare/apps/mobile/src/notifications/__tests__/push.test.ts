@@ -36,7 +36,18 @@ function fakeApi() {
   };
 }
 
+// Set when push.ts loads, so read before beforeEach clears it.
+const handler = mocked.setNotificationHandler.mock.calls[0][0]!;
+
 beforeEach(() => jest.clearAllMocks());
+
+describe('the notification handler', () => {
+  it('shows a notice that arrives while the app is open as a banner, with its sound', async () => {
+    // Android shows no banner for a silent notification - it goes straight to the shade.
+    const behavior = await handler.handleNotification({} as Notifications.Notification);
+    expect(behavior).toMatchObject({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true });
+  });
+});
 
 describe('registerDevice', () => {
   it("registers this device's token once the player has allowed notifications", async () => {

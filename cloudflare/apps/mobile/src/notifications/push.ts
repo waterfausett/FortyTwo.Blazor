@@ -15,10 +15,11 @@ import type { Api } from '@/api/useApi';
 export const CHANNEL_ID = 'game';
 
 // A notification for some other match than the one on screen still shows while the app is open;
-// the Worker sends none for a match that's open.
+// the Worker sends none for a match that's open. It plays its sound too, as it would with the app
+// closed: Android shows no banner for a silent notification, putting it straight in the shade.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldPlaySound: false,
+    shouldPlaySound: true,
     shouldSetBadge: false,
     shouldShowBanner: true,
     shouldShowList: true,
