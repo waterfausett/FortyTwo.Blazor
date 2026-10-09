@@ -2,8 +2,8 @@ import { describe, expect, it, beforeAll, beforeEach, afterEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
 import type { Env } from '../src/index';
-import { messagesFor, sendNotices } from '../src/push/send';
-import { TOKEN_REFRESH_MS, saveToken } from '../src/push/tokens';
+import { messagesFor, sendNotices, type DrawnMessage } from '../src/push/send';
+import { TOKEN_REFRESH_MS, saveToken, tokensFor } from '../src/push/tokens';
 import type { Notice, NoticeKind } from '../src/push/notices';
 import { saveUsers } from '../src/users/publicUsers';
 import { Teams } from '@fortytwo/rules';
@@ -34,6 +34,8 @@ const names = new Map([
   ['p4', 'Jo'],
 ]);
 const tokenFor = (userId: string) => [{ token: `ExponentPushToken[${userId}]`, userId }];
+// Messages to devices whose notices Android draws.
+const drawn = (...args: Parameters<typeof messagesFor>) => messagesFor(...args) as DrawnMessage[];
 
 beforeAll(() => {
   fetchMock.activate();
@@ -55,24 +57,35 @@ describe('saveToken', () => {
   it('leaves the row alone when the same device registers again, refreshing it at most daily', async () => {
     const token = 'ExponentPushToken[again]';
     const first = new Date('2026-10-01T00:00:00Z');
-    await saveToken(testEnv.DB, 'p1', token, 'android', first);
+    await saveToken(testEnv.DB, 'p1', token, 'android', { now: first });
 
     const soon = new Date(first.getTime() + 60_000);
-    await saveToken(testEnv.DB, 'p1', token, 'android', soon);
+    await saveToken(testEnv.DB, 'p1', token, 'android', { now: soon });
     expect(await updatedOn(token)).toBe(first.toISOString());
 
     const nextDay = new Date(first.getTime() + TOKEN_REFRESH_MS + 1);
-    await saveToken(testEnv.DB, 'p1', token, 'android', nextDay);
+    await saveToken(testEnv.DB, 'p1', token, 'android', { now: nextDay });
     expect(await updatedOn(token)).toBe(nextDay.toISOString());
   });
 
   it('still moves the token to whoever signs in on the device next', async () => {
     const token = 'ExponentPushToken[moved]';
     const at = new Date('2026-10-01T00:00:00Z');
-    await saveToken(testEnv.DB, 'p1', token, 'android', at);
-    await saveToken(testEnv.DB, 'p2', token, 'android', at);
+    await saveToken(testEnv.DB, 'p1', token, 'android', { now: at });
+    await saveToken(testEnv.DB, 'p2', token, 'android', { now: at });
     const row = await testEnv.DB.prepare('SELECT user_id FROM push_tokens WHERE token = ?1').bind(token).first<{ user_id: string }>();
     expect(row?.user_id).toBe('p2');
+  });
+
+  it("notes straight away when the app on a device starts or stops drawing its own notices", async () => {
+    const token = 'ExponentPushToken[updated]';
+    const at = new Date('2026-10-01T00:00:00Z');
+    const soon = new Date(at.getTime() + 60_000);
+    await saveToken(testEnv.DB, 'p1', token, 'android', { now: at });
+    await saveToken(testEnv.DB, 'p1', token, 'android', { now: soon, drawsOwn: true });
+    expect(await tokensFor(testEnv.DB, ['p1'])).toEqual([{ token, userId: 'p1', drawsOwn: true }]);
+    await saveToken(testEnv.DB, 'p1', token, 'android', { now: soon });
+    expect(await tokensFor(testEnv.DB, ['p1'])).toEqual([{ token, userId: 'p1', drawsOwn: false }]);
   });
 });
 
@@ -106,7 +119,7 @@ describe('messagesFor', () => {
 
   it('says what happened the same way for every kind, and how long it stays worth delivering', () => {
     const sent = (n: Notice) => {
-      const [m] = messagesFor([n], tokenFor('p1'), names);
+      const [m] = drawn([n], tokenFor('p1'), names);
       return { body: m.body, ttl: m.ttl };
     };
     expect(sent(turn('p1'))).toEqual({ body: 'Your bid\nUs 4, Them 3', ttl: 12 * 3600 });
@@ -134,17 +147,50 @@ describe('messagesFor', () => {
 
   // The app (src/notifications/push.ts) gives these categories their Ready up and Rematch buttons.
   it('offers the hand over and the match over with buttons to ready up and to rematch', () => {
-    const categoryOf = (n: Notice) => messagesFor([n], tokenFor('p1'), names)[0].categoryId;
+    const categoryOf = (n: Notice) => drawn([n], tokenFor('p1'), names)[0].categoryId;
     expect(categoryOf(notice('p1', 'handOver', 'Hand over'))).toBe('handOver');
     expect(categoryOf(notice('p1', 'matchOver', 'Match over'))).toBe('matchOver');
     expect(categoryOf(turn('p1'))).toBeUndefined();
   });
 
+  // Android draws a notification Expo sends with a title itself, without the app's buttons. An
+  // app that says it draws its own (apps/mobile/src/notifications/drawNotice.ts) is sent these
+  // headless, with what to draw in the data, under the same tag as the match's other notices.
+  it('leaves a notice with buttons for the app to draw, on a device whose app does', () => {
+    const handOver = notice('p1', 'handOver', 'Hand over', { detail: 'We took the hand. Ready for the next one?' });
+    const [drawn, ownDrawn] = messagesFor(
+      [handOver],
+      [
+        { token: 'ExponentPushToken[a]', userId: 'p1' },
+        { token: 'ExponentPushToken[b]', userId: 'p1', drawsOwn: true },
+      ],
+      names
+    );
+    expect(drawn).toMatchObject({ to: 'ExponentPushToken[a]', title: 'You & Sam vs Alex & Jo', categoryId: 'handOver' });
+    expect(ownDrawn).toEqual({
+      to: 'ExponentPushToken[b]',
+      data: {
+        url: '/match/m1',
+        title: 'You & Sam vs Alex & Jo',
+        body: 'We took the hand. Ready for the next one?\nUs 4, Them 3',
+        categoryId: 'handOver',
+        tag: 'match-m1',
+      },
+      // A headless push sent at normal priority can wait until the phone next wakes.
+      priority: 'high',
+      ttl: 12 * 3600,
+    });
+
+    // Without buttons, Android's own drawing does as well.
+    const [turnMessage] = messagesFor([turn('p1')], [{ token: 'ExponentPushToken[b]', userId: 'p1', drawsOwn: true }], names);
+    expect(turnMessage).toMatchObject({ title: 'You & Sam vs Alex & Jo', body: 'Your bid\nUs 4, Them 3' });
+  });
+
   it("calls a player it has no name for by their seat, as the apps do, and bots by number", () => {
     const players = [seats[0], { playerId: 'bot-2', position: 1 }, seats[2], seats[3]];
-    const [m] = messagesFor([notice('p1', 'turn', 'Your bid', { players })], tokenFor('p1'), new Map([['p3', 'Sam']]));
+    const [m] = drawn([notice('p1', 'turn', 'Your bid', { players })], tokenFor('p1'), new Map([['p3', 'Sam']]));
     expect(m.title).toBe('You & Sam vs Bot 2 & Player 4');
-    expect(messagesFor([turn('p1')], tokenFor('p1'))[0].title).toBe('You & Player 3 vs Player 2 & Player 4');
+    expect(drawn([turn('p1')], tokenFor('p1'))[0].title).toBe('You & Player 3 vs Player 2 & Player 4');
   });
 });
 
@@ -164,6 +210,24 @@ describe('sendNotices', () => {
     await sendNotices(testEnv, [turn('p2')]);
 
     expect(sent).toMatchObject([{ title: 'You & Jo vs Ann & Sam', body: 'Your bid\nUs 3, Them 4' }]);
+  });
+
+  it('sends a device whose app draws its own notices a hand over to draw', async () => {
+    await saveToken(testEnv.DB, 'p2', 'ExponentPushToken[p2]', 'android', { drawsOwn: true });
+    let sent: { title?: string; data: { title?: string } }[] = [];
+    fetchMock
+      .get('https://exp.host')
+      .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
+      .reply((opts) => {
+        sent = JSON.parse(String(opts.body));
+        return { statusCode: 200, data: JSON.stringify({ data: sent.map(() => ({ status: 'ok', id: 't' })) }) };
+      });
+
+    await sendNotices(testEnv, [notice('p2', 'handOver', 'Hand over')]);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].title).toBeUndefined();
+    expect(sent[0].data.title).toMatch(/^You & /);
   });
 
   it('posts to Expo and forgets a device Expo says is no longer registered', async () => {
