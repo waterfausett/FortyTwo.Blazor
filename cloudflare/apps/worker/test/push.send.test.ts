@@ -90,7 +90,7 @@ describe('messagesFor', () => {
     expect(messages.map((m) => m.to)).toEqual(['ExponentPushToken[a]', 'ExponentPushToken[b]']);
     expect(messages[0]).toMatchObject({
       title: 'You & Sam vs Alex & Jo',
-      body: 'Us 4, Them 3\nYour bid',
+      body: 'Your bid\nUs 4, Them 3',
       data: { url: '/match/m1' },
       priority: 'high',
       channelId: 'game',
@@ -100,8 +100,8 @@ describe('messagesFor', () => {
 
   it("names the match by its teams from each recipient's side, with the score the same way round", () => {
     const [toP1, toP4] = messagesFor([turn('p1'), turn('p4')], [...tokenFor('p1'), ...tokenFor('p4')], names);
-    expect(toP1).toMatchObject({ title: 'You & Sam vs Alex & Jo', body: 'Us 4, Them 3\nYour bid' });
-    expect(toP4).toMatchObject({ title: 'You & Alex vs Ann & Sam', body: 'Us 3, Them 4\nYour bid' });
+    expect(toP1).toMatchObject({ title: 'You & Sam vs Alex & Jo', body: 'Your bid\nUs 4, Them 3' });
+    expect(toP4).toMatchObject({ title: 'You & Alex vs Ann & Sam', body: 'Your bid\nUs 3, Them 4' });
   });
 
   it('says what happened the same way for every kind, and how long it stays worth delivering', () => {
@@ -109,9 +109,9 @@ describe('messagesFor', () => {
       const [m] = messagesFor([n], tokenFor('p1'), names);
       return { body: m.body, ttl: m.ttl };
     };
-    expect(sent(turn('p1'))).toEqual({ body: 'Us 4, Them 3\nYour bid', ttl: 12 * 3600 });
+    expect(sent(turn('p1'))).toEqual({ body: 'Your bid\nUs 4, Them 3', ttl: 12 * 3600 });
     expect(sent(notice('p1', 'turn', 'Name trump', { detail: 'You won the bid! (34)' }))).toEqual({
-      body: 'Us 4, Them 3\nYou won the bid! (34)',
+      body: 'You won the bid! (34)\nUs 4, Them 3',
       ttl: 12 * 3600,
     });
     expect(sent(notice('p1', 'poke', "You've been poked", { marks: undefined, detail: 'The table is waiting on you.' }))).toEqual({
@@ -119,11 +119,11 @@ describe('messagesFor', () => {
       ttl: 12 * 3600,
     });
     expect(sent(notice('p1', 'handOver', 'Hand over', { detail: 'We took the hand. Ready for the next one?' }))).toEqual({
-      body: 'Us 4, Them 3\nWe took the hand. Ready for the next one?',
+      body: 'We took the hand. Ready for the next one?\nUs 4, Them 3',
       ttl: 12 * 3600,
     });
     expect(sent(notice('p1', 'matchOver', 'Match over', { detail: 'You won the match! Up for a rematch?' }))).toEqual({
-      body: 'Us 4, Them 3\nYou won the match! Up for a rematch?',
+      body: 'You won the match! Up for a rematch?\nUs 4, Them 3',
       ttl: 24 * 3600,
     });
     expect(sent(notice('p1', 'started', 'Game on', { marks: undefined, detail: 'All four seats are taken.' }))).toEqual({
@@ -163,7 +163,7 @@ describe('sendNotices', () => {
 
     await sendNotices(testEnv, [turn('p2')]);
 
-    expect(sent).toMatchObject([{ title: 'You & Jo vs Ann & Sam', body: 'Us 3, Them 4\nYour bid' }]);
+    expect(sent).toMatchObject([{ title: 'You & Jo vs Ann & Sam', body: 'Your bid\nUs 3, Them 4' }]);
   });
 
   it('posts to Expo and forgets a device Expo says is no longer registered', async () => {

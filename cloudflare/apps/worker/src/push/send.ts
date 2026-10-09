@@ -86,13 +86,14 @@ function matchTitle(notice: Notice, names: ReadonlyMap<string, string>): string 
   return `${team(ownTeam)} vs ${team(otherTeam(ownTeam))}`;
 }
 
-// The score, then what happened on a line of its own: "Us 5, Them 3" over "We took the hand.
-// Ready for the next one?". Android shows the second line once the notification is expanded; iOS
-// shows both. With no score to tell: "You've been poked · The table is waiting on you."
+// What happened, then the score on a line of its own: "We took the hand. Ready for the next one?"
+// over "Us 5, Them 3". Android shows only the first line until the notification is expanded - and a
+// banner always arrives collapsed - so it's the one that says what happened; iOS shows both. With
+// no score to tell: "You've been poked · The table is waiting on you."
 function noticeBody(notice: Notice): string {
   const ownTeam = myTeam(notice);
   if (notice.marks) {
-    return `Us ${notice.marks[ownTeam]}, Them ${notice.marks[otherTeam(ownTeam)]}\n${notice.detail ?? notice.headline}`;
+    return `${notice.detail ?? notice.headline}\nUs ${notice.marks[ownTeam]}, Them ${notice.marks[otherTeam(ownTeam)]}`;
   }
   return notice.detail != null ? `${notice.headline} · ${notice.detail}` : notice.headline;
 }
