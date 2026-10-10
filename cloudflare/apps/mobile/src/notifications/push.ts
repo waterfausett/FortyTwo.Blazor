@@ -21,14 +21,23 @@ export const DRAW_NOTICE_TASK = 'draw-notice';
 // A notification for some other match than the one on screen still shows while the app is open;
 // the Worker sends none for a match that's open. It plays its sound too, as it would with the app
 // closed: Android shows no banner for a silent notification, putting it straight in the shade.
+//
+// One about the match on screen doesn't show: the Worker counts a player as watching only once
+// their socket is open, and there's a moment without one whenever the app comes back to a match -
+// as when a notification's button opens it, and the change it makes deals the next hand. The OS
+// only asks while the app is open, so a match left on screen in the background still notifies.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const show = notificationRoute(notification) !== routeOnScreen;
+    return { shouldPlaySound: show, shouldSetBadge: false, shouldShowBanner: show, shouldShowList: show };
+  },
 });
+
+// Kept up to date by usePushNotifications.
+let routeOnScreen: string | null = null;
+export function noteRouteOnScreen(route: string): void {
+  routeOnScreen = route;
+}
 
 // The buttons on the Worker's hand over and match over notices (push/send.ts's CATEGORIES, by the
 // same ids). Each opens the app, which then does what the match screen's button does: opening it

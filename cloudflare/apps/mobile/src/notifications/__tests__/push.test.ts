@@ -7,6 +7,7 @@ import {
   askOnceForPush,
   isNewTap,
   notificationRoute,
+  noteRouteOnScreen,
   registerCategories,
   registerDevice,
   takeNotificationAction,
@@ -45,10 +46,21 @@ const handler = mocked.setNotificationHandler.mock.calls[0][0]!;
 beforeEach(() => jest.clearAllMocks());
 
 describe('the notification handler', () => {
+  const about = (url: string) => ({ request: { content: { data: { url } } } }) as unknown as Notifications.Notification;
+
   it('shows a notice that arrives while the app is open as a banner, with its sound', async () => {
+    noteRouteOnScreen('/match/m1');
     // Android shows no banner for a silent notification - it goes straight to the shade.
-    const behavior = await handler.handleNotification({} as Notifications.Notification);
+    const behavior = await handler.handleNotification(about('/match/m2'));
     expect(behavior).toMatchObject({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true });
+  });
+
+  // The Worker skips a player watching the match, but only once their socket is open: there's a
+  // moment without one whenever the app comes back to it, as when a notification's button opens it.
+  it("doesn't show one about the match on screen", async () => {
+    noteRouteOnScreen('/match/m1');
+    const behavior = await handler.handleNotification(about('/match/m1'));
+    expect(behavior).toMatchObject({ shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false });
   });
 });
 

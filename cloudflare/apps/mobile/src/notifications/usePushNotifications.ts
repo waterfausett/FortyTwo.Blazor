@@ -10,6 +10,7 @@ import { noteIncomingLink } from '@/linking/incomingLink';
 import {
   addPushTokenChangeListener,
   isNewTap,
+  noteRouteOnScreen,
   notificationRoute,
   registerDevice,
   takeNotificationAction,
@@ -23,6 +24,8 @@ export function usePushNotifications(signedIn: boolean): void {
   // Read when a notification is tapped, without setting up the listener again on each navigation.
   const pathname = useRef('');
   pathname.current = usePathname();
+  // And when one arrives, so one about the match on screen doesn't show (push.ts).
+  noteRouteOnScreen(pathname.current);
 
   // On each launch (and whenever the setting changes), register or unregister this device to
   // match the player's setting - without asking for permission; that waits for a match. Expo can
@@ -56,6 +59,8 @@ export function usePushNotifications(signedIn: boolean): void {
       if (route !== pathname.current) {
         if (pathname.current.startsWith('/match/')) router.replace(route as Href);
         else router.push(route as Href);
+        // Before the button's action below, whose answer can come as a notice about this match.
+        noteRouteOnScreen(route);
       }
       // A button's notification stays in the shade on Android once pressed; it's done with.
       void takeNotificationAction(api, response)
