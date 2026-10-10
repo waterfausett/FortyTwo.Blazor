@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.0.3...worker-v1.1.0) (2026-10-10)
+
+
+### Features
+
+* **web:** invite friends from the waiting table ([#103](https://github.com/waterfausett/FortyTwo.Blazor/issues/103)) ([d5187b5](https://github.com/waterfausett/FortyTwo.Blazor/commit/d5187b510fef8a6723f901e4755fc50970274d10))
+* **worker:** name the match in push notifications ([#106](https://github.com/waterfausett/FortyTwo.Blazor/issues/106)) ([e42510c](https://github.com/waterfausett/FortyTwo.Blazor/commit/e42510c947b86e203c250ec9bfece7a911913a32))
+
+
+### Bug Fixes
+
+* **web:** keep the trick dominoes under the match summary dialog ([#107](https://github.com/waterfausett/FortyTwo.Blazor/issues/107)) ([a22c7a0](https://github.com/waterfausett/FortyTwo.Blazor/commit/a22c7a067d43ca0ce497980733f917ac5c002de9))
+
 ## [1.0.3](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.0.2...worker-v1.0.3) (2026-10-07)
 
 
