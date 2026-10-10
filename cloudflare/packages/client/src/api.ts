@@ -166,8 +166,9 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
 
     // This device's Expo push token, so the player's turns and the like reach it as push
     // notifications (the mobile app only). Registering a token another account had moves it here.
-    registerPushToken: (token: string, platform: 'android' | 'ios'): Promise<void> =>
-      request<void>('/api/users/push-tokens', { method: 'PUT', body: JSON.stringify({ token, platform }) }, false),
+    // `drawsOwn`: the app draws the notices with buttons itself, so the Worker sends them headless.
+    registerPushToken: (token: string, platform: 'android' | 'ios', drawsOwn = false): Promise<void> =>
+      request<void>('/api/users/push-tokens', { method: 'PUT', body: JSON.stringify({ token, platform, drawsOwn }) }, false),
 
     removePushToken: (token: string): Promise<void> =>
       request<void>('/api/users/push-tokens', { method: 'DELETE', body: JSON.stringify({ token }) }, false),

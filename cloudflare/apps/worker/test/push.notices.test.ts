@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   Bid,
   Suit,
+  Teams,
+  gameValue,
+  teamForPosition,
   createDomino,
   createMatch,
   gameWinningTeam,
@@ -29,7 +32,7 @@ function threeSeated(): MatchState {
   return takeSeat(match, 'p3', 2);
 }
 
-const summary = (notices: Notice[]) => notices.map((n) => `${n.playerId}:${n.kind}:${n.title}`).sort();
+const summary = (notices: Notice[]) => notices.map((n) => `${n.playerId}:${n.kind}:${n.headline}`).sort();
 
 function legalPlay(match: MatchState): MatchState {
   const turn = match.currentGame.currentPlayerId!;
@@ -53,9 +56,20 @@ describe('pushNotices', () => {
 
     const notices = pushNotices(before, after);
     expect(notices).toHaveLength(4);
-    expect(notices.find((n) => n.playerId === first)).toMatchObject({ kind: 'turn', title: 'Your bid' });
-    expect(notices.filter((n) => n.kind === 'started').map((n) => n.title)).toEqual(['Game on', 'Game on', 'Game on']);
+    expect(notices.find((n) => n.playerId === first)).toMatchObject({ kind: 'turn', headline: 'Your bid' });
+    expect(notices.filter((n) => n.kind === 'started').map((n) => n.headline)).toEqual(['Game on', 'Game on', 'Game on']);
     expect(notices.every((n) => n.matchId === after.id)).toBe(true);
+    // Each carries the seats, so send.ts can name the match by its teams. The game on has no score
+    // to tell (it's 0-0); the first bid does, like every other notice.
+    expect(notices[0].players.map((p) => [p.playerId, p.position])).toEqual([
+      ['p1', 0],
+      ['p2', 1],
+      ['p3', 2],
+      ['p4', 3],
+    ]);
+    expect(notices.find((n) => n.kind === 'started')).toMatchObject({ detail: "All four seats are taken and we're ready to go!" });
+    expect(notices.find((n) => n.kind === 'started')?.marks).toBeUndefined();
+    expect(notices.find((n) => n.kind === 'turn')?.marks).toEqual({ [Teams.TeamA]: 0, [Teams.TeamB]: 0 });
   });
 
   it('leaves bots out', () => {
@@ -79,6 +93,8 @@ describe('pushNotices', () => {
         expect(summary(notices)).toEqual([`${next.currentGame.currentPlayerId}:turn:Your bid`]);
       } else {
         expect(summary(notices)).toEqual([`${bidder}:turn:Name trump`]);
+        // The bid is settled by now, so the bidder hears what they won it with.
+        expect(notices[0].detail).toBe('You won the bid! (30)');
       }
       match = next;
     }
@@ -109,6 +125,29 @@ describe('pushNotices', () => {
     expect(decidedBy).not.toBeNull();
     const notices = pushNotices(decidedBy!.before, decidedBy!.after);
     expect(summary(notices)).toEqual(['p1:handOver:Hand over', 'p2:handOver:Hand over', 'p3:handOver:Hand over', 'p4:handOver:Hand over']);
+    // The score counts the hand just decided.
+    const after = decidedBy!.after;
+    const winner = gameWinningTeam(after.currentGame)!;
+    expect(notices[0].marks?.[winner]).toBe(gameValue(after.currentGame));
+    // Each side hears who took it, as the app's ready-up banner says.
+    const teamOf = (id: string) => teamForPosition(after.players.find((p) => p.playerId === id)!.position);
+    for (const n of notices) {
+      expect(n.detail).toBe(
+        teamOf(n.playerId) === winner ? 'We took the hand. Ready for the next one?' : 'They took the hand. Ready for the next one?'
+      );
+    }
+
+    // Had the winners been on 6 marks already, the same play would have won them the match. (Each
+    // earlier hand needs its own id: the engine files a hand only once.)
+    const earlier = Array.from({ length: 6 }, (_, i) => ({ ...after.currentGame, id: `earlier-${i}` }));
+    const nearlyWon = { ...decidedBy!.before, games: { [winner]: earlier } };
+    const won = legalPlay(nearlyWon);
+    expect(won.winningTeam).toBe(winner);
+    const matchOver = pushNotices(nearlyWon, won);
+    expect(summary(matchOver)).toEqual(['p1:matchOver:Match over', 'p2:matchOver:Match over', 'p3:matchOver:Match over', 'p4:matchOver:Match over']);
+    for (const n of matchOver) {
+      expect(n.detail).toBe(teamOf(n.playerId) === winner ? 'You won the match! Up for a rematch?' : 'They won the match. Up for a rematch?');
+    }
   });
 
   it("only tells a rematch's first bidder to bid", () => {

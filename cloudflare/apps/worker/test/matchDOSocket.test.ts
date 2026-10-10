@@ -283,9 +283,9 @@ describe('MatchDO WebSocket upgrade', () => {
 });
 
 // MatchDO's push notifications: a change notifies the players it concerns (push/notices.ts), except
-// anyone watching the match through an open socket.
+// anyone watching the match through an open socket, and the player who made it.
 describe('MatchDO push notifications', () => {
-  it('pushes to players without the match open, and not to one who has it open', async () => {
+  it('pushes to players without the match open, and not to one who has it open or made the change', async () => {
     const dealOrder: Domino[] = [];
     for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dealOrder.push(createDomino(i, j));
     for (const id of ['p1', 'p2', 'p3', 'p4']) await saveToken(testEnv.DB, id, `ExponentPushToken[${id}]`, 'android');
@@ -305,12 +305,13 @@ describe('MatchDO push notifications', () => {
         return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
       });
 
-    // The last seat fills the table and deals: everyone hears the game is on, but p2 is watching.
+    // The last seat fills the table and deals: everyone hears the game is on, but p2 is watching,
+    // and p4 just sat down - in the app that's the match screen, its socket maybe not open yet.
     await stub.takeSeat('p4', 3, dealOrder);
     // Polls rather than resolving a promise from the reply: that runs inside the Durable Object's
     // request, and a test resumed from there can't touch its socket or stub any more.
     await vi.waitFor(() => expect(sentTo).toBeDefined());
-    expect(sentTo).toEqual(['ExponentPushToken[p1]', 'ExponentPushToken[p3]', 'ExponentPushToken[p4]']);
+    expect(sentTo).toEqual(['ExponentPushToken[p1]', 'ExponentPushToken[p3]']);
 
     ws?.close();
   });

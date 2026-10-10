@@ -1,6 +1,18 @@
 import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
+import { Platform } from 'react-native';
 import type { Api } from '@/api/useApi';
-import { addPushTokenChangeListener, askOnceForPush, isNewTap, notificationRoute, registerDevice, unregisterDevice } from '../push';
+import {
+  addPushTokenChangeListener,
+  askOnceForPush,
+  isNewTap,
+  notificationRoute,
+  noteRouteOnScreen,
+  registerCategories,
+  registerDevice,
+  takeNotificationAction,
+  unregisterDevice,
+} from '../push';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: { eas: { projectId: 'project-1' } } } } }));
 jest.mock('expo-notifications', () => ({
@@ -11,8 +23,11 @@ jest.mock('expo-notifications', () => ({
   getDevicePushTokenAsync: jest.fn(async () => ({ type: 'android', data: 'fcm-1' })),
   getExpoPushTokenAsync: jest.fn(async () => ({ type: 'expo', data: 'ExponentPushToken[device]' })),
   addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })),
+  setNotificationCategoryAsync: jest.fn(async () => ({})),
+  DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
   AndroidImportance: { HIGH: 4 },
 }));
+jest.mock('expo-task-manager', () => ({ isTaskRegisteredAsync: jest.fn(async () => true) }));
 
 const mocked = Notifications as jest.Mocked<typeof Notifications>;
 const permission = (status: string, canAskAgain = true) =>
@@ -25,7 +40,29 @@ function fakeApi() {
   };
 }
 
+// Set when push.ts loads, so read before beforeEach clears it.
+const handler = mocked.setNotificationHandler.mock.calls[0][0]!;
+
 beforeEach(() => jest.clearAllMocks());
+
+describe('the notification handler', () => {
+  const about = (url: string) => ({ request: { content: { data: { url } } } }) as unknown as Notifications.Notification;
+
+  it('shows a notice that arrives while the app is open as a banner, with its sound', async () => {
+    noteRouteOnScreen('/match/m1');
+    // Android shows no banner for a silent notification - it goes straight to the shade.
+    const behavior = await handler.handleNotification(about('/match/m2'));
+    expect(behavior).toMatchObject({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true });
+  });
+
+  // The Worker skips a player watching the match, but only once their socket is open: there's a
+  // moment without one whenever the app comes back to it, as when a notification's button opens it.
+  it("doesn't show one about the match on screen", async () => {
+    noteRouteOnScreen('/match/m1');
+    const behavior = await handler.handleNotification(about('/match/m1'));
+    expect(behavior).toMatchObject({ shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false });
+  });
+});
 
 describe('registerDevice', () => {
   it("registers this device's token once the player has allowed notifications", async () => {
@@ -37,7 +74,34 @@ describe('registerDevice', () => {
       projectId: 'project-1',
       devicePushToken: { type: 'android', data: 'fcm-1' },
     });
-    expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', expect.stringMatching(/android|ios/));
+    expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', expect.stringMatching(/android|ios/), expect.any(Boolean));
+  });
+
+  // Android draws the notices with buttons without them unless the app does (drawNotice.ts).
+  it('says, on Android, whether the app draws its own notices', async () => {
+    mocked.getPermissionsAsync.mockResolvedValue(permission('granted'));
+    const os = jest.replaceProperty(Platform, 'OS', 'android');
+    const isRegistered = TaskManager.isTaskRegisteredAsync as jest.Mock;
+    const api = fakeApi();
+
+    await registerDevice(api, { ask: false });
+    expect(api.registerPushToken).toHaveBeenLastCalledWith('ExponentPushToken[device]', 'android', true);
+    expect(isRegistered).toHaveBeenCalledWith('draw-notice');
+
+    isRegistered.mockResolvedValueOnce(false);
+    await registerDevice(api, { ask: false });
+    expect(api.registerPushToken).toHaveBeenLastCalledWith('ExponentPushToken[device]', 'android', false);
+    os.restore();
+  });
+
+  it("doesn't on iOS, which adds the buttons itself", async () => {
+    mocked.getPermissionsAsync.mockResolvedValue(permission('granted'));
+    const os = jest.replaceProperty(Platform, 'OS', 'ios');
+    const api = fakeApi();
+
+    await registerDevice(api, { ask: false });
+    expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', 'ios', false);
+    os.restore();
   });
 
   it("doesn't ask for permission unless told to, and registers nothing without it", async () => {
@@ -132,5 +196,46 @@ describe('isNewTap', () => {
   it('opens the next tap, on another notification', () => {
     expect(isNewTap(tap('b'))).toBe(true);
     expect(isNewTap(tap('c'))).toBe(true);
+  });
+});
+
+describe('registerCategories', () => {
+  it("gives the Worker's hand over and match over notices their Ready up and Rematch buttons, which open the app", async () => {
+    await registerCategories();
+    expect(mocked.setNotificationCategoryAsync).toHaveBeenCalledWith('handOver', [
+      { identifier: 'ready', buttonTitle: 'Ready up', options: { opensAppToForeground: true } },
+    ]);
+    expect(mocked.setNotificationCategoryAsync).toHaveBeenCalledWith('matchOver', [
+      { identifier: 'rematch', buttonTitle: 'Rematch', options: { opensAppToForeground: true } },
+    ]);
+  });
+});
+
+describe('takeNotificationAction', () => {
+  const pressed = (actionIdentifier: string, url = '/match/m1') =>
+    ({
+      notification: { request: { identifier: 'n1', content: { data: { url } } } },
+      actionIdentifier,
+    }) as unknown as Notifications.NotificationResponse;
+  const api = () =>
+    ({ readyUp: jest.fn(async () => ({})), rematch: jest.fn(async () => ({})) }) as unknown as Api & {
+      readyUp: jest.Mock;
+      rematch: jest.Mock;
+    };
+
+  it("does what the match screen's button would, for the match the notice is about", async () => {
+    const a = api();
+    expect(await takeNotificationAction(a, pressed('ready'))).toBe(true);
+    expect(a.readyUp).toHaveBeenCalledWith('m1', true);
+    expect(await takeNotificationAction(a, pressed('rematch'))).toBe(true);
+    expect(a.rematch).toHaveBeenCalledWith('m1');
+  });
+
+  it('does nothing for a plain tap, or a notice that names no match', async () => {
+    const a = api();
+    expect(await takeNotificationAction(a, pressed('expo.modules.notifications.actions.DEFAULT'))).toBe(false);
+    expect(await takeNotificationAction(a, pressed('ready', '/profile'))).toBe(false);
+    expect(a.readyUp).not.toHaveBeenCalled();
+    expect(a.rematch).not.toHaveBeenCalled();
   });
 });

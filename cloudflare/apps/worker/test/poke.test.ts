@@ -1,7 +1,7 @@
 // pokeTarget and pokeTurnKey against matches built with the real rules engine.
 import { describe, expect, it } from 'vitest';
 import { Bid, createDomino, createMatch, placeBid, takeSeat, type Domino, type MatchState } from '@fortytwo/rules';
-import { POKE_IDLE_MS, pokeTarget, pokeTurnKey } from '../src/poke';
+import { POKE_IDLE_MS, pokeNotice, pokeTarget, pokeTurnKey } from '../src/poke';
 
 function deck(): Domino[] {
   const dominoes: Domino[] = [];
@@ -63,5 +63,22 @@ describe('pokeTurnKey', () => {
     const match = dealt();
     const next = placeBid(match, match.currentGame.currentPlayerId!, Bid.Pass);
     expect(pokeTurnKey(next)).not.toBe(pokeTurnKey(match));
+  });
+});
+
+describe('pokeNotice', () => {
+  // No score: the poke is about a turn, not how the match stands.
+  it('tells the target the table is waiting on them, with the seats to name the match by', () => {
+    const match = dealt();
+    const target = match.currentGame.currentPlayerId!;
+    expect(pokeNotice(match, target)).toMatchObject({
+      playerId: target,
+      kind: 'poke',
+      headline: "You've been poked",
+      detail: 'The table is waiting on you.',
+      matchId: match.id,
+      players: match.players.map(({ playerId, position }) => ({ playerId, position })),
+    });
+    expect(pokeNotice(match, target).marks).toBeUndefined();
   });
 });
