@@ -1,0 +1,3 @@
+# Every release PR bumps the manifest, so this makes merging one (which tags, publishes and ships
+# the worker or mobile release) wait for an owner's approval. Other PRs don't touch it.
+/.release-please-manifest.json @waterfausett
