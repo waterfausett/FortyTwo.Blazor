@@ -196,15 +196,20 @@ describe('MatchDO bot auto-play', () => {
     }
 
     // A match where the human has opened the bidding and bot-1 is next, in a fresh isolate (no
-    // ML bot loaded yet).
+    // ML bot loaded yet). Its alarms are set an hour later than asked, so only the test runs them:
+    // a warm-up tick is 100 ms, which a slow runner can pass between two of the test's, firing
+    // one the test then counts on (and, as the bots' moves have no fixed count, it can't adjust).
     async function humanHasBid(name: string, botsEnabled: string, assets: Fetcher) {
       resetMlBotForTest();
       const stub = stubFor(name);
       await stub.create('human-1', name);
       await stub.addBots('human-1');
       await runInDurableObject(stub, async (instance: MatchDO) => {
-        const withEnv = instance as unknown as { env: Env };
+        const withEnv = instance as unknown as { env: Env; ctx: DurableObjectState };
         withEnv.env = { ...withEnv.env, BOTS_ENABLED: botsEnabled, ASSETS: assets };
+        const storage = withEnv.ctx.storage;
+        const setAlarm = storage.setAlarm.bind(storage);
+        storage.setAlarm = (time, options) => setAlarm(new Date(time).getTime() + 60 * 60 * 1000, options);
       });
       await stub.bid('human-1', Bid.Thirty);
       return stub;
@@ -244,8 +249,7 @@ describe('MatchDO bot auto-play', () => {
       const before = valueOf(await stub.getMatch());
 
       for (let tick = 0; tick < 1 + warmUpSteps().steps.length; tick++) {
-        expect(await runDurableObjectAlarm(stub)).toBe(true);
-        expect(valueOf(await stub.getMatch())).toEqual(before);
+        expect(await runDurableObjectAlarm(stub)).toBe(true);        expect(valueOf(await stub.getMatch())).toEqual(before);
       }
       expect(await runDurableObjectAlarm(stub)).toBe(true);
       const after = valueOf(await stub.getMatch());
