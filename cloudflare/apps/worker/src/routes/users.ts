@@ -47,7 +47,11 @@ users.put('/push-tokens', async (c) => {
   if (body.platform !== 'android' && body.platform !== 'ios') {
     throw new BadRequestError('`platform` must be "android" or "ios".');
   }
-  await saveToken(c.env.DB, c.get('user').sub, body.token, body.platform);
+  // Sent by an app that draws its own notices with buttons (push/send.ts); older versions don't.
+  if (body.drawsOwn !== undefined && typeof body.drawsOwn !== 'boolean') {
+    throw new BadRequestError('`drawsOwn` must be true or false.');
+  }
+  await saveToken(c.env.DB, c.get('user').sub, body.token, body.platform, { drawsOwn: body.drawsOwn === true });
   return c.body(null, 204);
 });
 

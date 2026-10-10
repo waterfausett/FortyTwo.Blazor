@@ -136,11 +136,11 @@ export class MatchDO extends DurableObject<Env> {
   // `dealOrder` deals the first hand if this is the 4th player to sit down; callers pass one on
   // every join, since only the engine knows which join that is.
   addPlayer(playerId: string, team: Teams, dealOrder?: Domino[]): Promise<MatchResult<MatchState>> {
-    return this.update((match) => addPlayer(match, playerId, team, dealOrder));
+    return this.update(playerId, (match) => addPlayer(match, playerId, team, dealOrder));
   }
 
   takeSeat(playerId: string, position: number, dealOrder?: Domino[]): Promise<MatchResult<MatchState>> {
-    return this.update((match) => takeSeat(match, playerId, position, dealOrder));
+    return this.update(playerId, (match) => takeSeat(match, playerId, position, dealOrder));
   }
 
   // Takes a player back out of a match that hasn't been dealt. When no human is left the match is
@@ -174,7 +174,7 @@ export class MatchDO extends DurableObject<Env> {
   // testing together can fill out the table once everyone who's coming has sat down. Only someone
   // already at the table may do this. Each bot takes the first reserved id not yet seated.
   addBots(requesterId: string, positions?: number[]): Promise<MatchResult<MatchState>> {
-    return this.update((match) => {
+    return this.update(requesterId, (match) => {
       assertIsMatchPlayer(match, requesterId);
       const seats =
         positions ?? [0, 1, 2, 3].filter((position) => match.players.every((p) => p.position !== position));
@@ -189,19 +189,19 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   readyUp(playerId: string, ready: boolean, dealOrder: Domino[]): Promise<MatchResult<MatchState>> {
-    return this.update((match) => patchPlayerReady(match, playerId, ready, dealOrder));
+    return this.update(playerId, (match) => patchPlayerReady(match, playerId, ready, dealOrder));
   }
 
   bid(playerId: string, bid: Bid): Promise<MatchResult<MatchState>> {
-    return this.update((match) => placeBid(match, playerId, bid));
+    return this.update(playerId, (match) => placeBid(match, playerId, bid));
   }
 
   setTrump(playerId: string, suit: Suit): Promise<MatchResult<MatchState>> {
-    return this.update((match) => setTrump(match, playerId, suit));
+    return this.update(playerId, (match) => setTrump(match, playerId, suit));
   }
 
   playDomino(playerId: string, domino: Domino): Promise<MatchResult<MatchState>> {
-    return this.update((match) => playDomino(match, playerId, domino));
+    return this.update(playerId, (match) => playDomino(match, playerId, domino));
   }
 
   // Records a rematch vote. The vote that completes the table creates the rematch's DO first, and
@@ -214,7 +214,7 @@ export class MatchDO extends DurableObject<Env> {
   // throws before the vote is saved, so the voter's Rematch button stays live and trying again
   // finishes the job against the same (idempotent) id.
   rematch(playerId: string): Promise<MatchResult<MatchState>> {
-    return this.update(async (match) => {
+    return this.update(playerId, async (match) => {
       const next = voteRematch(match, playerId);
       if (next.rematchId !== undefined || rematchAgreed(next).length < next.players.length) return next;
 
@@ -288,12 +288,17 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   // `read`, for an action that changes the match: the result is saved, broadcast, and handed to
-  // the bots in case one of them moves next.
-  private update(action: (match: MatchState) => MatchState | Promise<MatchState>): Promise<MatchResult<MatchState>> {
+  // the bots in case one of them moves next. `actorId` made the change, so is on the match screen
+  // whether or not its socket is open yet - it isn't when a notification's button opened the app
+  // to make it - and isn't pushed about it.
+  private update(
+    actorId: string,
+    action: (match: MatchState) => MatchState | Promise<MatchState>
+  ): Promise<MatchResult<MatchState>> {
     return this.read(async (match) => {
       const next = await action(match);
       await this.save(next);
-      this.publish(match, next);
+      this.publish(match, next, [actorId]);
       await this.scheduleBotsIfNeeded(next);
       return next;
     });

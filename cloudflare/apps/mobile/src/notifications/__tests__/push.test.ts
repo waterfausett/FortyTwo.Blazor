@@ -1,10 +1,13 @@
 import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
+import { Platform } from 'react-native';
 import type { Api } from '@/api/useApi';
 import {
   addPushTokenChangeListener,
   askOnceForPush,
   isNewTap,
   notificationRoute,
+  noteRouteOnScreen,
   registerCategories,
   registerDevice,
   takeNotificationAction,
@@ -24,6 +27,7 @@ jest.mock('expo-notifications', () => ({
   DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
   AndroidImportance: { HIGH: 4 },
 }));
+jest.mock('expo-task-manager', () => ({ isTaskRegisteredAsync: jest.fn(async () => true) }));
 
 const mocked = Notifications as jest.Mocked<typeof Notifications>;
 const permission = (status: string, canAskAgain = true) =>
@@ -42,10 +46,21 @@ const handler = mocked.setNotificationHandler.mock.calls[0][0]!;
 beforeEach(() => jest.clearAllMocks());
 
 describe('the notification handler', () => {
+  const about = (url: string) => ({ request: { content: { data: { url } } } }) as unknown as Notifications.Notification;
+
   it('shows a notice that arrives while the app is open as a banner, with its sound', async () => {
+    noteRouteOnScreen('/match/m1');
     // Android shows no banner for a silent notification - it goes straight to the shade.
-    const behavior = await handler.handleNotification({} as Notifications.Notification);
+    const behavior = await handler.handleNotification(about('/match/m2'));
     expect(behavior).toMatchObject({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true });
+  });
+
+  // The Worker skips a player watching the match, but only once their socket is open: there's a
+  // moment without one whenever the app comes back to it, as when a notification's button opens it.
+  it("doesn't show one about the match on screen", async () => {
+    noteRouteOnScreen('/match/m1');
+    const behavior = await handler.handleNotification(about('/match/m1'));
+    expect(behavior).toMatchObject({ shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false });
   });
 });
 
@@ -59,7 +74,34 @@ describe('registerDevice', () => {
       projectId: 'project-1',
       devicePushToken: { type: 'android', data: 'fcm-1' },
     });
-    expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', expect.stringMatching(/android|ios/));
+    expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', expect.stringMatching(/android|ios/), expect.any(Boolean));
+  });
+
+  // Android draws the notices with buttons without them unless the app does (drawNotice.ts).
+  it('says, on Android, whether the app draws its own notices', async () => {
+    mocked.getPermissionsAsync.mockResolvedValue(permission('granted'));
+    const os = jest.replaceProperty(Platform, 'OS', 'android');
+    const isRegistered = TaskManager.isTaskRegisteredAsync as jest.Mock;
+    const api = fakeApi();
+
+    await registerDevice(api, { ask: false });
+    expect(api.registerPushToken).toHaveBeenLastCalledWith('ExponentPushToken[device]', 'android', true);
+    expect(isRegistered).toHaveBeenCalledWith('draw-notice');
+
+    isRegistered.mockResolvedValueOnce(false);
+    await registerDevice(api, { ask: false });
+    expect(api.registerPushToken).toHaveBeenLastCalledWith('ExponentPushToken[device]', 'android', false);
+    os.restore();
+  });
+
+  it("doesn't on iOS, which adds the buttons itself", async () => {
+    mocked.getPermissionsAsync.mockResolvedValue(permission('granted'));
+    const os = jest.replaceProperty(Platform, 'OS', 'ios');
+    const api = fakeApi();
+
+    await registerDevice(api, { ask: false });
+    expect(api.registerPushToken).toHaveBeenCalledWith('ExponentPushToken[device]', 'ios', false);
+    os.restore();
   });
 
   it("doesn't ask for permission unless told to, and registers nothing without it", async () => {

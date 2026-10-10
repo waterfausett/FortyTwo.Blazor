@@ -19,15 +19,15 @@ export async function saveToken(
   userId: string,
   token: string,
   platform: PushPlatform,
-  now: Date = new Date()
+  { drawsOwn = false, now = new Date() }: { drawsOwn?: boolean; now?: Date } = {}
 ): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO push_tokens (token, user_id, platform, updated_on) VALUES (?1, ?2, ?3, ?4)
-       ON CONFLICT (token) DO UPDATE SET user_id = ?2, platform = ?3, updated_on = ?4
-       WHERE user_id IS NOT ?2 OR platform IS NOT ?3 OR updated_on < ?5`
+      `INSERT INTO push_tokens (token, user_id, platform, draws_own, updated_on) VALUES (?1, ?2, ?3, ?4, ?5)
+       ON CONFLICT (token) DO UPDATE SET user_id = ?2, platform = ?3, draws_own = ?4, updated_on = ?5
+       WHERE user_id IS NOT ?2 OR platform IS NOT ?3 OR draws_own IS NOT ?4 OR updated_on < ?6`
     )
-    .bind(token, userId, platform, now.toISOString(), new Date(now.getTime() - TOKEN_REFRESH_MS).toISOString())
+    .bind(token, userId, platform, drawsOwn ? 1 : 0, now.toISOString(), new Date(now.getTime() - TOKEN_REFRESH_MS).toISOString())
     .run();
 }
 
@@ -42,12 +42,19 @@ export async function forgetTokens(db: D1Database, tokens: string[]): Promise<vo
   await db.batch(tokens.map((token) => db.prepare('DELETE FROM push_tokens WHERE token = ?1').bind(token)));
 }
 
-export async function tokensFor(db: D1Database, userIds: string[]): Promise<{ token: string; userId: string }[]> {
+// A device, and whether its app draws its own notices (migrations/0008_push_tokens_draws_own.sql).
+export interface PushDevice {
+  token: string;
+  userId: string;
+  drawsOwn?: boolean;
+}
+
+export async function tokensFor(db: D1Database, userIds: string[]): Promise<PushDevice[]> {
   if (userIds.length === 0) return [];
   const placeholders = userIds.map((_, i) => `?${i + 1}`).join(', ');
   const { results } = await db
-    .prepare(`SELECT token, user_id FROM push_tokens WHERE user_id IN (${placeholders})`)
+    .prepare(`SELECT token, user_id, draws_own FROM push_tokens WHERE user_id IN (${placeholders})`)
     .bind(...userIds)
-    .all<{ token: string; user_id: string }>();
-  return results.map((row) => ({ token: row.token, userId: row.user_id }));
+    .all<{ token: string; user_id: string; draws_own: number }>();
+  return results.map((row) => ({ token: row.token, userId: row.user_id, drawsOwn: row.draws_own === 1 }));
 }

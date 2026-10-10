@@ -14,7 +14,7 @@ import { Teams, botDisplayName, isBot, teamForPosition } from '@fortytwo/rules';
 import type { Env } from '../index';
 import { publicUsers } from '../users/publicUsers';
 import type { Notice, NoticeKind } from './notices';
-import { forgetTokens, tokensFor } from './tokens';
+import { forgetTokens, tokensFor, type PushDevice } from './tokens';
 
 export const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 // The Android notification channel the app creates (apps/mobile/src/notifications).
@@ -39,9 +39,16 @@ const TTL_SECONDS: Record<NoticeKind, number> = {
 // The notices the app offers a button on: Ready up on a hand over, Rematch on a match over. The ids
 // must match the categories the app registers (apps/mobile/src/notifications/push.ts). A button
 // opens the app and does as the match screen's own would.
+//
+// iOS adds the buttons to a notification itself. Android doesn't: it draws one Expo sends with a
+// title without them, unless the app is open. So a device whose app says it draws its own notices
+// (push/tokens.ts) is sent these headless instead, with what to draw in the data; the app draws
+// it, buttons and all (apps/mobile/src/notifications/drawNotice.ts).
 const CATEGORIES: Partial<Record<NoticeKind, string>> = { handOver: 'handOver', matchOver: 'matchOver' };
 
-interface ExpoMessage {
+type ExpoMessage = DrawnMessage | HeadlessMessage;
+
+export interface DrawnMessage {
   to: string;
   title: string;
   body: string;
@@ -55,6 +62,26 @@ interface ExpoMessage {
   ttl: number;
   // Which buttons the app shows on it (CATEGORIES).
   categoryId?: string;
+}
+
+// With no title, body or channel, Expo sends it to Firebase as a data message, which goes to the app
+// rather than being drawn by the OS.
+interface HeadlessMessage {
+  to: string;
+  data: NoticeToDraw;
+  // A data message sent at normal priority can wait until the phone next wakes.
+  priority: 'high';
+  ttl: number;
+}
+
+// What the app draws from a headless notice, as a DrawnMessage would have shown it.
+export interface NoticeToDraw {
+  url: string;
+  title: string;
+  body: string;
+  categoryId: string;
+  // Replaces the match's other notices, as a DrawnMessage's does.
+  tag: string;
 }
 
 interface ExpoTicket {
@@ -108,29 +135,36 @@ function otherTeam(team: Teams): Teams {
 }
 
 // `names` maps player ids to display names; anyone missing from it is called by their seat.
-export function messagesFor(
-  notices: Notice[],
-  tokens: { token: string; userId: string }[],
-  names: ReadonlyMap<string, string> = new Map()
-): ExpoMessage[] {
+export function messagesFor(notices: Notice[], tokens: PushDevice[], names: ReadonlyMap<string, string> = new Map()): ExpoMessage[] {
   return notices.flatMap((notice) =>
-    tokens
-      .filter((t) => t.userId === notice.playerId)
-      .map((t) => ({
-        to: t.token,
-        title: matchTitle(notice, names),
-        body: noticeBody(notice),
-        data: { url: `/match/${notice.matchId}` },
-        sound: 'default' as const,
-        // Both say it's the player's turn.
-        priority: notice.kind === 'turn' || notice.kind === 'poke' ? ('high' as const) : ('default' as const),
-        channelId: ANDROID_CHANNEL_ID,
-        collapseId: `match-${notice.matchId}`,
-        tag: `match-${notice.matchId}`,
-        ttl: TTL_SECONDS[notice.kind],
-        ...(CATEGORIES[notice.kind] && { categoryId: CATEGORIES[notice.kind] }),
-      }))
+    tokens.filter((t) => t.userId === notice.playerId).map((t) => messageFor(notice, t, names))
   );
+}
+
+function messageFor(notice: Notice, device: PushDevice, names: ReadonlyMap<string, string>): ExpoMessage {
+  const title = matchTitle(notice, names);
+  const body = noticeBody(notice);
+  const url = `/match/${notice.matchId}`;
+  const tag = `match-${notice.matchId}`;
+  const ttl = TTL_SECONDS[notice.kind];
+  const categoryId = CATEGORIES[notice.kind];
+  if (categoryId && device.drawsOwn) {
+    return { to: device.token, data: { url, title, body, categoryId, tag }, priority: 'high', ttl };
+  }
+  return {
+    to: device.token,
+    title,
+    body,
+    data: { url },
+    sound: 'default',
+    // Both say it's the player's turn.
+    priority: notice.kind === 'turn' || notice.kind === 'poke' ? 'high' : 'default',
+    channelId: ANDROID_CHANNEL_ID,
+    collapseId: tag,
+    tag,
+    ttl,
+    ...(categoryId && { categoryId }),
+  };
 }
 
 export async function sendNotices(env: Env, notices: Notice[]): Promise<void> {

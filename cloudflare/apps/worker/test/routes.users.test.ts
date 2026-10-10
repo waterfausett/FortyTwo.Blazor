@@ -326,6 +326,20 @@ describe('push tokens', () => {
     expect(await tokensOf('auth0|p2')).toEqual([{ token, platform: 'android' }]);
   });
 
+  it('notes a device whose app draws its own notices, and one that stops', async () => {
+    const put = (body: object) =>
+      api('/api/users/push-tokens', 'auth0|p5', { method: 'PUT', body: JSON.stringify({ token, platform: 'android', ...body }) });
+    const drawsOwn = async () =>
+      (await env.DB.prepare('SELECT draws_own FROM push_tokens WHERE token = ?1').bind(token).first<{ draws_own: number }>())
+        ?.draws_own;
+
+    expect((await put({ drawsOwn: true })).status).toBe(204);
+    expect(await drawsOwn()).toBe(1);
+    // An older version of the app, installed over it, doesn't say.
+    expect((await put({})).status).toBe(204);
+    expect(await drawsOwn()).toBe(0);
+  });
+
   it("removes the caller's own device only", async () => {
     await api('/api/users/push-tokens', 'auth0|p3', { method: 'PUT', body: JSON.stringify({ token, platform: 'ios' }) });
 
@@ -340,6 +354,7 @@ describe('push tokens', () => {
   it.each([
     ['a token that is not an Expo push token', { token: 'abc', platform: 'android' }],
     ['an unknown platform', { token, platform: 'web' }],
+    ['a drawsOwn that is not true or false', { token, platform: 'android', drawsOwn: 'yes' }],
   ])('rejects %s with a 400', async (_, body) => {
     const res = await api('/api/users/push-tokens', 'auth0|p1', { method: 'PUT', body: JSON.stringify(body) });
     expect(res.status).toBe(400);
