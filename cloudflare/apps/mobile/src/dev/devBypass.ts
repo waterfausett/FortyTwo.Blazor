@@ -26,6 +26,7 @@ function summary(id: string, seats: (string | null)[], minutesAgo: number, statu
     updatedOn: ago(minutesAgo),
     seats,
     teams: [named([0, 2]), named([1, 3])],
+    mode: 'custom',
   };
 }
 
@@ -38,11 +39,8 @@ const LISTS: Record<'Active' | 'Joinable' | 'Completed', MatchSummary[]> = {
     summary('active-4', ['You', null, null, null], 60 * 26),
     summary('active-5', ['Lou', 'Dee', 'You', 'Sam'], 60 * 24 * 4),
   ],
-  Joinable: [
-    summary('open-1', ['Hank', null, 'Darla', null], 8),
-    summary('open-2', ['Wes', 'Ivy', null, 'Pat'], 90),
-    summary('open-3', ['Cora', null, null, null], 60 * 30),
-  ],
+  // The lobby no longer lists open seats to join.
+  Joinable: [],
   Completed: [
     summary('done-1', ['You', 'Grandma Jo', 'Uncle Ray', 'Beth'], 60 * 24 * 2, 'completed'),
     summary('done-2', ['Marcus', 'You', 'Kendra', 'Tom'], 60 * 24 * 9, 'completed'),
@@ -73,6 +71,7 @@ const handled: Partial<Api> = {
   removePushToken: () => answer(undefined),
   // Creating or joining "works", landing on a match screen that can't load.
   createMatch: () => answer({ id: 'dev-new' } as MatchState),
+  play: () => answer({ id: 'dev-new' } as MatchState),
   joinMatch: (id) => answer({ id } as MatchState),
   ...devMatchApi,
 };

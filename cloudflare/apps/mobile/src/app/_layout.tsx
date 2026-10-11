@@ -13,6 +13,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Auth0Provider, useAuth0 } from 'react-native-auth0';
+import { PresenceProvider } from '@/api/presence';
 import { colors, fonts } from '@/components/theme';
 import { ToastHost } from '@/components/ToastHost';
 import { config } from '@/config';
@@ -58,6 +59,7 @@ function RootStack() {
   if (!ready) return <View style={styles.loading} />;
 
   return (
+    <PresenceProvider enabled={signedIn && !DEV_BYPASS}>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.walnutDeep },
@@ -75,6 +77,7 @@ function RootStack() {
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
+    </PresenceProvider>
   );
 }
 

@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
 import { JoinMatchPanel } from '../JoinMatchPanel';
+import { NewMatchSheet } from '../NewMatchSheet';
 import { SeatPicker } from '../SeatPicker';
 import { PENDING_SPINNER_DELAY_MS, Table, type SeatInfo } from '../Table';
 import { TrickHistory } from '../TrickHistory';
@@ -279,5 +281,25 @@ describe('Table', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
+const inApp = (ui: React.ReactElement) => <SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>;
+
+describe('NewMatchSheet', () => {
+  it('offers Live, Daily and Challenge friends, and reports the choice', async () => {
+    const onChoose = jest.fn();
+    await render(inApp(<NewMatchSheet visible liveEnabled online={5} pending={false} onChoose={onChoose} onClose={jest.fn()} />));
+    fireEvent.press(screen.getByRole('button', { name: /live/i }));
+    fireEvent.press(screen.getByRole('button', { name: /daily/i }));
+    fireEvent.press(screen.getByRole('button', { name: /challenge friends/i }));
+    expect(onChoose.mock.calls).toEqual([['live'], ['daily'], ['challenge']]);
+    expect(screen.getByText('5 online')).toBeTruthy();
+  });
+
+  it('leaves Live out when bots are off', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled={false} online={null} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.queryByRole('button', { name: /^live/i })).toBeNull();
   });
 });

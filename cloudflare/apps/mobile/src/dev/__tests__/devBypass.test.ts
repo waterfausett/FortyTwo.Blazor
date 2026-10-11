@@ -10,9 +10,9 @@ describe('the dev bypass', () => {
   });
 
   it('answers the lobby from canned data', async () => {
-    const page = await devApi.listMatches('Joinable');
+    const page = await devApi.listMatches('Active');
     expect(page.matches.length).toBeGreaterThan(0);
-    expect(page.matches.every((m) => m.playerCount < 4)).toBe(true);
+    expect(page.matches.every((m) => m.mode === 'custom')).toBe(true);
   });
 
   it('keeps a profile change for the session', async () => {
