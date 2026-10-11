@@ -21,6 +21,7 @@ import { publicUsers } from '../users/publicUsers';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
 import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
+import { turnsFor } from '../lobbyTurns';
 import { decodeCursor, encodeCursor } from '../cursor';
 import type { MatchPage, MatchSummary } from '@fortytwo/api-types';
 
@@ -67,15 +68,22 @@ matches.get('/', async (c) => {
   const playersByMatch = await listMatchPlayers(c.env.DB, rows.map((row) => row.id));
   const allPlayerIds = [...playersByMatch.values()].flat().map((p) => p.playerId);
   const names = await displayNames(c.env, [...new Set(allPlayerIds)]);
+  const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
+  const turns = filter === 'Active' ? await turnsFor(c.env, rows, userId, nameOf) : null;
   const summaries = rows.map((row): MatchSummary => {
     const seated = playersByMatch.get(row.id) ?? [];
-    const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
     const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
     const seats = [0, 1, 2, 3].map((position) => {
       const player = seated.find((p) => p.position === position);
       return player ? nameOf(player.playerId) : null;
     });
-    return { ...row, mode: row.mode ?? 'custom', teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
+    return {
+      ...row,
+      mode: row.mode ?? 'custom',
+      teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)],
+      seats,
+      ...(turns ? { turn: turns.get(row.id) ?? null } : {}),
+    };
   });
   return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });
@@ -127,9 +135,15 @@ matches.post('/:id/bots', async (c) => {
 });
 
 // Readying up can finish a hand's wait and deal the next one, so it always carries a deck.
+// `{ autopilot: false }` instead takes the caller's seat back from the bot (a Live turn ran out).
 matches.patch('/:id/players', async (c) => {
-  const ready = field.ready(await readBody(c));
-  const result = await matchStub(c.env, c.req.param('id')).readyUp(c.get('user').sub, ready, shuffledDominoOrder());
+  const body = await readBody(c);
+  const match = matchStub(c.env, c.req.param('id'));
+  if (body.autopilot !== undefined) {
+    field.autopilotOff(body);
+    return replyWithMatch(c, await match.resume(c.get('user').sub));
+  }
+  const result = await match.readyUp(c.get('user').sub, field.ready(body), shuffledDominoOrder());
   return replyWithMatch(c, result, { lobbySync: 'summary' });
 });
 

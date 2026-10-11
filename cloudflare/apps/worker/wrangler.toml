@@ -16,7 +16,7 @@ workers_dev = true
 binding = "ASSETS"
 directory = "../web/dist"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/matches/*", "/health", "/.well-known/*"]
+run_worker_first = ["/api/*", "/matches/*", "/presence/*","/health", "/.well-known/*"]
 
 # Workers Logs: keeps console output (e.g. the ML bot's load and fallback lines, mlBot.ts and
 # bots.ts) and invocation logs, searchable in the dashboard.

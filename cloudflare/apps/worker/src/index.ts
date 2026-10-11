@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { requireAuth, type AuthedUser } from './auth/verifyJwt';
 import matchesRoutes from './routes/matches';
+import matchmakingRoutes from './routes/matchmaking';
 import usersRoutes from './routes/users';
 import { BadRequestError } from './requestBody';
 import { expireIdleMatches } from './expiry';
@@ -80,6 +81,16 @@ app.get('/matches/:id/ws', async (c) => {
   return stub.fetch(new Request(target.toString(), c.req.raw));
 });
 
+// The presence socket (matchmaker.ts): the online count. The Matchmaker is addressed by the one
+// name, and its fetch() expects this same path, so the request goes through unchanged. Outside
+// `/api/*` for the same reason as above: the Matchmaker checks `?token=` itself.
+app.get('/presence/ws', async (c) => {
+  if (c.req.header('Upgrade') !== 'websocket') {
+    return new Response('Expected Upgrade: websocket', { status: 426 });
+  }
+  return c.env.MATCHMAKER.get(c.env.MATCHMAKER.idFromName('global')).fetch(c.req.raw);
+});
+
 // Must run before requireAuth() so the preflight OPTIONS request - which carries no Authorization
 // header - gets a CORS response instead of a 401. Falls back to the local Vite dev origin when
 // ALLOWED_ORIGIN isn't set (e.g. `wrangler dev` without a .dev.vars entry); set ALLOWED_ORIGIN to
@@ -96,6 +107,7 @@ app.use('/api/*', requireAuth());
 // Feature switches the web app needs to know about - one worker flag drives both sides.
 app.get('/api/config', (c) => c.json({ bots: botsEnabled(c.env) } satisfies ClientConfig));
 app.route('/api/matches', matchesRoutes);
+app.route('/api/matchmaking', matchmakingRoutes);
 app.route('/api/users', usersRoutes);
 
 export { app };
