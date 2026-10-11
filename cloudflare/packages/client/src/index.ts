@@ -11,5 +11,6 @@ export * from './matchView';
 export * from './optimistic';
 export * from './playerNames';
 export * from './poke';
+export * from './stats';
 export * from './summary';
 export * from './table';

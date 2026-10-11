@@ -86,3 +86,37 @@ export interface ProfilePatch {
   highlightPlayable?: boolean;
   pushNotifications?: boolean;
 }
+
+// The caller's own lifetime stats (GET /api/users/stats), counted from completed matches. A game
+// is a whole match; bids are the hands they took the bid on. Each filter is its own summary.
+export interface BestPartner {
+  user: PublicUser;
+  won: number;
+  lost: number;
+}
+
+export interface StatsSummary {
+  played: number;
+  won: number;
+  lost: number;
+  marksWon: number;
+  bidsWon: number;
+  bidsMade: number;
+  bidsSet: number;
+  // Over their winning points bids (30-42), to one decimal place; null with none.
+  averagePointsBid: number | null;
+  // Winning bids of 84 and up, Plunge included.
+  marksBids: number;
+  // The human they win with most, over at least 3 games together.
+  bestPartner: BestPartner | null;
+}
+
+export interface PlayerStats {
+  all: StatsSummary;
+  // No seat held a bot.
+  humansOnly: StatsSummary;
+  // At least one seat held a bot.
+  withBots: StatsSummary;
+}
+
+export type StatsFilter = keyof PlayerStats;
