@@ -19,12 +19,15 @@ import {
   createRematch,
   removePlayer,
   hasHumanPlayers,
+  liveDeadline,
+  setAutopilot,
   assertIsMatchPlayer,
   shuffledDominoOrder,
   ValidationError,
   type Bid,
   type Domino,
   type LoggedInPlayer,
+  type MatchMode,
   type MatchState,
   type Suit,
   type Teams,
@@ -87,10 +90,12 @@ export class MatchDO extends DurableObject<Env> {
 
   // Stores the new match under `matchId`, the id this DO is addressed by, so every later response
   // and broadcast carries the id clients use to reach it.
-  async create(firstPlayerId: string, matchId: string): Promise<MatchState> {
-    const match = { ...createMatch(firstPlayerId), id: matchId };
+  async create(firstPlayerId: string, matchId: string, mode: MatchMode = 'custom'): Promise<MatchState> {
+    const match = { ...createMatch(firstPlayerId, mode), id: matchId };
     await this.save(match);
     this.publish(null, match);
+    // A Live table's fill deadline starts now.
+    await this.schedule(match);
     return match;
   }
 
@@ -110,7 +115,7 @@ export class MatchDO extends DurableObject<Env> {
     if (stored !== null) {
       // A retry: the first attempt may have failed before its bots were scheduled or its lobby
       // rows were written.
-      await this.scheduleBotsIfNeeded(stored);
+      await this.schedule(stored);
       await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, stored));
       return stored;
     }
@@ -118,7 +123,7 @@ export class MatchDO extends DurableObject<Env> {
     const match = createRematch(matchId, previous, dealOrder);
     await this.save(match);
     this.publish(null, match, onTheWay);
-    await this.scheduleBotsIfNeeded(match);
+    await this.schedule(match);
     await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, match));
     return match;
   }
@@ -155,7 +160,7 @@ export class MatchDO extends DurableObject<Env> {
       }
       await this.save(next);
       this.broadcast(next);
-      await this.scheduleBotsIfNeeded(next);
+      await this.schedule(next);
       return { deleted: false, match: next };
     });
   }
@@ -176,15 +181,7 @@ export class MatchDO extends DurableObject<Env> {
   addBots(requesterId: string, positions?: number[]): Promise<MatchResult<MatchState>> {
     return this.update(requesterId, (match) => {
       assertIsMatchPlayer(match, requesterId);
-      const seats =
-        positions ?? [0, 1, 2, 3].filter((position) => match.players.every((p) => p.position !== position));
-
-      let next = match;
-      for (const position of seats) {
-        const botId = BOT_IDS.find((id) => next.players.every((p) => p.playerId !== id))!;
-        next = takeSeat(next, botId, position, shuffledDominoOrder());
-      }
-      return next;
+      return seatBots(match, positions);
     });
   }
 
@@ -299,25 +296,28 @@ export class MatchDO extends DurableObject<Env> {
       const next = await action(match);
       await this.save(next);
       this.publish(match, next, [actorId]);
-      await this.scheduleBotsIfNeeded(next);
+      await this.schedule(next);
       return next;
     });
   }
 
-  // Schedules the next bot action a beat in the future (via the alarm API) if one is pending,
-  // rather than resolving it inline - each bot move then arrives as its own broadcast, matching
-  // the pacing a real remote player's move would have (bots.ts's botDelayMs).
-  private async scheduleBotsIfNeeded(match: MatchState): Promise<void> {
+  // Sets the alarm for whatever this match does next on its own: a bot's move a beat from now
+  // (paced like a remote player's, bots.ts's botDelayMs), or a Live deadline (live.ts) - filling
+  // the table, or a turn running out. One alarm serves all of them; alarm() works out which is due.
+  private async schedule(match: MatchState): Promise<void> {
     const action = findNextBotAction(match);
     if (action !== null) {
       await this.ctx.storage.setAlarm(Date.now() + botDelayMs(match, action));
+      return;
     }
+    const deadline = liveDeadline(match);
+    if (deadline !== null) await this.ctx.storage.setAlarm(Math.max(deadline.at, Date.now()));
   }
 
-  // Runs one bot action per firing. Alarm-driven changes never pass through routes/matches.ts,
-  // which syncs the D1 lobby index for everything else, so it's synced here - by the same rules:
-  // a bot's ready-up or play refreshes the summary row, and its bid or trump call (which the
-  // routes don't sync either) writes nothing.
+  // Runs one thing per firing: the next bot move, or a Live deadline that has come due (live.ts).
+  // Alarm-driven changes never pass through routes/matches.ts, which syncs the D1 lobby index for
+  // everything else, so it's synced here - by the same rules: a bot's ready-up or play refreshes
+  // the summary row, and its bid or trump call (which the routes don't sync either) writes nothing.
   async alarm(): Promise<void> {
     // Resolved before the match is read: the first call in an isolate makes outgoing ASSETS fetches,
     // which don't hold input gates, so a request could change the match between load and save.
@@ -335,18 +335,33 @@ export class MatchDO extends DurableObject<Env> {
     if (match === null) return;
 
     const action = findNextBotAction(match);
-    if (action === null) return;
-
-    const next = applyBotAction(match, action, bot);
-    await this.save(next);
-    // Scheduled straight after the save: the saved match already points at the next bot action,
-    // so if anything below threw first, the runtime's retry would fire that action unpaced, and
-    // once its retries ran out a match waiting on a bot would be stuck.
-    await this.scheduleBotsIfNeeded(next);
-    this.publish(match, next);
-    if (action.kind === 'ready' || action.kind === 'play') {
-      await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));
+    if (action !== null) {
+      const next = applyBotAction(match, action, bot);
+      await this.save(next);
+      // Scheduled straight after the save: the saved match already points at the next bot action,
+      // so if anything below threw first, the runtime's retry would fire that action unpaced, and
+      // once its retries ran out a match waiting on a bot would be stuck.
+      await this.schedule(next);
+      this.publish(match, next);
+      if (action.kind === 'ready' || action.kind === 'play') {
+        await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));
+      }
+      return;
     }
+
+    const deadline = liveDeadline(match);
+    if (deadline === null) return;
+    // Fired early - the alarm was set for something that has since changed: wait for the deadline.
+    if (Date.now() < deadline.at) {
+      await this.schedule(match);
+      return;
+    }
+    const next = deadline.kind === 'fill' ? seatBots(match) : setAutopilot(match, deadline.playerIds, true);
+    await this.save(next);
+    await this.schedule(next);
+    this.publish(match, next);
+    // Filling changes who's seated, which the lobby lists; going on autopilot doesn't.
+    if (deadline.kind === 'fill') await bestEffort(next.id, () => syncLobbyIndex(this.env.DB, next));
   }
 
   // Uses the Hibernation API (`this.ctx.acceptWebSocket`, not the plain `WebSocket` `accept()`)
@@ -444,4 +459,16 @@ export class MatchDO extends DurableObject<Env> {
 
 function matchMessageFor(match: MatchState, viewerId: string): string {
   return JSON.stringify({ type: 'match', match: matchViewFor(match, viewerId) });
+}
+
+// Seats a bot at each of `positions`, or at every open seat when none are given. Each bot takes
+// the first reserved id not yet seated; the fourth seat deals.
+function seatBots(match: MatchState, positions?: number[]): MatchState {
+  const seats = positions ?? [0, 1, 2, 3].filter((position) => match.players.every((p) => p.position !== position));
+  let next = match;
+  for (const position of seats) {
+    const botId = BOT_IDS.find((id) => next.players.every((p) => p.playerId !== id))!;
+    next = takeSeat(next, botId, position, shuffledDominoOrder());
+  }
+  return next;
 }
