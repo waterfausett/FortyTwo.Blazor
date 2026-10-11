@@ -299,8 +299,8 @@ export class MatchDO extends DurableObject<Env> {
     return this.read(async (match) => {
       const next = await action(match);
       await this.save(next);
-      this.publish(match, next, [actorId]);
       await this.recordStatsIfWon(match, next);
+      this.publish(match, next, [actorId]);
       await this.scheduleBotsIfNeeded(next);
       return next;
     });
@@ -319,7 +319,8 @@ export class MatchDO extends DurableObject<Env> {
   // The play that wins the match records each human's stats (stats.ts) - only that one, so plays
   // after the match is over write nothing. A failure is logged loudly rather than thrown, like the
   // lobby sync: the play is already saved. Stats are counted from launch with no backfill, so a
-  // failed write leaves that match out; watch the logs for this line.
+  // failed write leaves that match out; watch the logs for this line. Called before the match is
+  // published, so a broadcast that throws can't skip it without that line.
   private async recordStatsIfWon(previous: MatchState, next: MatchState): Promise<void> {
     if (previous.winningTeam !== null || next.winningTeam === null) return;
     try {
@@ -358,8 +359,8 @@ export class MatchDO extends DurableObject<Env> {
     // so if anything below threw first, the runtime's retry would fire that action unpaced, and
     // once its retries ran out a match waiting on a bot would be stuck.
     await this.scheduleBotsIfNeeded(next);
-    this.publish(match, next);
     await this.recordStatsIfWon(match, next);
+    this.publish(match, next);
     if (action.kind === 'ready' || action.kind === 'play') {
       await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));
     }

@@ -79,6 +79,21 @@ describe('MatchDO player stats', () => {
     ]);
   });
 
+  // Stats go in before the broadcast: a socket that throws on send mustn't lose the match's stats
+  // without the failure line, since nothing records them later.
+  it('records the match even when telling the sockets fails', async () => {
+    const stub = await seed('stats-broadcast', almostWonMatch('stats-broadcast'));
+    await runInDurableObject(stub, async (instance: MatchDO) => {
+      (instance as unknown as { publish: () => void }).publish = () => {
+        throw new Error('socket gone');
+      };
+    });
+
+    await stub.playDomino('p4', createDomino(1, 3)).catch(() => {});
+
+    expect(await statsRows('stats-broadcast')).toHaveLength(4);
+  });
+
   it('logs loudly and still wins the match when D1 is down', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     const stub = await seed('stats-no-db', almostWonMatch('stats-no-db'));

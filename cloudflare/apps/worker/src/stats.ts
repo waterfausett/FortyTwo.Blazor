@@ -7,7 +7,9 @@ import type { Env } from './index';
 import { publicUsers } from './users/publicUsers';
 
 export const BEST_PARTNER_MIN_GAMES = 3;
-const UNKNOWN_PARTNER_NAME = 'A former player';
+// For a partner whose name can't be looked up just now (Auth0 unreachable) or at all: neutral, since
+// the first is usually a current player.
+const UNKNOWN_PARTNER_NAME = 'Unknown player';
 
 // One row per human. INSERT OR IGNORE: writing a match twice changes nothing.
 export async function recordMatchStats(db: D1Database, match: MatchState): Promise<void> {
