@@ -70,6 +70,17 @@ describe('HowToPlay page', () => {
     expect(patchProfileMock).toHaveBeenCalledTimes(1);
   });
 
+  it('tries the save once per visit, even when it fails', async () => {
+    getProfileMock.mockResolvedValue({ user_id: 'p1', displayName: 'Me', seenHowToPlay: false });
+    // Fails a moment later, as a real request would.
+    patchProfileMock.mockImplementation(() => new Promise((_, reject) => setTimeout(() => reject(new Error('offline')), 5)));
+    renderPage();
+
+    await waitFor(() => expect(patchProfileMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 200));
+    expect(patchProfileMock).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['already seen', { user_id: 'p1', displayName: 'Me', seenHowToPlay: true }],
     ['from a worker that does not know the setting', { user_id: 'p1', displayName: 'Me' }],

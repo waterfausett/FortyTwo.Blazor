@@ -100,7 +100,7 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
           '30 to 42: the points your team will take this hand. Worth 1 mark.',
           '84: worth 2 marks, and your team must take all 42 points.',
           '3 Marks to 7 Marks: all 42 points again, one rung at a time - 3 Marks only over a standing 84, 4 Marks only over 3 Marks, and so on.',
-          'Plunge: needs four or more doubles in your hand, and only while the high bid is under 4 Marks. Worth 4 marks: your partner names trump, and your team must take every trick.',
+          'Plunge: needs four or more doubles in your hand, and only while the high bid is under 4 Marks. Worth 4 marks: your partner names trump - a suit or Follow Me, never Low - and your team must take every trick.',
           'Pass: no bid this hand. Everyone can’t pass - if the first three do, the last player has to bid.',
         ],
       },

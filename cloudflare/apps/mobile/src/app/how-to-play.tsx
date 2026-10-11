@@ -1,6 +1,6 @@
 // How to play: the rules of Forty-Two, from the Lobby's "?" and card or the match screen's "?".
 // Opening it counts as having seen them, so the Lobby stops offering them.
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHowToPlay } from '@/api/useHowToPlay';
@@ -11,9 +11,13 @@ export default function HowToPlayScreen() {
   const { offer, markSeen } = useHowToPlay();
   const { bottom } = useSafeAreaInsets();
 
-  // Once the profile says "not seen" - it may still be loading when the screen opens.
+  // Once the profile says "not seen" - it may still be loading when the screen opens. Only once a
+  // visit: a failed save puts "not seen" back, which mustn't start another.
+  const tried = useRef(false);
   useEffect(() => {
-    if (offer) markSeen();
+    if (!offer || tried.current) return;
+    tried.current = true;
+    markSeen();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offer]);
 

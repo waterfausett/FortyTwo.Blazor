@@ -26,6 +26,12 @@ describe('HOW_TO_PLAY', () => {
     expect(shown.reduce((sum, d) => sum + dominoValue(createDomino(d.top, d.bottom)), 0)).toBe(35);
   });
 
+  it('says a Plunge can call Follow Me but never Low', () => {
+    const plunge = blocks('bidding').flatMap((b) => (b.kind === 'list' ? b.items : [])).find((i) => i.startsWith('Plunge'))!;
+    expect(plunge).toContain('Follow Me');
+    expect(plunge).toContain('never Low');
+  });
+
   it('names the match target from the rules engine', () => {
     expect(allText).toContain(`first team to ${WINNING_SCORE} marks`);
   });
