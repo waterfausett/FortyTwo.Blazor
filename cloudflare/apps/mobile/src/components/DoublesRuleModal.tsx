@@ -1,10 +1,10 @@
 // How doubles play under the hand's Low trump, opened from the scoreboard's short "doubles: ..."
 // label. The three rules as the trump picker shows them, with the one in play picked out.
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { DOUBLES_DETAIL } from '@fortytwo/client';
 import { LOW_TRUMPS, lowDoublesToPrettyString, type Suit } from '@fortytwo/rules';
 import { pickerStyles } from './BiddingPanel';
 import { colors, fonts } from './theme';
-import { DOUBLES_DETAIL } from './TrumpPicker';
 
 export interface DoublesRuleModalProps {
   trump: Suit | null;

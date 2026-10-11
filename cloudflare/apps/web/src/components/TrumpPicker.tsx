@@ -5,6 +5,7 @@ import type { JSX } from 'react';
 import { useState } from 'react';
 import type { Game } from '@fortytwo/rules';
 import { LOW_TRUMPS, Suit, availableTrumps, isLow, lowDoublesToPrettyString, suitToPrettyString } from '@fortytwo/rules';
+import { DOUBLES_DETAIL } from '@fortytwo/client';
 import { PipFace } from './PipFace';
 
 export interface TrumpPickerProps {
@@ -12,12 +13,6 @@ export interface TrumpPickerProps {
   onSelect: (suit: Suit) => void;
   disabled?: boolean;
 }
-
-const DOUBLES_DETAIL: Record<(typeof LOW_TRUMPS)[number], string> = {
-  [Suit.Low]: 'Each double tops its suit (this is how doubles normally behave)',
-  [Suit.LowDoublesLow]: 'Each double is the lowest of its suit',
-  [Suit.LowDoublesOwnSuit]: 'Doubles form a suit, double-six highest',
-};
 
 export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerProps): JSX.Element {
   const [choosingDoubles, setChoosingDoubles] = useState(false);
