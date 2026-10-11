@@ -55,6 +55,8 @@ let profile: UserProfile = {
   displayName: 'You',
   highlightPlayable: true,
   pushNotifications: false,
+  // So the Lobby offers How to play on each launch, until dismissed.
+  seenHowToPlay: false,
 };
 
 // A short wait, so loading states show.

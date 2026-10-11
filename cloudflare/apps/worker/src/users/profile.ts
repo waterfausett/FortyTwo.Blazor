@@ -7,6 +7,7 @@ import type { PublicUser, UserProfile } from '@fortytwo/api-types';
 //   displayName: user_metadata.displayName ?? nickname ?? name ?? email ?? "Unknown User ({id})".
 //   highlightPlayable: off unless they've turned it on.
 //   pushNotifications: on unless they've turned it off.
+//   seenHowToPlay: false until they've dismissed the Lobby's card or opened How to play.
 export function toUserResponse(u: Auth0User): UserProfile {
   const effectivePicture = u.user_metadata?.picture?.trim() ? u.user_metadata.picture : u.picture;
   const displayName =
@@ -17,6 +18,7 @@ export function toUserResponse(u: Auth0User): UserProfile {
     displayName,
     highlightPlayable: u.user_metadata?.highlightPlayable === true,
     pushNotifications: u.user_metadata?.pushNotifications !== false,
+    seenHowToPlay: u.user_metadata?.seenHowToPlay === true,
   };
 }
 

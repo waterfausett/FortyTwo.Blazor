@@ -60,6 +60,7 @@ export interface Auth0User {
     picture?: string;
     highlightPlayable?: boolean;
     pushNotifications?: boolean;
+    seenHowToPlay?: boolean;
   };
 }
 
@@ -73,6 +74,9 @@ export interface UserProfile extends Auth0User {
   // Push notifications to the mobile app when it's their turn, a hand ends or a game starts. On
   // unless they've turned it off. Each device also needs the player's permission.
   pushNotifications: boolean;
+  // Whether they've dismissed the Lobby's "New to 42?" card or opened How to play. False until
+  // they have.
+  seenHowToPlay: boolean;
 }
 
 // What any player may see of another (POST /api/users/search): enough to show them at the table,
@@ -85,4 +89,5 @@ export interface ProfilePatch {
   picture?: string;
   highlightPlayable?: boolean;
   pushNotifications?: boolean;
+  seenHowToPlay?: boolean;
 }

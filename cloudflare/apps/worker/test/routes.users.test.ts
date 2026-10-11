@@ -267,6 +267,16 @@ describe('user routes', () => {
       expect(seen.body).toEqual({ user_metadata: { highlightPlayable: true } });
     });
 
+    it('stores the seen-how-to-play setting', async () => {
+      const seen = mockUserPatch();
+      const res = await api('/api/users', 'auth0|p1', {
+        method: 'PATCH',
+        body: JSON.stringify({ seenHowToPlay: true }),
+      });
+      expect(res.status).toBe(200);
+      expect(seen.body).toEqual({ user_metadata: { seenHowToPlay: true } });
+    });
+
     it('stores the push notifications setting', async () => {
       const seen = mockUserPatch();
       const res = await api('/api/users', 'auth0|p1', {
@@ -296,6 +306,7 @@ describe('user routes', () => {
       ['an array body', ['displayName']],
       ['a non-boolean highlight setting', { highlightPlayable: 'yes' }],
       ['a non-boolean push notifications setting', { pushNotifications: 1 }],
+      ['a non-boolean seen-how-to-play setting', { seenHowToPlay: 'yes' }],
     ])('rejects %s with a 400', async (_, body) => {
       const res = await api('/api/users', 'auth0|p1', { method: 'PATCH', body: JSON.stringify(body) });
       expect(res.status).toBe(400);
@@ -391,6 +402,17 @@ describe('toUserResponse', () => {
     it('falls back to the raw picture when user_metadata is absent entirely', () => {
       const u: Auth0User = { user_id: 'u1', picture: 'raw.png' };
       expect(toUserResponse(u).picture).toBe('raw.png');
+    });
+  });
+
+  describe('seenHowToPlay', () => {
+    it('is false until the player has seen the rules', () => {
+      expect(toUserResponse({ user_id: 'u1' }).seenHowToPlay).toBe(false);
+      expect(toUserResponse({ user_id: 'u1', user_metadata: { seenHowToPlay: true } }).seenHowToPlay).toBe(true);
+    });
+
+    it('is not shown to other players', () => {
+      expect(toPublicUser({ user_id: 'u1', user_metadata: { seenHowToPlay: true } })).not.toHaveProperty('seenHowToPlay');
     });
   });
 
