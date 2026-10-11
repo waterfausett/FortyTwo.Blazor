@@ -38,7 +38,7 @@ Per filter (all / humansOnly / withBots):
 | Made / Set, Made % | Of those, whether the bidder's team won the hand. |
 | Average winning bid | Mean of their bid over points bids (30–42) only. Null when none. |
 | Marks bids | Count of their winning bids of 84 or more (incl. Plunge). |
-| Best partner | Human partner (never a bot) with the highest win rate over ≥ 3 games together; ties → more games, then partner id for stability. Null when none qualifies. Shown with display name and W–L. |
+| Best partner | Human partner (never a bot) with the highest win rate over ≥ 3 games together and at least one win; ties → more games, then partner id for stability. Null when none qualifies. Shown with display name and W–L. |
 
 Only filed hands count (`match.games[team]`); a hand still in `currentGame` at match end is
 already filed by the time `winningTeam` is set.

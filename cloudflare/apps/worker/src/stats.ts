@@ -64,9 +64,11 @@ function addTotals(a: Totals, b: Totals): Totals {
 }
 
 // Highest win rate over enough games, then more games, then id - so the same rows always pick
-// the same partner. Bots never count.
+// the same partner. Bots never count, nor a partner the player has never won with.
 function bestOf(records: PartnerRecord[]): PartnerRecord | null {
-  const eligible = records.filter((r) => !isBot(r.partnerId) && r.partnerId !== '' && r.played >= BEST_PARTNER_MIN_GAMES);
+  const eligible = records.filter(
+    (r) => !isBot(r.partnerId) && r.partnerId !== '' && r.played >= BEST_PARTNER_MIN_GAMES && r.won > 0
+  );
   eligible.sort(
     (a, b) => b.won / b.played - a.won / a.played || b.played - a.played || a.partnerId.localeCompare(b.partnerId)
   );

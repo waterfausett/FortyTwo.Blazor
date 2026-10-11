@@ -103,6 +103,11 @@ describe('readPlayerStats', () => {
     expect((await readPlayerStats(testEnv, 'me')).all.bestPartner?.user.displayName).toBe('Kim');
   });
 
+  it('names no best partner who has never won with the player', async () => {
+    for (const id of ['l1', 'l2', 'l3']) await recordMatchStats(testEnv.DB, won(id, ['me', 'x', 'sam', 'y'], Teams.TeamB));
+    expect((await readPlayerStats(testEnv, 'me')).all.bestPartner).toBeNull();
+  });
+
   it('still answers, with a neutral name, when the best partner has no name to show', async () => {
     for (const id of ['g1', 'g2', 'g3']) await recordMatchStats(testEnv.DB, won(id, ['me', 'x', 'ghost', 'y'], Teams.TeamA));
     const partner = (await readPlayerStats(testEnv, 'me')).all.bestPartner;
