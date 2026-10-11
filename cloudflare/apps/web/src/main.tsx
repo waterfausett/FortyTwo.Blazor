@@ -11,6 +11,7 @@ import './styles/hall.css'
 import { AppAuth0Provider } from './auth/Auth0Provider.tsx'
 import { AuthGate } from './auth/AuthGate.tsx'
 import { NavBar } from './components/NavBar.tsx'
+import { HowToPlay } from './pages/HowToPlay.tsx'
 import { Lobby } from './pages/Lobby.tsx'
 import { MatchRoute } from './pages/Match.tsx'
 import { NotFound } from './pages/NotFound.tsx'
@@ -34,6 +35,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/" element={<Lobby />} />
               <Route path="/match/:matchId" element={<MatchRoute />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/how-to-play" element={<HowToPlay />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthGate>

@@ -14,8 +14,10 @@ import type { MatchState } from '@fortytwo/rules';
 import type { MatchPage, MatchSummary } from '../api/client';
 import { Lobby } from './Lobby';
 
-const { listMatchesMock, createMatchMock, joinMatchMock, mockNavigate } = vi.hoisted(() => ({
+const { listMatchesMock, createMatchMock, joinMatchMock, getProfileMock, patchProfileMock, mockNavigate } = vi.hoisted(() => ({
   listMatchesMock: vi.fn(),
+  getProfileMock: vi.fn(),
+  patchProfileMock: vi.fn(),
   createMatchMock: vi.fn(),
   joinMatchMock: vi.fn(),
   mockNavigate: vi.fn(),
@@ -26,6 +28,8 @@ vi.mock('../api/client', () => ({
     listMatches: listMatchesMock,
     createMatch: createMatchMock,
     joinMatch: joinMatchMock,
+    getProfile: getProfileMock,
+    patchProfile: patchProfileMock,
   }),
 }));
 
@@ -113,6 +117,7 @@ function switchTab(name: RegExp) {
 describe('Lobby', () => {
   beforeEach(() => {
     mockLists();
+    getProfileMock.mockResolvedValue({ user_id: 'me', displayName: 'Me', seenHowToPlay: true });
   });
 
   afterEach(() => {
@@ -330,5 +335,60 @@ describe('Lobby', () => {
       await waitFor(() => expect(screen.queryByText('Erin vs Finn')).toBeNull());
       expect(screen.getByText(ACTIVE_ROW)).toBeTruthy();
     });
+  });
+});
+
+describe('Lobby: How to play card', () => {
+  const CARD = { name: 'New to Forty-Two' };
+
+  beforeEach(() => {
+    mockLists();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('offers the rules to a player who has not seen them', async () => {
+    getProfileMock.mockResolvedValue({ user_id: 'me', displayName: 'Me', seenHowToPlay: false });
+    renderLobby();
+
+    const card = await screen.findByRole('complementary', CARD);
+    expect(within(card).getByRole('link', { name: 'New to 42? Learn how to play' }).getAttribute('href')).toBe('/how-to-play');
+  });
+
+  it.each([
+    ['has seen the rules', { user_id: 'me', displayName: 'Me', seenHowToPlay: true }],
+    ['comes from a worker that does not know the setting', { user_id: 'me', displayName: 'Me' }],
+  ])('shows no card when the profile %s', async (_, profile) => {
+    getProfileMock.mockResolvedValue(profile);
+    renderLobby();
+
+    await screen.findByText(ACTIVE_ROW);
+    await waitFor(() => expect(getProfileMock).toHaveBeenCalled());
+    expect(screen.queryByRole('complementary', CARD)).toBeNull();
+  });
+
+  it('dismisses the card at once and saves that', async () => {
+    getProfileMock.mockResolvedValue({ user_id: 'me', displayName: 'Me', seenHowToPlay: false });
+    patchProfileMock.mockResolvedValue(undefined);
+    renderLobby();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+
+    await waitFor(() => expect(screen.queryByRole('complementary', CARD)).toBeNull());
+    expect(patchProfileMock).toHaveBeenCalledWith({ seenHowToPlay: true });
+  });
+
+  it('brings the card back if the save fails', async () => {
+    getProfileMock.mockResolvedValue({ user_id: 'me', displayName: 'Me', seenHowToPlay: false });
+    patchProfileMock.mockRejectedValue(new Error('offline'));
+    renderLobby();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+
+    await waitFor(() => expect(patchProfileMock).toHaveBeenCalled());
+    expect(await screen.findByRole('complementary', CARD)).toBeTruthy();
   });
 });

@@ -34,6 +34,7 @@ const {
   searchUsersMock,
   getConfigMock,
   getProfileMock,
+  patchProfileMock,
   addBotsMock,
   useMatchSocketMock,
   toastErrorMock,
@@ -55,6 +56,7 @@ const {
     searchUsersMock: vi.fn(),
     getConfigMock: vi.fn(),
     getProfileMock: vi.fn(),
+    patchProfileMock: vi.fn(),
     addBotsMock: vi.fn(),
     useMatchSocketMock: vi.fn(),
     toastErrorMock: vi.fn(),
@@ -81,6 +83,7 @@ vi.mock('../api/client', () => ({
     searchUsers: searchUsersMock,
     getConfig: getConfigMock,
     getProfile: getProfileMock,
+    patchProfile: patchProfileMock,
     addBots: addBotsMock,
     rematch: rematchMock,
     leaveMatch: leaveMatchMock,
@@ -494,6 +497,39 @@ describe('Match', () => {
       fireEvent.click(screen.getByRole('button', { name: /back/i }));
 
       expect(screen.getByRole('button', { name: /sixes/i })).not.toBeNull();
+    });
+  });
+
+  describe('How to play', () => {
+    it('opens the rules over the table from the scoreboard, and closes them', async () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+
+      fireEvent.click(screen.getByRole('button', { name: 'How to play' }));
+      const dialog = screen.getByRole('dialog', { name: 'How to play' });
+      expect(within(dialog).getByRole('heading', { name: 'Bidding' })).not.toBeNull();
+
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(screen.queryByRole('dialog', { name: 'How to play' })).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: 'How to play' }));
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'How to play' })).getByRole('button', { name: 'Close' }));
+      expect(screen.queryByRole('dialog', { name: 'How to play' })).toBeNull();
+      // The table is still there underneath.
+      expect(screen.getByLabelText('Scores')).not.toBeNull();
+    });
+
+    it('marks the rules seen when a player who had not seen them opens them', async () => {
+      getProfileMock.mockResolvedValue({ user_id: 'p1', displayName: 'Me', highlightPlayable: false, seenHowToPlay: false });
+      patchProfileMock.mockResolvedValue(undefined);
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+      await waitFor(() => expect(getProfileMock).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 0));
+
+      fireEvent.click(screen.getByRole('button', { name: 'How to play' }));
+
+      await waitFor(() => expect(patchProfileMock).toHaveBeenCalledWith({ seenHowToPlay: true }));
     });
   });
 

@@ -18,6 +18,8 @@ import type { JSX } from 'react';
 import { uniqueMatches } from '@fortytwo/client';
 import { apiClient, type MatchPage, type MatchSummary } from '../api/client';
 import { SEAT_SIDES, SeatPicker } from '../components/SeatPicker';
+import { useHowToPlay } from '../match/useHowToPlay';
+import '../components/HowToPlay.css';
 import './Lobby.css';
 
 type MatchFilter = 'Active' | 'Joinable' | 'Completed';
@@ -67,6 +69,9 @@ export function Lobby(): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const client = apiClient(useGetToken());
+
+  // A first-time player is offered the rules until they dismiss the card or open them.
+  const howToPlay = useHowToPlay(client);
 
   const [activeTab, setActiveTab] = useState<MatchFilter>('Active');
   const activeTabLabel = TABS.find((tab) => tab.filter === activeTab)?.label ?? activeTab;
@@ -124,6 +129,14 @@ export function Lobby(): JSX.Element {
           {createMatch.isPending ? 'Creating…' : 'Create match'}
         </button>
       </header>
+      {howToPlay.offer && (
+        <aside className="how-to-play-card" aria-label="New to Forty-Two">
+          <Link to="/how-to-play">New to 42? Learn how to play</Link>
+          <button type="button" aria-label="Dismiss" onClick={howToPlay.markSeen}>
+            ×
+          </button>
+        </aside>
+      )}
       {createMatch.isError && (
         <p role="alert" className="page-error">
           {errorMessage(createMatch.error)}
