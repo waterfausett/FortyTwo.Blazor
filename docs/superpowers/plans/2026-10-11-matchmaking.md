@@ -3,9 +3,10 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the lobby's Find a Game list with a New match chooser - Live (fast, bots fill
-after 45 s, absent players go on autopilot), Daily (waits for people) and Challenge friends
+after 150 s unless a player starts them sooner, absent players go on
+autopilot), Daily (waits for people) and Challenge friends
 (today's create) - backed by a `Matchmaker` Durable Object, and show whose turn it is in the
-Active list.
+Active list, with an online-player count.
 
 **Architecture:** A single `Matchmaker` DO serializes "which open table does this player join"
 and seats them at a real match right away; the waiting happens at that table. Matches gain a
@@ -22,7 +23,8 @@ Jest (mobile).
 ## Global Constraints
 
 - Modes are exactly `'live' | 'daily' | 'custom'`; a match with no `mode` reads as `'custom'`.
-- `LIVE_FILL_MS = 45_000`, `LIVE_TURN_MS = 60_000`, exported from `@fortytwo/rules`.
+- `LIVE_FILL_MS = 150_000`, `LIVE_TURN_MS = 60_000`, exported from `@fortytwo/rules`.
+- Presence: clients check in every 30 s (`POST /api/presence` -> `{ online }`); online = checked in within the last 60 s; kept in Matchmaker memory, nothing written to storage.
 - Bots fill seats in Live only. Daily and custom matches set no timers.
 - No new D1 writes per move. The `mode` column is written only where rows are already written.
 - `GET /api/matches?filter=Joinable` keeps working (installed mobile builds) but lists only `custom` tables.
@@ -53,7 +55,7 @@ Jest (mobile).
 **Interfaces:**
 - Produces:
   - `type MatchMode = 'live' | 'daily' | 'custom'`
-  - `LIVE_FILL_MS: 45000`, `LIVE_TURN_MS: 60000`
+  - `LIVE_FILL_MS: 150000`, `LIVE_TURN_MS: 60000`
   - `matchMode(match: Pick<MatchState, 'mode'>): MatchMode`
   - `isOnAutopilot(match: MatchState, playerId: string): boolean`
   - `isBotControlled(match: MatchState, playerId: string): boolean`
@@ -235,8 +237,9 @@ import { assertIsMatchPlayer } from './validation';
 
 export type MatchMode = 'live' | 'daily' | 'custom';
 
-// How long a Live table looks for people before bots take its empty seats.
-export const LIVE_FILL_MS = 45_000;
+// How long a Live table looks for people before bots take its empty seats on their own - the
+// fallback for a table nobody is watching. Players usually press Start now with bots sooner.
+export const LIVE_FILL_MS = 150_000;
 // How long a Live turn waits on a human before a bot plays it for them.
 export const LIVE_TURN_MS = 60_000;
 
@@ -785,7 +788,7 @@ Expected: PASS - new file plus all existing MatchDO tests (bot pacing unchanged)
 
 ```bash
 git add cloudflare/apps/worker/src/matchDO.ts cloudflare/apps/worker/test/matchDOLive.test.ts
-git commit -m "feat(worker): Live tables fill with bots after 45 seconds"
+git commit -m "feat(worker): Live tables fill with bots when the search runs out"
 ```
 
 ---
@@ -981,7 +984,7 @@ git commit -m "feat(worker): Live turns time out to autopilot; resume and getTur
 
 **Interfaces:**
 - Consumes: `MatchDO.create(firstPlayerId, matchId, mode)`, `MatchDO.getMatch()`, `MatchDO.takeSeat(...)` (Task 4)
-- Produces: `type QueueMode = 'live' | 'daily'`; `class Matchmaker` with `play(playerId: string, mode: QueueMode): Promise<MatchState>`; `Env.MATCHMAKER: DurableObjectNamespace<Matchmaker>`
+- Produces: `type QueueMode = 'live' | 'daily'`; `class Matchmaker` with `play(playerId: string, mode: QueueMode): Promise<MatchState>` and `checkIn(playerId: string, now?: number): Promise<PresenceCounts>`; `Env.MATCHMAKER: DurableObjectNamespace<Matchmaker>`; api-types `interface PresenceCounts { online: number }`
 
 - [ ] **Step 1: Wire the binding** (needed before the test can run)
 
@@ -1100,6 +1103,23 @@ describe('Matchmaker', () => {
     expect(next.id).not.toBe(table.id);
   });
 });
+
+describe('Matchmaker presence', () => {
+  it('counts everyone who checked in within the last minute, the caller included', async () => {
+    const mm = matchmaker('mm-online');
+    const now = Date.now();
+    await mm.checkIn('a', now - 61_000);
+    await mm.checkIn('b', now - 30_000);
+    expect(await mm.checkIn('c', now)).toEqual({ online: 2 });
+  });
+
+  it('counts a player once however often they check in', async () => {
+    const mm = matchmaker('mm-online-once');
+    const now = Date.now();
+    await mm.checkIn('a', now - 30_000);
+    expect(await mm.checkIn('a', now)).toEqual({ online: 1 });
+  });
+});
 ```
 
 - [ ] **Step 3: Run to verify failure**
@@ -1180,9 +1200,35 @@ export class Matchmaker extends DurableObject<Env> {
     return seated;
   }
 
+  // Who's around, for the chooser and the Live search screen: players who checked in within
+  // ONLINE_MS. In memory only - nothing is written. A DO getting check-ins every 30 s stays
+  // resident; if it's evicted anyway, the count rebuilds within one interval.
+  async checkIn(playerId: string, now = Date.now()): Promise<PresenceCounts> {
+    this.lastSeen.set(playerId, now);
+    for (const [id, seen] of this.lastSeen) if (now - seen > ONLINE_MS) this.lastSeen.delete(id);
+    return { online: this.lastSeen.size };
+  }
+
   private matchStub(id: string) {
     return this.env.MATCH_DO.get(this.env.MATCH_DO.idFromName(id));
   }
+}
+```
+
+Add the field `private lastSeen = new Map<string, number>();` beside `queue`, import
+`type PresenceCounts` from `@fortytwo/api-types`, and at module scope under the imports:
+
+```ts
+// A check-in counts a player online for this long; clients check in every 30 s.
+const ONLINE_MS = 60_000;
+```
+
+In `cloudflare/packages/api-types/src/index.ts` add:
+
+```ts
+// POST /api/presence: how many players have had the app open in the last minute.
+export interface PresenceCounts {
+  online: number;
 }
 ```
 
@@ -1215,6 +1261,7 @@ git commit -m "feat(worker): Matchmaker durable object seats Live and Daily play
 - Consumes: `Matchmaker.play` (Task 6), `MatchDO.resume`, `MatchDO.getTurn` (Task 5), `TurnSummary` (Task 3)
 - Produces:
   - `POST /api/matchmaking { mode: 'live' | 'daily' }` -> 200 match view (404 for live when bots are off)
+  - `POST /api/presence` -> 200 `PresenceCounts`
   - `PATCH /api/matches/:id/players { autopilot: false }` -> 200 match view
   - `GET /api/matches?filter=Active` rows carry `turn: TurnSummary | null`
   - `withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null>`; `TURN_LOOKUP_MS = 500`
@@ -1277,6 +1324,15 @@ describe('POST /api/matchmaking', () => {
   it('rejects an unknown mode', async () => {
     const res = await api('/api/matchmaking', await signToken('mm-e'), { method: 'POST', body: JSON.stringify({ mode: 'blitz' }) });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/presence', () => {
+  it('checks the caller in and answers the online count', async () => {
+    const res = await api('/api/presence', await signToken('pr-1'), { method: 'POST' });
+    expect(res.status).toBe(200);
+    const counts = (await res.json()) as { online: number };
+    expect(counts.online).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -1454,10 +1510,23 @@ matchmaking.post('/', async (c) => {
 });
 
 export default matchmaking;
+
+// POST /api/presence: checks the caller in and answers how many players are online
+// (Matchmaker.checkIn). A POST because it records the check-in; clients send it every 30 s while
+// the app is in front.
+export const presence = new Hono<AppEnv>();
+
+presence.post('/', async (c) => {
+  const counts = await c.env.MATCHMAKER.get(c.env.MATCHMAKER.idFromName('global')).checkIn(c.get('user').sub);
+  return c.json(counts satisfies PresenceCounts);
+});
 ```
 
-In `index.ts`: `import matchmakingRoutes from './routes/matchmaking';` and
-`app.route('/api/matchmaking', matchmakingRoutes);` next to the matches route.
+(import `type PresenceCounts` from `@fortytwo/api-types`.)
+
+In `index.ts`: `import matchmakingRoutes, { presence as presenceRoutes } from './routes/matchmaking';`
+and, next to the matches route, `app.route('/api/matchmaking', matchmakingRoutes);` and
+`app.route('/api/presence', presenceRoutes);`.
 
 - [ ] **Step 7: Run tests and typecheck**
 
@@ -1486,7 +1555,8 @@ git commit -m "feat(worker): matchmaking route, resume, and turn status in Activ
 **Interfaces:**
 - Consumes: `MatchSummary`, `TurnSummary` (Task 3); `liveDeadline`, `matchMode`, `hasBeenDealt`, `isOnAutopilot` (Task 1)
 - Produces:
-  - api: `play(mode: 'live' | 'daily'): Promise<MatchState>`, `resume(id: string): Promise<MatchState>`
+  - api: `play(mode: 'live' | 'daily'): Promise<MatchState>`, `resume(id: string): Promise<MatchState>`, `presence(): Promise<PresenceCounts>`
+  - lobby: `PRESENCE_INTERVAL_MS = 30_000`
   - lobby: `rowStatus(match: MatchSummary): { text: string; yours: boolean }`, `yourTurnFirst(rows: MatchSummary[]): MatchSummary[]`, `MODE_LABELS: Record<MatchMode, string>`
   - live: `searchState(match: MatchState, now: number): { mode: 'live'; elapsedMs: number } | { mode: 'daily' } | null`, `turnClock(match: MatchState, now: number): { playerIds: string[]; remainingMs: number } | null`, `formatClock(ms: number): string`
 
@@ -1617,6 +1687,9 @@ export function rowStatus(match: MatchSummary): { text: string; yours: boolean }
   return { text: `${turn.waitingOn[0] ?? 'Someone'}'s turn`, yours: false };
 }
 
+// How often an open app checks in (POST /api/presence) - and so how fresh the online count is.
+export const PRESENCE_INTERVAL_MS = 30_000;
+
 // Games waiting on the viewer first, the rest in the order they came. Only sorts rows already
 // loaded: pages still arrive newest first.
 export function yourTurnFirst(rows: MatchSummary[]): MatchSummary[] {
@@ -1666,6 +1739,9 @@ export function formatClock(ms: number): string {
 and after `readyUp`:
 
 ```ts
+    // Checks in and answers how many are online; sent every PRESENCE_INTERVAL_MS while the app is in front.
+    presence: (): Promise<PresenceCounts> => request<PresenceCounts>('/api/presence', { method: 'POST' }),
+
     // Takes the caller's seat back from the bot after a Live turn ran out.
     resume: (id: string): Promise<MatchState> =>
       request<MatchState>(`/api/matches/${id}/players`, { method: 'PATCH', body: JSON.stringify({ autopilot: false }) }),
@@ -1694,8 +1770,8 @@ git commit -m "feat(client): matchmaking calls and lobby/live helpers"
 - Modify: `cloudflare/apps/web/src/pages/Lobby.tsx`, `Lobby.css`, `Lobby.test.tsx`
 
 **Interfaces:**
-- Consumes: `play`, `createMatch`, `listMatches`, `getConfig` (client); `rowStatus`, `yourTurnFirst`, `MODE_LABELS` (Task 8)
-- Produces: `NewMatchDialog({ open, liveEnabled, pending, onChoose, onClose })` where `onChoose: (choice: 'live' | 'daily' | 'challenge') => void`
+- Consumes: `play`, `createMatch`, `listMatches`, `getConfig`, `presence` (client); `rowStatus`, `yourTurnFirst`, `MODE_LABELS`, `PRESENCE_INTERVAL_MS` (Task 8)
+- Produces: `NewMatchDialog({ open, liveEnabled, online, pending, onChoose, onClose })` (`online: number | null`) where `onChoose: (choice: 'live' | 'daily' | 'challenge') => void`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1711,7 +1787,7 @@ afterEach(cleanup);
 describe('NewMatchDialog', () => {
   it('offers Live, Daily and Challenge friends, and reports the choice', () => {
     const onChoose = vi.fn();
-    render(<NewMatchDialog open liveEnabled pending={false} onChoose={onChoose} onClose={vi.fn()} />);
+    render(<NewMatchDialog open liveEnabled online={null} pending={false} onChoose={onChoose} onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /live/i }));
     fireEvent.click(screen.getByRole('button', { name: /daily/i }));
     fireEvent.click(screen.getByRole('button', { name: /challenge friends/i }));
@@ -1719,18 +1795,23 @@ describe('NewMatchDialog', () => {
   });
 
   it('leaves Live out when bots are off', () => {
-    render(<NewMatchDialog open liveEnabled={false} pending={false} onChoose={vi.fn()} onClose={vi.fn()} />);
+    render(<NewMatchDialog open liveEnabled={false} online={null} pending={false} onChoose={vi.fn()} onClose={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /live/i })).toBeNull();
   });
 
   it('renders nothing while closed', () => {
-    render(<NewMatchDialog open={false} liveEnabled pending={false} onChoose={vi.fn()} onClose={vi.fn()} />);
+    render(<NewMatchDialog open={false} liveEnabled online={null} pending={false} onChoose={vi.fn()} onClose={vi.fn()} />);
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('says how many players are online', () => {
+    render(<NewMatchDialog open liveEnabled online={5} pending={false} onChoose={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByText('5 online')).toBeTruthy();
   });
 
   it('closes on Escape', () => {
     const onClose = vi.fn();
-    render(<NewMatchDialog open liveEnabled pending={false} onChoose={vi.fn()} onClose={onClose} />);
+    render(<NewMatchDialog open liveEnabled online={null} pending={false} onChoose={vi.fn()} onClose={onClose} />);
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
   });
@@ -1738,8 +1819,10 @@ describe('NewMatchDialog', () => {
 ```
 
 In `Lobby.test.tsx`:
-- Add `playMock` and `getConfigMock` to the `vi.hoisted` block and the mocked `apiClient`
-  (`play: playMock, getConfig: getConfigMock`); in a `beforeEach`, `getConfigMock.mockResolvedValue({ bots: true })`.
+- Add `playMock`, `getConfigMock` and `presenceMock` to the `vi.hoisted` block and the mocked
+  `apiClient` (`play: playMock, getConfig: getConfigMock, presence: presenceMock`); in a
+  `beforeEach`, `getConfigMock.mockResolvedValue({ bots: true })` and
+  `presenceMock.mockResolvedValue({ online: 3 })`.
 - Add `mode: 'custom'` to every fixture `MatchSummary` (and `mode: 'daily'` where it reads better).
 - Delete the tests about the Find a Game tab and seat picker/join.
 - Add:
@@ -1775,6 +1858,12 @@ In `Lobby.test.tsx`:
     expect(playMock).toHaveBeenCalledWith('daily');
   });
 
+  it('shows how many players are online in the chooser', async () => {
+    renderLobby();
+    fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
+    expect(await screen.findByText('3 online')).toBeTruthy();
+  });
+
   it('creates a custom table for Challenge friends', async () => {
     createMatchMock.mockResolvedValue({ id: 'custom-1' } as MatchState);
     renderLobby();
@@ -1806,7 +1895,7 @@ import './NewMatchDialog.css';
 export type NewMatchChoice = 'live' | 'daily' | 'challenge';
 
 const OPTIONS: { choice: NewMatchChoice; title: string; detail: string; icon: string }[] = [
-  { choice: 'live', title: 'Live', detail: 'Play now. Bots fill any empty seats after 45 seconds.', icon: '⚡' },
+  { choice: 'live', title: 'Live', detail: "Play now with whoever's around. Start with bots whenever you like.", icon: '⚡' },
   { choice: 'daily', title: 'Daily', detail: "Take your turns whenever. We'll notify you.", icon: '☀' },
   { choice: 'challenge', title: 'Challenge friends', detail: 'Set up a table and share the invite link.', icon: '✉' },
 ];
@@ -1814,12 +1903,15 @@ const OPTIONS: { choice: NewMatchChoice; title: string; detail: string; icon: st
 export function NewMatchDialog({
   open,
   liveEnabled,
+  online,
   pending,
   onChoose,
   onClose,
 }: {
   open: boolean;
   liveEnabled: boolean;
+  // Players online (POST /api/presence), or null before the first check-in answers.
+  online: number | null;
   pending: boolean;
   onChoose: (choice: NewMatchChoice) => void;
   onClose: () => void;
@@ -1845,6 +1937,7 @@ export function NewMatchDialog({
         }}
       >
         <h2 id="new-match-title" className="new-match-title">New match</h2>
+        {online !== null && <p className="new-match-online">{online} online</p>}
         {OPTIONS.filter((o) => liveEnabled || o.choice !== 'live').map((o) => (
           <button
             key={o.choice}
@@ -1894,6 +1987,12 @@ export function NewMatchDialog({
   margin: 0 0 0.75rem;
   font: 1.35rem var(--font-display);
   color: var(--bone);
+}
+
+.new-match-online {
+  margin: -0.5rem 0 0.75rem;
+  font: 0.85rem var(--font-ui);
+  color: var(--brass);
 }
 
 .new-match-option {
@@ -1960,6 +2059,13 @@ export function NewMatchDialog({
 
 ```tsx
   const config = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig() });
+  // Checks in while the lobby is open, and keeps the chooser's online count fresh. TanStack Query
+  // stops the interval while the tab is in the background.
+  const presence = useQuery({
+    queryKey: ['presence'],
+    queryFn: () => client.presence(),
+    refetchInterval: PRESENCE_INTERVAL_MS,
+  });
   const [choosing, setChoosing] = useState(false);
 
   // Live and Daily seat the player through matchmaking; Challenge friends starts a custom table.
@@ -1976,7 +2082,7 @@ export function NewMatchDialog({
   (`useQuery` from `@tanstack/react-query`; if the Match page already caches config under a
   different key, reuse that key.) Replace `createMatch` usages with `startMatch`; the header
   button becomes `New match`, `onClick={() => setChoosing(true)}`; render
-  `<NewMatchDialog open={choosing} liveEnabled={config.data?.bots ?? false} pending={startMatch.isPending} onChoose={(c) => startMatch.mutate(c)} onClose={() => setChoosing(false)} />`
+  `<NewMatchDialog open={choosing} liveEnabled={config.data?.bots ?? false} online={presence.data?.online ?? null} pending={startMatch.isPending} onChoose={(c) => startMatch.mutate(c)} onClose={() => setChoosing(false)} />`
   and show `startMatch.error` where `createMatch.error` was.
 - Rows: `const matches = uniqueMatches(...)` then `const rows = matches && yourTurnFirst(matches);`
   and render from `rows`. In each row's meta replace the "N of 4 seated, updated ..." text with:
@@ -2037,7 +2143,7 @@ git commit -m "feat(web): New match chooser and your-turn lobby"
 - Consumes: `searchState`, `turnClock`, `formatClock` (Task 8); `isOnAutopilot`, `matchMode` (Task 1); `client.resume` (Task 8)
 - Produces: `useNow(enabled: boolean, intervalMs?: number): number`; `SeatProps` gains `away: boolean`, `clock: string | null`
 
-- [ ] **Step 1: Write the failing tests** (in `Match.test.tsx`; add `resumeMock` to the hoisted mocks and `resume: resumeMock` to the mocked client)
+- [ ] **Step 1: Write the failing tests** (in `Match.test.tsx`; add `resumeMock` and `presenceMock` to the hoisted mocks, `resume: resumeMock, presence: presenceMock` to the mocked client, and `presenceMock.mockResolvedValue({ online: 1 })` to the `beforeEach`)
 
 ```tsx
   describe('Live and Daily', () => {
@@ -2048,14 +2154,18 @@ git commit -m "feat(web): New match chooser and your-turn lobby"
       );
     }
 
-    it('shows a Live search counting up, with Cancel search and no invite or bot buttons', async () => {
+    it('shows a Live search counting up, who is online, Start now with bots and Cancel search', async () => {
       useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
       getConfigMock.mockResolvedValue({ bots: true });
+      presenceMock.mockResolvedValue({ online: 4 });
       renderMatch();
       expect(await screen.findByText(/finding players… 0:2[34]/i)).toBeTruthy();
+      expect(await screen.findByText('4 online')).toBeTruthy();
       expect(screen.getByRole('button', { name: /cancel search/i })).toBeTruthy();
       expect(screen.queryByRole('button', { name: /invite friends/i })).toBeNull();
       expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: /start now with bots/i }));
+      await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
     });
 
     it('tells a Daily player they will hear when the table fills', async () => {
@@ -2145,6 +2255,12 @@ Near the other derived state (after `match`/`view` are known):
     mutationFn: () => client.resume(matchId!),
     onError: toastError,
   });
+  // Keeps the player checked in while a match is open, and gives a Live search its online count.
+  const presence = useQuery({
+    queryKey: ['presence'],
+    queryFn: () => client.presence(),
+    refetchInterval: PRESENCE_INTERVAL_MS,
+  });
 ```
 
 Hooks must run unconditionally, so place these above any early `return` in the component
@@ -2162,7 +2278,18 @@ In the `.table-waiting` block:
 
 ```tsx
                     {liveSearch?.mode === 'live' && (
-                      <p className="table-search" role="status">Finding players… {formatClock(liveSearch.elapsedMs)}</p>
+                      <>
+                        <p className="table-search" role="status">Finding players… {formatClock(liveSearch.elapsedMs)}</p>
+                        {presence.data && <p className="table-presence">{presence.data.online} online</p>}
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          disabled={!connected || addBotsMutation.isPending}
+                          onClick={() => addBotsMutation.mutate(undefined)}
+                        >
+                          Start now with bots
+                        </button>
+                      </>
                     )}
                     {liveSearch?.mode === 'daily' && (
                       <p className="table-search" role="status">Looking for players - we'll notify you when the table fills.</p>
@@ -2190,8 +2317,9 @@ My own seat: if `my-seat` is rendered through `Seat` with `seatPropsFor(myPlayer
 props flow automatically; otherwise show my clock beside the hand:
 `{clock?.playerIds.includes(myPlayerId) && <span className="seat-tag seat-clock">{formatClock(clock.remainingMs)}</span>}`.
 
-Imports: `searchState`, `turnClock`, `formatClock` from `@fortytwo/client`; `isOnAutopilot`,
-`matchMode` from `@fortytwo/rules`; `useNow` from `../match/useNow`.
+Imports: `searchState`, `turnClock`, `formatClock`, `PRESENCE_INTERVAL_MS` from
+`@fortytwo/client`; `isOnAutopilot`, `matchMode` from `@fortytwo/rules`; `useNow` from
+`../match/useNow`; `useQuery` if not already imported.
 
 CSS (same file as `.table-waiting`):
 
@@ -2199,6 +2327,11 @@ CSS (same file as `.table-waiting`):
 .table-search {
   color: var(--brass);
   font: 600 0.95rem var(--font-ui);
+}
+
+.table-presence {
+  color: var(--ink-muted);
+  font: 0.85rem var(--font-ui);
 }
 
 .seat-away {
@@ -2247,8 +2380,8 @@ git commit -m "feat(web): Live search, turn clock and Resume on the match page"
 - Test: `cloudflare/apps/mobile/src/components/__tests__/components.test.tsx`
 
 **Interfaces:**
-- Consumes: `api.play`, `api.createMatch`, `api.getConfig`; `rowStatus`, `yourTurnFirst`, `MODE_LABELS` (Task 8)
-- Produces: `NewMatchSheet({ visible, liveEnabled, pending, onChoose, onClose })`, `onChoose: (choice: 'live' | 'daily' | 'challenge') => void`
+- Consumes: `api.play`, `api.createMatch`, `api.getConfig`, `api.presence`; `rowStatus`, `yourTurnFirst`, `MODE_LABELS`, `PRESENCE_INTERVAL_MS` (Task 8)
+- Produces: `NewMatchSheet({ visible, liveEnabled, online, pending, onChoose, onClose })` (`online: number | null`), `onChoose: (choice: 'live' | 'daily' | 'challenge') => void`
 
 - [ ] **Step 1: Write the failing test** (append to `components.test.tsx`, importing `NewMatchSheet`)
 
@@ -2256,15 +2389,16 @@ git commit -m "feat(web): Live search, turn clock and Resume on the match page"
 describe('NewMatchSheet', () => {
   it('offers Live, Daily and Challenge friends, and reports the choice', () => {
     const onChoose = jest.fn();
-    render(<NewMatchSheet visible liveEnabled pending={false} onChoose={onChoose} onClose={jest.fn()} />);
+    render(<NewMatchSheet visible liveEnabled online={5} pending={false} onChoose={onChoose} onClose={jest.fn()} />);
     fireEvent.press(screen.getByRole('button', { name: /live/i }));
     fireEvent.press(screen.getByRole('button', { name: /daily/i }));
     fireEvent.press(screen.getByRole('button', { name: /challenge friends/i }));
     expect(onChoose.mock.calls).toEqual([['live'], ['daily'], ['challenge']]);
+    expect(screen.getByText('5 online')).toBeTruthy();
   });
 
   it('leaves Live out when bots are off', () => {
-    render(<NewMatchSheet visible liveEnabled={false} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />);
+    render(<NewMatchSheet visible liveEnabled={false} online={null} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />);
     expect(screen.queryByRole('button', { name: /^live/i })).toBeNull();
   });
 });
@@ -2288,7 +2422,7 @@ import { colors, fonts } from '@/components/theme';
 export type NewMatchChoice = 'live' | 'daily' | 'challenge';
 
 const OPTIONS: { choice: NewMatchChoice; title: string; detail: string; icon: string }[] = [
-  { choice: 'live', title: 'Live', detail: 'Play now. Bots fill any empty seats after 45 seconds.', icon: '⚡' },
+  { choice: 'live', title: 'Live', detail: "Play now with whoever's around. Start with bots whenever you like.", icon: '⚡' },
   { choice: 'daily', title: 'Daily', detail: "Take your turns whenever. We'll notify you.", icon: '☀' },
   { choice: 'challenge', title: 'Challenge friends', detail: 'Set up a table and share the invite link.', icon: '✉' },
 ];
@@ -2296,12 +2430,15 @@ const OPTIONS: { choice: NewMatchChoice; title: string; detail: string; icon: st
 export function NewMatchSheet({
   visible,
   liveEnabled,
+  online,
   pending,
   onChoose,
   onClose,
 }: {
   visible: boolean;
   liveEnabled: boolean;
+  // Players online (POST /api/presence), or null before the first check-in answers.
+  online: number | null;
   pending: boolean;
   onChoose: (choice: NewMatchChoice) => void;
   onClose: () => void;
@@ -2313,6 +2450,7 @@ export function NewMatchSheet({
       <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
         <View style={styles.grab} />
         <Text style={styles.title} accessibilityRole="header">New match</Text>
+        {online !== null && <Text style={styles.online}>{online} online</Text>}
         {OPTIONS.filter((o) => liveEnabled || o.choice !== 'live').map((o) => (
           <Pressable
             key={o.choice}
@@ -2348,6 +2486,7 @@ const styles = StyleSheet.create({
   },
   grab: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(242, 234, 219, 0.25)' },
   title: { color: colors.bone, fontFamily: fonts.display, fontSize: 22, marginBottom: 4 },
+  online: { color: colors.brass, fontFamily: fonts.uiMedium, fontSize: 14, marginTop: -6, marginBottom: 4 },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: colors.mat },
   optionDim: { opacity: 0.6 },
   icon: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.brass, alignItems: 'center', justifyContent: 'center' },
@@ -2373,6 +2512,9 @@ Live; the Daily detail doesn't contain "live". The "leaves Live out" test anchor
 
 ```tsx
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig() });
+  // Checks in while the lobby is open, and keeps the sheet's online count fresh. TanStack Query's
+  // focus manager pauses the interval while the app is in the background.
+  const presence = useQuery({ queryKey: ['presence'], queryFn: () => api.presence(), refetchInterval: PRESENCE_INTERVAL_MS });
   const [choosing, setChoosing] = useState(false);
   // Live and Daily seat the player through matchmaking; Challenge friends starts a custom table.
   const start = useMutation({
@@ -2388,7 +2530,7 @@ Live; the Daily detail doesn't contain "live". The "leaves Live out" test anchor
 
   (Reuse the match screen's config query key if it differs - `grep -n "getConfig" apps/mobile/src -r`.)
 - FAB `onPress={() => setChoosing(true)}`, spinner on `start.isPending`; render
-  `<NewMatchSheet visible={choosing} liveEnabled={config.data?.bots ?? false} pending={start.isPending} onChoose={(c) => start.mutate(c)} onClose={() => setChoosing(false)} />` before the FAB.
+  `<NewMatchSheet visible={choosing} liveEnabled={config.data?.bots ?? false} online={presence.data?.online ?? null} pending={start.isPending} onChoose={(c) => start.mutate(c)} onClose={() => setChoosing(false)} />` before the FAB.
 - Empty-state link: text "New match", `onPress={() => setFilter... }` becomes `onPress={() => setChoosing(true)}`.
 - `data={yourTurnFirst(uniqueMatches(matches.data?.pages) ?? [])}`.
 - Delete the local `matchStatus`; in `MatchRow` use `const status = rowStatus(match);` and render
@@ -2489,6 +2631,8 @@ styles: `seatAway: { color: colors.inkMuted, fontFamily: fonts.uiMedium, fontSiz
   const mode = match ? matchMode(match) : 'custom';
   const meOnAutopilot = match != null && myPlayerId != null && isOnAutopilot(match, myPlayerId);
   const resume = useMutation({ mutationFn: () => api.resume(id), onError: toastError });
+  // Keeps the player checked in while a match is open, and gives a Live search its online count.
+  const presence = useQuery({ queryKey: ['presence'], queryFn: () => api.presence(), refetchInterval: PRESENCE_INTERVAL_MS });
 ```
 
 - `seatInfo` returns also `away: isOnAutopilot(match!, playerId)` and
@@ -2497,7 +2641,18 @@ styles: `seatAway: { color: colors.inkMuted, fontFamily: fonts.uiMedium, fontSiz
 
 ```tsx
                 {search?.mode === 'live' && (
-                  <Text style={styles.searchText} accessibilityRole="text">Finding players… {formatClock(search.elapsedMs)}</Text>
+                  <>
+                    <Text style={styles.searchText} accessibilityRole="text">Finding players… {formatClock(search.elapsedMs)}</Text>
+                    {presence.data && <Text style={styles.waitingText}>{presence.data.online} online</Text>}
+                    <Pressable
+                      style={styles.smallButton}
+                      disabled={!connected || addBots.isPending}
+                      onPress={() => addBots.mutate()}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.smallButtonText}>Start now with bots</Text>
+                    </Pressable>
+                  </>
                 )}
                 {search?.mode === 'daily' && (
                   <Text style={styles.searchText}>Looking for players - we'll notify you when the table fills.</Text>
@@ -2529,8 +2684,9 @@ styles: `seatAway: { color: colors.inkMuted, fontFamily: fonts.uiMedium, fontSiz
   styles: `searchText: { color: colors.brass, fontFamily: fonts.uiBold, fontSize: 15, textAlign: 'center' }`,
   `autopilotBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: 'rgba(201, 164, 92, 0.15)' }`,
   `autopilotText: { flex: 1, color: colors.bone, fontFamily: fonts.ui, fontSize: 14 }`.
-- Imports: `searchState`, `turnClock`, `formatClock` from `@fortytwo/client`; `isOnAutopilot`,
-  `matchMode` from `@fortytwo/rules`; `useNow` from `@/match/useNow`.
+- Imports: `searchState`, `turnClock`, `formatClock`, `PRESENCE_INTERVAL_MS` from
+  `@fortytwo/client`; `isOnAutopilot`, `matchMode` from `@fortytwo/rules`; `useNow` from
+  `@/match/useNow`; `useQuery` if not already imported.
 
 - [ ] **Step 4: Run tests and typecheck**
 
@@ -2547,7 +2703,7 @@ Expected: every workspace passes.
 Use the `mobile-emulator` skill to open the lobby, tap **New match**, and screenshot the sheet;
 then pick Daily and screenshot the "Looking for players" table. For web, run the worker
 (`npm run dev -w @fortytwo/worker`, with `BOTS_ENABLED` unset so Live shows) and the web dev
-server, and check the New match dialog, a Live search counting up, and the bot fill after 45 s.
+server, and check the New match dialog's online count, a Live search counting up, and Start now with bots.
 
 - [ ] **Step 7: Commit**
 
@@ -2565,4 +2721,4 @@ git commit -m "feat(mobile): Live search, turn clock and Resume on the match scr
   `v2` DO migration ships with the deploy. The worker release workflow deploys on release-please
   merges (see the release-please memory) - check it applies D1 migrations; if not, apply by hand
   before merging the release PR.
-- PR title: `feat: matchmaking - Live and Daily play from the lobby`, body linking #84, #123, #124.
+- PR title: `feat: matchmaking - Live and Daily play from the lobby`, body linking #84, #123, #124, #126.

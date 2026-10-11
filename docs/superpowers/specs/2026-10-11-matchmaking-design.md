@@ -2,7 +2,8 @@
 
 Follow-ups: [#123](https://github.com/waterfausett/FortyTwo.Blazor/issues/123) (skill-based
 pairing), [#124](https://github.com/waterfausett/FortyTwo.Blazor/issues/124) (queue with a
-partner), [#84](https://github.com/waterfausett/FortyTwo.Blazor/issues/84) (private matches).
+partner), [#84](https://github.com/waterfausett/FortyTwo.Blazor/issues/84) (private matches),
+[#126](https://github.com/waterfausett/FortyTwo.Blazor/issues/126) (players replace bots mid-game).
 
 ## Goal
 
@@ -14,8 +15,11 @@ Success looks like:
 
 - **New match** (web header button, mobile floating button) opens a chooser: **Live**, **Daily**,
   **Challenge friends**.
-- **Live** puts you at a table straight away; if it isn't full after 45 seconds, bots take the
-  empty seats and the hand is dealt. A Live game never stalls on a player who walked away.
+- **Live** puts you at a table straight away. While it fills, you see how many people are online
+  and waiting, and can **Start now with bots** at any time; if nobody does, bots take the empty
+  seats after 2½ minutes. A Live game never stalls on a player who walked away.
+- The chooser and the Live search screen show how many players are **online**, so you can tell
+  whether waiting for people is worth it.
 - **Daily** puts you at an open Daily table (or starts one); it waits for real people, and you get
   a push when it fills.
 - **Challenge friends** is today's Create match: a table you fill by sharing the invite link.
@@ -30,7 +34,12 @@ Success looks like:
   "A" in brainstorming). No queue tickets yet - #123 may need them, and they can replace the
   Matchmaker's internals without changing clients.
 - Pairing is first come, first served. No ratings (#123), no partner queueing (#124).
-- Bots fill seats in Live only, after 45 seconds. Daily never adds bots.
+- Bots fill seats in Live only: when a seated player presses **Start now with bots** (the existing
+  `POST /api/matches/:id/bots`), or automatically after `LIVE_FILL_MS` = 150 s as a fallback for a
+  table nobody is watching. Daily never adds bots. (Brainstorming started at an automatic 45 s;
+  with few players that would make nearly every Live game a bot game.)
+- Only an **online** count is shown. A "waiting for Live" count was considered and dropped: everyone
+  joins the one open Live table and the fourth seat deals, so it could only ever read 0-3.
 - Live depends on bots, so with the bots kill switch off (`BOTS_ENABLED` = `'false'`) Live is
   refused (`POST /api/matchmaking` 404s, as `POST /:id/bots` does) and the chooser hides it. Live
   tables that already exist still fill.
@@ -42,7 +51,9 @@ Success looks like:
 
 ## Out of scope
 
-- Skill-based pairing (#123), partner queueing (#124), making Challenge tables private (#84).
+- Skill-based pairing (#123), partner queueing (#124), making Challenge tables private (#84),
+  players taking over a bot's seat mid-game (#126).
+- Pushing "someone's looking for a Live game" to other players.
 - Turn timers or bot fill for Daily and custom matches. Pokes and the 14-day idle sweep stay as
   they are.
 - Changing the History list.
@@ -113,7 +124,7 @@ MatchDO sets the alarm to the earliest of the pending deadlines below; `alarm()`
 is due, then sets it again. Bot pacing behaves as it does today.
 
 - **Bot fill:** a Live match records `searchStartedOn` when created. At
-  `searchStartedOn + LIVE_FILL_MS` (45 s), if seats are open, bots fill them (the existing
+  `searchStartedOn + LIVE_FILL_MS` (150 s), if seats are open, bots fill them (the existing
   `addBots` path, without its seated-requester check); the fourth seat deals as usual. The alarm
   path syncs the lobby index for the seat change.
 - **Turn timeout:** in a dealt Live match, when it's a human's turn (bid, trump, play, or readying
@@ -127,6 +138,19 @@ is due, then sets it again. Bot pacing behaves as it does today.
 
 `LIVE_FILL_MS` and `LIVE_TURN_MS` live in `@fortytwo/rules` so clients count down in step with the
 server.
+
+### Presence: online and waiting counts
+
+`POST /api/presence` checks the caller in and answers `{ online: number }`.
+Clients call it every 30 s while the lobby or a match is open and in the foreground (TanStack
+Query `refetchInterval`, which pauses when the app or tab isn't focused).
+
+The Matchmaker answers it from memory, writing nothing: `online` is the players who checked in
+within the last 60 s, from an in-memory `Map<playerId, lastSeen>` pruned on each call. A DO that
+receives check-ins every 30 s stays resident; if it is evicted anyway, the count rebuilds within
+one interval.
+
+One global DO takes every check-in. That's fine at this scale; sharding is a later concern.
 
 ### Notifications
 
@@ -142,8 +166,10 @@ bots fill the table.
 - **New match chooser:** web modal from the header button; mobile bottom sheet from the floating
   button. Live and Daily call `POST /api/matchmaking`, then navigate to the match. Challenge
   friends calls `POST /api/matches`, as Create match does now.
+- **Chooser:** "N online" under the title, from `POST /api/presence`.
 - **Match page, before the deal:**
-  - Live: "Finding players… 0:23" counting up from `searchStartedOn`, and **Cancel** (leave).
+  - Live: "Finding players… 0:23" counting up from `searchStartedOn`, "N online", **Start now with
+    bots** (`POST /api/matches/:id/bots`) and **Cancel search** (leave).
   - Daily: "Looking for players - we'll notify you when the table fills", and **Leave**.
   - Custom: unchanged (seat picker, invite link, add bots).
 - **Match page, Live, after the deal:** a countdown on the current player's seat; players on
@@ -151,10 +177,11 @@ bots fill the table.
 
 ## Testing
 
+- Presence: a check-in counts the caller online; one older than 60 s drops out.
 - Matchmaker: joins the oldest open table; creates one when none is open; drops stale ids (full,
   deleted); two concurrent plays end at one table; Live returns an existing search; Daily allows
   several; a player never gets a second seat at the same table.
-- MatchDO scheduler: bot fill at 45 s fills only open seats and deals; cancel before then deletes
+- MatchDO scheduler: bot fill at LIVE_FILL_MS fills only open seats and deals; cancel before then deletes
   the match and the alarm does nothing; turn timeout puts the player on autopilot and moves;
   acting or Resume clears autopilot; bot pacing unchanged; Daily and custom set no timers.
 - Lobby: Active hides undealt Live matches; `turn` filled from `getTurn`; a failing or slow DO gives
