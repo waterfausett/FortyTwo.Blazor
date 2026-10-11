@@ -70,9 +70,9 @@ const handled: Partial<Api> = {
   },
   getStats: () =>
     answer<PlayerStats>({
-      all: { played: 23, won: 14, lost: 9, marksWon: 131, bidsWon: 41, bidsMade: 30, bidsSet: 11, averagePointsBid: 32.4, marksBids: 6, bestPartner: { user: { user_id: 'gj', displayName: 'Grandma Jo' }, won: 7, lost: 2 } },
-      humansOnly: { played: 15, won: 8, lost: 7, marksWon: 82, bidsWon: 26, bidsMade: 18, bidsSet: 8, averagePointsBid: 32.1, marksBids: 4, bestPartner: { user: { user_id: 'gj', displayName: 'Grandma Jo' }, won: 7, lost: 2 } },
-      withBots: { played: 8, won: 6, lost: 2, marksWon: 49, bidsWon: 15, bidsMade: 12, bidsSet: 3, averagePointsBid: 33.0, marksBids: 2, bestPartner: null },
+      all: { played: 23, won: 14, lost: 9, marksWon: 131, bidsWon: 41, bidsMade: 30, bidsSet: 11, averagePointsBid: 32.4, marksBids: 9, favoriteTrump: { trump: 'sixes', times: 12 }, bestPartner: { user: { user_id: 'gj', displayName: 'Grandma Jo' }, won: 7, lost: 2 } },
+      humansOnly: { played: 15, won: 8, lost: 7, marksWon: 82, bidsWon: 26, bidsMade: 18, bidsSet: 8, averagePointsBid: 32.1, marksBids: 6, favoriteTrump: { trump: 'sixes', times: 8 }, bestPartner: { user: { user_id: 'gj', displayName: 'Grandma Jo' }, won: 7, lost: 2 } },
+      withBots: { played: 8, won: 6, lost: 2, marksWon: 49, bidsWon: 15, bidsMade: 12, bidsSet: 3, averagePointsBid: 33.0, marksBids: 3, favoriteTrump: { trump: 'fives', times: 5 }, bestPartner: null },
     }),
   // Nothing to tell a server about this device.
   registerPushToken: () => answer(undefined),

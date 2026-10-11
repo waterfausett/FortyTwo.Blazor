@@ -1,4 +1,4 @@
-// The Profile page's Stats card: the player's own record from completed games (GET
+// The Profile page's Stats card: the player's own record from completed matches (GET
 // /api/users/stats), filtered to All, Humans only or With bots. Its own query, so a failure here
 // leaves the rest of the Profile working. The figures and their wording come from
 // @fortytwo/client's statTiles, shared with the mobile app.
@@ -6,7 +6,7 @@ import { useState } from 'react';
 import type { JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { StatsFilter } from '@fortytwo/api-types';
-import { bestPartnerRecord, STATS_FILTERS, statTiles } from '@fortytwo/client';
+import { bestPartnerRecord, favoriteTrumpRecord, STATS_FILTERS, statTiles, trumpLabel } from '@fortytwo/client';
 import { useGetToken } from '../auth/useGetToken';
 import { apiClient } from '../api/client';
 
@@ -31,7 +31,7 @@ export function PlayerStats(): JSX.Element {
         </p>
       )}
 
-      {stats.data && stats.data.all.played === 0 && <p className="profile-hint">Finish a game to see your stats here.</p>}
+      {stats.data && stats.data.all.played === 0 && <p className="profile-hint">Finish a match to see your stats here.</p>}
 
       {stats.data && stats.data.all.played > 0 && summary && (
         <>
@@ -61,6 +61,13 @@ export function PlayerStats(): JSX.Element {
               </div>
             ))}
           </dl>
+
+          {summary.favoriteTrump && (
+            <p className="stat-partner">
+              Favorite trump: <strong>{trumpLabel(summary.favoriteTrump.trump)}</strong>{' '}
+              <span className="stat-partner-record">{favoriteTrumpRecord(summary.favoriteTrump, summary.bidsWon)}</span>
+            </p>
+          )}
 
           {summary.bestPartner && (
             <p className="stat-partner">

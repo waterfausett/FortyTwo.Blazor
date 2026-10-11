@@ -1,10 +1,10 @@
-// The Profile's Stats section: the player's own record from completed games, filtered to All,
+// The Profile's Stats section: the player's own record from completed matches, filtered to All,
 // Humans only or With bots, as on the web. The figures and their wording come from
 // @fortytwo/client's statTiles. Loads on its own, so a failure here leaves the settings working.
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StatsFilter } from '@fortytwo/api-types';
-import { bestPartnerRecord, STATS_FILTERS, statTiles } from '@fortytwo/client';
+import { bestPartnerRecord, favoriteTrumpRecord, STATS_FILTERS, statTiles, trumpLabel } from '@fortytwo/client';
 import { useStats } from '@/api/useStats';
 import { colors, fonts } from './theme';
 
@@ -19,7 +19,7 @@ export function PlayerStats() {
 
       {stats.isLoading && <ActivityIndicator color={colors.brass} />}
       {stats.error && <Text style={styles.error}>{stats.error.message}</Text>}
-      {stats.data && stats.data.all.played === 0 && <Text style={styles.hint}>Finish a game to see your stats here.</Text>}
+      {stats.data && stats.data.all.played === 0 && <Text style={styles.hint}>Finish a match to see your stats here.</Text>}
 
       {stats.data && stats.data.all.played > 0 && summary && (
         <>
@@ -49,6 +49,14 @@ export function PlayerStats() {
               </View>
             ))}
           </View>
+
+          {summary.favoriteTrump && (
+            <View style={styles.partner}>
+              <Text style={styles.hint}>Favorite trump</Text>
+              <Text style={styles.partnerName}>{trumpLabel(summary.favoriteTrump.trump)}</Text>
+              <Text style={styles.hint}>{favoriteTrumpRecord(summary.favoriteTrump, summary.bidsWon)}</Text>
+            </View>
+          )}
 
           {summary.bestPartner && (
             <View style={styles.partner}>

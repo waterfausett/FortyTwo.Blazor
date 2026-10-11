@@ -14,6 +14,16 @@ CREATE TABLE player_match_stats (
   points_bid_total INTEGER NOT NULL,
   points_bid_count INTEGER NOT NULL,
   marks_bids INTEGER NOT NULL,
+  -- How many of their winning bids named each trump (every Low variant as Low).
+  trump_low INTEGER NOT NULL,
+  trump_follow_me INTEGER NOT NULL,
+  trump_blanks INTEGER NOT NULL,
+  trump_aces INTEGER NOT NULL,
+  trump_deuces INTEGER NOT NULL,
+  trump_threes INTEGER NOT NULL,
+  trump_fours INTEGER NOT NULL,
+  trump_fives INTEGER NOT NULL,
+  trump_sixes INTEGER NOT NULL,
   completed_on TEXT NOT NULL,
   PRIMARY KEY (match_id, player_id)
 );

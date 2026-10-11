@@ -32,12 +32,13 @@ Per filter (all / humansOnly / withBots):
 
 | Stat | Definition |
 | --- | --- |
-| Played, Won, Lost, Win rate | Completed matches the player was seated in; won = their team is `winningTeam`. |
+| Matches played, won, lost; Win rate | Completed matches the player was seated in; won = their team is `winningTeam`. Labelled "Matches" so they can't be read as hands. |
 | Marks won | Sum of `gameValue` over hands their team won in those matches. |
 | Bids won | Hands where the player was `biddingPlayerId` (filed hands only). |
 | Made / Set, Made % | Of those, whether the bidder's team won the hand. |
 | Average winning bid | Mean of their bid over points bids (30–42) only. Null when none. |
-| Marks bids | Count of their winning bids of 84 or more (incl. Plunge). |
+| Bids of 42+ | Share of their winning bids that were a mark or more (42 and up, incl. Plunge), out of bids won; "–" with none. 42 also counts toward the points average. |
+| Favorite trump | The trump named most on their winning bids (Follow Me counts; every Low variant is "Low"), shown as e.g. "Sixes, 12 of 41 bids". A tie goes to the higher suit (Low < Follow Me < Blanks … Sixes). Null with no bids won. |
 | Best partner | Human partner (never a bot) with the highest win rate over ≥ 3 games together and at least one win; ties → more games, then partner id for stability. Null when none qualifies. Shown with display name and W–L. |
 
 Only filed hands count (`match.games[team]`); a hand still in `currentGame` at match end is
@@ -69,6 +70,9 @@ CREATE TABLE player_match_stats (
   points_bid_total INTEGER NOT NULL,
   points_bid_count INTEGER NOT NULL,
   marks_bids INTEGER NOT NULL,
+  trump_low INTEGER NOT NULL,       -- one count column per trump key:
+  trump_follow_me INTEGER NOT NULL, -- low, follow_me, blanks, aces, deuces,
+  -- ... trump_blanks through trump_sixes  threes, fours, fives, sixes
   completed_on TEXT NOT NULL,
   PRIMARY KEY (match_id, player_id)
 );
@@ -100,6 +104,7 @@ export interface StatsSummary {
   bidsWon: number; bidsMade: number; bidsSet: number;
   averagePointsBid: number | null;
   marksBids: number;
+  favoriteTrump: { trump: TrumpKey; times: number } | null;
   bestPartner: { user: PublicUser; won: number; lost: number } | null;
 }
 export interface PlayerStats { all: StatsSummary; humansOnly: StatsSummary; withBots: StatsSummary; }
@@ -115,7 +120,7 @@ Win rate and made % are derived in the UI (avoid division by zero there: show "�
 
 New `components/PlayerStats.tsx` rendered below the profile form (above Turn alerts): its own
 `useQuery(['stats'])`, a three-button segmented toggle, a grid of stat tiles in the existing
-domino-hall style, loading / error / empty ("Finish a game to see your stats here.") states.
+domino-hall style, loading / error / empty ("Finish a match to see your stats here.") states.
 Tests in `PlayerStats.test.tsx` with the mocked `apiClient` pattern from `Profile.test.tsx`.
 
 ### Mobile — `apps/mobile/src/app/profile.tsx`

@@ -26,6 +26,13 @@ function won(id: string, players: string[], winner: Teams, marks = 7): MatchStat
   };
 }
 
+// A match 'me' (seat 0) won, bidding 42 on every hand with these trumps.
+function bidWith(id: string, trumps: Suit[]): MatchState {
+  const match = won(id, ['me', 'x', 'sam', 'y'], Teams.TeamA, trumps.length);
+  match.games[Teams.TeamA] = trumps.map((trump, i) => ({ ...hand(i, 'me', Teams.TeamA, Bid.FortyTwo), trump }));
+  return match;
+}
+
 beforeEach(async () => {
   await testEnv.DB.batch([testEnv.DB.prepare('DELETE FROM player_match_stats'), testEnv.DB.prepare('DELETE FROM users')]);
   await saveUsers(testEnv.DB, [
@@ -60,7 +67,7 @@ describe('readPlayerStats', () => {
     for (const summary of [stats.all, stats.humansOnly, stats.withBots]) {
       expect(summary).toEqual({
         played: 0, won: 0, lost: 0, marksWon: 0, bidsWon: 0, bidsMade: 0, bidsSet: 0,
-        averagePointsBid: null, marksBids: 0, bestPartner: null,
+        averagePointsBid: null, marksBids: 0, favoriteTrump: null, bestPartner: null,
       });
     }
   });
@@ -77,6 +84,19 @@ describe('readPlayerStats', () => {
     expect(stats.humansOnly).toMatchObject({ played: 3, won: 2, lost: 1, marksWon: 14, bidsWon: 14, bidsMade: 14, bidsSet: 0, averagePointsBid: 30 });
     expect(stats.withBots).toMatchObject({ played: 1, won: 1, lost: 0, marksWon: 7 });
     expect(stats.all).toMatchObject({ played: 4, won: 3, lost: 1, marksWon: 21, bidsWon: 21 });
+  });
+
+  it('counts bids of 42 and up, and names the trump named most', async () => {
+    await recordMatchStats(testEnv.DB, bidWith('t1', [Suit.Fives, Suit.Fives, Suit.Low]));
+    await recordMatchStats(testEnv.DB, bidWith('t2', [Suit.Fives, Suit.LowDoublesLow, Suit.Blanks]));
+    const stats = await readPlayerStats(testEnv, 'me');
+    expect(stats.all).toMatchObject({ bidsWon: 6, marksBids: 6, favoriteTrump: { trump: 'fives', times: 3 } });
+    expect(stats.withBots.favoriteTrump).toBeNull();
+  });
+
+  it('breaks a tie for favorite trump by the higher suit', async () => {
+    await recordMatchStats(testEnv.DB, bidWith('t3', [Suit.Low, Suit.Aces, Suit.None, Suit.Aces, Suit.Low, Suit.None]));
+    expect((await readPlayerStats(testEnv, 'me')).all.favoriteTrump).toEqual({ trump: 'aces', times: 2 });
   });
 
   it('names the best human partner over at least 3 games, never a bot', async () => {

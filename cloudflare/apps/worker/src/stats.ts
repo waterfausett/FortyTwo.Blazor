@@ -1,8 +1,8 @@
 // Each player's lifetime stats (migrations/0009_player_match_stats.sql): written once per human
 // when a match is won (MatchDO), added up when they open their Profile (GET /api/users/stats).
 // Reading costs about two rows per game the player has finished - the totals, then the partners.
-import { isBot, matchStatsFor, type MatchState } from '@fortytwo/rules';
-import type { BestPartner, PlayerStats, StatsSummary } from '@fortytwo/api-types';
+import { isBot, matchStatsFor, NO_TRUMPS, TRUMP_KEYS, type MatchState, type TrumpCounts, type TrumpKey } from '@fortytwo/rules';
+import type { BestPartner, FavoriteTrump, PlayerStats, StatsSummary } from '@fortytwo/api-types';
 import type { Env } from './index';
 import { publicUsers } from './users/publicUsers';
 
@@ -10,6 +10,10 @@ export const BEST_PARTNER_MIN_GAMES = 3;
 // For a partner whose name can't be looked up just now (Auth0 unreachable) or at all: neutral, since
 // the first is usually a current player.
 const UNKNOWN_PARTNER_NAME = 'Unknown player';
+
+// Each trump's count column: followMe -> trump_follow_me.
+const trumpColumn = (key: TrumpKey) => `trump_${key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}`;
+const TRUMP_COLUMNS = TRUMP_KEYS.map(trumpColumn).join(', ');
 
 // One row per human. INSERT OR IGNORE: writing a match twice changes nothing.
 export async function recordMatchStats(db: D1Database, match: MatchState): Promise<void> {
@@ -20,12 +24,13 @@ export async function recordMatchStats(db: D1Database, match: MatchState): Promi
       db
         .prepare(
           `INSERT OR IGNORE INTO player_match_stats (match_id, player_id, partner_id, with_bots, won, marks_won,
-             bids_won, bids_made, points_bid_total, points_bid_count, marks_bids, completed_on)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`
+             bids_won, bids_made, points_bid_total, points_bid_count, marks_bids, completed_on, ${TRUMP_COLUMNS})
+           VALUES (${Array.from({ length: 12 + TRUMP_KEYS.length }, () => '?').join(', ')})`
         )
         .bind(
           match.id, r.playerId, r.partnerId, r.withBots ? 1 : 0, r.won ? 1 : 0, r.marksWon,
-          r.bidsWon, r.bidsMade, r.pointsBidTotal, r.pointsBidCount, r.marksBids, match.updatedOn
+          r.bidsWon, r.bidsMade, r.pointsBidTotal, r.pointsBidCount, r.marksBids, match.updatedOn,
+          ...TRUMP_KEYS.map((key) => r.trumps[key])
         )
     )
   );
@@ -40,6 +45,7 @@ interface Totals {
   pointsBidTotal: number;
   pointsBidCount: number;
   marksBids: number;
+  trumps: TrumpCounts;
 }
 
 interface PartnerRecord {
@@ -48,7 +54,9 @@ interface PartnerRecord {
   won: number;
 }
 
-const NO_TOTALS: Totals = { played: 0, won: 0, marksWon: 0, bidsWon: 0, bidsMade: 0, pointsBidTotal: 0, pointsBidCount: 0, marksBids: 0 };
+const NO_TOTALS: Totals = {
+  played: 0, won: 0, marksWon: 0, bidsWon: 0, bidsMade: 0, pointsBidTotal: 0, pointsBidCount: 0, marksBids: 0, trumps: NO_TRUMPS,
+};
 
 function addTotals(a: Totals, b: Totals): Totals {
   return {
@@ -60,7 +68,17 @@ function addTotals(a: Totals, b: Totals): Totals {
     pointsBidTotal: a.pointsBidTotal + b.pointsBidTotal,
     pointsBidCount: a.pointsBidCount + b.pointsBidCount,
     marksBids: a.marksBids + b.marksBids,
+    trumps: Object.fromEntries(TRUMP_KEYS.map((key) => [key, a.trumps[key] + b.trumps[key]])) as TrumpCounts,
   };
+}
+
+// The trump named most; TRUMP_KEYS runs low to high, so a tie goes to the higher one.
+function favoriteOf(trumps: TrumpCounts): FavoriteTrump | null {
+  let favorite: FavoriteTrump | null = null;
+  for (const key of TRUMP_KEYS) {
+    if (trumps[key] > 0 && trumps[key] >= (favorite?.times ?? 0)) favorite = { trump: key, times: trumps[key] };
+  }
+  return favorite;
 }
 
 // Highest win rate over enough games, then more games, then id - so the same rows always pick
@@ -96,6 +114,7 @@ function summarize(t: Totals, best: BestPartner | null): StatsSummary {
     bidsSet: t.bidsWon - t.bidsMade,
     averagePointsBid: t.pointsBidCount === 0 ? null : Math.round((t.pointsBidTotal / t.pointsBidCount) * 10) / 10,
     marksBids: t.marksBids,
+    favoriteTrump: favoriteOf(t.trumps),
     bestPartner: best,
   };
 }
@@ -105,7 +124,8 @@ export async function readPlayerStats(env: Env, playerId: string): Promise<Playe
     env.DB.prepare(
       `SELECT with_bots AS withBots, COUNT(*) AS played, SUM(won) AS won, SUM(marks_won) AS marksWon,
          SUM(bids_won) AS bidsWon, SUM(bids_made) AS bidsMade, SUM(points_bid_total) AS pointsBidTotal,
-         SUM(points_bid_count) AS pointsBidCount, SUM(marks_bids) AS marksBids
+         SUM(points_bid_count) AS pointsBidCount, SUM(marks_bids) AS marksBids,
+         ${TRUMP_KEYS.map((key) => `SUM(${trumpColumn(key)}) AS ${key}`).join(', ')}
        FROM player_match_stats WHERE player_id = ? GROUP BY with_bots`
     ).bind(playerId),
     env.DB.prepare(
@@ -113,7 +133,11 @@ export async function readPlayerStats(env: Env, playerId: string): Promise<Playe
        FROM player_match_stats WHERE player_id = ? GROUP BY partner_id, with_bots`
     ).bind(playerId),
   ]);
-  const totals = totalsResult.results as (Totals & { withBots: number })[];
+  // The trump sums come back as columns of their own.
+  const totals = (totalsResult.results as (Omit<Totals, 'trumps'> & TrumpCounts & { withBots: number })[]).map((row) => ({
+    ...row,
+    trumps: Object.fromEntries(TRUMP_KEYS.map((key) => [key, row[key]])) as TrumpCounts,
+  }));
   const partners = partnersResult.results as (PartnerRecord & { withBots: number })[];
 
   const humansTotals = totals.find((t) => t.withBots === 0) ?? NO_TOTALS;

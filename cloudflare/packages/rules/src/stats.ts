@@ -6,7 +6,32 @@ import { Bid } from './bid';
 import { isBot } from './botIds';
 import { gameValue, type Game } from './game';
 import type { MatchState } from './matchEngine';
+import { isLow, Suit } from './suit';
 import { teamForPosition, type Teams } from './teams';
+
+// The trumps a winning bid can name, for a player's favorite. Every Low variant counts as Low. In
+// ascending order, so a tie for favorite goes to the later (higher) one.
+export const TRUMP_KEYS = ['low', 'followMe', 'blanks', 'aces', 'deuces', 'threes', 'fours', 'fives', 'sixes'] as const;
+export type TrumpKey = (typeof TRUMP_KEYS)[number];
+export type TrumpCounts = Record<TrumpKey, number>;
+
+export const NO_TRUMPS: TrumpCounts = { low: 0, followMe: 0, blanks: 0, aces: 0, deuces: 0, threes: 0, fours: 0, fives: 0, sixes: 0 };
+
+const SUIT_KEYS: Partial<Record<Suit, TrumpKey>> = {
+  [Suit.None]: 'followMe',
+  [Suit.Blanks]: 'blanks',
+  [Suit.Aces]: 'aces',
+  [Suit.Deuces]: 'deuces',
+  [Suit.Threes]: 'threes',
+  [Suit.Fours]: 'fours',
+  [Suit.Fives]: 'fives',
+  [Suit.Sixes]: 'sixes',
+};
+
+export function trumpKeyOf(trump: Suit | null | undefined): TrumpKey | null {
+  if (trump === null || trump === undefined) return null;
+  return isLow(trump) ? 'low' : (SUIT_KEYS[trump] ?? null);
+}
 
 export interface PlayerMatchStats {
   playerId: string;
@@ -19,10 +44,13 @@ export interface PlayerMatchStats {
   // Hands they were the high bidder on, and how many of those their team made.
   bidsWon: number;
   bidsMade: number;
-  // Their winning points bids (30-42), for an average; bids of 84 and up are marks bids.
+  // Their winning points bids (30-42), for an average; winning bids of a mark or more (42 and up)
+  // are marks bids, so 42 counts in both.
   pointsBidTotal: number;
   pointsBidCount: number;
   marksBids: number;
+  // The trump named on each of their winning bids.
+  trumps: TrumpCounts;
 }
 
 export function matchStatsFor(match: MatchState): PlayerMatchStats[] {
@@ -49,6 +77,7 @@ export function matchStatsFor(match: MatchState): PlayerMatchStats[] {
         pointsBidTotal: 0,
         pointsBidCount: 0,
         marksBids: 0,
+        trumps: { ...NO_TRUMPS },
       };
 
       for (const { game, wonBy } of filed) {
@@ -62,9 +91,10 @@ export function matchStatsFor(match: MatchState): PlayerMatchStats[] {
         if (bid <= Bid.FortyTwo) {
           stats.pointsBidTotal += bid;
           stats.pointsBidCount++;
-        } else {
-          stats.marksBids++;
         }
+        if (bid >= Bid.FortyTwo) stats.marksBids++;
+        const trump = trumpKeyOf(game.trump);
+        if (trump) stats.trumps[trump]++;
       }
       return stats;
     });

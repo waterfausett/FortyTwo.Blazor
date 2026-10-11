@@ -95,6 +95,15 @@ export interface BestPartner {
   lost: number;
 }
 
+// A trump a winning bid named, as @fortytwo/rules' TrumpKey: every Low variant is 'low'.
+export type TrumpKey = 'low' | 'followMe' | 'blanks' | 'aces' | 'deuces' | 'threes' | 'fours' | 'fives' | 'sixes';
+
+export interface FavoriteTrump {
+  trump: TrumpKey;
+  // How many of their winning bids named it.
+  times: number;
+}
+
 export interface StatsSummary {
   played: number;
   won: number;
@@ -105,8 +114,10 @@ export interface StatsSummary {
   bidsSet: number;
   // Over their winning points bids (30-42), to one decimal place; null with none.
   averagePointsBid: number | null;
-  // Winning bids of 84 and up, Plunge included.
+  // Winning bids of a mark or more: 42 and up, Plunge included.
   marksBids: number;
+  // The trump they name most on bids they win; a tie goes to the higher suit. Null with no bids won.
+  favoriteTrump: FavoriteTrump | null;
   // The human they win with most, over at least 3 games together.
   bestPartner: BestPartner | null;
 }

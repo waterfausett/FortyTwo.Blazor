@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchStatsFor } from './stats';
+import { matchStatsFor, NO_TRUMPS } from './stats';
 import { Bid } from './bid';
 import { Suit } from './suit';
 import { Teams } from './teams';
@@ -69,6 +69,7 @@ describe('matchStatsFor', () => {
       pointsBidTotal: 30 + 34 + 36,
       pointsBidCount: 3,
       marksBids: 0,
+      trumps: { ...NO_TRUMPS, sixes: 3 },
     });
     expect(stats.find((s) => s.playerId === 'p3')).toMatchObject({ partnerId: 'p1', bidsWon: 1, bidsMade: 1, marksBids: 1, pointsBidCount: 0 });
     expect(stats.find((s) => s.playerId === 'p2')).toEqual({
@@ -82,7 +83,32 @@ describe('matchStatsFor', () => {
       pointsBidTotal: 0,
       pointsBidCount: 0,
       marksBids: 1,
+      trumps: { ...NO_TRUMPS, sixes: 1 },
     });
+  });
+
+  it('counts 42 as both a points bid and a bid of a mark or more', () => {
+    const games = { [Teams.TeamA]: [hand(1, 'p1', Teams.TeamA, Bid.FortyTwo), hand(2, 'p1', Teams.TeamA, Bid.FortyOne)] };
+    expect(matchStatsFor(match(players, games, Teams.TeamA))[0]).toMatchObject({
+      pointsBidTotal: 83,
+      pointsBidCount: 2,
+      marksBids: 1,
+    });
+  });
+
+  it('counts the trump named on each winning bid, made or set, with every Low together', () => {
+    const games = {
+      [Teams.TeamA]: [
+        hand(1, 'p1', Teams.TeamA, Bid.Thirty, Suit.Fives),
+        hand(2, 'p1', Teams.TeamA, Bid.Thirty, Suit.None),
+        hand(3, 'p1', Teams.TeamA, Bid.FortyTwo, Suit.Low),
+        hand(4, 'p1', Teams.TeamA, Bid.FortyTwo, Suit.LowDoublesLow),
+      ],
+      [Teams.TeamB]: [hand(5, 'p1', Teams.TeamA, Bid.Thirty, Suit.Fives), hand(6, 'p2', Teams.TeamB, Bid.Thirty, Suit.Blanks)],
+    };
+    const stats = matchStatsFor(match(players, games, Teams.TeamA));
+    expect(stats.find((s) => s.playerId === 'p1')?.trumps).toEqual({ ...NO_TRUMPS, fives: 2, followMe: 1, low: 2 });
+    expect(stats.find((s) => s.playerId === 'p3')?.trumps).toEqual(NO_TRUMPS);
   });
 
   it('counts a made Low bid as made', () => {

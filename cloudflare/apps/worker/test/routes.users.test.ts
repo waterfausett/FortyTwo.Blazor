@@ -459,8 +459,9 @@ describe('GET /api/users/stats', () => {
       ['caller', 'other'].map((player, i) =>
         env.DB.prepare(
           `INSERT INTO player_match_stats (match_id, player_id, partner_id, with_bots, won, marks_won, bids_won,
-             bids_made, points_bid_total, points_bid_count, marks_bids, completed_on)
-           VALUES (?, ?, 'p', 0, ?, 7, 2, 1, 64, 2, 0, '2026-10-01T00:00:00.000Z')`
+             bids_made, points_bid_total, points_bid_count, marks_bids, completed_on, trump_low, trump_follow_me,
+             trump_blanks, trump_aces, trump_deuces, trump_threes, trump_fours, trump_fives, trump_sixes)
+           VALUES (?, ?, 'p', 0, ?, 7, 2, 1, 64, 2, 0, '2026-10-01T00:00:00.000Z', 0, 0, 0, 0, 0, 0, 0, 0, 2)`
         ).bind(`m${i}`, player, i === 0 ? 1 : 0)
       )
     );
@@ -469,7 +470,7 @@ describe('GET /api/users/stats', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json<PlayerStats>();
-    expect(body.all).toMatchObject({ played: 1, won: 1, lost: 0, marksWon: 7, bidsWon: 2, bidsMade: 1, bidsSet: 1, averagePointsBid: 32 });
+    expect(body.all).toMatchObject({ played: 1, won: 1, lost: 0, marksWon: 7, bidsWon: 2, bidsMade: 1, bidsSet: 1, averagePointsBid: 32, favoriteTrump: { trump: 'sixes', times: 2 } });
     expect(body.withBots.played).toBe(0);
   });
 
