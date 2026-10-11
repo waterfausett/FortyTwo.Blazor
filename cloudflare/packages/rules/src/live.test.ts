@@ -105,6 +105,21 @@ describe('autopilot', () => {
     expect(liveDeadline(resumed)!.at).toBeGreaterThan(Date.now());
   });
 
+  it('leaves a player who is not on autopilot untouched when they resume', () => {
+    const match = dealt();
+    const resumed = resumeControl(match, 'p2');
+    expect(resumed).toBe(match);
+    expect(resumed.updatedOn).toBe(match.updatedOn);
+    expect(resumed.autopilot).toBeUndefined();
+  });
+
+  it("clears autopilot without restarting the clock of a player the table isn't waiting on", () => {
+    const match = setAutopilot(dealt(), ['p2'], true);
+    const resumed = resumeControl(match, 'p2');
+    expect(resumed.autopilot).toEqual([]);
+    expect(resumed.updatedOn).toBe(match.updatedOn);
+  });
+
   it('refuses a resume from someone not at the table', () => {
     expect(() => resumeControl(dealt(), 'stranger')).toThrow(ValidationError);
   });

@@ -73,9 +73,14 @@ export function setAutopilot(match: MatchState, playerIds: string[], on: boolean
   return { ...match, autopilot: [...ids] };
 }
 
-// A player taking their seat back from the bot. Their clock starts over, or the deadline that put
-// them on autopilot - already past - would put them straight back on it.
+// A player taking their seat back from the bot. Only a player on autopilot has anything to take
+// back; anyone else resuming is a no-op, so nobody can restart someone else's clock. When the table
+// is waiting on them, their clock starts over - or the deadline that put them on autopilot, already
+// past, would put them straight back on it.
 export function resumeControl(match: MatchState, playerId: string): MatchState {
   assertIsMatchPlayer(match, playerId);
-  return { ...setAutopilot(match, [playerId], false), updatedOn: new Date().toISOString() };
+  if (!isOnAutopilot(match, playerId)) return match;
+  const cleared = setAutopilot(match, [playerId], false);
+  if (!tableWait(match)?.playerIds.includes(playerId)) return cleared;
+  return { ...cleared, updatedOn: new Date().toISOString() };
 }
