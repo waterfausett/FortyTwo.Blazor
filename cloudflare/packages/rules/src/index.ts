@@ -61,3 +61,5 @@ export {
 } from './matchEngine';
 export { BOT_IDS, botDisplayName, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';
+export type { PlayerMatchStats } from './stats';
+export { matchStatsFor } from './stats';
