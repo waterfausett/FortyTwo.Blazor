@@ -57,7 +57,7 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
       },
       {
         kind: 'dominoes',
-        caption: 'With sixes trump, these seven are trump, highest first:',
+        caption: 'With sixes trump, these seven are trump, highest first',
         dominoes: [d(6, 6), d(6, 5), d(6, 4), d(6, 3), d(6, 2), d(6, 1), d(6, 0)],
       },
       {
@@ -76,7 +76,7 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
       },
       {
         kind: 'dominoes',
-        caption: 'Fours, highest to lowest:',
+        caption: 'Fours, highest to lowest',
         dominoes: [d(4, 4), d(6, 4), d(5, 4), d(4, 3), d(4, 2), d(4, 1), d(4, 0)],
       },
       { kind: 'text', text: 'When the bidder calls Low, they also choose how doubles play for that hand:' },
