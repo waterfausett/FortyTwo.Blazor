@@ -21,12 +21,15 @@ import {
   nameText,
   openSeats,
   projectPlay,
+  formatClock,
+  searchState,
   seatFor,
   shouldStackTricks,
   teamTrickPoints,
   teamTricksForDisplay,
   trickLeaderId,
   trickPlayOrder,
+  turnClock,
   type MatchView,
   type Seat,
 } from '@fortytwo/client';
@@ -37,7 +40,9 @@ import {
   hasBeenDealt,
   isBot,
   isLow,
+  isOnAutopilot,
   lowDoublesToPrettyString,
+  matchMode,
   matchScores,
   rematchAgreed,
   suitToPrettyString,
@@ -45,6 +50,7 @@ import {
   type MatchState,
   Suit,
 } from '@fortytwo/rules';
+import { useOnline } from '@/api/presence';
 import { useApi } from '@/api/useApi';
 import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
@@ -66,6 +72,7 @@ import { DEV_BYPASS } from '@/dev/devBypass';
 import { DEV_PLAYER_ID } from '@/dev/devMatches';
 import { shareInvite } from '@/linking/invite';
 import { askOnceForPush } from '@/notifications/push';
+import { useNow } from '@/match/useNow';
 import { useLatch } from '@/match/useLatch';
 import { usePlayerNames } from '@/match/usePlayerNames';
 import { usePoke } from '@/match/usePoke';
@@ -137,6 +144,16 @@ export default function MatchScreen() {
   const readyUp = useMutation({ mutationFn: () => api.readyUp(id, true), ...sent('ready') });
   const rematch = useMutation({ mutationFn: () => api.rematch(id), onError: toastError });
   const addBots = useMutation({ mutationFn: () => api.addBots(id), onError: toastError });
+  const resume = useMutation({ mutationFn: () => api.resume(id), onError: toastError });
+  const online = useOnline();
+  // A Live search counts up and a Live turn counts down, so the clock ticks only while one is shown.
+  const searchNow = liveMatch ? searchState(liveMatch, Date.now()) : null;
+  const ticking = liveMatch != null && (searchNow?.mode === 'live' || turnClock(liveMatch, Date.now()) !== null);
+  const now = useNow(ticking);
+  const search = liveMatch ? searchState(liveMatch, now) : null;
+  const clock = liveMatch ? turnClock(liveMatch, now) : null;
+  const mode = liveMatch ? matchMode(liveMatch) : 'custom';
+  const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
   // then seats the player here; the lobby's lists change too.
   const queryClient = useQueryClient();
@@ -379,6 +396,8 @@ export default function MatchScreen() {
       trump: game!.trump,
       ready: showReady ? player.ready : null,
       dominoCount: playerId === myPlayerId || !hand ? null : handSize(hand),
+      away: isOnAutopilot(match!, playerId),
+      clock: clock?.playerIds.includes(playerId) ? formatClock(clock.remainingMs) : null,
     };
   }
   const seats: Record<Seat, SeatInfo | null> = { bottom: null, left: null, top: null, right: null };
@@ -466,6 +485,20 @@ export default function MatchScreen() {
           <Score label="Them" marks={scores[opponentTeam] ?? 0} color={colors.them} />
         </View>
 
+        {meOnAutopilot && (
+          <View style={styles.autopilotBar}>
+            <Text style={styles.autopilotText}>Your turn ran out, so a bot is playing for you.</Text>
+            <Pressable
+              style={[styles.smallButton, resume.isPending && styles.buttonDisabled]}
+              disabled={resume.isPending}
+              onPress={() => resume.mutate()}
+              accessibilityRole="button"
+            >
+              <Text style={styles.smallButtonText}>Resume</Text>
+            </Pressable>
+          </View>
+        )}
+
         <Table
           seats={seats}
           trick={view.isTableReady ? trick : null}
@@ -479,10 +512,29 @@ export default function MatchScreen() {
           center={
             view.isTableReady ? undefined : (
               <View style={styles.waiting}>
+                {search?.mode === 'live' && (
+                  <>
+                    <Text style={styles.searchText} accessibilityRole="text">
+                      Finding players… {formatClock(search.elapsedMs)}
+                    </Text>
+                    {online !== null && <Text style={styles.waitingText}>{online} online</Text>}
+                    <Pressable
+                      style={styles.smallButton}
+                      disabled={!connected || addBots.isPending}
+                      onPress={() => addBots.mutate()}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.smallButtonText}>Start now with bots</Text>
+                    </Pressable>
+                  </>
+                )}
+                {search?.mode === 'daily' && (
+                  <Text style={styles.searchText}>Looking for players - we'll notify you when the table fills.</Text>
+                )}
                 <Text style={styles.waitingText}>
                   {match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}
                 </Text>
-                {emptySeatCount > 0 && (
+                {mode === 'custom' && emptySeatCount > 0 && (
                   <Pressable
                     style={styles.smallButton}
                     onPress={() => shareInvite(match.id).catch(toastError)}
@@ -491,7 +543,7 @@ export default function MatchScreen() {
                     <Text style={styles.smallButtonText}>Invite friends</Text>
                   </Pressable>
                 )}
-                {config.data?.bots && emptySeatCount > 0 && (
+                {mode === 'custom' && config.data?.bots && emptySeatCount > 0 && (
                   <Pressable
                     style={styles.smallButton}
                     disabled={!connected || addBots.isPending}
@@ -505,11 +557,18 @@ export default function MatchScreen() {
                   <Pressable
                     style={[styles.smallButton, styles.dangerButton, leave.isPending && styles.buttonDisabled]}
                     disabled={leave.isPending}
-                    onPress={confirmLeave}
+                    onPress={
+                      mode === 'live'
+                        ? () => {
+                            leavingRef.current = true;
+                            leave.mutate();
+                          }
+                        : confirmLeave
+                    }
                     accessibilityRole="button"
                   >
                     <Text style={[styles.smallButtonText, styles.dangerButtonText]}>
-                      {onlyHumanSeated ? 'Cancel match' : 'Leave table'}
+                      {mode === 'live' ? 'Cancel search' : onlyHumanSeated ? 'Cancel match' : 'Leave table'}
                     </Text>
                   </Pressable>
                 )}
@@ -728,6 +787,18 @@ const styles = StyleSheet.create({
   doublesLink: { textDecorationLine: 'underline' },
   waiting: { alignItems: 'center', gap: 10, padding: 8 },
   waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
+  searchText: { color: colors.brass, fontFamily: fonts.uiBold, fontSize: 15, textAlign: 'center' },
+  autopilotBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(201, 164, 92, 0.15)',
+  },
+  autopilotText: { flex: 1, color: colors.bone, fontFamily: fonts.ui, fontSize: 14 },
   smallButton: { borderWidth: 1, borderColor: colors.brass, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   smallButtonText: { color: colors.brass, fontFamily: fonts.uiBold },
   dangerButton: { borderColor: colors.danger },

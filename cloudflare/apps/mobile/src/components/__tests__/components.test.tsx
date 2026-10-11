@@ -145,6 +145,8 @@ describe('Table', () => {
     trump: null,
     ready: null,
     dominoCount,
+    away: false,
+    clock: null,
     ...overrides,
   });
 
@@ -169,6 +171,35 @@ describe('Table', () => {
     expect(screen.getByLabelText('6 dominoes')).toBeTruthy();
     expect(screen.getByLabelText('Bo, to act')).toBeTruthy();
     expect(screen.getByText('Open seat')).toBeTruthy();
+  });
+});
+
+describe('Table seats on a Live clock', () => {
+  it("shows a seat's Live clock and marks a player who's away", async () => {
+    const seat = (name: string, overrides: Partial<SeatInfo> = {}): SeatInfo => ({
+      name,
+      side: 'them',
+      isActive: false,
+      isDealer: false,
+      bid: null,
+      isHighBidder: false,
+      trump: null,
+      ready: null,
+      dominoCount: null,
+      away: false,
+      clock: null,
+      ...overrides,
+    });
+    await render(
+      <Table
+        seats={{ bottom: seat('Me', { side: 'us', clock: '0:42' }), left: seat('Eli', { away: true }), top: null, right: null }}
+        trick={null}
+        slotSeats={[null, null, null, null]}
+        winningSlot={null}
+      />,
+    );
+    expect(screen.getByText('0:42')).toBeTruthy();
+    expect(screen.getByText('Away')).toBeTruthy();
   });
 });
 

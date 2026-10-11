@@ -139,6 +139,8 @@ export const devMatchApi: Partial<Api> = {
   bid: (id, bid) => move(id, (match) => placeBid(match, DEV_PLAYER_ID, bid)),
   setTrump: (id, suit) => move(id, (match) => setTrump(match, DEV_PLAYER_ID, suit)),
   playDomino: (id, { top, bottom }) => move(id, (match) => playDomino(match, DEV_PLAYER_ID, createDomino(top, bottom))),
+  // Nobody goes on autopilot in the bypass, so there's nothing to take back.
+  resume: (id) => later(devTiming.replyMs, () => seen(current(id))),
   readyUp: (id, ready) => move(id, (match) => patchPlayerReady(match, DEV_PLAYER_ID, ready, deck())),
 };
 
