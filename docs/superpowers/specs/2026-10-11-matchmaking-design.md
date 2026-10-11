@@ -139,16 +139,23 @@ is due, then sets it again. Bot pacing behaves as it does today.
 `LIVE_FILL_MS` and `LIVE_TURN_MS` live in `@fortytwo/rules` so clients count down in step with the
 server.
 
-### Presence: online and waiting counts
+### Presence: the online count
 
-`POST /api/presence` checks the caller in and answers `{ online: number }`.
-Clients call it every 30 s while the lobby or a match is open and in the foreground (TanStack
-Query `refetchInterval`, which pauses when the app or tab isn't focused).
+Each signed-in app holds one **presence socket** to the Matchmaker (`GET /presence/ws?token=`,
+mounted outside `/api` like `/matches/:id/ws`), while it's in the foreground - mobile closes it in
+the background, as it does the match socket. `online` is the number of distinct players with a
+presence socket open.
 
-The Matchmaker answers it from memory, writing nothing: `online` is the players who checked in
-within the last 60 s, from an in-memory `Map<playerId, lastSeen>` pruned on each call. A DO that
-receives check-ins every 30 s stays resident; if it is evicted anyway, the count rebuilds within
-one interval.
+- The Matchmaker accepts it with the Hibernation API, tagged with the player id, and sends
+  `{ type: 'online', online }` on connect.
+- Clients send nothing on it. Outgoing messages are free and an idle hibernated DO isn't billed
+  for duration, so a connection costs one request to open and nothing after.
+- When someone connects or disconnects, the count goes out to every socket **at most once per
+  `PRESENCE_BROADCAST_MS` (60 s)**: straight away if none has gone out in that time, otherwise from
+  a single alarm set for when the minute is up. The time of the last broadcast is kept in storage
+  so hibernation can't lose it (one write per broadcast). No comings and goings, no alarms.
+- Polling over HTTP was considered and dropped: one request per open app every 30 s would use a
+  large share of the free plan's 100k requests a day once a hundred or so apps were open.
 
 One global DO takes every check-in. That's fine at this scale; sharding is a later concern.
 
@@ -166,7 +173,7 @@ bots fill the table.
 - **New match chooser:** web modal from the header button; mobile bottom sheet from the floating
   button. Live and Daily call `POST /api/matchmaking`, then navigate to the match. Challenge
   friends calls `POST /api/matches`, as Create match does now.
-- **Chooser:** "N online" under the title, from `POST /api/presence`.
+- **Chooser:** "N online" under the title, from the presence socket.
 - **Match page, before the deal:**
   - Live: "Finding players… 0:23" counting up from `searchStartedOn`, "N online", **Start now with
     bots** (`POST /api/matches/:id/bots`) and **Cancel search** (leave).
@@ -177,7 +184,8 @@ bots fill the table.
 
 ## Testing
 
-- Presence: a check-in counts the caller online; one older than 60 s drops out.
+- Presence: a new socket gets the count straight away; a player with two sockets counts once;
+  connects within a minute of a broadcast are sent together by one alarm, not one message each.
 - Matchmaker: joins the oldest open table; creates one when none is open; drops stale ids (full,
   deleted); two concurrent plays end at one table; Live returns an existing search; Daily allows
   several; a player never gets a second seat at the same table.

@@ -24,7 +24,7 @@ Jest (mobile).
 
 - Modes are exactly `'live' | 'daily' | 'custom'`; a match with no `mode` reads as `'custom'`.
 - `LIVE_FILL_MS = 150_000`, `LIVE_TURN_MS = 60_000`, exported from `@fortytwo/rules`.
-- Presence: clients check in every 30 s (`POST /api/presence` -> `{ online }`); online = checked in within the last 60 s; kept in Matchmaker memory, nothing written to storage.
+- Presence: one hibernatable socket per foreground app to the Matchmaker (`GET /presence/ws`); online = distinct players connected; the count is broadcast at most once per `PRESENCE_BROADCAST_MS = 60_000`. Clients never send on it.
 - Bots fill seats in Live only. Daily and custom matches set no timers.
 - No new D1 writes per move. The `mode` column is written only where rows are already written.
 - `GET /api/matches?filter=Joinable` keeps working (installed mobile builds) but lists only `custom` tables.
@@ -40,6 +40,7 @@ Jest (mobile).
 - A player on autopilot must not get a push for every turn the bot takes for them - Task 5 tests notice filtering.
 - Pressing Resume after the turn clock already ran out must not put the player straight back on autopilot - Task 1 tests `resumeControl` restarts the clock; Task 5 tests it end to end.
 - Someone takes a Live/Daily table's last seat outside the Matchmaker (an invite link): the Matchmaker must drop the full table and seat the next player elsewhere - Task 6 tests it.
+- A burst of apps opening at once must not send a count per connect - Task 6 tests `presenceBroadcast` holds them to one alarm.
 - A match DO that doesn't answer during the Active list lookup must not slow or break the lobby - Task 7 tests `withTimeout` returning null.
 
 ---
@@ -979,12 +980,13 @@ git commit -m "feat(worker): Live turns time out to autopilot; resume and getTur
 **Files:**
 - Create: `cloudflare/apps/worker/src/matchmaker.ts`
 - Create: `cloudflare/apps/worker/test/matchmaker.test.ts`
+- Create: `cloudflare/apps/worker/test/matchmakerPresence.test.ts`
 - Modify: `cloudflare/apps/worker/wrangler.toml`
 - Modify: `cloudflare/apps/worker/src/index.ts` (Env binding, export)
 
 **Interfaces:**
 - Consumes: `MatchDO.create(firstPlayerId, matchId, mode)`, `MatchDO.getMatch()`, `MatchDO.takeSeat(...)` (Task 4)
-- Produces: `type QueueMode = 'live' | 'daily'`; `class Matchmaker` with `play(playerId: string, mode: QueueMode): Promise<MatchState>` and `checkIn(playerId: string, now?: number): Promise<PresenceCounts>`; `Env.MATCHMAKER: DurableObjectNamespace<Matchmaker>`; api-types `interface PresenceCounts { online: number }`
+- Produces: `type QueueMode = 'live' | 'daily'`; `class Matchmaker` with `play(playerId: string, mode: QueueMode): Promise<MatchState>`, a WebSocket upgrade at `fetch('/presence/ws?token=')`, and `alarm()`; `PRESENCE_BROADCAST_MS = 60_000`; `presenceBroadcast(now: number, lastSentAt: number | null, alarmAt: number | null): { kind: 'now' } | { kind: 'alarm'; at: number } | { kind: 'wait' }`; `Env.MATCHMAKER: DurableObjectNamespace<Matchmaker>`; api-types `interface PresenceMessage { type: 'online'; online: number }`
 
 - [ ] **Step 1: Wire the binding** (needed before the test can run)
 
@@ -1025,6 +1027,7 @@ import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
 import { createDomino, type Domino } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import { PRESENCE_BROADCAST_MS, presenceBroadcast } from '../src/matchmaker';
 
 const testEnv = env as unknown as Env;
 
@@ -1104,20 +1107,20 @@ describe('Matchmaker', () => {
   });
 });
 
-describe('Matchmaker presence', () => {
-  it('counts everyone who checked in within the last minute, the caller included', async () => {
-    const mm = matchmaker('mm-online');
-    const now = Date.now();
-    await mm.checkIn('a', now - 61_000);
-    await mm.checkIn('b', now - 30_000);
-    expect(await mm.checkIn('c', now)).toEqual({ online: 2 });
+describe('presenceBroadcast', () => {
+  const t = 1_000_000;
+
+  it('sends at once when nothing has gone out in the last minute', () => {
+    expect(presenceBroadcast(t, null, null)).toEqual({ kind: 'now' });
+    expect(presenceBroadcast(t, t - PRESENCE_BROADCAST_MS, null)).toEqual({ kind: 'now' });
   });
 
-  it('counts a player once however often they check in', async () => {
-    const mm = matchmaker('mm-online-once');
-    const now = Date.now();
-    await mm.checkIn('a', now - 30_000);
-    expect(await mm.checkIn('a', now)).toEqual({ online: 1 });
+  it('holds a change inside the minute for one alarm when the minute is up', () => {
+    expect(presenceBroadcast(t, t - 10_000, null)).toEqual({ kind: 'alarm', at: t - 10_000 + PRESENCE_BROADCAST_MS });
+  });
+
+  it('adds nothing when that alarm is already set', () => {
+    expect(presenceBroadcast(t, t - 10_000, t + 50_000)).toEqual({ kind: 'wait' });
   });
 });
 ```
@@ -1200,37 +1203,156 @@ export class Matchmaker extends DurableObject<Env> {
     return seated;
   }
 
-  // Who's around, for the chooser and the Live search screen: players who checked in within
-  // ONLINE_MS. In memory only - nothing is written. A DO getting check-ins every 30 s stays
-  // resident; if it's evicted anyway, the count rebuilds within one interval.
-  async checkIn(playerId: string, now = Date.now()): Promise<PresenceCounts> {
-    this.lastSeen.set(playerId, now);
-    for (const [id, seen] of this.lastSeen) if (now - seen > ONLINE_MS) this.lastSeen.delete(id);
-    return { online: this.lastSeen.size };
-  }
-
   private matchStub(id: string) {
     return this.env.MATCH_DO.get(this.env.MATCH_DO.idFromName(id));
   }
 }
 ```
 
-Add the field `private lastSeen = new Map<string, number>();` beside `queue`, import
-`type PresenceCounts` from `@fortytwo/api-types`, and at module scope under the imports:
+Then add presence - the online count - to the same class. Imports: `verifyToken` from
+`./auth/verifyJwt`, `type PresenceMessage` from `@fortytwo/api-types`.
 
 ```ts
-// A check-in counts a player online for this long; clients check in every 30 s.
-const ONLINE_MS = 60_000;
+// How often, at most, the online count goes out to every presence socket.
+export const PRESENCE_BROADCAST_MS = 60_000;
+
+// When to send a changed online count: now, if nothing has gone out in the last
+// PRESENCE_BROADCAST_MS; else at the end of that minute, from one alarm - unless one is already
+// set. A burst of apps opening at once thus costs one message per socket a minute, not one each.
+export function presenceBroadcast(
+  now: number,
+  lastSentAt: number | null,
+  alarmAt: number | null
+): { kind: 'now' } | { kind: 'alarm'; at: number } | { kind: 'wait' } {
+  if (lastSentAt === null || now - lastSentAt >= PRESENCE_BROADCAST_MS) return { kind: 'now' };
+  if (alarmAt !== null) return { kind: 'wait' };
+  return { kind: 'alarm', at: lastSentAt + PRESENCE_BROADCAST_MS };
+}
+```
+
+Inside the class:
+
+```ts
+  // Presence sockets: one per signed-in app in the foreground (GET /presence/ws, index.ts). The
+  // Hibernation API keeps them open without billing this DO for the time; clients never send on
+  // them, so a connection costs one request to open and nothing after.
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname !== '/presence/ws') return new Response('Not found', { status: 404 });
+    const token = url.searchParams.get('token');
+    if (!token) return new Response('Missing token', { status: 401 });
+    let user;
+    try {
+      user = await verifyToken(token, this.env);
+    } catch {
+      return new Response('Invalid token', { status: 401 });
+    }
+
+    const pair = new WebSocketPair();
+    this.ctx.acceptWebSocket(pair[1]);
+    pair[1].serializeAttachment({ playerId: user.sub });
+    pair[1].send(onlineMessage(this.online()));
+    await this.presenceChanged();
+    return new Response(null, { status: 101, webSocket: pair[0] });
+  }
+
+  async webSocketMessage(): Promise<void> {}
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
+    // Only 1000 and 3000-4999 may be passed back to close() (see MatchDO.webSocketClose).
+    if (code === 1000 || (code >= 3000 && code <= 4999)) ws.close(code, reason);
+    else ws.close();
+    await this.presenceChanged(ws);
+  }
+
+  // The online count changed: send it now, or leave it to the alarm (presenceBroadcast).
+  private async presenceChanged(closing?: WebSocket): Promise<void> {
+    const now = Date.now();
+    const lastSentAt = (await this.ctx.storage.get<number>('presenceSentAt')) ?? null;
+    const plan = presenceBroadcast(now, lastSentAt, await this.ctx.storage.getAlarm());
+    if (plan.kind === 'now') await this.broadcastOnline(now, closing);
+    else if (plan.kind === 'alarm') await this.ctx.storage.setAlarm(plan.at);
+  }
+
+  async alarm(): Promise<void> {
+    await this.broadcastOnline(Date.now());
+  }
+
+  private async broadcastOnline(now: number, closing?: WebSocket): Promise<void> {
+    await this.ctx.storage.put('presenceSentAt', now);
+    const message = onlineMessage(this.online(closing));
+    for (const ws of this.ctx.getWebSockets()) if (ws !== closing) ws.send(message);
+  }
+
+  // Distinct players with a presence socket open; two tabs or devices count once. A socket being
+  // closed may still be listed while its close is handled, so it's left out by name.
+  private online(closing?: WebSocket): number {
+    const players = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === closing) continue;
+      const attachment = ws.deserializeAttachment() as { playerId: string } | null;
+      if (attachment) players.add(attachment.playerId);
+    }
+    return players.size;
+  }
+```
+
+and at module scope:
+
+```ts
+function onlineMessage(online: number): string {
+  return JSON.stringify({ type: 'online', online } satisfies PresenceMessage);
+}
 ```
 
 In `cloudflare/packages/api-types/src/index.ts` add:
 
 ```ts
-// POST /api/presence: how many players have had the app open in the last minute.
-export interface PresenceCounts {
+// What the presence socket (GET /presence/ws) sends: how many players have the app open. On
+// connect, then at most once a minute as people come and go.
+export interface PresenceMessage {
+  type: 'online';
   online: number;
 }
 ```
+
+`test/matchmakerPresence.test.ts` - copy the JWKS `beforeAll` (with `fetchMock`), `signToken`
+and the `openSocket` helper from `test/matchDOSocket.test.ts` (key id
+`'matchmaker-presence-test-key'`; point `openSocket` at a Matchmaker stub), then:
+
+```ts
+function firstMessage(ws: WebSocket): Promise<{ type: string; online: number }> {
+  return new Promise((resolve, reject) => {
+    ws.addEventListener('message', (event) => resolve(JSON.parse((event as MessageEvent).data as string)), { once: true });
+    ws.addEventListener('error', reject, { once: true });
+  });
+}
+
+describe('Matchmaker presence sockets', () => {
+  it('tells a new socket how many players are online, counting each player once', async () => {
+    const stub = testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('presence-count'));
+    const a = await openSocket(stub, `/presence/ws?token=${await signToken({ sub: 'a' })}`);
+    const a2 = await openSocket(stub, `/presence/ws?token=${await signToken({ sub: 'a' })}`);
+    const bToken = await signToken({ sub: 'b' });
+    const res = await stub.fetch(`https://matchmaker/presence/ws?token=${bToken}`, { headers: { Upgrade: 'websocket' } });
+    const b = res.webSocket!;
+    const first = firstMessage(b);
+    b.accept();
+
+    expect(await first).toEqual({ type: 'online', online: 2 });
+    for (const ws of [a.ws, a2.ws, b]) ws?.close();
+  });
+
+  it('refuses a socket without a valid token', async () => {
+    const stub = testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('presence-auth'));
+    const { status } = await openSocket(stub, '/presence/ws?token=nope');
+    expect(status).toBe(401);
+  });
+});
+```
+
+(The listener is attached before `accept()` so the on-connect message can't be missed; drain and
+close every socket before asserting where the copied helper's comment says to.)
 
 - [ ] **Step 5: Run tests**
 
@@ -1261,7 +1383,7 @@ git commit -m "feat(worker): Matchmaker durable object seats Live and Daily play
 - Consumes: `Matchmaker.play` (Task 6), `MatchDO.resume`, `MatchDO.getTurn` (Task 5), `TurnSummary` (Task 3)
 - Produces:
   - `POST /api/matchmaking { mode: 'live' | 'daily' }` -> 200 match view (404 for live when bots are off)
-  - `POST /api/presence` -> 200 `PresenceCounts`
+  - `GET /presence/ws?token=` -> forwarded to the Matchmaker's socket upgrade (outside `/api`, like `/matches/:id/ws`)
   - `PATCH /api/matches/:id/players { autopilot: false }` -> 200 match view
   - `GET /api/matches?filter=Active` rows carry `turn: TurnSummary | null`
   - `withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null>`; `TURN_LOOKUP_MS = 500`
@@ -1327,12 +1449,11 @@ describe('POST /api/matchmaking', () => {
   });
 });
 
-describe('POST /api/presence', () => {
-  it('checks the caller in and answers the online count', async () => {
-    const res = await api('/api/presence', await signToken('pr-1'), { method: 'POST' });
-    expect(res.status).toBe(200);
-    const counts = (await res.json()) as { online: number };
-    expect(counts.online).toBeGreaterThanOrEqual(1);
+describe('GET /presence/ws', () => {
+  it('wants a WebSocket upgrade', async () => {
+    const res = await SELF.fetch('https://example.com/presence/ws');
+    expect(res.status).toBe(426);
+    await res.text();
   });
 });
 
@@ -1510,23 +1631,25 @@ matchmaking.post('/', async (c) => {
 });
 
 export default matchmaking;
+```
 
-// POST /api/presence: checks the caller in and answers how many players are online
-// (Matchmaker.checkIn). A POST because it records the check-in; clients send it every 30 s while
-// the app is in front.
-export const presence = new Hono<AppEnv>();
+In `index.ts`: `import matchmakingRoutes from './routes/matchmaking';` and, next to the matches
+route, `app.route('/api/matchmaking', matchmakingRoutes);`. Then, beside the `/matches/:id/ws`
+route (outside `/api/*`'s `requireAuth`, for the same reason - an upgrade can't carry an
+Authorization header, so the Matchmaker checks `?token=` itself):
 
-presence.post('/', async (c) => {
-  const counts = await c.env.MATCHMAKER.get(c.env.MATCHMAKER.idFromName('global')).checkIn(c.get('user').sub);
-  return c.json(counts satisfies PresenceCounts);
+```ts
+// The presence socket (matchmaker.ts): the online count. The Matchmaker is addressed by the one
+// name, and its fetch() expects this same path, so the request goes through unchanged.
+app.get('/presence/ws', async (c) => {
+  if (c.req.header('Upgrade') !== 'websocket') {
+    return new Response('Expected Upgrade: websocket', { status: 426 });
+  }
+  return c.env.MATCHMAKER.get(c.env.MATCHMAKER.idFromName('global')).fetch(c.req.raw);
 });
 ```
 
-(import `type PresenceCounts` from `@fortytwo/api-types`.)
-
-In `index.ts`: `import matchmakingRoutes, { presence as presenceRoutes } from './routes/matchmaking';`
-and, next to the matches route, `app.route('/api/matchmaking', matchmakingRoutes);` and
-`app.route('/api/presence', presenceRoutes);`.
+and in `wrangler.toml` add `"/presence/*"` to `[assets] run_worker_first`.
 
 - [ ] **Step 7: Run tests and typecheck**
 
@@ -1550,13 +1673,16 @@ git commit -m "feat(worker): matchmaking route, resume, and turn status in Activ
 - Modify: `cloudflare/packages/client/src/api.ts`
 - Modify: `cloudflare/packages/client/src/lobby.ts`, `lobby.test.ts`
 - Create: `cloudflare/packages/client/src/live.ts`, `live.test.ts`
+- Create: `cloudflare/packages/client/src/socket.ts`, `presenceSocket.ts`, `presenceSocket.test.ts`
+- Modify: `cloudflare/packages/client/src/matchSocket.ts`
 - Modify: `cloudflare/packages/client/src/index.ts`
 
 **Interfaces:**
-- Consumes: `MatchSummary`, `TurnSummary` (Task 3); `liveDeadline`, `matchMode`, `hasBeenDealt`, `isOnAutopilot` (Task 1)
+- Consumes: `MatchSummary`, `TurnSummary` (Task 3); `PresenceMessage` (Task 6); `liveDeadline`, `matchMode`, `hasBeenDealt`, `isOnAutopilot` (Task 1)
 - Produces:
-  - api: `play(mode: 'live' | 'daily'): Promise<MatchState>`, `resume(id: string): Promise<MatchState>`, `presence(): Promise<PresenceCounts>`
-  - lobby: `PRESENCE_INTERVAL_MS = 30_000`
+  - api: `play(mode: 'live' | 'daily'): Promise<MatchState>`, `resume(id: string): Promise<MatchState>`
+  - socket: `connectSocket(options: SocketOptions): () => void` - the reconnect loop `connectMatchSocket` had, now shared
+  - presence: `connectPresenceSocket({ origin, getToken, onOnline, subscribeWake }): () => void`
   - lobby: `rowStatus(match: MatchSummary): { text: string; yours: boolean }`, `yourTurnFirst(rows: MatchSummary[]): MatchSummary[]`, `MODE_LABELS: Record<MatchMode, string>`
   - live: `searchState(match: MatchState, now: number): { mode: 'live'; elapsedMs: number } | { mode: 'daily' } | null`, `turnClock(match: MatchState, now: number): { playerIds: string[]; remainingMs: number } | null`, `formatClock(ms: number): string`
 
@@ -1687,9 +1813,6 @@ export function rowStatus(match: MatchSummary): { text: string; yours: boolean }
   return { text: `${turn.waitingOn[0] ?? 'Someone'}'s turn`, yours: false };
 }
 
-// How often an open app checks in (POST /api/presence) - and so how fresh the online count is.
-export const PRESENCE_INTERVAL_MS = 30_000;
-
 // Games waiting on the viewer first, the rest in the order they came. Only sorts rows already
 // loaded: pages still arrive newest first.
 export function yourTurnFirst(rows: MatchSummary[]): MatchSummary[] {
@@ -1739,15 +1862,129 @@ export function formatClock(ms: number): string {
 and after `readyUp`:
 
 ```ts
-    // Checks in and answers how many are online; sent every PRESENCE_INTERVAL_MS while the app is in front.
-    presence: (): Promise<PresenceCounts> => request<PresenceCounts>('/api/presence', { method: 'POST' }),
-
     // Takes the caller's seat back from the bot after a Live turn ran out.
     resume: (id: string): Promise<MatchState> =>
       request<MatchState>(`/api/matches/${id}/players`, { method: 'PATCH', body: JSON.stringify({ autopilot: false }) }),
 ```
 
-`index.ts`: add `export * from './live';`.
+**The shared socket loop.** Move the body of `connectMatchSocket` (token fetch, connect,
+backoff from 1 s doubling to 30 s, wake-ups, dispose) into `socket.ts` unchanged except that
+what's match-specific becomes options:
+
+```ts
+// One server socket kept open: a fresh token on every connect, exponential backoff (1 s doubling to
+// 30 s) after a drop, and an immediate retry on a wake-up. Shared by the match socket
+// (matchSocket.ts) and the presence socket (presenceSocket.ts), which add their own messages.
+export interface SocketOptions {
+  // The full URL to open, given a fresh token.
+  url: (token: string) => string;
+  getToken: () => Promise<string>;
+  onOpen?: () => void;
+  // Each parsed JSON frame; malformed ones are dropped before this.
+  onMessage: (data: unknown) => void;
+  // A socket closed on us. A retry follows unless the close code is in `finalCodes`.
+  onDrop?: (code: number) => void;
+  // Close codes meaning "don't come back".
+  finalCodes?: ReadonlySet<number>;
+  subscribeWake?: (wake: () => void) => () => void;
+}
+
+export function connectSocket(options: SocketOptions): () => void {
+  // ...the loop from connectMatchSocket, with
+  //   new WebSocket(options.url(token))
+  //   onMessage(JSON.parse(...)) for each well-formed frame
+  //   onDrop?.(event.code), then `if (finalCodes?.has(event.code)) return;` before scheduling
+}
+```
+
+Copy the loop's code and comments over verbatim - it's the same logic, with those three lines
+changed. Then `connectMatchSocket` becomes a wrapper with the same signature as today:
+
+```ts
+export function connectMatchSocket({ matchId, origin, getToken, onOpen, onMatch, onPoke, onDrop, onDeleted, subscribeWake }: MatchSocketOptions): () => void {
+  return connectSocket({
+    url: (token) => `${origin}/matches/${matchId}/ws?token=${token}`,
+    getToken,
+    onOpen,
+    onMessage: (data) => {
+      if (isMatchSocketMessage(data)) onMatch(data.match);
+      else if (isPokeSocketMessage(data)) onPoke?.(data.from);
+    },
+    onDrop: (code) => {
+      onDrop();
+      if (code === MATCH_DELETED_CLOSE_CODE) onDeleted?.();
+    },
+    finalCodes: NO_RECONNECT_CODES,
+    subscribeWake,
+  });
+}
+```
+
+`matchSocket.test.ts` must pass unchanged - it's the check that nothing moved but the code.
+
+`presenceSocket.ts`:
+
+```ts
+// The presence socket (the Worker's matchmaker.ts): how many players have the app open. One per
+// signed-in app while it's in front; the server sends the count on connect and then at most once
+// a minute, and the client sends nothing.
+import type { PresenceMessage } from '@fortytwo/api-types';
+import { connectSocket } from './socket';
+
+function isPresenceMessage(value: unknown): value is PresenceMessage {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'online' &&
+    typeof (value as { online?: unknown }).online === 'number'
+  );
+}
+
+export function connectPresenceSocket({
+  origin,
+  getToken,
+  onOnline,
+  subscribeWake,
+}: {
+  origin: string;
+  getToken: () => Promise<string>;
+  onOnline: (online: number) => void;
+  subscribeWake?: (wake: () => void) => () => void;
+}): () => void {
+  return connectSocket({
+    url: (token) => `${origin}/presence/ws?token=${token}`,
+    getToken,
+    onMessage: (data) => {
+      if (isPresenceMessage(data)) onOnline(data.online);
+    },
+    subscribeWake,
+  });
+}
+```
+
+`presenceSocket.test.ts` - using the same fake `WebSocket` that `matchSocket.test.ts` installs
+(copy its setup):
+
+```ts
+describe('connectPresenceSocket', () => {
+  it('opens the presence path with a token and reports each count', async () => {
+    const onOnline = vi.fn();
+    const dispose = connectPresenceSocket({ origin: 'wss://x', getToken: async () => 't', onOnline });
+    const socket = await lastSocket();
+    expect(socket.url).toBe('wss://x/presence/ws?token=t');
+    socket.receive({ type: 'online', online: 3 });
+    socket.receive({ type: 'match', match: {} });
+    expect(onOnline.mock.calls).toEqual([[3]]);
+    dispose();
+  });
+});
+```
+
+(`lastSocket`/`receive` stand for whatever the copied fake provides to get the opened socket and
+deliver a frame.)
+
+`index.ts`: add `export * from './live';`, `export * from './socket';` and
+`export * from './presenceSocket';`.
 
 - [ ] **Step 4: Run tests and typecheck**
 
@@ -1767,10 +2004,13 @@ git commit -m "feat(client): matchmaking calls and lobby/live helpers"
 
 **Files:**
 - Create: `cloudflare/apps/web/src/components/NewMatchDialog.tsx`, `NewMatchDialog.css`, `NewMatchDialog.test.tsx`
+- Create: `cloudflare/apps/web/src/api/presence.tsx`
+- Modify: `cloudflare/apps/web/src/main.tsx`
 - Modify: `cloudflare/apps/web/src/pages/Lobby.tsx`, `Lobby.css`, `Lobby.test.tsx`
 
 **Interfaces:**
-- Consumes: `play`, `createMatch`, `listMatches`, `getConfig`, `presence` (client); `rowStatus`, `yourTurnFirst`, `MODE_LABELS`, `PRESENCE_INTERVAL_MS` (Task 8)
+- Consumes: `play`, `createMatch`, `listMatches`, `getConfig` (client); `rowStatus`, `yourTurnFirst`, `MODE_LABELS`, `connectPresenceSocket` (Task 8)
+- Produces: `PresenceProvider` and `useOnline(): number | null` in `apps/web/src/api/presence.tsx`
 - Produces: `NewMatchDialog({ open, liveEnabled, online, pending, onChoose, onClose })` (`online: number | null`) where `onChoose: (choice: 'live' | 'daily' | 'challenge') => void`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1819,10 +2059,10 @@ describe('NewMatchDialog', () => {
 ```
 
 In `Lobby.test.tsx`:
-- Add `playMock`, `getConfigMock` and `presenceMock` to the `vi.hoisted` block and the mocked
-  `apiClient` (`play: playMock, getConfig: getConfigMock, presence: presenceMock`); in a
-  `beforeEach`, `getConfigMock.mockResolvedValue({ bots: true })` and
-  `presenceMock.mockResolvedValue({ online: 3 })`.
+- Add `playMock` and `getConfigMock` to the `vi.hoisted` block and the mocked `apiClient`
+  (`play: playMock, getConfig: getConfigMock`); in a `beforeEach`,
+  `getConfigMock.mockResolvedValue({ bots: true })`. Mock the presence hook:
+  `vi.mock('../api/presence', () => ({ useOnline: () => 3 }));`
 - Add `mode: 'custom'` to every fixture `MatchSummary` (and `mode: 'daily'` where it reads better).
 - Delete the tests about the Find a Game tab and seat picker/join.
 - Add:
@@ -1910,7 +2150,7 @@ export function NewMatchDialog({
 }: {
   open: boolean;
   liveEnabled: boolean;
-  // Players online (POST /api/presence), or null before the first check-in answers.
+  // Players online (the presence socket), or null until the first count arrives.
   online: number | null;
   pending: boolean;
   onChoose: (choice: NewMatchChoice) => void;
@@ -2046,7 +2286,68 @@ export function NewMatchDialog({
 }
 ```
 
-- [ ] **Step 4: `Lobby.tsx`**
+- [ ] **Step 4: `api/presence.tsx`** - one presence socket for the signed-in app
+
+```tsx
+// The online count, from one presence socket (@fortytwo/client's connectPresenceSocket) held
+// while the app is signed in. A context, so the lobby and the match page share the one socket
+// rather than each opening their own as the player moves between them.
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import type { JSX, ReactNode } from 'react';
+import { connectPresenceSocket } from '@fortytwo/client';
+import { useGetToken } from '../auth/useGetToken';
+
+const OnlineContext = createContext<number | null>(null);
+
+// The same wake-ups useMatchSocket uses: the tab coming back, or the network returning.
+function subscribeBrowserWake(wake: () => void): () => void {
+  function onVisibilityChange() {
+    if (document.visibilityState === 'visible') wake();
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('online', wake);
+  return () => {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('online', wake);
+  };
+}
+
+export function PresenceProvider({ children }: { children: ReactNode }): JSX.Element {
+  const [online, setOnline] = useState<number | null>(null);
+  const getToken = useGetToken();
+  // Kept in a ref so a new getToken closure doesn't reopen the socket (as in useMatchSocket).
+  const getTokenRef = useRef(getToken);
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
+
+  useEffect(
+    () =>
+      connectPresenceSocket({
+        origin:
+          import.meta.env.VITE_WS_ORIGIN ||
+          `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`,
+        getToken: () => getTokenRef.current(),
+        onOnline: setOnline,
+        subscribeWake: subscribeBrowserWake,
+      }),
+    []
+  );
+
+  return <OnlineContext.Provider value={online}>{children}</OnlineContext.Provider>;
+}
+
+// Players with the app open, or null until the first count arrives.
+export function useOnline(): number | null {
+  return useContext(OnlineContext);
+}
+```
+
+(If `useMatchSocket.ts` exports `subscribeBrowserWake`, import it instead of repeating it -
+export it from there if it isn't.) In `main.tsx`, wrap `<NavBar />` and `<Routes>` inside
+`<AuthGate>` with `<PresenceProvider>`, so it only connects once signed in.
+
+- [ ] **Step 5: `Lobby.tsx`**
 
 - Header comment: "The lobby: the player's matches (Active, the default, and Game History) plus
   the New match chooser - Live and Daily matchmaking, or a custom table to share..." Drop the
@@ -2059,13 +2360,7 @@ export function NewMatchDialog({
 
 ```tsx
   const config = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig() });
-  // Checks in while the lobby is open, and keeps the chooser's online count fresh. TanStack Query
-  // stops the interval while the tab is in the background.
-  const presence = useQuery({
-    queryKey: ['presence'],
-    queryFn: () => client.presence(),
-    refetchInterval: PRESENCE_INTERVAL_MS,
-  });
+  const online = useOnline();
   const [choosing, setChoosing] = useState(false);
 
   // Live and Daily seat the player through matchmaking; Challenge friends starts a custom table.
@@ -2082,7 +2377,7 @@ export function NewMatchDialog({
   (`useQuery` from `@tanstack/react-query`; if the Match page already caches config under a
   different key, reuse that key.) Replace `createMatch` usages with `startMatch`; the header
   button becomes `New match`, `onClick={() => setChoosing(true)}`; render
-  `<NewMatchDialog open={choosing} liveEnabled={config.data?.bots ?? false} online={presence.data?.online ?? null} pending={startMatch.isPending} onChoose={(c) => startMatch.mutate(c)} onClose={() => setChoosing(false)} />`
+  `<NewMatchDialog open={choosing} liveEnabled={config.data?.bots ?? false} online={online} pending={startMatch.isPending} onChoose={(c) => startMatch.mutate(c)} onClose={() => setChoosing(false)} />`
   and show `startMatch.error` where `createMatch.error` was.
 - Rows: `const matches = uniqueMatches(...)` then `const rows = matches && yourTurnFirst(matches);`
   and render from `rows`. In each row's meta replace the "N of 4 seated, updated ..." text with:
@@ -2116,16 +2411,16 @@ export function NewMatchDialog({
 }
 ```
 
-- [ ] **Step 5: Run tests and typecheck**
+- [ ] **Step 6: Run tests and typecheck**
 
 Run: `npm test -w @fortytwo/web && npm run typecheck -w @fortytwo/web`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add cloudflare/apps/web/src
-git commit -m "feat(web): New match chooser and your-turn lobby"
+git commit -m "feat(web): New match chooser, online count and your-turn lobby"
 ```
 
 ---
@@ -2140,10 +2435,10 @@ git commit -m "feat(web): New match chooser and your-turn lobby"
 - Test: `cloudflare/apps/web/src/pages/Match.test.tsx`
 
 **Interfaces:**
-- Consumes: `searchState`, `turnClock`, `formatClock` (Task 8); `isOnAutopilot`, `matchMode` (Task 1); `client.resume` (Task 8)
+- Consumes: `searchState`, `turnClock`, `formatClock` (Task 8); `isOnAutopilot`, `matchMode` (Task 1); `client.resume` (Task 8); `useOnline` (Task 9)
 - Produces: `useNow(enabled: boolean, intervalMs?: number): number`; `SeatProps` gains `away: boolean`, `clock: string | null`
 
-- [ ] **Step 1: Write the failing tests** (in `Match.test.tsx`; add `resumeMock` and `presenceMock` to the hoisted mocks, `resume: resumeMock, presence: presenceMock` to the mocked client, and `presenceMock.mockResolvedValue({ online: 1 })` to the `beforeEach`)
+- [ ] **Step 1: Write the failing tests** (in `Match.test.tsx`; add `resumeMock` to the hoisted mocks and `resume: resumeMock` to the mocked client, and mock the presence hook: `vi.mock('../api/presence', () => ({ useOnline: () => 4 }));`)
 
 ```tsx
   describe('Live and Daily', () => {
@@ -2157,7 +2452,6 @@ git commit -m "feat(web): New match chooser and your-turn lobby"
     it('shows a Live search counting up, who is online, Start now with bots and Cancel search', async () => {
       useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
       getConfigMock.mockResolvedValue({ bots: true });
-      presenceMock.mockResolvedValue({ online: 4 });
       renderMatch();
       expect(await screen.findByText(/finding players… 0:2[34]/i)).toBeTruthy();
       expect(await screen.findByText('4 online')).toBeTruthy();
@@ -2255,12 +2549,7 @@ Near the other derived state (after `match`/`view` are known):
     mutationFn: () => client.resume(matchId!),
     onError: toastError,
   });
-  // Keeps the player checked in while a match is open, and gives a Live search its online count.
-  const presence = useQuery({
-    queryKey: ['presence'],
-    queryFn: () => client.presence(),
-    refetchInterval: PRESENCE_INTERVAL_MS,
-  });
+  const online = useOnline();
 ```
 
 Hooks must run unconditionally, so place these above any early `return` in the component
@@ -2280,7 +2569,7 @@ In the `.table-waiting` block:
                     {liveSearch?.mode === 'live' && (
                       <>
                         <p className="table-search" role="status">Finding players… {formatClock(liveSearch.elapsedMs)}</p>
-                        {presence.data && <p className="table-presence">{presence.data.online} online</p>}
+                        {online !== null && <p className="table-presence">{online} online</p>}
                         <button
                           type="button"
                           className="btn btn-sm btn-outline-secondary"
@@ -2317,9 +2606,9 @@ My own seat: if `my-seat` is rendered through `Seat` with `seatPropsFor(myPlayer
 props flow automatically; otherwise show my clock beside the hand:
 `{clock?.playerIds.includes(myPlayerId) && <span className="seat-tag seat-clock">{formatClock(clock.remainingMs)}</span>}`.
 
-Imports: `searchState`, `turnClock`, `formatClock`, `PRESENCE_INTERVAL_MS` from
-`@fortytwo/client`; `isOnAutopilot`, `matchMode` from `@fortytwo/rules`; `useNow` from
-`../match/useNow`; `useQuery` if not already imported.
+Imports: `searchState`, `turnClock`, `formatClock` from `@fortytwo/client`; `isOnAutopilot`,
+`matchMode` from `@fortytwo/rules`; `useNow` from `../match/useNow`; `useOnline` from
+`../api/presence`.
 
 CSS (same file as `.table-waiting`):
 
@@ -2376,11 +2665,15 @@ git commit -m "feat(web): Live search, turn clock and Resume on the match page"
 
 **Files:**
 - Create: `cloudflare/apps/mobile/src/components/NewMatchSheet.tsx`
+- Create: `cloudflare/apps/mobile/src/api/presence.tsx`
+- Modify: `cloudflare/apps/mobile/src/api/useMatchSocket.ts` (export `subscribeNetworkWake`, `useAppInForeground`)
+- Modify: `cloudflare/apps/mobile/src/app/_layout.tsx`
 - Modify: `cloudflare/apps/mobile/src/app/index.tsx`
 - Test: `cloudflare/apps/mobile/src/components/__tests__/components.test.tsx`
 
 **Interfaces:**
-- Consumes: `api.play`, `api.createMatch`, `api.getConfig`, `api.presence`; `rowStatus`, `yourTurnFirst`, `MODE_LABELS`, `PRESENCE_INTERVAL_MS` (Task 8)
+- Consumes: `api.play`, `api.createMatch`, `api.getConfig`; `rowStatus`, `yourTurnFirst`, `MODE_LABELS`, `connectPresenceSocket` (Task 8)
+- Produces: `PresenceProvider({ enabled, children })` and `useOnline(): number | null` in `apps/mobile/src/api/presence.tsx`
 - Produces: `NewMatchSheet({ visible, liveEnabled, online, pending, onChoose, onClose })` (`online: number | null`), `onChoose: (choice: 'live' | 'daily' | 'challenge') => void`
 
 - [ ] **Step 1: Write the failing test** (append to `components.test.tsx`, importing `NewMatchSheet`)
@@ -2437,7 +2730,7 @@ export function NewMatchSheet({
 }: {
   visible: boolean;
   liveEnabled: boolean;
-  // Players online (POST /api/presence), or null before the first check-in answers.
+  // Players online (the presence socket), or null until the first count arrives.
   online: number | null;
   pending: boolean;
   onChoose: (choice: NewMatchChoice) => void;
@@ -2500,7 +2793,57 @@ const styles = StyleSheet.create({
 (`accessibilityLabel` starts with the title, so `getByRole('button', { name: /live/i })` matches
 Live; the Daily detail doesn't contain "live". The "leaves Live out" test anchors with `^live`.)
 
-- [ ] **Step 4: `app/index.tsx`**
+- [ ] **Step 4: `api/presence.tsx`** - one presence socket while signed in and in front
+
+Export `subscribeNetworkWake` and `useAppInForeground` from `api/useMatchSocket.ts` (they're
+module-private today), then:
+
+```tsx
+// The online count, from one presence socket (@fortytwo/client's connectPresenceSocket) held while
+// the player is signed in and the app is in the foreground - closed in the background, like the
+// match socket, so a phone in a pocket doesn't count as online. A context, so every screen shares
+// the one socket.
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { connectPresenceSocket } from '@fortytwo/client';
+import { config } from '@/config';
+import { useGetToken } from '@/auth/useGetToken';
+import { subscribeNetworkWake, useAppInForeground } from '@/api/useMatchSocket';
+
+const OnlineContext = createContext<number | null>(null);
+
+export function PresenceProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const [online, setOnline] = useState<number | null>(null);
+  const getToken = useGetToken();
+  const getTokenRef = useRef(getToken);
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
+  const foreground = useAppInForeground();
+
+  useEffect(() => {
+    if (!enabled || !foreground) return;
+    return connectPresenceSocket({
+      origin: config.wsOrigin,
+      getToken: () => getTokenRef.current(),
+      onOnline: setOnline,
+      subscribeWake: subscribeNetworkWake,
+    });
+  }, [enabled, foreground]);
+
+  return <OnlineContext.Provider value={online}>{children}</OnlineContext.Provider>;
+}
+
+// Players with the app open, or null until the first count arrives.
+export function useOnline(): number | null {
+  return useContext(OnlineContext);
+}
+```
+
+Use whatever hook `useMatchSocket`'s callers pass `getToken` from (`grep -rn "useMatchSocket(" apps/mobile/src`)
+in place of `useGetToken` if the name differs. In `_layout.tsx`'s `RootStack`, wrap the returned
+`<Stack>` in `<PresenceProvider enabled={signedIn && !DEV_BYPASS}>`.
+
+- [ ] **Step 5: `app/index.tsx`**
 
 - Header comment: replace "joining an open seat in someone else's" with "starting Live or Daily
   play, or a table to share".
@@ -2512,9 +2855,7 @@ Live; the Daily detail doesn't contain "live". The "leaves Live out" test anchor
 
 ```tsx
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig() });
-  // Checks in while the lobby is open, and keeps the sheet's online count fresh. TanStack Query's
-  // focus manager pauses the interval while the app is in the background.
-  const presence = useQuery({ queryKey: ['presence'], queryFn: () => api.presence(), refetchInterval: PRESENCE_INTERVAL_MS });
+  const online = useOnline();
   const [choosing, setChoosing] = useState(false);
   // Live and Daily seat the player through matchmaking; Challenge friends starts a custom table.
   const start = useMutation({
@@ -2530,7 +2871,7 @@ Live; the Daily detail doesn't contain "live". The "leaves Live out" test anchor
 
   (Reuse the match screen's config query key if it differs - `grep -n "getConfig" apps/mobile/src -r`.)
 - FAB `onPress={() => setChoosing(true)}`, spinner on `start.isPending`; render
-  `<NewMatchSheet visible={choosing} liveEnabled={config.data?.bots ?? false} online={presence.data?.online ?? null} pending={start.isPending} onChoose={(c) => start.mutate(c)} onClose={() => setChoosing(false)} />` before the FAB.
+  `<NewMatchSheet visible={choosing} liveEnabled={config.data?.bots ?? false} online={online} pending={start.isPending} onChoose={(c) => start.mutate(c)} onClose={() => setChoosing(false)} />` before the FAB.
 - Empty-state link: text "New match", `onPress={() => setFilter... }` becomes `onPress={() => setChoosing(true)}`.
 - `data={yourTurnFirst(uniqueMatches(matches.data?.pages) ?? [])}`.
 - Delete the local `matchStatus`; in `MatchRow` use `const status = rowStatus(match);` and render
@@ -2544,16 +2885,16 @@ Live; the Daily detail doesn't contain "live". The "leaves Live out" test anchor
   with `rowStatusYours: { color: colors.brass, fontFamily: fonts.uiBold }` replacing
   `rowStatusWaiting`.
 
-- [ ] **Step 5: Run tests and typecheck**
+- [ ] **Step 6: Run tests and typecheck**
 
 Run: `npm test -w @fortytwo/mobile && npm run typecheck -w @fortytwo/mobile`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add cloudflare/apps/mobile/src
-git commit -m "feat(mobile): New match sheet and your-turn lobby"
+git commit -m "feat(mobile): New match sheet, online count and your-turn lobby"
 ```
 
 ---
@@ -2631,8 +2972,7 @@ styles: `seatAway: { color: colors.inkMuted, fontFamily: fonts.uiMedium, fontSiz
   const mode = match ? matchMode(match) : 'custom';
   const meOnAutopilot = match != null && myPlayerId != null && isOnAutopilot(match, myPlayerId);
   const resume = useMutation({ mutationFn: () => api.resume(id), onError: toastError });
-  // Keeps the player checked in while a match is open, and gives a Live search its online count.
-  const presence = useQuery({ queryKey: ['presence'], queryFn: () => api.presence(), refetchInterval: PRESENCE_INTERVAL_MS });
+  const online = useOnline();
 ```
 
 - `seatInfo` returns also `away: isOnAutopilot(match!, playerId)` and
@@ -2643,7 +2983,7 @@ styles: `seatAway: { color: colors.inkMuted, fontFamily: fonts.uiMedium, fontSiz
                 {search?.mode === 'live' && (
                   <>
                     <Text style={styles.searchText} accessibilityRole="text">Finding players… {formatClock(search.elapsedMs)}</Text>
-                    {presence.data && <Text style={styles.waitingText}>{presence.data.online} online</Text>}
+                    {online !== null && <Text style={styles.waitingText}>{online} online</Text>}
                     <Pressable
                       style={styles.smallButton}
                       disabled={!connected || addBots.isPending}
@@ -2684,9 +3024,9 @@ styles: `seatAway: { color: colors.inkMuted, fontFamily: fonts.uiMedium, fontSiz
   styles: `searchText: { color: colors.brass, fontFamily: fonts.uiBold, fontSize: 15, textAlign: 'center' }`,
   `autopilotBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: 'rgba(201, 164, 92, 0.15)' }`,
   `autopilotText: { flex: 1, color: colors.bone, fontFamily: fonts.ui, fontSize: 14 }`.
-- Imports: `searchState`, `turnClock`, `formatClock`, `PRESENCE_INTERVAL_MS` from
-  `@fortytwo/client`; `isOnAutopilot`, `matchMode` from `@fortytwo/rules`; `useNow` from
-  `@/match/useNow`; `useQuery` if not already imported.
+- Imports: `searchState`, `turnClock`, `formatClock` from `@fortytwo/client`; `isOnAutopilot`,
+  `matchMode` from `@fortytwo/rules`; `useNow` from `@/match/useNow`; `useOnline` from
+  `@/api/presence`.
 
 - [ ] **Step 4: Run tests and typecheck**
 
