@@ -11,6 +11,19 @@ export interface ApiErrorBody {
 
 export type MatchStatus = 'active' | 'completed';
 
+// How a match was started (the rules package's MatchMode, repeated here since this package
+// carries no runtime dependencies).
+export type MatchMode = 'live' | 'daily' | 'custom';
+
+// Who an Active match is waiting on, looked up from the match itself when the list loads:
+// `kind` is a turn (one player) or a ready-up between hands (everyone not yet ready);
+// `waitingOn` are display names; `yours` says whether the viewer is among them.
+export interface TurnSummary {
+  kind: 'turn' | 'ready';
+  yours: boolean;
+  waitingOn: string[];
+}
+
 // One match in the lobby list (GET /api/matches). `teams` is [TeamA, TeamB] display names, each in
 // join order; `seats` is the display name at each position 0-3, or null for an open seat. Bots,
 // and anyone whose name couldn't be looked up, appear by raw id.
@@ -21,6 +34,9 @@ export interface MatchSummary {
   updatedOn: string;
   teams: [string[], string[]];
   seats: (string | null)[];
+  mode: MatchMode;
+  // Active list only; null when the match couldn't say in time (the row shows without it).
+  turn?: TurnSummary | null;
 }
 
 // One page of a lobby list (GET /api/matches). `nextCursor` goes back as `?cursor=` for the next

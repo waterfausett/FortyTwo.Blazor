@@ -75,7 +75,7 @@ matches.get('/', async (c) => {
       const player = seated.find((p) => p.position === position);
       return player ? nameOf(player.playerId) : null;
     });
-    return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
+    return { ...row, mode: row.mode ?? 'custom', teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
   });
   return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });

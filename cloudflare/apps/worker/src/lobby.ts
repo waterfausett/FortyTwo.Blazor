@@ -3,12 +3,12 @@
 // match state; this index is synced from it after each change - by routes/matches.ts, or by
 // MatchDO itself for the changes no route makes (bot moves, a rematch). Every sync runs through
 // `bestEffort`: by then the match is already saved, so a D1 failure must not fail the change.
-import { teamForPosition, type MatchPlayerState, type MatchState, type Teams } from '@fortytwo/rules';
-import type { MatchSummary } from '@fortytwo/api-types';
+import { matchMode, teamForPosition, type MatchPlayerState, type MatchState, type Teams } from '@fortytwo/rules';
+import type { MatchMode, MatchSummary } from '@fortytwo/api-types';
 
-// One row of the `matches` table. GET /api/matches adds each match's teams and seats to make the
-// full MatchSummary.
-export type MatchIndexRow = Omit<MatchSummary, 'teams' | 'seats'>;
+// One row of the `matches` table. GET /api/matches adds each match's teams, seats and (for
+// Active) turn to make the full MatchSummary, and reads a null mode as 'custom'.
+export type MatchIndexRow = Omit<MatchSummary, 'teams' | 'seats' | 'turn' | 'mode'> & { mode?: MatchMode | null };
 
 // Lobby lists come one page at a time, newest first. A page ends at its last row's
 // (updatedOn, id); the next page starts strictly after it.
@@ -44,6 +44,7 @@ export async function syncLobbyIndex(db: D1Database, match: MatchState): Promise
     status: matchStatus(match),
     playerCount: match.players.length,
     updatedOn: match.updatedOn,
+    mode: matchMode(match),
   });
   await syncMatchPlayers(db, match.id, match.players);
 }
@@ -64,8 +65,8 @@ export async function refreshMatchSummary(db: D1Database, match: MatchState): Pr
   const refreshBefore = new Date(Date.parse(match.updatedOn) - SUMMARY_REFRESH_MS).toISOString();
   const [restored] = await db.batch([
     db
-      .prepare('INSERT OR IGNORE INTO matches (id, status, player_count, updated_on) VALUES (?, ?, ?, ?)')
-      .bind(match.id, status, match.players.length, match.updatedOn),
+      .prepare('INSERT OR IGNORE INTO matches (id, status, player_count, updated_on, mode) VALUES (?, ?, ?, ?, ?)')
+      .bind(match.id, status, match.players.length, match.updatedOn, matchMode(match)),
     db
       .prepare(
         `UPDATE matches SET status = ?2, player_count = ?3, updated_on = ?4
@@ -86,10 +87,11 @@ function matchStatus(match: MatchState): MatchIndexRow['status'] {
 export async function upsertMatchSummary(db: D1Database, summary: MatchIndexRow): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO matches (id, status, player_count, updated_on) VALUES (?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET status = excluded.status, player_count = excluded.player_count, updated_on = excluded.updated_on`
+      `INSERT INTO matches (id, status, player_count, updated_on, mode) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET status = excluded.status, player_count = excluded.player_count,
+         updated_on = excluded.updated_on, mode = COALESCE(excluded.mode, matches.mode)`
     )
-    .bind(summary.id, summary.status, summary.playerCount, summary.updatedOn)
+    .bind(summary.id, summary.status, summary.playerCount, summary.updatedOn, summary.mode ?? null)
     .run();
 }
 
@@ -173,9 +175,11 @@ async function listForPlayer(
 ): Promise<LobbyPage> {
   const { results } = await db
     .prepare(
-      `SELECT m.id, m.status, m.player_count AS playerCount, m.updated_on AS updatedOn
+      `SELECT m.id, m.status, m.player_count AS playerCount, m.updated_on AS updatedOn, m.mode
        FROM matches m JOIN match_players mp ON mp.match_id = m.id
        WHERE mp.player_id = ?1 AND m.status = ?2
+       -- A Live table still looking for players is a search, shown on its match page, not a game.
+       AND NOT (?2 = 'active' AND COALESCE(m.mode, 'custom') = 'live' AND m.player_count < 4)
        AND (?3 IS NULL OR (m.updated_on, m.id) < (?3, ?4))
        ORDER BY m.updated_on DESC, m.id DESC LIMIT ?5`
     )
@@ -192,11 +196,13 @@ export function listCompleted(db: D1Database, userId: string, cursor: LobbyCurso
   return listForPlayer(db, userId, 'completed', cursor);
 }
 
+// Open custom tables. Current clients no longer list these; installed mobile builds
+// from before matchmaking still do.
 export async function listJoinable(db: D1Database, userId: string, cursor: LobbyCursor | null = null): Promise<LobbyPage> {
   const { results } = await db
     .prepare(
-      `SELECT id, status, player_count AS playerCount, updated_on AS updatedOn
-       FROM matches WHERE status = 'active' AND player_count < 4
+      `SELECT id, status, player_count AS playerCount, updated_on AS updatedOn, mode
+       FROM matches WHERE status = 'active' AND player_count < 4 AND COALESCE(mode, 'custom') = 'custom'
        AND id NOT IN (SELECT match_id FROM match_players WHERE player_id = ?1)
        AND (?2 IS NULL OR (updated_on, id) < (?2, ?3))
        ORDER BY updated_on DESC, id DESC LIMIT ?4`
