@@ -21,6 +21,9 @@ import {
   hasHumanPlayers,
   liveDeadline,
   setAutopilot,
+  isOnAutopilot,
+  resumeControl,
+  tableWait,
   assertIsMatchPlayer,
   shuffledDominoOrder,
   ValidationError,
@@ -30,10 +33,11 @@ import {
   type MatchMode,
   type MatchState,
   type Suit,
+  type TableWait,
   type Teams,
 } from '@fortytwo/rules';
 import { bestEffort, syncLobbyIndex, refreshMatchSummary } from './lobby';
-import { pushNotices } from './push/notices';
+import { pushNotices, type Notice } from './push/notices';
 import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
 import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
@@ -201,6 +205,17 @@ export class MatchDO extends DurableObject<Env> {
     return this.update(playerId, (match) => playDomino(match, playerId, domino));
   }
 
+  // A player back at a Live table taking their seat back from the bot before their next turn.
+  resume(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, (match) => resumeControl(match, playerId));
+  }
+
+  // Who the table is waiting on, for the lobby's Active list. A read of what this DO already
+  // holds, so the list never needs D1 to keep a turn column up to date.
+  getTurn(): Promise<MatchResult<TableWait | null>> {
+    return this.read((match) => tableWait(match));
+  }
+
   // Records a rematch vote. The vote that completes the table creates the rematch's DO first, and
   // only then does `rematchId` go on the match - every client follows it (off a broadcast, a
   // reload, or a reconnect), so it must never name a match that doesn't exist yet.
@@ -293,7 +308,9 @@ export class MatchDO extends DurableObject<Env> {
     action: (match: MatchState) => MatchState | Promise<MatchState>
   ): Promise<MatchResult<MatchState>> {
     return this.read(async (match) => {
-      const next = await action(match);
+      const acted = await action(match);
+      // Acting is taking your seat back from the bot (live.ts).
+      const next = isOnAutopilot(acted, actorId) ? setAutopilot(acted, [actorId], false) : acted;
       await this.save(next);
       this.publish(match, next, [actorId]);
       await this.schedule(next);
@@ -424,7 +441,7 @@ export class MatchDO extends DurableObject<Env> {
     this.broadcast(next);
     const watching = this.watchingPlayers();
     for (const id of onTheWay) watching.add(id);
-    const notices = pushNotices(previous, next).filter((n) => !watching.has(n.playerId));
+    const notices = noticesFor(previous, next, watching);
     if (notices.length > 0) this.ctx.waitUntil(sendNotices(this.env, notices));
   }
 
@@ -471,4 +488,13 @@ function seatBots(match: MatchState, positions?: number[]): MatchState {
     next = takeSeat(next, botId, position, shuffledDominoOrder());
   }
   return next;
+}
+
+// What to push after a change: pushNotices' list, less anyone watching the match, and less anyone
+// on autopilot - a bot is taking their turns, so a push per turn would only nag. The end of the
+// match still reaches them.
+export function noticesFor(previous: MatchState | null, next: MatchState, watching: Set<string>): Notice[] {
+  return pushNotices(previous, next).filter(
+    (n) => !watching.has(n.playerId) && (n.kind === 'matchOver' || !isOnAutopilot(next, n.playerId))
+  );
 }
