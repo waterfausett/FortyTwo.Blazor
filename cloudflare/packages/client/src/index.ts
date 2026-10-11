@@ -5,11 +5,14 @@
 // localStorage) or React; each app passes in whatever differs by platform, such as the API origin
 // and what counts as a wake-up for the socket.
 export * from './api';
+export * from './live';
 export * from './lobby';
 export * from './matchSocket';
 export * from './matchView';
 export * from './optimistic';
 export * from './playerNames';
 export * from './poke';
+export * from './presenceSocket';
+export * from './socket';
 export * from './summary';
 export * from './table';
