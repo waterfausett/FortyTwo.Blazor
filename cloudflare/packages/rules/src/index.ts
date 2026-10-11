@@ -59,5 +59,17 @@ export {
   hasBeenDealt,
   hasHumanPlayers,
 } from './matchEngine';
+export type { MatchMode, TableWait, LiveDeadline } from './live';
+export {
+  LIVE_FILL_MS,
+  LIVE_TURN_MS,
+  matchMode,
+  isOnAutopilot,
+  isBotControlled,
+  tableWait,
+  liveDeadline,
+  setAutopilot,
+  resumeControl,
+} from './live';
 export { BOT_IDS, botDisplayName, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';

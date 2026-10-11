@@ -7,6 +7,7 @@ import { Domino, dominoEquals, getSuitValue } from './domino';
 import { ValidationError } from './errors';
 import { Game, gameValue, gameWinningTeam } from './game';
 import { Hand } from './hand';
+import type { MatchMode } from './live';
 import { MatchPlayerRef, selectNextPlayer } from './match';
 import { nextPosition, Positions } from './positions';
 import { Suit } from './suit';
@@ -61,6 +62,13 @@ export interface MatchState {
   rematchVotes?: string[];
   // The rematch's match id, set once everyone has agreed and that match exists.
   rematchId?: string;
+  // How the match was started: Live, Daily, or a custom table (live.ts). Absent on matches stored
+  // before modes existed - read it with matchMode(), which calls those custom.
+  mode?: MatchMode;
+  // When a Live match began looking for players; bots take its empty seats LIVE_FILL_MS later.
+  searchStartedOn?: string;
+  // Players a bot is playing for, after they let a Live turn run out (live.ts).
+  autopilot?: string[];
 }
 
 function now(): string {
@@ -68,7 +76,7 @@ function now(): string {
 }
 
 // A new match with its creator in the first seat, waiting for three more players.
-export function createMatch(firstPlayerId: string): MatchState {
+export function createMatch(firstPlayerId: string, mode: MatchMode = 'custom'): MatchState {
   const timestamp = now();
 
   const game: Game = {
@@ -92,6 +100,8 @@ export function createMatch(firstPlayerId: string): MatchState {
     games: {},
     winningTeam: null,
     players: [{ playerId: firstPlayerId, position: Positions.First, ready: true }],
+    mode,
+    ...(mode === 'live' ? { searchStartedOn: timestamp } : {}),
   };
 }
 
@@ -442,6 +452,8 @@ export function createRematch(id: string, previous: MatchState, dealOrder: Domin
     games: {},
     winningTeam: null,
     players,
+    // The same four, playing the same way.
+    ...(previous.mode !== undefined ? { mode: previous.mode } : {}),
   };
 }
 
