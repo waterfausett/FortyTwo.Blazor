@@ -72,6 +72,14 @@ describe('MatchDO bot auto-play', () => {
     expect(await stub.addBots('stranger')).toMatchObject({ ok: false, status: 400 });
   });
 
+  it('never adds bots at a Daily table', async () => {
+    const stub = stubFor('bots-daily');
+    await stub.create('human-1', 'bots-daily', 'daily');
+
+    expect(await stub.addBots('human-1')).toMatchObject({ ok: false, status: 400 });
+    expect((valueOf(await stub.getMatch()) as MatchState).players).toHaveLength(1);
+  });
+
   it('rejects a bot at a taken seat', async () => {
     const stub = stubFor('bots-taken-seat');
     await stub.create('human-1', 'bots-taken-seat');

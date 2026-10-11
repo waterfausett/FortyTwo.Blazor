@@ -21,7 +21,7 @@ import { publicUsers } from '../users/publicUsers';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
 import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
-import { turnsFor } from '../lobbyTurns';
+import { turnSummaries, turnWaitsFor } from '../lobbyTurns';
 import { decodeCursor, encodeCursor } from '../cursor';
 import type { MatchPage, MatchSummary } from '@fortytwo/api-types';
 
@@ -67,9 +67,11 @@ matches.get('/', async (c) => {
   const { rows, next } = await list(c.env.DB, userId, cursor);
   const playersByMatch = await listMatchPlayers(c.env.DB, rows.map((row) => row.id));
   const allPlayerIds = [...playersByMatch.values()].flat().map((p) => p.playerId);
+  // The turn lookups (up to TURN_LOOKUP_MS) run alongside the names, not after them.
+  const waitsPending = filter === 'Active' ? turnWaitsFor(c.env, rows) : null;
   const names = await displayNames(c.env, [...new Set(allPlayerIds)]);
   const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
-  const turns = filter === 'Active' ? await turnsFor(c.env, rows, userId, nameOf) : null;
+  const turns = waitsPending ? turnSummaries(await waitsPending, userId, nameOf) : null;
   const summaries = rows.map((row): MatchSummary => {
     const seated = playersByMatch.get(row.id) ?? [];
     const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));

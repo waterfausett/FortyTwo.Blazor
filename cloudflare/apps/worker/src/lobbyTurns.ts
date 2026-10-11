@@ -24,23 +24,33 @@ export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T
   }
 }
 
-// Each row's turn, by match id. Only a dealt match (four seated) has one worth asking for.
-export async function turnsFor(
-  env: Env,
-  rows: MatchIndexRow[],
-  viewerId: string,
-  nameOf: (playerId: string) => string
-): Promise<Map<string, TurnSummary | null>> {
+// Who each row's match is waiting on, by match id (null: not dealt, over, unanswered). Only a dealt
+// match (four seated) has one worth asking for. Started before the names are fetched, so the two
+// waits overlap; `turnSummaries` then puts names to the answers.
+export async function turnWaitsFor(env: Env, rows: MatchIndexRow[]): Promise<Map<string, TableWait | null>> {
   const entries = await Promise.all(
-    rows.map(async (row): Promise<[string, TurnSummary | null]> => {
+    rows.map(async (row): Promise<[string, TableWait | null]> => {
       if (row.status !== 'active' || row.playerCount < 4) return [row.id, null];
       const stub = env.MATCH_DO.get(env.MATCH_DO.idFromName(row.id));
       const result = await withTimeout<MatchResult<TableWait | null>>(stub.getTurn(), TURN_LOOKUP_MS);
-      if (!result?.ok) return [row.id, null];
-      if (result.value === null) return [row.id, null];
-      const { kind, playerIds } = result.value;
-      return [row.id, { kind, yours: playerIds.includes(viewerId), waitingOn: playerIds.map(nameOf) }];
+      return [row.id, result?.ok ? result.value : null];
     })
   );
   return new Map(entries);
+}
+
+// Each row's turn as the viewer sees it, from `turnWaitsFor`'s answers.
+export function turnSummaries(
+  waits: Map<string, TableWait | null>,
+  viewerId: string,
+  nameOf: (playerId: string) => string
+): Map<string, TurnSummary | null> {
+  return new Map(
+    [...waits].map(([id, wait]): [string, TurnSummary | null] => [
+      id,
+      wait === null
+        ? null
+        : { kind: wait.kind, yours: wait.playerIds.includes(viewerId), waitingOn: wait.playerIds.map(nameOf) },
+    ])
+  );
 }

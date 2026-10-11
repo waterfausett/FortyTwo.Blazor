@@ -1,12 +1,8 @@
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { env, runInDurableObject, SELF } from 'cloudflare:test';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { env, SELF } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
-import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { app, type Env } from '../src/index';
-import { upsertMatchSummary } from '../src/lobby';
-import { countLobbyWrites } from './lobbyWrites';
-import { failingDb } from './failingDb';
 
 const testEnv = env as unknown as Env;
 

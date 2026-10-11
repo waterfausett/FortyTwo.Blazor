@@ -48,6 +48,17 @@ export class Matchmaker extends DurableObject<Env> {
   private async seat(playerId: string, mode: QueueMode): Promise<MatchState> {
     const key = `open:${mode}`;
     const open = (await this.ctx.storage.get<string[]>(key)) ?? [];
+
+    // One Live search at a time: look at the whole list for a table this player already waits at
+    // before seating them anywhere new, so an older table with room can't claim them too. Daily
+    // players may wait at several tables.
+    if (mode === 'live') {
+      for (const id of open) {
+        const match = await this.openMatch(id);
+        if (match?.players.some((p) => p.playerId === playerId)) return match;
+      }
+    }
+
     const stillOpen: string[] = [];
     let seated: MatchState | null = null;
 
@@ -56,38 +67,64 @@ export class Matchmaker extends DurableObject<Env> {
         stillOpen.push(id);
         continue;
       }
-      const table = this.matchStub(id);
-      const found = await table.getMatch();
-      // Gone, full or under way: no longer looking for players.
-      if (!found.ok || found.value.players.length >= 4 || hasBeenDealt(found.value)) continue;
-      const match = found.value;
-
-      if (match.players.some((p) => p.playerId === playerId)) {
+      try {
+        const result = await this.trySeat(id, playerId);
+        if (result.keep) stillOpen.push(id);
+        seated = result.seated;
+      } catch {
+        // A table that can't be reached may only be having a bad moment: keep it, try the next.
         stillOpen.push(id);
-        // One Live search at a time: hand back the one already running. Daily players may wait at
-        // several tables, so look further.
-        if (mode === 'live') seated = match;
-        continue;
       }
-
-      const seatAt = [0, 1, 2, 3].find((position) => match.players.every((p) => p.position !== position))!;
-      const joined = await table.takeSeat(playerId, seatAt, shuffledDominoOrder());
-      if (!joined.ok) {
-        // A 404 is a deleted table; anything else (a seat taken a moment ago) may still have room.
-        if (joined.status !== 404) stillOpen.push(id);
-        continue;
-      }
-      seated = joined.value;
-      if (seated.players.length < 4) stillOpen.push(id);
     }
 
     if (seated === null) {
       const id = crypto.randomUUID();
+      // Written ahead: if the Worker dies between creating the table and saving the list, the
+      // table isn't orphaned. An id that never got a table drops itself on the next look (404).
+      await this.ctx.storage.put(key, [...stillOpen, id]);
       seated = await this.matchStub(id).create(playerId, id, mode);
-      stillOpen.push(id);
+      return seated;
     }
     await this.ctx.storage.put(key, stillOpen);
     return seated;
+  }
+
+  // The table's match if it's still looking for players (there, under four, not dealt), else null.
+  private async openMatch(id: string): Promise<MatchState | null> {
+    try {
+      const found = await this.matchStub(id).getMatch();
+      if (!found.ok || found.value.players.length >= 4 || hasBeenDealt(found.value)) return null;
+      return found.value;
+    } catch {
+      return null;
+    }
+  }
+
+  // Tries to seat the player at one table: `seated` is where they ended up there (null if
+  // nowhere), `keep` whether the table is still looking for players.
+  private async trySeat(id: string, playerId: string): Promise<{ seated: MatchState | null; keep: boolean }> {
+    const table = this.matchStub(id);
+    let found = await table.getMatch();
+    // Two goes: a refused seat (taken a moment ago) is retried once against a fresh read.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // Gone, full or under way: no longer looking for players.
+      if (!found.ok || found.value.players.length >= 4 || hasBeenDealt(found.value)) {
+        return { seated: null, keep: false };
+      }
+      const match = found.value;
+      if (match.players.some((p) => p.playerId === playerId)) {
+        // Live was caught by the pre-scan; a Daily player may wait at several tables, so look on.
+        return { seated: null, keep: true };
+      }
+
+      const seatAt = [0, 1, 2, 3].find((position) => match.players.every((p) => p.position !== position))!;
+      const joined = await table.takeSeat(playerId, seatAt, shuffledDominoOrder());
+      if (joined.ok) return { seated: joined.value, keep: joined.value.players.length < 4 };
+      // A 404 is a deleted table; anything else (a seat taken a moment ago) may still have room.
+      if (joined.status === 404) return { seated: null, keep: false };
+      found = await table.getMatch();
+    }
+    return { seated: null, keep: true };
   }
 
   private matchStub(id: string) {

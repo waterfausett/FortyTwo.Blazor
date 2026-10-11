@@ -1,7 +1,7 @@
 // The Matchmaker: seats a player at the oldest open table of their mode, or starts one, and never
 // splits players who press Play together across two tables. Each test uses its own instance.
 import { describe, it, expect } from 'vitest';
-import { env } from 'cloudflare:test';
+import { env, runInDurableObject } from 'cloudflare:test';
 import { createDomino, type Domino } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import { PRESENCE_BROADCAST_MS, presenceBroadcast } from '../src/matchmaker';
@@ -50,6 +50,65 @@ describe('Matchmaker', () => {
     const again = await mm.play('a', 'live');
     expect(again.id).toBe(first.id);
     expect(again.players).toHaveLength(1);
+  });
+
+  it('keeps a Live player at the table they wait at, not an older one with room', async () => {
+    const mm = matchmaker('mm-live-prescan');
+    const older = await mm.play('a', 'live');
+    const newer = await mm.play('b', 'live');
+    expect(newer.id).toBe(older.id);
+    // Seed a newer table for b ahead of the older one's list position: older first, b at newer.
+    const other = 'mm-live-prescan-other';
+    await matchStub(other).create('b', other, 'live');
+    await matchStub(older.id).leave('b');
+    await runInDurableObject(mm, async (_instance, state) => {
+      await state.storage.put('open:live', [older.id, other]);
+    });
+
+    const again = await mm.play('b', 'live');
+
+    expect(again.id).toBe(other);
+    expect((await matchStub(older.id).getMatch()) as { ok: true; value: { players: unknown[] } }).toMatchObject({
+      value: { players: [expect.objectContaining({ playerId: 'a' })] },
+    });
+  });
+
+  it('skips a table that throws and keeps it listed', async () => {
+    const mm = matchmaker('mm-throwing');
+    const broken = 'mm-throwing-broken';
+    await runInDurableObject(mm, async (instance, state) => {
+      await state.storage.put('open:daily', [broken]);
+      const real = (instance as any).matchStub.bind(instance);
+      (instance as any).matchStub = (id: string) =>
+        id === broken
+          ? { getMatch: () => Promise.reject(new Error('unreachable')) }
+          : real(id);
+    });
+
+    const table = await mm.play('a', 'daily');
+
+    expect(table.players.map((p) => p.playerId)).toEqual(['a']);
+    await runInDurableObject(mm, async (_instance, state) => {
+      expect(await state.storage.get('open:daily')).toEqual([broken, table.id]);
+    });
+  });
+
+  it('lists a new table before creating it', async () => {
+    const mm = matchmaker('mm-write-ahead');
+    const listedAtCreate: unknown[] = [];
+    await runInDurableObject(mm, async (instance, state) => {
+      const real = (instance as any).matchStub.bind(instance);
+      (instance as any).matchStub = (id: string) => ({
+        create: async (...args: unknown[]) => {
+          listedAtCreate.push(id, await state.storage.get('open:daily'));
+          return real(id).create(...args);
+        },
+      });
+    });
+
+    const table = await mm.play('a', 'daily');
+
+    expect(listedAtCreate).toEqual([table.id, [table.id]]);
   });
 
   it('lets one player wait at several Daily tables', async () => {

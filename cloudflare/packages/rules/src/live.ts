@@ -44,8 +44,9 @@ export function tableWait(match: MatchState): TableWait | null {
 }
 
 // The next thing a Live match does on its own, and when: fill its empty seats with bots, or put
-// the humans it's waiting on onto autopilot. Mid-hand only the player to act can change the
-// match, so `updatedOn` is when their turn began.
+// the humans it's waiting on onto autopilot. Mid-hand the player to act is who usually changes
+// the match, so `updatedOn` is when their turn began; a seated player readying up mid-hand also
+// restarts the clock, which only gives the table a little extra time.
 export interface LiveDeadline {
   kind: 'fill' | 'turn';
   at: number;

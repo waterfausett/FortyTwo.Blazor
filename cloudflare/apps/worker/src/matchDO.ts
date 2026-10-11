@@ -22,6 +22,7 @@ import {
   liveDeadline,
   setAutopilot,
   isOnAutopilot,
+  matchMode,
   resumeControl,
   tableWait,
   assertIsMatchPlayer,
@@ -185,6 +186,10 @@ export class MatchDO extends DurableObject<Env> {
   addBots(requesterId: string, positions?: number[]): Promise<MatchResult<MatchState>> {
     return this.update(requesterId, (match) => {
       assertIsMatchPlayer(match, requesterId);
+      // Live fills with bots on its own clock; Daily never does.
+      if (matchMode(match) === 'daily') {
+        throw new ValidationError('No bots at Daily tables', 'Daily tables only fill with people.');
+      }
       return seatBots(match, positions);
     });
   }
