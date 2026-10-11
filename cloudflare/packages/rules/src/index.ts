@@ -58,6 +58,7 @@ export {
   removePlayer,
   hasBeenDealt,
   hasHumanPlayers,
+  WINNING_SCORE,
 } from './matchEngine';
 export { BOT_IDS, botDisplayName, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';
