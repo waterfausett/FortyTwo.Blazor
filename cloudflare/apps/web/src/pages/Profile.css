@@ -226,3 +226,40 @@ fieldset.form-group legend {
     padding: 1.1rem;
   }
 }
+/* PlayerStats.tsx: a grid of small inset tiles, each a figure over its label. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(20, 13, 9, 0.45);
+}
+
+.stat-label {
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+}
+
+.stat-value {
+  margin: 0;
+  color: var(--bone);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.stat-partner {
+  margin: 0;
+  color: var(--bone);
+}
+
+.stat-partner-record {
+  color: var(--ink-muted);
+}
