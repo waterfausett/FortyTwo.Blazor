@@ -31,6 +31,9 @@ Success looks like:
   Matchmaker's internals without changing clients.
 - Pairing is first come, first served. No ratings (#123), no partner queueing (#124).
 - Bots fill seats in Live only, after 45 seconds. Daily never adds bots.
+- Live depends on bots, so with the bots kill switch off (`BOTS_ENABLED` = `'false'`) Live is
+  refused (`POST /api/matchmaking` 404s, as `POST /:id/bots` does) and the chooser hides it. Live
+  tables that already exist still fill.
 - In Live, a turn that waits 60 seconds is played by a bot, and the player stays on autopilot
   until they act again or press Resume.
 - "Whose turn" is looked up from each match's MatchDO when the Active list loads, not stored in
