@@ -11,7 +11,10 @@ import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, StyleShe
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { uniqueMatches, type MatchPage, type MatchSummary } from '@fortytwo/client';
 import { useApi } from '@/api/useApi';
+import { useHowToPlay } from '@/api/useHowToPlay';
 import { useProfile } from '@/api/useProfile';
+import { HelpButton } from '@/components/HelpButton';
+import { HowToPlayCard } from '@/components/HowToPlayCard';
 import { SeatPicker } from '@/components/SeatPicker';
 import { colors, fonts } from '@/components/theme';
 import { toastError } from '@/components/toast';
@@ -38,6 +41,8 @@ export default function Lobby() {
   const [filter, setFilter] = useState<Filter>('Active');
   // The Find a game row whose seat picker is open, if any.
   const [pickingSeatIn, setPickingSeatIn] = useState<string | null>(null);
+  // A first-time player is offered the rules until they dismiss the card or open them.
+  const howToPlay = useHowToPlay();
 
   const matches = useInfiniteQuery({
     queryKey: ['matches', filter] as const,
@@ -91,8 +96,12 @@ export default function Lobby() {
           <Text style={styles.title} accessibilityRole="header">
             Matches
           </Text>
-          <ProfileButton />
+          <View style={styles.headerButtons}>
+            <HelpButton onPress={() => router.push('/how-to-play')} />
+            <ProfileButton />
+          </View>
         </View>
+        {howToPlay.offer && <HowToPlayCard onOpen={() => router.push('/how-to-play')} onDismiss={howToPlay.markSeen} />}
         <View style={styles.segments} accessibilityRole="tablist">
           {FILTERS.map(({ filter: f, label }) => {
             const selected = f === filter;
@@ -337,6 +346,7 @@ const styles = StyleSheet.create({
 
   header: { paddingHorizontal: 20, paddingBottom: 12, gap: 16, backgroundColor: colors.walnut },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerButtons: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   title: { color: colors.bone, fontFamily: fonts.display, fontSize: 34, lineHeight: 40 },
   avatar: {
     width: 38,
