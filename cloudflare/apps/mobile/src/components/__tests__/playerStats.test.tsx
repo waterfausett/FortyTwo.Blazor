@@ -34,11 +34,20 @@ describe('PlayerStats', () => {
     await renderStats();
 
     expect(await screen.findByText('Sam')).toBeTruthy();
-    expect(screen.getByLabelText('Matches played: 5')).toBeTruthy();
+    expect(screen.getByLabelText('Played: 5')).toBeTruthy();
     expect(screen.getByLabelText('Win rate: 60%')).toBeTruthy();
     expect(screen.getByText('3–1 together')).toBeTruthy();
     expect(screen.getByText('Sixes')).toBeTruthy();
     expect(screen.getByText('4 of 9 bids')).toBeTruthy();
+  });
+
+  it('heads match figures apart from bidding', async () => {
+    mockGetStats.mockResolvedValue(STATS);
+    await renderStats();
+    await screen.findByText('Sam');
+
+    expect(screen.getByRole('header', { name: 'Matches' })).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Bidding' })).toBeTruthy();
   });
 
   it('switches figures with the filter', async () => {
@@ -48,7 +57,7 @@ describe('PlayerStats', () => {
 
     await fireEvent.press(screen.getByRole('radio', { name: 'With bots' }));
 
-    expect(screen.getByLabelText('Matches played: 1')).toBeTruthy();
+    expect(screen.getByLabelText('Played: 1')).toBeTruthy();
     expect(screen.queryByText('Sam')).toBeNull();
     expect(screen.queryByText('Sixes')).toBeNull();
   });

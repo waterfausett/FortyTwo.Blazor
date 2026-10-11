@@ -1,27 +1,29 @@
 import { describe, it, expect } from 'vitest';
 import type { StatsSummary } from '@fortytwo/api-types';
-import { bestPartnerRecord, favoriteTrumpRecord, statTiles, STATS_FILTERS, trumpLabel } from './stats';
+import { bestPartnerRecord, favoriteTrumpRecord, statSections, STATS_FILTERS, trumpLabel } from './stats';
 
 const EMPTY: StatsSummary = {
   played: 0, won: 0, lost: 0, marksWon: 0, bidsWon: 0, bidsMade: 0, bidsSet: 0,
   averagePointsBid: null, marksBids: 0, favoriteTrump: null, bestPartner: null,
 };
 
-describe('statTiles', () => {
-  it('shows rates and the average as a dash when there is nothing to divide', () => {
-    const values = Object.fromEntries(statTiles(EMPTY).map((t) => [t.label, t.value]));
-    expect(values).toEqual({
-      'Matches played': '0', 'Matches won': '0', 'Matches lost': '0', 'Win rate': '–', 'Marks won': '0',
-      'Bids won': '0', Made: '0', Set: '0', 'Made rate': '–', 'Avg. points bid': '–', 'Bids of 42+': '–',
+// Each section's tiles as label -> value.
+function sectionValues(s: StatsSummary): Record<string, Record<string, string>> {
+  return Object.fromEntries(statSections(s).map((section) => [section.title, Object.fromEntries(section.tiles.map((t) => [t.label, t.value]))]));
+}
+
+describe('statSections', () => {
+  it('groups match figures apart from bidding, with a dash where there is nothing to divide', () => {
+    expect(statSections(EMPTY).map((section) => section.key)).toEqual(['matches', 'bidding']);
+    expect(sectionValues(EMPTY)).toEqual({
+      Matches: { Played: '0', Won: '0', Lost: '0', 'Win rate': '–', 'Marks won': '0' },
+      Bidding: { 'Bids won': '0', Made: '0', Set: '0', 'Made rate': '–', 'Avg. points bid': '–', 'Bids of 42+': '–' },
     });
   });
 
   it('rounds rates to whole percents and keeps one decimal on the average', () => {
-    const values = Object.fromEntries(
-      statTiles({ ...EMPTY, played: 3, won: 2, lost: 1, bidsWon: 3, bidsMade: 1, bidsSet: 2, averagePointsBid: 31.5, marksBids: 2 }).map(
-        (t) => [t.label, t.value]
-      )
-    );
+    const sections = sectionValues({ ...EMPTY, played: 3, won: 2, lost: 1, bidsWon: 3, bidsMade: 1, bidsSet: 2, averagePointsBid: 31.5, marksBids: 2 });
+    const values = { ...sections.Matches, ...sections.Bidding };
     expect(values['Win rate']).toBe('67%');
     expect(values['Made rate']).toBe('33%');
     expect(values['Avg. points bid']).toBe('31.5');

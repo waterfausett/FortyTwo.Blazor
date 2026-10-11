@@ -1,10 +1,10 @@
 // The Profile's Stats section: the player's own record from completed matches, filtered to All,
 // Humans only or With bots, as on the web. The figures and their wording come from
-// @fortytwo/client's statTiles. Loads on its own, so a failure here leaves the settings working.
+// @fortytwo/client's statSections. Loads on its own, so a failure here leaves the settings working.
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StatsFilter } from '@fortytwo/api-types';
-import { bestPartnerRecord, favoriteTrumpRecord, STATS_FILTERS, statTiles, trumpLabel } from '@fortytwo/client';
+import { bestPartnerRecord, favoriteTrumpRecord, statSections, STATS_FILTERS, trumpLabel } from '@fortytwo/client';
 import { useStats } from '@/api/useStats';
 import { colors, fonts } from './theme';
 
@@ -41,30 +41,37 @@ export function PlayerStats() {
             })}
           </View>
 
-          <View style={styles.grid}>
-            {statTiles(summary).map(({ label, value }) => (
-              <View key={label} style={styles.tile} accessible accessibilityLabel={`${label}: ${value}`}>
-                <Text style={styles.value}>{value}</Text>
-                <Text style={styles.label}>{label}</Text>
+          {statSections(summary).map((section) => (
+            <View key={section.key} style={styles.group}>
+              <Text style={styles.groupTitle} accessibilityRole="header">
+                {section.title}
+              </Text>
+              <View style={styles.grid}>
+                {section.tiles.map(({ label, value }) => (
+                  <View key={label} style={styles.tile} accessible accessibilityLabel={`${label}: ${value}`}>
+                    <Text style={styles.value}>{value}</Text>
+                    <Text style={styles.label}>{label}</Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
 
-          {summary.favoriteTrump && (
-            <View style={styles.partner}>
-              <Text style={styles.hint}>Favorite trump</Text>
-              <Text style={styles.partnerName}>{trumpLabel(summary.favoriteTrump.trump)}</Text>
-              <Text style={styles.hint}>{favoriteTrumpRecord(summary.favoriteTrump, summary.bidsWon)}</Text>
-            </View>
-          )}
+              {section.key === 'matches' && summary.bestPartner && (
+                <View style={styles.partner}>
+                  <Text style={styles.hint}>Best partner</Text>
+                  <Text style={styles.partnerName}>{summary.bestPartner.user.displayName}</Text>
+                  <Text style={styles.hint}>{bestPartnerRecord(summary.bestPartner)}</Text>
+                </View>
+              )}
 
-          {summary.bestPartner && (
-            <View style={styles.partner}>
-              <Text style={styles.hint}>Best partner</Text>
-              <Text style={styles.partnerName}>{summary.bestPartner.user.displayName}</Text>
-              <Text style={styles.hint}>{bestPartnerRecord(summary.bestPartner)}</Text>
+              {section.key === 'bidding' && summary.favoriteTrump && (
+                <View style={styles.partner}>
+                  <Text style={styles.hint}>Favorite trump</Text>
+                  <Text style={styles.partnerName}>{trumpLabel(summary.favoriteTrump.trump)}</Text>
+                  <Text style={styles.hint}>{favoriteTrumpRecord(summary.favoriteTrump, summary.bidsWon)}</Text>
+                </View>
+              )}
             </View>
-          )}
+          ))}
         </>
       )}
     </View>
@@ -81,6 +88,8 @@ const styles = StyleSheet.create({
   filterSelected: { backgroundColor: colors.brass, borderColor: colors.brass },
   filterText: { color: colors.inkMuted, fontFamily: fonts.uiBold, fontSize: 13 },
   filterTextSelected: { color: colors.walnutDeep },
+  group: { gap: 8, marginTop: 4 },
+  groupTitle: { color: colors.inkMuted, fontFamily: fonts.uiBold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: { width: '31%', paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: 'rgba(20, 13, 9, 0.6)' },
   value: { color: colors.bone, fontFamily: fonts.display, fontSize: 20 },

@@ -32,7 +32,7 @@ Per filter (all / humansOnly / withBots):
 
 | Stat | Definition |
 | --- | --- |
-| Matches played, won, lost; Win rate | Completed matches the player was seated in; won = their team is `winningTeam`. Labelled "Matches" so they can't be read as hands. |
+| Played, Won, Lost, Win rate | Completed matches the player was seated in; won = their team is `winningTeam`. Shown under a "Matches" heading so they can't be read as hands. |
 | Marks won | Sum of `gameValue` over hands their team won in those matches. |
 | Bids won | Hands where the player was `biddingPlayerId` (filed hands only). |
 | Made / Set, Made % | Of those, whether the bidder's team won the hand. |
@@ -43,6 +43,10 @@ Per filter (all / humansOnly / withBots):
 
 Only filed hands count (`match.games[team]`); a hand still in `currentGame` at match end is
 already filed by the time `winningTeam` is set.
+
+The figures are shown in two headed groups: **Matches** (Played, Won, Lost, Win rate, Marks won,
+then best partner) and **Bidding** (Bids won, Made, Set, Made rate, Avg. points bid, Bids of 42+,
+then favorite trump).
 
 ## Architecture
 

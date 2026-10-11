@@ -1,12 +1,12 @@
 // The Profile page's Stats card: the player's own record from completed matches (GET
 // /api/users/stats), filtered to All, Humans only or With bots. Its own query, so a failure here
 // leaves the rest of the Profile working. The figures and their wording come from
-// @fortytwo/client's statTiles, shared with the mobile app.
+// @fortytwo/client's statSections, shared with the mobile app.
 import { useState } from 'react';
 import type { JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { StatsFilter } from '@fortytwo/api-types';
-import { bestPartnerRecord, favoriteTrumpRecord, STATS_FILTERS, statTiles, trumpLabel } from '@fortytwo/client';
+import { bestPartnerRecord, favoriteTrumpRecord, statSections, STATS_FILTERS, trumpLabel } from '@fortytwo/client';
 import { useGetToken } from '../auth/useGetToken';
 import { apiClient } from '../api/client';
 
@@ -53,28 +53,35 @@ export function PlayerStats(): JSX.Element {
             </div>
           </fieldset>
 
-          <dl className="stat-grid">
-            {statTiles(summary).map(({ label, value }) => (
-              <div key={label} className="stat-tile">
-                <dt className="stat-label">{label}</dt>
-                <dd className="stat-value">{value}</dd>
-              </div>
-            ))}
-          </dl>
+          {statSections(summary).map((section) => (
+            <section key={section.key} className="stat-section" aria-labelledby={`stats-${section.key}`}>
+              <h3 id={`stats-${section.key}`} className="stat-section-title">
+                {section.title}
+              </h3>
+              <dl className="stat-grid">
+                {section.tiles.map(({ label, value }) => (
+                  <div key={label} className="stat-tile">
+                    <dt className="stat-label">{label}</dt>
+                    <dd className="stat-value">{value}</dd>
+                  </div>
+                ))}
+              </dl>
 
-          {summary.favoriteTrump && (
-            <p className="stat-partner">
-              Favorite trump: <strong>{trumpLabel(summary.favoriteTrump.trump)}</strong>{' '}
-              <span className="stat-partner-record">{favoriteTrumpRecord(summary.favoriteTrump, summary.bidsWon)}</span>
-            </p>
-          )}
+              {section.key === 'matches' && summary.bestPartner && (
+                <p className="stat-partner">
+                  Best partner: <strong>{summary.bestPartner.user.displayName}</strong>{' '}
+                  <span className="stat-partner-record">{bestPartnerRecord(summary.bestPartner)}</span>
+                </p>
+              )}
 
-          {summary.bestPartner && (
-            <p className="stat-partner">
-              Best partner: <strong>{summary.bestPartner.user.displayName}</strong>{' '}
-              <span className="stat-partner-record">{bestPartnerRecord(summary.bestPartner)}</span>
-            </p>
-          )}
+              {section.key === 'bidding' && summary.favoriteTrump && (
+                <p className="stat-partner">
+                  Favorite trump: <strong>{trumpLabel(summary.favoriteTrump.trump)}</strong>{' '}
+                  <span className="stat-partner-record">{favoriteTrumpRecord(summary.favoriteTrump, summary.bidsWon)}</span>
+                </p>
+              )}
+            </section>
+          ))}
         </>
       )}
     </section>

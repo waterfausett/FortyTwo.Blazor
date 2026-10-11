@@ -227,6 +227,21 @@ fieldset.form-group legend {
   }
 }
 /* PlayerStats.tsx: a grid of small inset tiles, each a figure over its label. */
+.stat-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stat-section-title {
+  margin: 0.25rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));

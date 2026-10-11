@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerStats as Stats, StatsSummary } from '@fortytwo/api-types';
@@ -43,11 +43,24 @@ describe('PlayerStats', () => {
     renderStats();
 
     expect(await screen.findByText('Sam')).not.toBeNull();
-    expect(tile('Matches played')).toBe('5');
+    expect(tile('Played')).toBe('5');
     expect(tile('Win rate')).toBe('60%');
     expect(screen.getByText('3–1 together')).not.toBeNull();
     expect(screen.getByText('Sixes')).not.toBeNull();
     expect(screen.getByText('4 of 9 bids')).not.toBeNull();
+  });
+
+  it('heads match figures apart from bidding', async () => {
+    getStatsMock.mockResolvedValue(STATS);
+    renderStats();
+    await screen.findByText('Sam');
+
+    const matches = screen.getByRole('region', { name: 'Matches' });
+    const bidding = screen.getByRole('region', { name: 'Bidding' });
+    expect(within(matches).getByText('Win rate')).not.toBeNull();
+    expect(within(matches).getByText('Sam')).not.toBeNull();
+    expect(within(bidding).getByText('Made rate')).not.toBeNull();
+    expect(within(bidding).getByText('Sixes')).not.toBeNull();
   });
 
   it('switches figures with the filter', async () => {
@@ -57,7 +70,7 @@ describe('PlayerStats', () => {
 
     fireEvent.click(screen.getByLabelText('With bots'));
 
-    expect(tile('Matches played')).toBe('1');
+    expect(tile('Played')).toBe('1');
     expect(tile('Win rate')).toBe('0%');
     expect(screen.queryByText('Sam')).toBeNull();
     expect(screen.queryByText('Sixes')).toBeNull();
