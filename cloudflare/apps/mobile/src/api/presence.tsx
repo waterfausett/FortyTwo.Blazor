@@ -20,13 +20,21 @@ export function PresenceProvider({ enabled, children }: { enabled: boolean; chil
   const foreground = useAppInForeground();
 
   useEffect(() => {
-    if (!enabled || !foreground) return;
-    return connectPresenceSocket({
+    if (!enabled || !foreground) {
+      // No socket to vouch for the last count: don't show it after sign-out or a spell away.
+      setOnline(null);
+      return;
+    }
+    const disconnect = connectPresenceSocket({
       origin: config.wsOrigin,
       getToken: () => getTokenRef.current(),
       onOnline: setOnline,
       subscribeWake: subscribeNetworkWake,
     });
+    return () => {
+      disconnect();
+      setOnline(null);
+    };
   }, [enabled, foreground]);
 
   return <OnlineContext.Provider value={online}>{children}</OnlineContext.Provider>;

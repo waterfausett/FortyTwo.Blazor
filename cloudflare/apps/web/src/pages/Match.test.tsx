@@ -2074,6 +2074,24 @@ describe('Match', () => {
       await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
     });
 
+    it('offers no bot controls at a Daily table, even with bots enabled', async () => {
+      useMatchSocketMock.mockReturnValue({ match: searching('daily'), connected: true });
+      getConfigMock.mockResolvedValue({ bots: true });
+      renderMatch();
+      expect(await screen.findByText(/we'll notify you when the table fills/i)).toBeTruthy();
+      await waitFor(() => expect(getConfigMock).toHaveBeenCalled());
+      expect(screen.queryByRole('button', { name: /add bot/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
+    });
+
+    it('hides Start now with bots while bots are switched off', async () => {
+      useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
+      getConfigMock.mockResolvedValue({ bots: false });
+      renderMatch();
+      expect(await screen.findByText(/finding players/i)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /start now with bots/i })).toBeNull();
+    });
+
     it('tells a Daily player they will hear when the table fills', async () => {
       useMatchSocketMock.mockReturnValue({ match: searching('daily'), connected: true });
       renderMatch();

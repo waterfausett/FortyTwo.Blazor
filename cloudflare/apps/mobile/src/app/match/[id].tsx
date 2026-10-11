@@ -518,14 +518,16 @@ export default function MatchScreen() {
                       Finding players… {formatClock(search.elapsedMs)}
                     </Text>
                     {online !== null && <Text style={styles.waitingText}>{online} online</Text>}
-                    <Pressable
-                      style={styles.smallButton}
-                      disabled={!connected || addBots.isPending}
-                      onPress={() => addBots.mutate()}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.smallButtonText}>Start now with bots</Text>
-                    </Pressable>
+                    {config.data?.bots && (
+                      <Pressable
+                        style={styles.smallButton}
+                        disabled={!connected || addBots.isPending}
+                        onPress={() => addBots.mutate()}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.smallButtonText}>Start now with bots</Text>
+                      </Pressable>
+                    )}
                   </>
                 )}
                 {search?.mode === 'daily' && (

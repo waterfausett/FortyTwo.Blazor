@@ -18,18 +18,21 @@ export function PresenceProvider({ children }: { children: ReactNode }): JSX.Ele
     getTokenRef.current = getToken;
   }, [getToken]);
 
-  useEffect(
-    () =>
-      connectPresenceSocket({
-        origin:
-          import.meta.env.VITE_WS_ORIGIN ||
-          `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`,
-        getToken: () => getTokenRef.current(),
-        onOnline: setOnline,
-        subscribeWake: subscribeBrowserWake,
-      }),
-    []
-  );
+  useEffect(() => {
+    const disconnect = connectPresenceSocket({
+      origin:
+        import.meta.env.VITE_WS_ORIGIN ||
+        `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`,
+      getToken: () => getTokenRef.current(),
+      onOnline: setOnline,
+      subscribeWake: subscribeBrowserWake,
+    });
+    return () => {
+      disconnect();
+      // A count from a socket that's gone (signed out, say) would only go stale.
+      setOnline(null);
+    };
+  }, []);
 
   return <OnlineContext.Provider value={online}>{children}</OnlineContext.Provider>;
 }

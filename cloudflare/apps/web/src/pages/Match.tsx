@@ -664,7 +664,7 @@ export function Match(): JSX.Element {
                 <div key={position} className={`seat seat-${seat} seat-open`} data-testid="open-seat">
                   <div className="seat-plate">
                     <span className="seat-name">Open seat</span>
-                    {botsEnabled && (
+                    {mode === 'custom' && botsEnabled && (
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-secondary seat-add-bot"
@@ -687,14 +687,16 @@ export function Match(): JSX.Element {
                           Finding players… {formatClock(liveSearch.elapsedMs)}
                         </p>
                         {online !== null && <p className="table-presence">{online} online</p>}
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-secondary"
-                          disabled={!connected || addBotsMutation.isPending}
-                          onClick={() => addBotsMutation.mutate(undefined)}
-                        >
-                          Start now with bots
-                        </button>
+                        {botsEnabled && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary"
+                            disabled={!connected || addBotsMutation.isPending}
+                            onClick={() => addBotsMutation.mutate(undefined)}
+                          >
+                            Start now with bots
+                          </button>
+                        )}
                       </>
                     )}
                     {liveSearch?.mode === 'daily' && (
