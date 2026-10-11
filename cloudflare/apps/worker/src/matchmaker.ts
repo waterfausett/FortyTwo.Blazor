@@ -1,0 +1,159 @@
+// The Matchmaker: one Durable Object (addressed by name 'global') that answers "which table does
+// this player sit at?" for Live and Daily play. It keeps, per mode, the ids of tables still
+// looking for players, oldest first, and seats the player at the first that takes them - or
+// starts a new one. The waiting itself happens at that table (MatchDO): its socket shows the
+// seats filling, and a Live one fills with bots on its own clock (live.ts).
+//
+// It never hears from matches. A table that filled (through here, an invite link, or bots) or was
+// deleted is found out when it refuses the next seat, and dropped then.
+import { DurableObject } from 'cloudflare:workers';
+import { hasBeenDealt, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
+import type { PresenceMessage } from '@fortytwo/api-types';
+import { verifyToken } from './auth/verifyJwt';
+import type { Env } from './index';
+
+export type QueueMode = 'live' | 'daily';
+
+// How often, at most, the online count goes out to every presence socket.
+export const PRESENCE_BROADCAST_MS = 60_000;
+
+// When to send a changed online count: now, if nothing has gone out in the last
+// PRESENCE_BROADCAST_MS; else at the end of that minute, from one alarm - unless one is already
+// set. A burst of apps opening at once thus costs one message per socket a minute, not one each.
+export function presenceBroadcast(
+  now: number,
+  lastSentAt: number | null,
+  alarmAt: number | null
+): { kind: 'now' } | { kind: 'alarm'; at: number } | { kind: 'wait' } {
+  if (lastSentAt === null || now - lastSentAt >= PRESENCE_BROADCAST_MS) return { kind: 'now' };
+  if (alarmAt !== null) return { kind: 'wait' };
+  return { kind: 'alarm', at: lastSentAt + PRESENCE_BROADCAST_MS };
+}
+
+function onlineMessage(online: number): string {
+  return JSON.stringify({ type: 'online', online } satisfies PresenceMessage);
+}
+
+export class Matchmaker extends DurableObject<Env> {
+  // Plays run one at a time. DO input gates don't hold while this awaits a MatchDO call, so two
+  // plays left to interleave could each find no open table and start one apiece.
+  private queue: Promise<unknown> = Promise.resolve();
+
+  play(playerId: string, mode: QueueMode): Promise<MatchState> {
+    const turn = this.queue.then(() => this.seat(playerId, mode));
+    this.queue = turn.catch(() => undefined);
+    return turn;
+  }
+
+  private async seat(playerId: string, mode: QueueMode): Promise<MatchState> {
+    const key = `open:${mode}`;
+    const open = (await this.ctx.storage.get<string[]>(key)) ?? [];
+    const stillOpen: string[] = [];
+    let seated: MatchState | null = null;
+
+    for (const id of open) {
+      if (seated !== null) {
+        stillOpen.push(id);
+        continue;
+      }
+      const table = this.matchStub(id);
+      const found = await table.getMatch();
+      // Gone, full or under way: no longer looking for players.
+      if (!found.ok || found.value.players.length >= 4 || hasBeenDealt(found.value)) continue;
+      const match = found.value;
+
+      if (match.players.some((p) => p.playerId === playerId)) {
+        stillOpen.push(id);
+        // One Live search at a time: hand back the one already running. Daily players may wait at
+        // several tables, so look further.
+        if (mode === 'live') seated = match;
+        continue;
+      }
+
+      const seatAt = [0, 1, 2, 3].find((position) => match.players.every((p) => p.position !== position))!;
+      const joined = await table.takeSeat(playerId, seatAt, shuffledDominoOrder());
+      if (!joined.ok) {
+        // A 404 is a deleted table; anything else (a seat taken a moment ago) may still have room.
+        if (joined.status !== 404) stillOpen.push(id);
+        continue;
+      }
+      seated = joined.value;
+      if (seated.players.length < 4) stillOpen.push(id);
+    }
+
+    if (seated === null) {
+      const id = crypto.randomUUID();
+      seated = await this.matchStub(id).create(playerId, id, mode);
+      stillOpen.push(id);
+    }
+    await this.ctx.storage.put(key, stillOpen);
+    return seated;
+  }
+
+  private matchStub(id: string) {
+    return this.env.MATCH_DO.get(this.env.MATCH_DO.idFromName(id));
+  }
+
+  // Presence sockets: one per signed-in app in the foreground (GET /presence/ws, index.ts). The
+  // Hibernation API keeps them open without billing this DO for the time; clients never send on
+  // them, so a connection costs one request to open and nothing after.
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname !== '/presence/ws') return new Response('Not found', { status: 404 });
+    const token = url.searchParams.get('token');
+    if (!token) return new Response('Missing token', { status: 401 });
+    let user;
+    try {
+      user = await verifyToken(token, this.env);
+    } catch {
+      return new Response('Invalid token', { status: 401 });
+    }
+
+    const pair = new WebSocketPair();
+    this.ctx.acceptWebSocket(pair[1]);
+    pair[1].serializeAttachment({ playerId: user.sub });
+    pair[1].send(onlineMessage(this.online()));
+    await this.presenceChanged();
+    return new Response(null, { status: 101, webSocket: pair[0] });
+  }
+
+  async webSocketMessage(): Promise<void> {}
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
+    // Only 1000 and 3000-4999 may be passed back to close() (see MatchDO.webSocketClose).
+    if (code === 1000 || (code >= 3000 && code <= 4999)) ws.close(code, reason);
+    else ws.close();
+    await this.presenceChanged(ws);
+  }
+
+  // The online count changed: send it now, or leave it to the alarm (presenceBroadcast).
+  private async presenceChanged(closing?: WebSocket): Promise<void> {
+    const now = Date.now();
+    const lastSentAt = (await this.ctx.storage.get<number>('presenceSentAt')) ?? null;
+    const plan = presenceBroadcast(now, lastSentAt, await this.ctx.storage.getAlarm());
+    if (plan.kind === 'now') await this.broadcastOnline(now, closing);
+    else if (plan.kind === 'alarm') await this.ctx.storage.setAlarm(plan.at);
+  }
+
+  async alarm(): Promise<void> {
+    await this.broadcastOnline(Date.now());
+  }
+
+  private async broadcastOnline(now: number, closing?: WebSocket): Promise<void> {
+    await this.ctx.storage.put('presenceSentAt', now);
+    const message = onlineMessage(this.online(closing));
+    for (const ws of this.ctx.getWebSockets()) if (ws !== closing) ws.send(message);
+  }
+
+  // Distinct players with a presence socket open; two tabs or devices count once. A socket being
+  // closed may still be listed while its close is handled, so it's left out by name.
+  private online(closing?: WebSocket): number {
+    const players = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === closing) continue;
+      const attachment = ws.deserializeAttachment() as { playerId: string } | null;
+      if (attachment) players.add(attachment.playerId);
+    }
+    return players.size;
+  }
+}

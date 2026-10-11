@@ -102,3 +102,10 @@ export interface ProfilePatch {
   highlightPlayable?: boolean;
   pushNotifications?: boolean;
 }
+
+// What the presence socket (GET /presence/ws) sends: how many players have the app open. On
+// connect, then at most once a minute as people come and go.
+export interface PresenceMessage {
+  type: 'online';
+  online: number;
+}

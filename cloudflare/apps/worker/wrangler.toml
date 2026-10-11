@@ -31,9 +31,17 @@ crons = ["0 9 * * *"]
 name = "MATCH_DO"
 class_name = "MatchDO"
 
+[[durable_objects.bindings]]
+name = "MATCHMAKER"
+class_name = "Matchmaker"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["MatchDO"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Matchmaker"]
 
 [[d1_databases]]
 binding = "DB"

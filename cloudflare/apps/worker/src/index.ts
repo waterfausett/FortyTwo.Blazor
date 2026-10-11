@@ -8,10 +8,13 @@ import { expireIdleMatches } from './expiry';
 import { assetLinks } from './appLinks';
 import { botsEnabled } from './bots';
 import type { MatchDO } from './matchDO';
+import type { Matchmaker } from './matchmaker';
 import type { ClientConfig } from '@fortytwo/api-types';
 
 export interface Env {
   MATCH_DO: DurableObjectNamespace<MatchDO>;
+  // The one Matchmaker (matchmaker.ts), addressed by name 'global', that seats Live and Daily players.
+  MATCHMAKER: DurableObjectNamespace<Matchmaker>;
   DB: D1Database;
   AUTH0_DOMAIN: string;
   AUTH0_AUDIENCE: string;
@@ -106,3 +109,4 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 export { MatchDO } from './matchDO';
+export { Matchmaker } from './matchmaker';
