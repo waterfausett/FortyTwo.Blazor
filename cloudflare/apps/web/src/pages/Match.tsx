@@ -36,7 +36,12 @@ import {
   rematchAgreed,
   hasBeenDealt,
   isBot,
+  isOnAutopilot,
+  matchMode,
 } from '@fortytwo/rules';
+import { formatClock, searchState, turnClock } from '@fortytwo/client';
+import { useOnline } from '../api/presence';
+import { useNow } from '../match/useNow';
 import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
 import { useMatchSocket } from '../api/useMatchSocket';
@@ -213,6 +218,20 @@ export function Match(): JSX.Element {
     mutationFn: (position?: number) => client.addBots(matchId!, position),
     onError: toastError,
   });
+
+  // Live search count-up and turn clocks: derived from the match, ticking only while one is shown.
+  const search = liveMatch ? searchState(liveMatch, Date.now()) : null;
+  const clockRunning = liveMatch != null && (search?.mode === 'live' || turnClock(liveMatch, Date.now()) !== null);
+  const now = useNow(clockRunning);
+  const liveSearch = liveMatch ? searchState(liveMatch, now) : null;
+  const clock = liveMatch ? turnClock(liveMatch, now) : null;
+  const mode = liveMatch ? matchMode(liveMatch) : 'custom';
+  const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
+  const resumeMutation = useMutation({
+    mutationFn: () => client.resume(matchId!),
+    onError: toastError,
+  });
+  const online = useOnline();
 
   // Set (by the button, before the request goes out) while this player's own leave is in flight:
   // if it deletes the match, their socket gets the same "deleted" close as everyone else's, and
@@ -492,6 +511,8 @@ export function Match(): JSX.Element {
       isHighBidder,
       trump: game.trump,
       ready: showHandOver && !isMatchOver ? (player?.ready ?? false) : null,
+      away: isOnAutopilot(match!, playerId),
+      clock: clock?.playerIds.includes(playerId) ? formatClock(clock.remainingMs) : null,
     };
   }
 
@@ -601,6 +622,19 @@ export function Match(): JSX.Element {
       </header>
 
       <div className="game-wrapper">
+        {meOnAutopilot && (
+          <div className="autopilot-bar" role="status">
+            <span>Your turn ran out, so a bot is playing for you.</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-warning"
+              disabled={resumeMutation.isPending}
+              onClick={() => resumeMutation.mutate()}
+            >
+              Resume
+            </button>
+          </div>
+        )}
         {/* One drag context around the table and the hand: a tile is dragged out of the hand and
             played by dropping it on the table. */}
         <PlayDndContext>
@@ -647,13 +681,34 @@ export function Match(): JSX.Element {
               <div className="table-center">
                 {!isTableReady ? (
                   <div className="table-waiting">
+                    {liveSearch?.mode === 'live' && (
+                      <>
+                        <p className="table-search" role="status">
+                          Finding players… {formatClock(liveSearch.elapsedMs)}
+                        </p>
+                        {online !== null && <p className="table-presence">{online} online</p>}
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          disabled={!connected || addBotsMutation.isPending}
+                          onClick={() => addBotsMutation.mutate(undefined)}
+                        >
+                          Start now with bots
+                        </button>
+                      </>
+                    )}
+                    {liveSearch?.mode === 'daily' && (
+                      <p className="table-search" role="status">
+                        Looking for players - we'll notify you when the table fills.
+                      </p>
+                    )}
                     <p>{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
-                    {emptySeats.length > 0 && (
+                    {mode === 'custom' && emptySeats.length > 0 && (
                       <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => void shareInvite(match.id)}>
                         Invite friends
                       </button>
                     )}
-                    {botsEnabled && emptySeats.length > 0 && (
+                    {mode === 'custom' && botsEnabled && emptySeats.length > 0 && (
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-secondary"
@@ -669,13 +724,13 @@ export function Match(): JSX.Element {
                         className="btn btn-sm btn-outline-danger"
                         disabled={leaveMutation.isPending}
                         onClick={() => {
-                          if (window.confirm(onlyHumanSeated ? 'Cancel this match? It will be deleted.' : 'Leave this table?')) {
+                          if (mode === 'live' || window.confirm(onlyHumanSeated ? 'Cancel this match? It will be deleted.' : 'Leave this table?')) {
                             leavingRef.current = true;
                             leaveMutation.mutate();
                           }
                         }}
                       >
-                        {onlyHumanSeated ? 'Cancel match' : 'Leave table'}
+                        {mode === 'live' ? 'Cancel search' : onlyHumanSeated ? 'Cancel match' : 'Leave table'}
                       </button>
                     )}
                   </div>

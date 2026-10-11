@@ -44,6 +44,7 @@ const {
   turnAlertsMock,
   joinMatchMock,
   pokeMock,
+  resumeMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -65,6 +66,7 @@ const {
     turnAlertsMock: vi.fn(() => null),
     joinMatchMock: vi.fn(),
     pokeMock: vi.fn(),
+    resumeMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -86,8 +88,11 @@ vi.mock('../api/client', () => ({
     leaveMatch: leaveMatchMock,
     joinMatch: joinMatchMock,
     poke: pokeMock,
+    resume: resumeMock,
   }),
 }));
+
+vi.mock('../api/presence', () => ({ useOnline: () => 4 }));
 
 vi.mock('../ui/toast', () => ({
   toastError: toastErrorMock,
@@ -2045,6 +2050,48 @@ describe('Match', () => {
       act(() => onPoke('p2'));
 
       expect(toastInfoMock).not.toHaveBeenCalledWith('p2 poked you', "It's your turn", 'center');
+    });
+  });
+
+  describe('Live and Daily', () => {
+    function searching(mode: 'live' | 'daily') {
+      return baseMatch(
+        { players: [PLAYERS[0]], mode, ...(mode === 'live' ? { searchStartedOn: new Date(Date.now() - 23_000).toISOString() } : {}) },
+        { hands: [{ playerId: 'p1', team: Teams.TeamA, dominoes: [], bid: null }] }
+      );
+    }
+
+    it('shows a Live search counting up, who is online, Start now with bots and Cancel search', async () => {
+      useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
+      getConfigMock.mockResolvedValue({ bots: true });
+      renderMatch();
+      expect(await screen.findByText(/finding players… 0:2[34]/i)).toBeTruthy();
+      expect(await screen.findByText('4 online')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /cancel search/i })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /invite friends/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: /start now with bots/i }));
+      await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
+    });
+
+    it('tells a Daily player they will hear when the table fills', async () => {
+      useMatchSocketMock.mockReturnValue({ match: searching('daily'), connected: true });
+      renderMatch();
+      expect(await screen.findByText(/we'll notify you when the table fills/i)).toBeTruthy();
+    });
+
+    it('offers Resume to a player on autopilot', async () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'live', autopilot: ['p1'] }), connected: true });
+      resumeMock.mockResolvedValue(baseMatch({ mode: 'live' }));
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: /resume/i }));
+      await waitFor(() => expect(resumeMock).toHaveBeenCalledWith('match-1'));
+    });
+
+    it('marks another player on autopilot as away', async () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'live', autopilot: ['p2'] }), connected: true });
+      renderMatch();
+      expect(await screen.findByText(/away/i)).toBeTruthy();
     });
   });
 });

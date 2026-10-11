@@ -354,6 +354,38 @@
   margin: 0;
 }
 
+.table-search {
+  color: var(--brass);
+  font: 600 0.95rem var(--font-ui);
+}
+
+.table-presence {
+  color: var(--ink-muted);
+  font: 0.85rem var(--font-ui);
+}
+
+.seat-away {
+  color: var(--ink-muted);
+}
+
+.seat-clock {
+  font-variant-numeric: tabular-nums;
+  color: var(--brass);
+}
+
+/* Shown to a player whose Live turn ran out while a bot plays for them. */
+.autopilot-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  background: rgba(201, 164, 92, 0.15);
+  color: var(--bone);
+}
+
 /* A seat nobody has taken yet: a dashed, dimmed plate in the seat's usual spot. */
 .seat-open .seat-plate {
   background: transparent;

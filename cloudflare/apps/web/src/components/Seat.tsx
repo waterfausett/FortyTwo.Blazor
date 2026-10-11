@@ -24,6 +24,10 @@ export interface SeatProps {
   trump: Suit | null;
   ready: boolean | null;
   dominoCount: number | null;
+  // On autopilot: a bot is playing for them after a Live turn ran out.
+  away: boolean;
+  // Time left on their Live turn ("0:42"), or null.
+  clock: string | null;
 }
 
 function TileBacks({ count, seat }: { count: number; seat: SeatPosition }): JSX.Element {
@@ -49,6 +53,8 @@ export function Seat({
   trump,
   ready,
   dominoCount,
+  away,
+  clock,
 }: SeatProps): JSX.Element {
   return (
     <div
@@ -59,6 +65,12 @@ export function Seat({
         <span className="seat-name" title={name ?? undefined}>
           {name ?? <NameSkeleton />}
         </span>
+        {away && <span className="marker seat-away">Away</span>}
+        {clock !== null && (
+          <span className="marker seat-clock" aria-label={`${clock} left`}>
+            {clock}
+          </span>
+        )}
         <span className="seat-markers">
           {isDealer && (
             <span className="marker marker-dealer" title="Dealer">
