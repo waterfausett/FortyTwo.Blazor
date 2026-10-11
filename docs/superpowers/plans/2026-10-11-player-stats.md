@@ -23,7 +23,7 @@ All paths below are relative to `cloudflare/` unless they start with `docs/`. Ru
 - Best partner: human only, at least `BEST_PARTNER_MIN_GAMES = 3` games together, highest win rate; ties → more games, then partner id ascending.
 - Bots get no stats rows. D1 writes: at most 4 rows per completed match.
 - Empty state copy: "Finish a game to see your stats here."
-- Conventional commits; PR title `feat: player stats on the Profile` is not allowed to be scope-less for release-please — use `feat(worker): player stats on the Profile` (worker carries the migration and route; web/mobile ship with it).
+- Conventional commits. PR title (release-please reads it): `feat(worker): player stats on the Profile`.
 
 ## Review Focus
 
@@ -477,7 +477,7 @@ CREATE INDEX idx_player_match_stats_player ON player_match_stats(player_id);
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
-import { Bid, Teams, type Game, type MatchState, type Positions } from '@fortytwo/rules';
+import { Bid, Suit, Teams, type Game, type MatchState, type Positions } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import { readPlayerStats, recordMatchStats } from '../src/stats';
 import { saveUsers } from '../src/users/publicUsers';
@@ -486,7 +486,7 @@ const testEnv = env as unknown as Env;
 
 function hand(n: number, bidder: string, bidderTeam: Teams, bid: Bid): Game {
   return {
-    id: `g${n}`, name: `Game ${n}`, firstActionBy: null, bid, biddingPlayerId: bidder, trump: 6,
+    id: `g${n}`, name: `Game ${n}`, firstActionBy: null, bid, biddingPlayerId: bidder, trump: Suit.Sixes,
     currentPlayerId: null, hands: [{ playerId: bidder, team: bidderTeam, dominoes: [], bid }],
     currentTrick: { playerId: null, team: null, suit: null, dominoes: [null, null, null, null] }, tricks: [],
   };
@@ -588,7 +588,7 @@ describe('readPlayerStats', () => {
 });
 ```
 
-Note on the "ghost" case: `publicUsers` asks Auth0 about ids not in D1. The worker test pool has `fetchMock.disableNetConnect()` set by other files but not this one; check `apps/worker/test/publicUsers.test.ts` for how it stubs Auth0. If a call goes out, mock it the same way so Auth0 replies with no users (an empty list), which leaves `ghost` unnamed. The fallback name must be exactly `'A former player'`.
+Note on the "ghost" case: `publicUsers` asks Auth0 about ids not in D1. `fetchMock` isn't activated in this file (same as `publicUsers.test.ts`), so that call fails, `publicUsers` logs it and leaves `ghost` out, and the fallback name applies. It must be exactly `'A former player'`.
 
 - [ ] **Step 3: Run it to make sure it fails**
 
@@ -760,7 +760,7 @@ git commit -m "feat(worker): store and add up each player's match stats"
 
 **Interfaces:**
 - Consumes: `recordMatchStats(db, match)` from Task 3.
-- Produces: `almostWonMatch(id, players?)` test fixture — a match whose next play (by `players[3]`, holding one domino `1-3`) wins it for TeamA.
+- Produces: `almostWonMatch(id, players?, leadAfter?)` test fixture — a match whose next play (by `players[3]`, holding one domino `1-3`) wins it for TeamA; `players[0]` then leads `leadAfter` if given.
 
 - [ ] **Step 1: Fixture** — `apps/worker/test/almostWonMatch.ts`
 
@@ -784,7 +784,8 @@ function filedHand(n: number, players: string[]): Game {
   };
 }
 
-export function almostWonMatch(id: string, players = ['p1', 'p2', 'p3', 'p4']): MatchState {
+// `leadAfter`: a domino seat 0 still holds, to lead once the match is won (plays after the end are allowed).
+export function almostWonMatch(id: string, players = ['p1', 'p2', 'p3', 'p4'], leadAfter?: Domino): MatchState {
   const [a, b] = players;
   const d = createDomino;
   return {
@@ -796,7 +797,7 @@ export function almostWonMatch(id: string, players = ['p1', 'p2', 'p3', 'p4']): 
       id: 'current', currentPlayerId: players[3],
       hands: players.map((playerId, seat) => ({
         playerId, team: seat % 2 === 0 ? Teams.TeamA : Teams.TeamB,
-        dominoes: seat === 3 ? [d(1, 3)] : [], bid: seat === 0 ? Bid.Thirty : Bid.Pass,
+        dominoes: seat === 3 ? [d(1, 3)] : seat === 0 && leadAfter ? [leadAfter] : [], bid: seat === 0 ? Bid.Thirty : Bid.Pass,
       })),
       tricks: [
         trick(Teams.TeamA, a, [d(5, 5)]), trick(Teams.TeamA, a, [d(6, 4)]), trick(Teams.TeamA, a, [d(5, 0)]),
@@ -868,19 +869,13 @@ describe('MatchDO player stats', () => {
   });
 
   it('records nothing for plays after the match is already won', async () => {
-    const stub = await seed('stats-after', almostWonMatch('stats-after'));
+    const stub = await seed('stats-after', almostWonMatch('stats-after', undefined, createDomino(0, 2)));
     await stub.playDomino('p4', createDomino(1, 3));
     await testEnv.DB.prepare('DELETE FROM player_match_stats').run();
-    // Saving a won match back as the "previous" state: any later play starts from winningTeam set.
-    const won = await stub.getMatch();
-    if (!won.ok) throw new Error('expected the match');
-    await runInDurableObject(stub, async (instance: MatchDO) => {
-      // Drive update() with an action that changes nothing about the result.
-      await (instance as unknown as { update: (id: string, a: (m: MatchState) => MatchState) => Promise<unknown> }).update(
-        'p1',
-        (m) => ({ ...m, updatedOn: new Date().toISOString() })
-      );
-    });
+
+    // p1 took the last trick, so leads next - a play on a match that's already won.
+    const after = await stub.playDomino('p1', createDomino(0, 2));
+    expect(after.ok).toBe(true);
     expect(await statsRows('stats-after')).toEqual([]);
   });
 
@@ -920,8 +915,6 @@ describe('MatchDO player stats', () => {
   });
 });
 ```
-
-If the "already won" test's direct `update` call proves awkward (it's private), replace it with: seed `{ ...wonMatch }` where `wonMatch` is the result of the first winning play, keep a domino in some player's hand so a further `playDomino` is legal, and assert no rows after that play. The behavior pinned is: a play starting from `winningTeam !== null` writes nothing.
 
 - [ ] **Step 3: Run it to make sure it fails**
 
@@ -986,9 +979,9 @@ git commit -m "feat(worker): record player stats on the play that wins a match"
 - Modify: `apps/worker/test/routes.users.test.ts` (new `describe`)
 
 **Interfaces:**
-- Consumes: `readPlayerStats(env, playerId)`, `recordMatchStats` (Task 3); `almostWonMatch`-free — use direct inserts.
+- Consumes: `readPlayerStats(env, playerId)` (Task 3). The test inserts `player_match_stats` rows directly.
 
-- [ ] **Step 1: Write the failing test** — add to `apps/worker/test/routes.users.test.ts` (reuse the file's `api(path, sub)` helper; add `recordMatchStats` and rules imports at the top):
+- [ ] **Step 1: Write the failing test** — add to `apps/worker/test/routes.users.test.ts` (reuse the file's `api(path, sub)` helper; add `import type { PlayerStats } from '@fortytwo/api-types';` at the top):
 
 ```ts
 describe('GET /api/users/stats', () => {
@@ -1022,7 +1015,6 @@ describe('GET /api/users/stats', () => {
 });
 ```
 
-Import `type PlayerStats` from `@fortytwo/api-types`.
 
 - [ ] **Step 2: Run it to make sure it fails**
 
@@ -1187,7 +1179,7 @@ export function PlayerStats(): JSX.Element {
 
       {stats.data && stats.data.all.played === 0 && <p className="profile-hint">Finish a game to see your stats here.</p>}
 
-      {summary && stats.data.all.played > 0 && (
+      {stats.data && stats.data.all.played > 0 && summary && (
         <>
           <fieldset className="form-group">
             <legend className="visually-hidden">Which games</legend>
@@ -1420,7 +1412,7 @@ export function PlayerStats() {
       {stats.error && <Text style={styles.error}>{stats.error.message}</Text>}
       {stats.data && stats.data.all.played === 0 && <Text style={styles.hint}>Finish a game to see your stats here.</Text>}
 
-      {summary && stats.data.all.played > 0 && (
+      {stats.data && stats.data.all.played > 0 && summary && (
         <>
           <View style={styles.filters} accessibilityRole="radiogroup">
             {STATS_FILTERS.map(({ filter: value, label }) => {
