@@ -1,10 +1,13 @@
 // The online count, from one presence socket (@fortytwo/client's connectPresenceSocket) held
-// while the app is signed in. A context, so the lobby and the match page share the one socket
-// rather than each opening their own as the player moves between them.
+// while the app is signed in - when the Worker has it switched on (GET /api/config's `presence`,
+// off by default). A context, so the lobby and the match page share the one socket rather than
+// each opening their own as the player moves between them.
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { JSX, ReactNode } from 'react';
 import { connectPresenceSocket } from '@fortytwo/client';
 import { useGetToken } from '../auth/useGetToken';
+import { apiClient } from './client';
 import { subscribeBrowserWake } from './useMatchSocket';
 
 const OnlineContext = createContext<number | null>(null);
@@ -17,8 +20,11 @@ export function PresenceProvider({ children }: { children: ReactNode }): JSX.Ele
   useEffect(() => {
     getTokenRef.current = getToken;
   }, [getToken]);
+  const config = useQuery({ queryKey: ['config'], queryFn: () => apiClient(getToken).getConfig(), staleTime: Infinity });
+  const enabled = config.data?.presence === true;
 
   useEffect(() => {
+    if (!enabled) return;
     const disconnect = connectPresenceSocket({
       origin:
         import.meta.env.VITE_WS_ORIGIN ||
@@ -32,7 +38,7 @@ export function PresenceProvider({ children }: { children: ReactNode }): JSX.Ele
       // A count from a socket that's gone (signed out, say) would only go stale.
       setOnline(null);
     };
-  }, []);
+  }, [enabled]);
 
   return <OnlineContext.Provider value={online}>{children}</OnlineContext.Provider>;
 }

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NewMatchDialog } from './NewMatchDialog';
 
@@ -12,6 +12,15 @@ describe('NewMatchDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /daily/i }));
     fireEvent.click(screen.getByRole('button', { name: /challenge friends/i }));
     expect(onChoose.mock.calls).toEqual([['live'], ['daily'], ['challenge']]);
+  });
+
+  it('groups the matchmade options apart from playing with friends', () => {
+    render(<NewMatchDialog open liveEnabled online={null} pending={false} onChoose={vi.fn()} onClose={vi.fn()} />);
+    const matchmade = screen.getByRole('group', { name: /find opponents/i });
+    expect(within(matchmade).getByRole('button', { name: /live/i })).toBeTruthy();
+    expect(within(matchmade).getByRole('button', { name: /daily/i })).toBeTruthy();
+    const friends = screen.getByRole('group', { name: /play with friends/i });
+    expect(within(friends).getByRole('button', { name: /challenge friends/i })).toBeTruthy();
   });
 
   it('leaves Live out when bots are off', () => {

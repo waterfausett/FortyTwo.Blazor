@@ -31,6 +31,22 @@
   color: var(--brass);
 }
 
+/* Find opponents / Play with friends: a small-caps label over each group's options. */
+.new-match-group + .new-match-group {
+  margin-top: 1rem;
+}
+
+.new-match-group-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  font: 600 0.75rem var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
 .new-match-option {
   appearance: none;
   display: flex;
