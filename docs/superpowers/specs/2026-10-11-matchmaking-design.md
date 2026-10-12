@@ -13,13 +13,16 @@ Find a Game list that is often empty or stale (it never refreshes on its own).
 
 Success looks like:
 
-- **New match** (web header button, mobile floating button) opens a chooser: **Live**, **Daily**,
-  **Challenge friends**.
+- **New match** (web header button, mobile floating button) opens a chooser in two groups:
+  **Find opponents** (people icon: **Live**, **Daily** - both matchmade) and **Play with friends**
+  (**Challenge friends**). The option names are placeholders, to be renamed.
 - **Live** puts you at a table straight away. While it fills, you see how many people are online
   and waiting, and can **Start now with bots** at any time; if nobody does, bots take the empty
   seats after 2½ minutes. A Live game never stalls on a player who walked away.
-- The chooser and the Live search screen show how many players are **online**, so you can tell
-  whether waiting for people is worth it.
+- With the presence flag on, the chooser and the Live search screen show how many players are
+  **online**, so you can tell whether waiting for people is worth it.
+- A player is in at most one Live match at a time: pressing Live while in one - searching or under
+  way - takes them back to it.
 - **Daily** puts you at an open Daily table (or starts one); it waits for real people, and you get
   a push when it fills.
 - **Challenge friends** is today's Create match: a table you fill by sharing the invite link.
@@ -139,7 +142,18 @@ is due, then sets it again. Bot pacing behaves as it does today.
 `LIVE_FILL_MS` and `LIVE_TURN_MS` live in `@fortytwo/rules` so clients count down in step with the
 server.
 
+### One Live match per player
+
+`POST /api/matchmaking { mode: 'live' }` first looks up the caller's unfinished Live match in the
+lobby index (`findActiveLiveMatch`: active, mode 'live', the caller seated). If the match's MatchDO
+confirms it's still going with the caller in it, the route answers with that match instead of
+asking the Matchmaker; the index can lag, so its answer is only a lead. The Matchmaker's own
+pre-scan still keeps a player to one Live search between index syncs.
+
 ### Presence: the online count
+
+Off unless the Worker's `PRESENCE_ENABLED` var is exactly `'true'`. Off, `/presence/ws` is a 404,
+`GET /api/config` reports `presence: false`, and clients open no socket and show no count.
 
 Each signed-in app holds one **presence socket** to the Matchmaker (`GET /presence/ws?token=`,
 mounted outside `/api` like `/matches/:id/ws`), while it's in the foreground - mobile closes it in
