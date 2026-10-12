@@ -123,6 +123,7 @@ export function profilePatch(body: Body): ProfilePatch {
   if (body.picture !== undefined) patch.picture = picture(body.picture);
   if (body.highlightPlayable !== undefined) patch.highlightPlayable = setting(body, 'highlightPlayable');
   if (body.pushNotifications !== undefined) patch.pushNotifications = setting(body, 'pushNotifications');
+  if (body.seenHowToPlay !== undefined) patch.seenHowToPlay = setting(body, 'seenHowToPlay');
   return patch;
 }
 

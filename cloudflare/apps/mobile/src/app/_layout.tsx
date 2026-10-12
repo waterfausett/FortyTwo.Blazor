@@ -72,6 +72,7 @@ function RootStack() {
         <Stack.Screen name="index" options={{ title: 'Matches' }} />
         <Stack.Screen name="match/[id]" options={{ title: 'Match' }} />
         <Stack.Screen name="profile" options={{ title: 'Profile' }} />
+        <Stack.Screen name="how-to-play" options={{ title: 'How to play' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />

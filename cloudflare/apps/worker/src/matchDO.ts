@@ -38,6 +38,7 @@ import {
   type Teams,
 } from '@fortytwo/rules';
 import { bestEffort, syncLobbyIndex, refreshMatchSummary } from './lobby';
+import { recordMatchStats } from './stats';
 import { pushNotices, type Notice } from './push/notices';
 import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
@@ -317,6 +318,7 @@ export class MatchDO extends DurableObject<Env> {
       // Acting is taking your seat back from the bot (live.ts).
       const next = isOnAutopilot(acted, actorId) ? setAutopilot(acted, [actorId], false) : acted;
       await this.save(next);
+      await this.recordStatsIfWon(match, next);
       this.publish(match, next, [actorId]);
       await this.schedule(next);
       return next;
@@ -334,6 +336,20 @@ export class MatchDO extends DurableObject<Env> {
     }
     const deadline = liveDeadline(match);
     if (deadline !== null) await this.ctx.storage.setAlarm(Math.max(deadline.at, Date.now()));
+  }
+
+  // The play that wins the match records each human's stats (stats.ts) - only that one, so plays
+  // after the match is over write nothing. A failure is logged loudly rather than thrown, like the
+  // lobby sync: the play is already saved. Stats are counted from launch with no backfill, so a
+  // failed write leaves that match out; watch the logs for this line. Called before the match is
+  // published, so a broadcast that throws can't skip it without that line.
+  private async recordStatsIfWon(previous: MatchState, next: MatchState): Promise<void> {
+    if (previous.winningTeam !== null || next.winningTeam === null) return;
+    try {
+      await recordMatchStats(this.env.DB, next);
+    } catch (error) {
+      console.error(`PLAYER STATS WRITE FAILED for match ${next.id}`, error);
+    }
   }
 
   // Runs one thing per firing: the next bot move, or a Live deadline that has come due (live.ts).
@@ -364,6 +380,7 @@ export class MatchDO extends DurableObject<Env> {
       // so if anything below threw first, the runtime's retry would fire that action unpaced, and
       // once its retries ran out a match waiting on a bot would be stuck.
       await this.schedule(next);
+      await this.recordStatsIfWon(match, next);
       this.publish(match, next);
       if (action.kind === 'ready' || action.kind === 'play') {
         await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));

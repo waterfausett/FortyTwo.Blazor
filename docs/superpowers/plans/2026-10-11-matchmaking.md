@@ -417,7 +417,7 @@ git commit -m "feat(worker): bots play for players on autopilot"
 ### Task 3: Lobby index records each match's mode
 
 **Files:**
-- Create: `cloudflare/apps/worker/migrations/0009_matches_mode.sql`
+- Create: `cloudflare/apps/worker/migrations/0010_matches_mode.sql`
 - Modify: `cloudflare/apps/worker/src/lobby.ts`
 - Modify: `cloudflare/packages/api-types/src/index.ts` (`MatchMode`, `TurnSummary`, `MatchSummary`)
 - Test: `cloudflare/apps/worker/test/lobby.test.ts`
@@ -474,7 +474,7 @@ Expected: FAIL - type error / `no such column: mode`.
 
 - [ ] **Step 3: Migration**
 
-`cloudflare/apps/worker/migrations/0009_matches_mode.sql`:
+`cloudflare/apps/worker/migrations/0010_matches_mode.sql`:
 
 ```sql
 -- How each match was started: 'live', 'daily' or 'custom'. Null on rows from before modes, which
@@ -3056,7 +3056,7 @@ git commit -m "feat(mobile): Live search, turn clock and Resume on the match scr
 
 ## After all tasks
 
-- Remote D1 needs migration `0009` applied before the worker deploys
+- Remote D1 needs migration `0010` applied before the worker deploys
   (`npx wrangler d1 migrations apply fortytwo --remote` from `cloudflare/apps/worker`), and the
   `v2` DO migration ships with the deploy. The worker release workflow deploys on release-please
   merges (see the release-please memory) - check it applies D1 migrations; if not, apply by hand

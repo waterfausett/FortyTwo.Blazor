@@ -19,6 +19,8 @@ import { apiClient, type MatchPage, type MatchSummary } from '../api/client';
 import { useOnline } from '../api/presence';
 import { NewMatchDialog, type NewMatchChoice } from '../components/NewMatchDialog';
 import { SEAT_SIDES } from '../components/SeatPicker';
+import { useHowToPlay } from '../match/useHowToPlay';
+import '../components/HowToPlay.css';
 import './Lobby.css';
 
 type MatchFilter = 'Active' | 'Completed';
@@ -66,6 +68,9 @@ export function Lobby(): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const client = apiClient(useGetToken());
+
+  // A first-time player is offered the rules until they dismiss the card or open them.
+  const howToPlay = useHowToPlay(client);
 
   const [activeTab, setActiveTab] = useState<MatchFilter>('Active');
   const activeTabLabel = TABS.find((tab) => tab.filter === activeTab)?.label ?? activeTab;
@@ -116,6 +121,14 @@ export function Lobby(): JSX.Element {
           New match
         </button>
       </header>
+      {howToPlay.offer && (
+        <aside className="how-to-play-card" aria-label="New to Forty-Two">
+          <Link to="/how-to-play">New to 42? Learn how to play</Link>
+          <button type="button" aria-label="Dismiss" onClick={howToPlay.markSeen}>
+            ×
+          </button>
+        </aside>
+      )}
       <NewMatchDialog
         open={choosing}
         liveEnabled={config.data?.bots ?? false}

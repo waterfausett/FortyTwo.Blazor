@@ -156,6 +156,25 @@
   color: var(--ink-muted);
 }
 
+/* The "?" opening the rules over the table (HowToPlayDialog). */
+.contract-rules {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1.5px solid var(--brass);
+  border-radius: 50%;
+  background: none;
+  color: var(--bone);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.contract-rules:hover {
+  background: rgba(201, 164, 92, 0.18);
+}
+
 .contract-value {
   font-family: var(--font-display);
   font-weight: 700;

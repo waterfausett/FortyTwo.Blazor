@@ -1,7 +1,8 @@
 // The player's profile, as on the web profile page: the name the table calls them, a picture URL
 // with a live preview, their email (read-only), and their game settings. Name and picture save
 // together with the button; a setting saves as soon as it's flipped. All of it is stored on their
-// profile, so it applies on the web too. Signing out is here too, at the bottom.
+// profile, so it applies on the web too. Below them, their stats (components/PlayerStats.tsx), loaded on
+// their own. Signing out is here too, at the bottom.
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -21,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApi } from '@/api/useApi';
 import { clearCachedToken } from '@/auth/tokenCache';
 import { useProfile, useSaveProfile } from '@/api/useProfile';
+import { PlayerStats } from '@/components/PlayerStats';
 import { MAX_DISPLAY_NAME_LENGTH, profileErrors } from '@/components/profileErrors';
 import { colors, fonts } from '@/components/theme';
 import { toastInfo } from '@/components/toast';
@@ -191,6 +193,8 @@ export default function Profile() {
             accessibilityLabel="Notifications"
           />
         </View>
+
+        <PlayerStats />
 
         <Text style={styles.note}>Your profile and settings apply on the web too.</Text>
 

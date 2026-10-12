@@ -59,6 +59,7 @@ import { BiddingPanel } from '@/components/BiddingPanel';
 import { DoublesRuleModal } from '@/components/DoublesRuleModal';
 import { Fade, FADE_IN_MS } from '@/components/Fade';
 import { Hand, type DragState } from '@/components/Hand';
+import { HelpButton } from '@/components/HelpButton';
 import { JoinMatchPanel } from '@/components/JoinMatchPanel';
 import { MatchSummary } from '@/components/MatchSummary';
 import { NameSkeleton } from '@/components/NameSkeleton';
@@ -84,6 +85,9 @@ import { useTrickHold } from '@/match/useTrickHold';
 function doublesRule(trump: Suit): string {
   return trump === Suit.LowDoublesOwnSuit ? 'suit' : lowDoublesToPrettyString(trump).toLowerCase();
 }
+
+// The header's "?": the rules, pushed over the match, which stays as it was underneath.
+const rulesButton = () => <HelpButton onPress={() => router.push('/how-to-play')} />;
 
 export default function MatchScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -318,7 +322,7 @@ export default function MatchScreen() {
     });
     return (
       <>
-        <Stack.Screen options={{ title: liveGame.name }} />
+        <Stack.Screen options={{ title: liveGame.name, headerRight: rulesButton }} />
         <JoinMatchPanel
           seats={seats}
           loading={loading}
@@ -440,7 +444,7 @@ export default function MatchScreen() {
       scrollEnabled={!drag.dragging}
       onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
     >
-      <Stack.Screen options={{ title: game.name }} />
+      <Stack.Screen options={{ title: game.name, headerRight: rulesButton }} />
       {/* The play area fills the screen, less a peek at the trick history below, whatever the
           phase - so the hand sits in the same place from the deal to the last trick, and the
           table opening up as play starts only takes up the room between them. */}

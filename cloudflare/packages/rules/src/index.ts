@@ -58,6 +58,7 @@ export {
   removePlayer,
   hasBeenDealt,
   hasHumanPlayers,
+  WINNING_SCORE,
 } from './matchEngine';
 export type { MatchMode, TableWait, LiveDeadline } from './live';
 export {
@@ -73,3 +74,5 @@ export {
 } from './live';
 export { BOT_IDS, botDisplayName, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';
+export type { PlayerMatchStats, TrumpCounts, TrumpKey } from './stats';
+export { matchStatsFor, NO_TRUMPS, TRUMP_KEYS, trumpKeyOf } from './stats';
