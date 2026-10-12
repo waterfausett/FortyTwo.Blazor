@@ -30,7 +30,7 @@ import {
 } from './validation';
 
 // Marks needed to win the match.
-const WINNING_SCORE = 7;
+export const WINNING_SCORE = 7;
 
 export interface MatchPlayerState extends MatchPlayerRef {
   ready: boolean;

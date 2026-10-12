@@ -1,8 +1,12 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
+import { HOW_TO_PLAY } from '@fortytwo/client';
 import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
+import { HelpButton } from '../HelpButton';
+import { HowToPlayCard } from '../HowToPlayCard';
+import { HowToPlayContent } from '../HowToPlayContent';
 import { JoinMatchPanel } from '../JoinMatchPanel';
 import { SeatPicker } from '../SeatPicker';
 import { PENDING_SPINNER_DELAY_MS, Table, type SeatInfo } from '../Table';
@@ -279,5 +283,35 @@ describe('Table', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe('HowToPlayContent', () => {
+  it('shows every section, and reads out each domino example with its caption', async () => {
+    await render(<HowToPlayContent />);
+    for (const section of HOW_TO_PLAY) expect(screen.getByRole('header', { name: section.title })).toBeTruthy();
+    expect(screen.getByLabelText('10 points each: 5-5 and 6-4. 5 points each: 5-0, 4-1 and 3-2. 5-5, 6-4, 5-0, 4-1, 3-2')).toBeTruthy();
+  });
+});
+
+describe('HowToPlayCard', () => {
+  it('opens the rules, or dismisses itself', async () => {
+    const onOpen = jest.fn();
+    const onDismiss = jest.fn();
+    await render(<HowToPlayCard onOpen={onOpen} onDismiss={onDismiss} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'New to 42? Learn how to play' }));
+    expect(onOpen).toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(onDismiss).toHaveBeenCalled();
+  });
+});
+
+describe('HelpButton', () => {
+  it('is a button named How to play', async () => {
+    const onPress = jest.fn();
+    await render(<HelpButton onPress={onPress} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'How to play' }));
+    expect(onPress).toHaveBeenCalled();
   });
 });

@@ -41,6 +41,7 @@ import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
+import { HowToPlayDialog } from '../components/HowToPlayDialog';
 import { MatchSummary } from '../components/MatchSummary';
 import { NameSkeleton } from '../components/NameSkeleton';
 import { Hand } from '../components/Hand';
@@ -78,6 +79,7 @@ import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../
 import { shareInvite } from '../match/invite';
 import { usePoke } from '../match/usePoke';
 import { usePlayerNames } from '../match/usePlayerNames';
+import { useHowToPlay } from '../match/useHowToPlay';
 import '../styles/match.css';
 
 // How long a just-completed trick stays put in the center of the board (as if still "in
@@ -199,6 +201,9 @@ export function Match(): JSX.Element {
   // The summary only opens when asked for, from the rail's button: the end of the match plays out
   // on the table like any other hand.
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // The rules, over the table, from the scoreboard's "?". Opening them counts as having seen them.
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const howToPlay = useHowToPlay(client);
   const navigate = useNavigate();
   // The player's own settings - here, whether to outline their playable dominoes. Shared with the
   // profile page's query, so a change saved there shows up here.
@@ -591,6 +596,17 @@ export function Match(): JSX.Element {
               )}
             </span>
           )}
+          <button
+            type="button"
+            className="contract-rules"
+            aria-label="How to play"
+            onClick={() => {
+              setRulesOpen(true);
+              howToPlay.markSeen();
+            }}
+          >
+            ?
+          </button>
         </div>
 
         <div className="score score-them">
@@ -823,6 +839,7 @@ export function Match(): JSX.Element {
           onClose={() => setSummaryOpen(false)}
         />
       )}
+      <HowToPlayDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </div>
   );
 }

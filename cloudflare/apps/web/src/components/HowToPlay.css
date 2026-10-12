@@ -1,0 +1,137 @@
+/* How to play (HowToPlayContent): the rules page, its in-match dialog, and the Lobby's card. Set
+   on the hall's walnut (hall.css), with brass headings like the match summary's title. */
+
+.how-to-play-page {
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 2rem 16px 3rem;
+}
+
+.how-to-play-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.how-to-play-index a {
+  color: var(--brass);
+}
+
+.how-to-play section {
+  margin-bottom: 1.75rem;
+  scroll-margin-top: 1rem;
+}
+
+.how-to-play h2,
+.how-to-play h3 {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: var(--brass);
+}
+
+.how-to-play p,
+.how-to-play li {
+  line-height: 1.55;
+}
+
+.how-to-play ul {
+  padding-left: 1.25rem;
+}
+
+.how-to-play li + li {
+  margin-top: 0.35rem;
+}
+
+.how-to-play-dominoes {
+  margin: 0.75rem 0 1rem;
+}
+
+.how-to-play-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.how-to-play-dominoes figcaption {
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+/* The dialog over the table: the match summary's backdrop and panel (match.css), scrolling. */
+.how-to-play-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(12, 8, 5, 0.6);
+}
+
+.how-to-play-dialog {
+  position: relative;
+  width: min(40rem, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 1.25rem 1.25rem 0.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(var(--walnut-deep), #1b120d);
+  box-shadow:
+    inset 0 0 0 1px rgba(242, 234, 219, 0.12),
+    0 24px 60px -20px rgba(0, 0, 0, 0.8);
+  color: var(--bone);
+  text-align: left;
+}
+
+.how-to-play-dialog-title {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.6rem;
+  color: var(--bone);
+}
+
+.how-to-play-close {
+  position: sticky;
+  top: 0;
+  float: right;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* The Lobby's "New to 42?" card: a brass-edged plate above the match list. */
+.how-to-play-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--brass);
+  border-radius: 0.6rem;
+  background: rgba(36, 25, 19, 0.6);
+}
+
+.how-to-play-card a {
+  color: var(--bone);
+  font-weight: 600;
+}
+
+.how-to-play-card button {
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}

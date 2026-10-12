@@ -34,6 +34,7 @@ const PROFILE_FIXTURE: UserProfile = {
   picture: 'https://example.com/old-picture.png',
   highlightPlayable: false,
   pushNotifications: true,
+  seenHowToPlay: true,
   user_metadata: { displayName: 'Old Name', theme: 'Light', picture: 'https://example.com/old-picture.png' },
 };
 
