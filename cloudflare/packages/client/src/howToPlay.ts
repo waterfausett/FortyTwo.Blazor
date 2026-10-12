@@ -92,7 +92,7 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
       },
       {
         kind: 'text',
-        text: 'That’s 35 points in count, plus 1 point for each of the seven tricks: 42 in all. The count in a trick go to the team that wins it.',
+        text: 'That’s 35 points in count, plus 1 point for each of the seven tricks: 42 in all. The count in a trick goes to the team that wins it.',
       },
       {
         kind: 'text',
