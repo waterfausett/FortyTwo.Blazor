@@ -8,6 +8,7 @@ import { BadRequestError } from './requestBody';
 import { expireIdleMatches } from './expiry';
 import { assetLinks } from './appLinks';
 import { botsEnabled } from './bots';
+import { presenceEnabled } from './matchmaker';
 import type { MatchDO } from './matchDO';
 import type { Matchmaker } from './matchmaker';
 import type { ClientConfig } from '@fortytwo/api-types';
@@ -27,6 +28,9 @@ export interface Env {
   // 'false': a kill switch settable in the Cloudflare dashboard without a deploy. Off, it also
   // stops the ML bot in matches that already have bots: those bots play on by the simple rules.
   BOTS_ENABLED?: string;
+  // The online count (the Matchmaker's presence socket) is on only when this is exactly 'true':
+  // off by default, unlike BOTS_ENABLED. Off, /presence/ws is a 404 and clients open no socket.
+  PRESENCE_ENABLED?: string;
   // The static-assets binding (wrangler.toml's [assets]); mlBot.ts reads the bot's weights from it.
   ASSETS?: Fetcher;
   // The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links
@@ -85,6 +89,7 @@ app.get('/matches/:id/ws', async (c) => {
 // name, and its fetch() expects this same path, so the request goes through unchanged. Outside
 // `/api/*` for the same reason as above: the Matchmaker checks `?token=` itself.
 app.get('/presence/ws', async (c) => {
+  if (!presenceEnabled(c.env)) return c.notFound();
   if (c.req.header('Upgrade') !== 'websocket') {
     return new Response('Expected Upgrade: websocket', { status: 426 });
   }
@@ -105,7 +110,9 @@ app.use(
 );
 app.use('/api/*', requireAuth());
 // Feature switches the web app needs to know about - one worker flag drives both sides.
-app.get('/api/config', (c) => c.json({ bots: botsEnabled(c.env) } satisfies ClientConfig));
+app.get('/api/config', (c) =>
+  c.json({ bots: botsEnabled(c.env), presence: presenceEnabled(c.env) } satisfies ClientConfig)
+);
 app.route('/api/matches', matchesRoutes);
 app.route('/api/matchmaking', matchmakingRoutes);
 app.route('/api/users', usersRoutes);

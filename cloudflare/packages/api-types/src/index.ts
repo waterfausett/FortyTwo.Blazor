@@ -58,6 +58,8 @@ export interface PokeResult {
 // Feature switches the Worker turns on per environment (GET /api/config).
 export interface ClientConfig {
   bots: boolean;
+  // Whether to open the presence socket and show the online count.
+  presence: boolean;
 }
 
 // A user as Auth0's Management API returns it.

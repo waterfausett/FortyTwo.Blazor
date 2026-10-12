@@ -653,12 +653,12 @@ describe('match routes', () => {
     it('tells the client whether bots are available', async () => {
       const p1 = await signToken('p1');
 
-      expect(await (await apiWithBots('/api/config', p1)).json()).toEqual({ bots: true });
-      expect(await (await apiWithBots('/api/config', p1, {}, 'false')).json()).toEqual({ bots: false });
+      expect(await (await apiWithBots('/api/config', p1)).json()).toEqual({ bots: true, presence: false });
+      expect(await (await apiWithBots('/api/config', p1, {}, 'false')).json()).toEqual({ bots: false, presence: false });
       // Unset means on: BOTS_ENABLED is a kill switch.
       const { BOTS_ENABLED: _pinned, ...unset } = testEnv;
       const res = await app.request('/api/config', { headers: { Authorization: `Bearer ${p1}` } }, unset);
-      expect(await res.json()).toEqual({ bots: true });
+      expect(await res.json()).toEqual({ bots: true, presence: false });
     });
 
     it('seats a bot at a picked seat, then fills the rest and syncs the lobby', async () => {

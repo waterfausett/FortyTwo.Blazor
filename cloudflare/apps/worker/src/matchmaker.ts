@@ -15,6 +15,11 @@ import type { Env } from './index';
 export type QueueMode = 'live' | 'daily';
 
 // How often, at most, the online count goes out to every presence socket.
+// Whether the online count is switched on (index.ts's PRESENCE_ENABLED). Off by default.
+export function presenceEnabled(env: { PRESENCE_ENABLED?: string }): boolean {
+  return env.PRESENCE_ENABLED === 'true';
+}
+
 export const PRESENCE_BROADCAST_MS = 60_000;
 
 // When to send a changed online count: now, if nothing has gone out in the last

@@ -113,10 +113,29 @@ describe('POST /api/matchmaking', () => {
 });
 
 describe('GET /presence/ws', () => {
-  it('wants a WebSocket upgrade', async () => {
-    const res = await SELF.fetch('https://example.com/presence/ws');
+  it("isn't there while PRESENCE_ENABLED is unset", async () => {
+    const res = await SELF.fetch('https://example.com/presence/ws', { headers: { Upgrade: 'websocket' } });
+    expect(res.status).toBe(404);
+    await res.text();
+  });
+
+  it('wants a WebSocket upgrade once presence is on', async () => {
+    const res = await app.request('/presence/ws', {}, { ...testEnv, PRESENCE_ENABLED: 'true' });
     expect(res.status).toBe(426);
     await res.text();
+  });
+});
+
+describe('GET /api/config', () => {
+  it('reports presence off unless PRESENCE_ENABLED is exactly "true"', async () => {
+    const token = await signToken('cfg-1');
+    const config = async (PRESENCE_ENABLED?: string) => {
+      const res = await app.request('/api/config', { headers: { Authorization: `Bearer ${token}` } }, { ...testEnv, PRESENCE_ENABLED });
+      return ((await res.json()) as { presence: boolean }).presence;
+    };
+    expect(await config()).toBe(false);
+    expect(await config('yes')).toBe(false);
+    expect(await config('true')).toBe(true);
   });
 });
 
