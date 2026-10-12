@@ -14,13 +14,14 @@ import type {
   ClientConfig,
   MatchPage,
   MatchSummary,
+  PlayerStats,
   PokeResult,
   ProfilePatch,
   PublicUser,
   UserProfile,
 } from '@fortytwo/api-types';
 
-export type { MatchPage, MatchSummary, PokeResult, PublicUser, UserProfile };
+export type { MatchPage, MatchSummary, PlayerStats, PokeResult, PublicUser, UserProfile };
 
 // Keeps the Worker's title and detail apart so a toast can show them as heading and body;
 // `message` still joins them for callers that just print it.
@@ -146,6 +147,9 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
     getConfig: (): Promise<ClientConfig> => request<ClientConfig>('/api/config'),
 
     getProfile: (): Promise<UserProfile> => request<UserProfile>('/api/users/profile'),
+
+    // The caller's own lifetime stats, for the Profile.
+    getStats: (): Promise<PlayerStats> => request<PlayerStats>('/api/users/stats'),
 
     // Ids with no Auth0 account (bots) are simply absent from the result.
     searchUsers: (userIds: string[]): Promise<PublicUser[]> =>

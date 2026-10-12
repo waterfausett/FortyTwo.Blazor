@@ -91,3 +91,48 @@ export interface ProfilePatch {
   pushNotifications?: boolean;
   seenHowToPlay?: boolean;
 }
+
+// The caller's own lifetime stats (GET /api/users/stats), counted from completed matches. A game
+// is a whole match; bids are the hands they took the bid on. Each filter is its own summary.
+export interface BestPartner {
+  user: PublicUser;
+  won: number;
+  lost: number;
+}
+
+// A trump a winning bid named, as @fortytwo/rules' TrumpKey: every Low variant is 'low'.
+export type TrumpKey = 'low' | 'followMe' | 'blanks' | 'aces' | 'deuces' | 'threes' | 'fours' | 'fives' | 'sixes';
+
+export interface FavoriteTrump {
+  trump: TrumpKey;
+  // How many of their winning bids named it.
+  times: number;
+}
+
+export interface StatsSummary {
+  played: number;
+  won: number;
+  lost: number;
+  marksWon: number;
+  bidsWon: number;
+  bidsMade: number;
+  bidsSet: number;
+  // Over their winning points bids (30-42), to one decimal place; null with none.
+  averagePointsBid: number | null;
+  // Winning bids of a mark or more: 42 and up, Plunge included.
+  marksBids: number;
+  // The trump they name most on bids they win; a tie goes to the higher suit. Null with no bids won.
+  favoriteTrump: FavoriteTrump | null;
+  // The human they win with most, over at least 3 games together.
+  bestPartner: BestPartner | null;
+}
+
+export interface PlayerStats {
+  all: StatsSummary;
+  // No seat held a bot.
+  humansOnly: StatsSummary;
+  // At least one seat held a bot.
+  withBots: StatsSummary;
+}
+
+export type StatsFilter = keyof PlayerStats;

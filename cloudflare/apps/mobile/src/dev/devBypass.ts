@@ -5,10 +5,10 @@
 // It can't reach a release build: `__DEV__` is false there, so this is always false and the
 // bundler drops the code behind it.
 //
-// The lobby and the profile work this way, and the canned matches in devMatches.ts (open
+// The lobby, the profile (stats included) work this way, and the canned matches in devMatches.ts (open
 // `match/dev-bidding` and the rest). Anything else fails with "Not in the dev bypass".
 import type { MatchState } from '@fortytwo/rules';
-import type { MatchPage, MatchSummary, ProfilePatch, UserProfile } from '@fortytwo/api-types';
+import type { MatchPage, MatchSummary, PlayerStats, ProfilePatch, UserProfile } from '@fortytwo/api-types';
 import type { Api } from '@/api/useApi';
 import { DEV_PLAYER_ID, devMatchApi } from './devMatches';
 
@@ -70,6 +70,12 @@ const handled: Partial<Api> = {
     profile = { ...profile, ...rest, ...(picture !== undefined && { picture: picture || undefined }) };
     await answer(undefined);
   },
+  getStats: () =>
+    answer<PlayerStats>({
+      all: { played: 23, won: 14, lost: 9, marksWon: 131, bidsWon: 41, bidsMade: 30, bidsSet: 11, averagePointsBid: 32.4, marksBids: 9, favoriteTrump: { trump: 'sixes', times: 12 }, bestPartner: { user: { user_id: 'gj', displayName: 'Grandma Jo' }, won: 7, lost: 2 } },
+      humansOnly: { played: 15, won: 8, lost: 7, marksWon: 82, bidsWon: 26, bidsMade: 18, bidsSet: 8, averagePointsBid: 32.1, marksBids: 6, favoriteTrump: { trump: 'sixes', times: 8 }, bestPartner: { user: { user_id: 'gj', displayName: 'Grandma Jo' }, won: 7, lost: 2 } },
+      withBots: { played: 8, won: 6, lost: 2, marksWon: 49, bidsWon: 15, bidsMade: 12, bidsSet: 3, averagePointsBid: 33.0, marksBids: 3, favoriteTrump: { trump: 'fives', times: 5 }, bestPartner: null },
+    }),
   // Nothing to tell a server about this device.
   registerPushToken: () => answer(undefined),
   removePushToken: () => answer(undefined),
