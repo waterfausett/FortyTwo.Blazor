@@ -35,7 +35,7 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
       },
       {
         kind: 'text',
-        text: 'Each hand, everyone gets seven dominoes. The teams bid for the right to name trump, then play seven tricks. The bidding team has to take enough points to make its bid; the other team tries to stop them.',
+        text: 'Each hand, everyone gets seven dominoes. The players bid for the right to name trump, then play seven tricks. The team that bids the highest (winning the bid) has to take enough points to make its bid; the other team tries to stop them.',
       },
     ],
   },
@@ -50,7 +50,7 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
       {
         kind: 'list',
         items: [
-          'A trump domino belongs only to trump. With sixes trump, the 6-4 is a six, never a four.',
+          'A trump domino belongs only to trump. For example, if sixes are trump, the 6-4 is a six, never a four.',
           'Any other domino leads as its higher end: lead the 5-3 and fives are the suit led.',
           'A trump beats any domino of another suit, and a higher trump beats a lower one.',
         ],
@@ -59,10 +59,6 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
         kind: 'dominoes',
         caption: 'With sixes trump, these seven are trump, highest first',
         dominoes: [d(6, 6), d(6, 5), d(6, 4), d(6, 3), d(6, 2), d(6, 1), d(6, 0)],
-      },
-      {
-        kind: 'text',
-        text: 'Once the bid is 42 or more, the bidder may instead call Follow Me (no trump: only the suit led can win) or Low (see Doubles and Scoring).',
       },
     ],
   },
@@ -79,10 +75,28 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
         caption: 'Fours, highest to lowest',
         dominoes: [d(4, 4), d(6, 4), d(5, 4), d(4, 3), d(4, 2), d(4, 1), d(4, 0)],
       },
-      { kind: 'text', text: 'When the bidder calls Low, they also choose how doubles play for that hand:' },
+    ],
+  },
+  {
+    id: 'counting',
+    title: 'Count dominoes',
+    blocks: [
       {
-        kind: 'list',
-        items: LOW_TRUMPS.map((suit) => `Doubles ${lowDoublesToPrettyString(suit)}: ${DOUBLES_DETAIL[suit]}.`),
+        kind: 'text',
+        text: 'Every hand has 42 possible points. Five dominoes carry points - the count:'
+      },
+      {
+        kind: 'dominoes',
+        caption: '10 points each: 5-5 and 6-4. 5 points each: 5-0, 4-1 and 3-2.',
+        dominoes: [d(5, 5), d(6, 4), d(5, 0), d(4, 1), d(3, 2)],
+      },
+      {
+        kind: 'text',
+        text: 'That’s 35 points in count, plus 1 point for each of the seven tricks: 42 in all. The count in a trick go to the team that wins it.',
+      },
+      {
+        kind: 'text',
+        text: 'The hand ends as soon as it’s decided: once the bidders have the points they bid, or the other team has taken enough that they can’t.',
       },
     ],
   },
@@ -108,27 +122,39 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
         kind: 'text',
         text: 'The high bidder names trump (on a Plunge, their partner does), and whoever names trump leads the first trick.',
       },
+      {
+        kind: 'text',
+        text: 'Once the bid is 42 or more, the bidder may call Follow Me or Low instead of naming a trump.',
+      },
     ],
   },
   {
-    id: 'counting',
-    title: 'Counting dominoes',
+    id: 'follow_me',
+    title: 'Follow Me',
     blocks: [
-      { kind: 'text', text: 'Every hand is worth 42 points. Five dominoes carry points - the counters:' },
       {
-        kind: 'dominoes',
-        caption: '10 points each: 5-5 and 6-4. 5 points each: 5-0, 4-1 and 3-2.',
-        dominoes: [d(5, 5), d(6, 4), d(5, 0), d(4, 1), d(3, 2)],
+        kind: 'text',
+        text: 'There’s no trump; only the suit led can win. Highest domino each trick wins.'
+      }
+    ]
+  },
+  {
+    id: 'low',
+    title: 'Low',
+    blocks: [
+      {
+        kind: 'text',
+        text: 'There’s no trump; bidding player must lose every trick and their partner does not play.'
       },
       {
         kind: 'text',
-        text: 'That’s 35 points in counters, plus 1 point for each of the seven tricks: 42 in all. The counters in a trick go to the team that wins it.',
+        text: 'When the bidder calls Low, they also choose how doubles play for that hand:'
       },
       {
-        kind: 'text',
-        text: 'The hand ends as soon as it’s decided: once the bidders have the points they bid, or the other team has taken enough that they can’t.',
-      },
-    ],
+        kind: 'list',
+        items: LOW_TRUMPS.map((suit) => `Doubles ${lowDoublesToPrettyString(suit)}: ${DOUBLES_DETAIL[suit]}.`),
+      }
+    ]
   },
   {
     id: 'tricks',
@@ -138,7 +164,7 @@ export const HOW_TO_PLAY: HowToPlaySection[] = [
         kind: 'list',
         items: [
           'Whoever won the last trick leads the next.',
-          'Follow the suit led if you can. If you can’t, play anything - including a trump.',
+          'You must follow the suit led if you can. If you can’t, play anything - including a trump.',
           'The highest trump in the trick wins it. With no trump in it, the highest domino of the suit led wins.',
           'On Low the bidder’s partner sits out, so each trick has three dominoes.',
         ],
