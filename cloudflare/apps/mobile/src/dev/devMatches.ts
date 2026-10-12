@@ -135,7 +135,7 @@ export const devMatchApi: Partial<Api> = {
     later(300, () =>
       ids.map((user_id): PublicUser => ({ user_id, displayName: isBot(user_id) ? botDisplayName(user_id) : (NAMES[user_id] ?? user_id) }))
     ),
-  getConfig: () => later(300, () => ({ bots: true })),
+  getConfig: () => later(300, () => ({ bots: true, presence: false })),
   bid: (id, bid) => move(id, (match) => placeBid(match, DEV_PLAYER_ID, bid)),
   setTrump: (id, suit) => move(id, (match) => setTrump(match, DEV_PLAYER_ID, suit)),
   playDomino: (id, { top, bottom }) => move(id, (match) => playDomino(match, DEV_PLAYER_ID, createDomino(top, bottom))),

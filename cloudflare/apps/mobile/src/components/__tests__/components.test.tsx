@@ -322,11 +322,19 @@ describe('NewMatchSheet', () => {
   it('offers Live, Daily and Challenge friends, and reports the choice', async () => {
     const onChoose = jest.fn();
     await render(inApp(<NewMatchSheet visible liveEnabled online={5} pending={false} onChoose={onChoose} onClose={jest.fn()} />));
-    fireEvent.press(screen.getByRole('button', { name: /live/i }));
-    fireEvent.press(screen.getByRole('button', { name: /daily/i }));
-    fireEvent.press(screen.getByRole('button', { name: /challenge friends/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /live/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /daily/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /challenge friends/i }));
     expect(onChoose.mock.calls).toEqual([['live'], ['daily'], ['challenge']]);
     expect(screen.getByText('5 online')).toBeTruthy();
+  });
+
+  it('labels the matchmade options apart from playing with friends', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.getByRole('header', { name: /find opponents/i })).toBeTruthy();
+    expect(screen.getByRole('header', { name: /play with friends/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /live.*matched/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /daily.*matched/i })).toBeTruthy();
   });
 
   it('leaves Live out when bots are off', async () => {
