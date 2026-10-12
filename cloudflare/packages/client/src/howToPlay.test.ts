@@ -9,8 +9,18 @@ const allText = HOW_TO_PLAY.flatMap((s) =>
 const key = (d: { top: number; bottom: number }) => [d.top, d.bottom].sort().join('-');
 
 describe('HOW_TO_PLAY', () => {
-  it('has the seven sections in order, each with a title and blocks', () => {
-    expect(HOW_TO_PLAY.map((s) => s.id)).toEqual(['game', 'suits', 'doubles', 'bidding', 'counting', 'tricks', 'scoring']);
+  it('has the sections in order, each with a title and blocks', () => {
+    expect(HOW_TO_PLAY.map((s) => s.id)).toEqual([
+      'game',
+      'suits',
+      'doubles',
+      'counting',
+      'bidding',
+      'follow_me',
+      'low',
+      'tricks',
+      'scoring',
+    ]);
     for (const s of HOW_TO_PLAY) {
       expect(s.title).not.toBe('');
       expect(s.blocks.length).toBeGreaterThan(0);
