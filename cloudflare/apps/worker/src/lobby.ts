@@ -211,3 +211,18 @@ export async function listJoinable(db: D1Database, userId: string, cursor: Lobby
     .all<MatchIndexRow>();
   return toPage(results);
 }
+
+// The unfinished Live match a player is in, searching or under way, if any: a player plays one
+// Live game at a time (routes/matchmaking.ts). Read from the index, which can lag a sync behind;
+// the Matchmaker separately won't start a second search for someone already waiting at one.
+export async function findActiveLiveMatch(db: D1Database, userId: string): Promise<string | null> {
+  const row = await db
+    .prepare(
+      `SELECT m.id FROM matches m JOIN match_players mp ON mp.match_id = m.id
+       WHERE mp.player_id = ?1 AND m.status = 'active' AND m.mode = 'live'
+       ORDER BY m.updated_on DESC LIMIT 1`
+    )
+    .bind(userId)
+    .first<{ id: string }>();
+  return row?.id ?? null;
+}

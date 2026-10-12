@@ -3,8 +3,16 @@ import { env, SELF } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { app, type Env } from '../src/index';
+import { syncLobbyIndex } from '../src/lobby';
+import { createDomino, type Domino } from '@fortytwo/rules';
 
 const testEnv = env as unknown as Env;
+
+function deck(): Domino[] {
+  const dominoes: Domino[] = [];
+  for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dominoes.push(createDomino(i, j));
+  return dominoes;
+}
 
 // Must match the AUTH0_DOMAIN/AUTH0_AUDIENCE test-pool bindings configured in vitest.config.ts -
 // the top-level app's `requireAuth()` (index.ts) has no injectable resolver, unlike
@@ -103,6 +111,22 @@ describe('POST /api/matchmaking', () => {
     await res.text();
     const listed = (await (await api('/api/matches?filter=Active', token)).json()) as { matches: unknown[] };
     expect(listed.matches).toEqual([]);
+  });
+
+  it('takes a player already in a Live game back to it rather than starting another', async () => {
+    const matchId = `live-under-way-${crypto.randomUUID()}`;
+    const stub = testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(matchId));
+    await stub.create('lv-1', matchId, 'live');
+    await stub.takeSeat('lv-2', 1);
+    await stub.takeSeat('lv-3', 2);
+    const dealt = await stub.takeSeat('lv-4', 3, deck());
+    if (!dealt.ok) throw new Error('expected the fourth seat to deal');
+    await syncLobbyIndex(testEnv.DB, dealt.value);
+
+    const res = await apiWithBots('/api/matchmaking', await signToken('lv-1'), { method: 'POST', body: JSON.stringify({ mode: 'live' }) });
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { id: string }).id).toBe(matchId);
   });
 
   it('rejects an unknown mode', async () => {
