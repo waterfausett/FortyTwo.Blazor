@@ -44,6 +44,7 @@ import {
   isBot,
   isLow,
   isOnAutopilot,
+  isPresent,
   LIVE_FILL_MS,
   lowDoublesToPrettyString,
   matchMode,
@@ -526,8 +527,10 @@ export default function MatchScreen() {
   }
   // Over the table, a player can leave a game under way: a bot takes their seat.
   const canLeaveGame = mode === 'live' && hasBeenDealt(match) && !view.isMatchOver && !watching;
+  // A game with nobody else present is dropped when I leave it.
+  const lastPresent = match.players.every((p) => p.playerId === myPlayerId || !isPresent(match, p.playerId));
   function confirmLeaveGame() {
-    Alert.alert('Leave this game?', 'A bot takes your seat.', [
+    Alert.alert('Leave this game?', lastPresent ? 'Nobody else is playing, so it ends.' : 'A bot takes your seat.', [
       { text: 'Stay', style: 'cancel' },
       {
         text: 'Leave',

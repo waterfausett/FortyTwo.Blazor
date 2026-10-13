@@ -185,6 +185,16 @@ describe('Match screen, Over the table', () => {
     expect(screen.queryByText('Leave game')).toBeNull();
   });
 
+  it('says the game ends when you leave as the last player present', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    socket(dealtLiveWithBots({ autopilot: ['p3', 'p4'] }));
+    await renderScreen();
+
+    await fireEvent.press(await screen.findByText('Leave game'));
+    expect(alert).toHaveBeenCalledWith('Leave this game?', 'Nobody else is playing, so it ends.', expect.any(Array));
+    alert.mockRestore();
+  });
+
   it('says who took a seat', async () => {
     socket(dealtLiveWithBots());
     const view = await renderScreen();
