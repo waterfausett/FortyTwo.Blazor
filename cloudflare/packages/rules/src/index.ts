@@ -66,6 +66,7 @@ export {
   LIVE_TURN_MS,
   LIVE_ABANDON_MS,
   TAKEOVER_MAX_MARKS,
+  TABLE_PAUSED,
   matchMode,
   isOnAutopilot,
   isBotControlled,

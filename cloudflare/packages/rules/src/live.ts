@@ -148,14 +148,23 @@ export function replaceWithBot(match: MatchState, playerId: string): MatchState 
   };
 }
 
+// Why a paused table refuses a claim. The Matchmaker keeps such a table listed: it may come back.
+export const TABLE_PAUSED = 'This game is waiting on its last player';
+
 // Asks for the next bot seat that comes up at a hand break. Only in an Over the table game under
-// way that isn't nearly over, and never more claims than bot seats, so every claim is seated at
+// way that isn't nearly over or paused, and never more claims than bot seats, so every claim is seated at
 // the next break.
 export function claimSeat(match: MatchState, playerId: string): MatchState {
   if (matchMode(match) !== 'live') throw new ValidationError('Only Over the table games take newcomers');
   if (!hasBeenDealt(match) || match.winningTeam !== null) throw new ValidationError('This game has no seat to take');
   if (Object.values(matchScores(match)).some((marks) => (marks ?? 0) >= TAKEOVER_MAX_MARKS)) {
     throw new ValidationError('This game is nearly over');
+  }
+  // A table paused on its last present player (their turn ran out) may soon be dropped; a newcomer
+  // seated there would have nobody to play with. One still counting down their turn takes claims.
+  const deadline = liveDeadline(match);
+  if (deadline?.kind === 'drop' && Date.now() >= deadline.at - LIVE_ABANDON_MS) {
+    throw new ValidationError(TABLE_PAUSED);
   }
   const claims = match.claims ?? [];
   if (match.players.some((p) => p.playerId === playerId) || claims.includes(playerId)) {

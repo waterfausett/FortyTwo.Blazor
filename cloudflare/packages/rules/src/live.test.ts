@@ -269,6 +269,20 @@ describe('claimSeat', () => {
     expect(() => claimSeat(withBots(), 'p1')).toThrow(ValidationError);
   });
 
+  it('takes a claim while the last present player is still on their turn', () => {
+    // p3 is away, so the table waits on p1 alone; their turn has only just begun.
+    const match = { ...setAutopilot(withBots(), ['p3'], true), updatedOn: new Date().toISOString() };
+    expect(liveDeadline(match)!.kind).toBe('drop');
+    expect(claimSeat(match, 'n1').claims).toEqual(['n1']);
+  });
+
+  it('refuses a claim once the table is paused on its last player', () => {
+    const ranOut = new Date(Date.now() - LIVE_TURN_MS - 1000).toISOString();
+    const match = { ...setAutopilot(withBots(), ['p3'], true), updatedOn: ranOut };
+    expect(liveDeadline(match)!.kind).toBe('drop');
+    expect(() => claimSeat(match, 'n1')).toThrow('This game is waiting on its last player');
+  });
+
   it('lets a claim go', () => {
     expect(releaseClaim(claimSeat(withBots(), 'n1'), 'n1').claims).toEqual([]);
   });
@@ -362,6 +376,24 @@ describe('pause and drop', () => {
   it('drops when the only other human is already away', () => {
     const match = setAutopilot(dealt(), ['p2', 'p3', 'p4'], true);
     expect(liveDeadline(match)!.kind).toBe('drop');
+  });
+});
+
+describe('liveDeadline at the hand break', () => {
+  // The hand is decided; everyone listed in `readied` has readied up for the next.
+  const breakWith = (readied: string[]): MatchState => {
+    const match = atBreak(dealt(), 'p1');
+    return { ...match, players: match.players.map((p) => ({ ...p, ready: readied.includes(p.playerId) })) };
+  };
+
+  it('times the unready humans while another present human has readied', () => {
+    const deadline = liveDeadline(breakWith(['p4']));
+    expect(deadline).toMatchObject({ kind: 'turn', playerIds: ['p1', 'p2', 'p3'] });
+  });
+
+  it('drops when every present human is still to ready up', () => {
+    const deadline = liveDeadline(breakWith([]));
+    expect(deadline).toMatchObject({ kind: 'drop', playerIds: ['p1', 'p2', 'p3', 'p4'] });
   });
 });
 
