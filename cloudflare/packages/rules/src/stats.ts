@@ -39,8 +39,11 @@ export interface PlayerMatchStats {
   // Any seat at the table held a bot.
   withBots: boolean;
   // Filed hands they played themselves: holding the seat, and making their own bid. A match's
-  // result counts for them only from MIN_HANDS_FOR_RESULT up (the Worker's stats queries).
+  // result counts for them only from MIN_HANDS_FOR_RESULT up, or every hand of a shorter match
+  // (the Worker's stats queries).
   handsPlayed: number;
+  // Filed hands in the whole match, both teams': a match won by marks bids can be over in two.
+  handsTotal: number;
   won: boolean;
   // Marks their team took.
   marksWon: number;
@@ -56,7 +59,8 @@ export interface PlayerMatchStats {
   trumps: TrumpCounts;
 }
 
-// A player who took over a seat late must have played this many hands for the win or loss to count.
+// A player who took over a seat late must have played this many hands (or every hand of a match
+// shorter than that) for the win or loss to count.
 export const MIN_HANDS_FOR_RESULT = 3;
 
 export function matchStatsFor(match: MatchState): PlayerMatchStats[] {
@@ -77,6 +81,7 @@ export function matchStatsFor(match: MatchState): PlayerMatchStats[] {
         partnerId: partner?.playerId ?? '',
         withBots,
         handsPlayed: 0,
+        handsTotal: filed.length,
         won: match.winningTeam === team,
         marksWon: 0,
         bidsWon: 0,

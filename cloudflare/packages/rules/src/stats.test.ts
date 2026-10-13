@@ -63,6 +63,7 @@ describe('matchStatsFor', () => {
       partnerId: 'p3',
       withBots: false,
       handsPlayed: 3,
+      handsTotal: 5,
       won: true,
       marksWon: 1 + 1 + 2 + 4,
       bidsWon: 3,
@@ -78,6 +79,7 @@ describe('matchStatsFor', () => {
       partnerId: 'p4',
       withBots: false,
       handsPlayed: 1,
+      handsTotal: 5,
       won: false,
       marksWon: 1,
       bidsWon: 1,
@@ -178,5 +180,15 @@ describe('matchStatsFor', () => {
     };
     expect(rowOf(marked, 'p4').handsPlayed).toBe(2);
     expect(rowOf(marked, 'p1').handsPlayed).toBe(3);
+  });
+
+  it('counts every filed hand, for both teams, as the match length', () => {
+    // Marks bids can end a match in a couple of hands; the match length counts both teams' hands.
+    const games: MatchState['games'] = {
+      [Teams.TeamA]: [hand(1, 'p1', Teams.TeamA, Bid.EightyFour)],
+      [Teams.TeamB]: [hand(2, 'p2', Teams.TeamB, Bid.EightyFour)],
+    };
+    const rows = matchStatsFor(match(players, games, Teams.TeamA));
+    expect(rows.map((r) => r.handsTotal)).toEqual([2, 2, 2, 2]);
   });
 });
