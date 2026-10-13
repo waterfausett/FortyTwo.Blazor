@@ -2,16 +2,21 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { requireAuth, type AuthedUser } from './auth/verifyJwt';
 import matchesRoutes from './routes/matches';
+import matchmakingRoutes from './routes/matchmaking';
 import usersRoutes from './routes/users';
 import { BadRequestError } from './requestBody';
 import { expireIdleMatches } from './expiry';
 import { assetLinks } from './appLinks';
 import { botsEnabled } from './bots';
+import { presenceEnabled } from './matchmaker';
 import type { MatchDO } from './matchDO';
+import type { Matchmaker } from './matchmaker';
 import type { ClientConfig } from '@fortytwo/api-types';
 
 export interface Env {
   MATCH_DO: DurableObjectNamespace<MatchDO>;
+  // The one Matchmaker (matchmaker.ts), addressed by name 'global', that seats Live and Async players.
+  MATCHMAKER: DurableObjectNamespace<Matchmaker>;
   DB: D1Database;
   AUTH0_DOMAIN: string;
   AUTH0_AUDIENCE: string;
@@ -23,6 +28,12 @@ export interface Env {
   // 'false': a kill switch settable in the Cloudflare dashboard without a deploy. Off, it also
   // stops the ML bot in matches that already have bots: those bots play on by the simple rules.
   BOTS_ENABLED?: string;
+  // The online count (the Matchmaker's presence socket) is on only when this is exactly 'true':
+  // off by default, unlike BOTS_ENABLED. Off, /presence/ws is a 404 and clients open no socket.
+  PRESENCE_ENABLED?: string;
+  // How often, at most, the online count goes out to every presence socket, in milliseconds
+  // (matchmaker.ts's presenceBroadcastMs). Unset, malformed or under its floor, the default is used.
+  PRESENCE_BROADCAST_MS?: string;
   // The static-assets binding (wrangler.toml's [assets]); mlBot.ts reads the bot's weights from it.
   ASSETS?: Fetcher;
   // The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links
@@ -77,6 +88,17 @@ app.get('/matches/:id/ws', async (c) => {
   return stub.fetch(new Request(target.toString(), c.req.raw));
 });
 
+// The presence socket (matchmaker.ts): the online count. The Matchmaker is addressed by the one
+// name, and its fetch() expects this same path, so the request goes through unchanged. Outside
+// `/api/*` for the same reason as above: the Matchmaker checks `?token=` itself.
+app.get('/presence/ws', async (c) => {
+  if (!presenceEnabled(c.env)) return c.notFound();
+  if (c.req.header('Upgrade') !== 'websocket') {
+    return new Response('Expected Upgrade: websocket', { status: 426 });
+  }
+  return c.env.MATCHMAKER.get(c.env.MATCHMAKER.idFromName('global')).fetch(c.req.raw);
+});
+
 // Must run before requireAuth() so the preflight OPTIONS request - which carries no Authorization
 // header - gets a CORS response instead of a 401. Falls back to the local Vite dev origin when
 // ALLOWED_ORIGIN isn't set (e.g. `wrangler dev` without a .dev.vars entry); set ALLOWED_ORIGIN to
@@ -91,8 +113,11 @@ app.use(
 );
 app.use('/api/*', requireAuth());
 // Feature switches the web app needs to know about - one worker flag drives both sides.
-app.get('/api/config', (c) => c.json({ bots: botsEnabled(c.env) } satisfies ClientConfig));
+app.get('/api/config', (c) =>
+  c.json({ bots: botsEnabled(c.env), presence: presenceEnabled(c.env) } satisfies ClientConfig)
+);
 app.route('/api/matches', matchesRoutes);
+app.route('/api/matchmaking', matchmakingRoutes);
 app.route('/api/users', usersRoutes);
 
 export { app };
@@ -106,3 +131,4 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 export { MatchDO } from './matchDO';
+export { Matchmaker } from './matchmaker';

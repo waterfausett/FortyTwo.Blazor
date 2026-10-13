@@ -7,7 +7,8 @@
 //   - the hand they're in has been decided: ready up for the next one, or the match is over;
 //   - the game has started: the last seat was taken and the first hand dealt. Not for a rematch:
 //     anyone with the finished match open is taken to it, and everyone else hears when it's their
-//     turn, which comes round to every player in the first round of bidding.
+//     turn, which comes round to every player in the first round of bidding. Also for a newcomer
+//     seated in a game under way, the one player with something new to hear.
 // Bots never get one. A poke (poke.ts) is the one notice not worked out here: a player sends it.
 //
 // A notice says what happened, not how to show it: send.ts names the match by its teams from each
@@ -17,6 +18,7 @@ import {
   bidToPrettyString,
   gameWinningTeam,
   handSize,
+  hasBeenDealt,
   isBot,
   matchScores,
   teamForPosition,
@@ -101,6 +103,15 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
   // arrives already dealt (no previous), says nothing of it.
   if (justDealt && previous !== null) {
     for (const id of humans) add(id, 'started', 'Game on', "All four seats are taken and we're ready to go!");
+  }
+
+  // A newcomer took over a seat in a game under way (Live Play's hand break); the table was
+  // already full, so nobody else has anything new to hear.
+  if (previous !== null && hasBeenDealt(previous)) {
+    const before = new Set(previous.players.map((p) => p.playerId));
+    for (const id of humans) {
+      if (!before.has(id)) add(id, 'started', "You're in", 'You took a seat - your first hand is dealt.');
+    }
   }
 
   // The hand was just decided. Each side hears who took it (or the match), as the match screen

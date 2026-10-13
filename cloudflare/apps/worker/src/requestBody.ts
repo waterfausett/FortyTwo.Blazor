@@ -72,6 +72,19 @@ export function ready(body: Body): boolean {
   return body.ready;
 }
 
+// Which matchmaking queue: Live or Async. (Custom tables come from POST /api/matches.)
+export function mode(body: Body): 'live' | 'daily' {
+  if (body.mode !== 'live' && body.mode !== 'daily') throw new BadRequestError('`mode` must be "live" or "daily".');
+  return body.mode;
+}
+
+// Only ever false: a player takes their seat back from the bot. A bot takes it over on its own,
+// when a Live turn runs out.
+export function autopilotOff(body: Body): false {
+  if (body.autopilot !== false) throw new BadRequestError('`autopilot` can only be set to false.');
+  return false;
+}
+
 // Rebuilt from its two halves, so a client-supplied `id` never reaches the engine.
 export function domino(body: Body): Domino {
   const value = body.domino as { top?: unknown; bottom?: unknown } | null;

@@ -2,6 +2,7 @@
 // cover a token fetch failing and the poke message, against a mock WebSocket and fake timers.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectMatchSocket, type MatchSocketOptions } from './matchSocket';
+import { resetServerClock, serverNow } from './serverClock';
 
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
@@ -121,7 +122,38 @@ describe('connectMatchSocket messages', () => {
     vi.stubGlobal('WebSocket', MockWebSocket);
   });
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    resetServerClock();
+  });
+
+  it("sets this device's reckoning of the Worker's clock from the time a match message carries", async () => {
+    const onMatch = vi.fn();
+    const { disconnect } = connect({ onMatch });
+    await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    vi.useFakeTimers({ now: 100_000 });
+
+    // The Worker's clock is 5s ahead of this device's.
+    MockWebSocket.instances[0].emit('message', { data: JSON.stringify({ type: 'match', match: {}, now: 105_000 }) });
+
+    expect(onMatch).toHaveBeenCalledWith({});
+    expect(serverNow()).toBe(105_000);
+    vi.advanceTimersByTime(1000);
+    expect(serverNow()).toBe(106_000);
+    disconnect();
+  });
+
+  it('leaves the reckoning alone when a match message carries no time', async () => {
+    const { disconnect } = connect({});
+    await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
+    vi.useFakeTimers({ now: 100_000 });
+
+    MockWebSocket.instances[0].emit('message', { data: JSON.stringify({ type: 'match', match: {} }) });
+
+    expect(serverNow()).toBe(100_000);
+    disconnect();
+  });
 
   it('hands a poke to onPoke with who sent it, and not to onMatch', async () => {
     const onPoke = vi.fn();

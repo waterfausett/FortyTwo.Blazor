@@ -19,19 +19,33 @@ import {
   createRematch,
   removePlayer,
   hasHumanPlayers,
+  liveDeadline,
+  setAutopilot,
+  isOnAutopilot,
+  matchMode,
+  resumeControl,
+  tableWait,
   assertIsMatchPlayer,
+  claimSeat,
+  releaseClaim,
+  replaceWithBot,
+  isPresent,
+  isBot,
+  hasBeenDealt,
   shuffledDominoOrder,
   ValidationError,
   type Bid,
   type Domino,
   type LoggedInPlayer,
+  type MatchMode,
   type MatchState,
   type Suit,
+  type TableWait,
   type Teams,
 } from '@fortytwo/rules';
-import { bestEffort, syncLobbyIndex, refreshMatchSummary } from './lobby';
+import { bestEffort, syncLobbyIndex, refreshMatchSummary, deleteFromLobbyIndex } from './lobby';
 import { recordMatchStats } from './stats';
-import { pushNotices } from './push/notices';
+import { pushNotices, type Notice } from './push/notices';
 import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
 import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
@@ -61,6 +75,14 @@ export type MatchResult<T> =
   | { ok: true; value: T }
   | { ok: false; status: 400 | 404; error: { title: string; detail?: string } };
 
+// Just enough of a match for the Matchmaker to place someone at it: who sits where, whether it's
+// been dealt, whether it's won. Far smaller over RPC than the match, which carries every hand.
+export interface Seating {
+  players: { playerId: string; position: number }[];
+  dealt: boolean;
+  won: boolean;
+}
+
 export class MatchDO extends DurableObject<Env> {
   private async load(): Promise<MatchState | null> {
     return (await this.ctx.storage.get<MatchState>('match')) ?? null;
@@ -88,10 +110,12 @@ export class MatchDO extends DurableObject<Env> {
 
   // Stores the new match under `matchId`, the id this DO is addressed by, so every later response
   // and broadcast carries the id clients use to reach it.
-  async create(firstPlayerId: string, matchId: string): Promise<MatchState> {
-    const match = { ...createMatch(firstPlayerId), id: matchId };
+  async create(firstPlayerId: string, matchId: string, mode: MatchMode = 'custom'): Promise<MatchState> {
+    const match = { ...createMatch(firstPlayerId, mode), id: matchId };
     await this.save(match);
     this.publish(null, match);
+    // A Live table's fill deadline starts now.
+    await this.schedule(match);
     return match;
   }
 
@@ -111,7 +135,7 @@ export class MatchDO extends DurableObject<Env> {
     if (stored !== null) {
       // A retry: the first attempt may have failed before its bots were scheduled or its lobby
       // rows were written.
-      await this.scheduleBotsIfNeeded(stored);
+      await this.schedule(stored);
       await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, stored));
       return stored;
     }
@@ -119,7 +143,8 @@ export class MatchDO extends DurableObject<Env> {
     const match = createRematch(matchId, previous, dealOrder);
     await this.save(match);
     this.publish(null, match, onTheWay);
-    await this.scheduleBotsIfNeeded(match);
+    await this.schedule(match);
+    this.offerIfBotSeated(null, match);
     await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, match));
     return match;
   }
@@ -128,6 +153,15 @@ export class MatchDO extends DurableObject<Env> {
   // leaves the Worker (matchViewFor).
   getMatch(): Promise<MatchResult<MatchState>> {
     return this.read((match) => match);
+  }
+
+  // The Matchmaker's look at a table (Seating).
+  getSeating(): Promise<MatchResult<Seating>> {
+    return this.read((match) => ({
+      players: match.players.map((p) => ({ playerId: p.playerId, position: p.position })),
+      dealt: hasBeenDealt(match),
+      won: match.winningTeam !== null,
+    }));
   }
 
   getPlayerView(playerId: string): Promise<MatchResult<LoggedInPlayer>> {
@@ -144,11 +178,38 @@ export class MatchDO extends DurableObject<Env> {
     return this.update(playerId, (match) => takeSeat(match, playerId, position, dealOrder));
   }
 
-  // Takes a player back out of a match that hasn't been dealt. When no human is left the match is
-  // deleted outright - that's also how a creator cancels a match nobody joined. The caller drops
-  // the lobby rows (routes/matches.ts), as routes already own D1 syncing.
+  // A newcomer asks for the next bot seat at this Live Play game (the Matchmaker calls this).
+  // They're seated at the next hand break; until then they watch.
+  claimSeat(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, (match) => claimSeat(match, playerId));
+  }
+
+  // Leaving: before the deal, takes the player back out (the last human out deletes the match -
+  // how a creator cancels a match nobody joined). A claimant gives up their claim. In an Over the
+  // table game under way a bot takes the seat, unless nobody else is present, which drops the
+  // match. The caller drops the lobby rows when it's deleted (routes/matches.ts).
   leave(playerId: string): Promise<MatchResult<LeaveResult>> {
     return this.read(async (match): Promise<LeaveResult> => {
+      if ((match.claims ?? []).includes(playerId)) {
+        const next = releaseClaim(match, playerId);
+        await this.save(next);
+        this.broadcast(next);
+        return { deleted: false, match: next };
+      }
+      if (matchMode(match) === 'live' && hasBeenDealt(match) && match.winningTeam === null) {
+        assertIsMatchPlayer(match, playerId);
+        const othersPresent = match.players.some((p) => p.playerId !== playerId && isPresent(match, p.playerId));
+        if (!othersPresent) {
+          await this.drop(match);
+          return { deleted: true };
+        }
+        const next = replaceWithBot(match, playerId);
+        await this.save(next);
+        this.publish(match, next);
+        await this.schedule(next);
+        this.offerIfBotSeated(match, next);
+        return { deleted: false, match: next };
+      }
       const next = removePlayer(match, playerId);
       if (!hasHumanPlayers(next)) {
         await this.destroy();
@@ -156,7 +217,7 @@ export class MatchDO extends DurableObject<Env> {
       }
       await this.save(next);
       this.broadcast(next);
-      await this.scheduleBotsIfNeeded(next);
+      await this.schedule(next);
       return { deleted: false, match: next };
     });
   }
@@ -177,15 +238,11 @@ export class MatchDO extends DurableObject<Env> {
   addBots(requesterId: string, positions?: number[]): Promise<MatchResult<MatchState>> {
     return this.update(requesterId, (match) => {
       assertIsMatchPlayer(match, requesterId);
-      const seats =
-        positions ?? [0, 1, 2, 3].filter((position) => match.players.every((p) => p.position !== position));
-
-      let next = match;
-      for (const position of seats) {
-        const botId = BOT_IDS.find((id) => next.players.every((p) => p.playerId !== id))!;
-        next = takeSeat(next, botId, position, shuffledDominoOrder());
+      // Live fills with bots on its own clock; Async never does.
+      if (matchMode(match) === 'daily') {
+        throw new ValidationError('No bots at Async tables', 'Async tables only fill with people.');
       }
-      return next;
+      return seatBots(match, positions);
     });
   }
 
@@ -203,6 +260,17 @@ export class MatchDO extends DurableObject<Env> {
 
   playDomino(playerId: string, domino: Domino): Promise<MatchResult<MatchState>> {
     return this.update(playerId, (match) => playDomino(match, playerId, domino));
+  }
+
+  // A player back at a Live table taking their seat back from the bot before their next turn.
+  resume(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, (match) => resumeControl(match, playerId));
+  }
+
+  // Who the table is waiting on, for the lobby's Active list. A read of what this DO already
+  // holds, so the list never needs D1 to keep a turn column up to date.
+  getTurn(): Promise<MatchResult<TableWait | null>> {
+    return this.read((match) => tableWait(match));
   }
 
   // Records a rematch vote. The vote that completes the table creates the rematch's DO first, and
@@ -297,23 +365,30 @@ export class MatchDO extends DurableObject<Env> {
     action: (match: MatchState) => MatchState | Promise<MatchState>
   ): Promise<MatchResult<MatchState>> {
     return this.read(async (match) => {
-      const next = await action(match);
+      const acted = await action(match);
+      // Acting is taking your seat back from the bot (live.ts).
+      const next = isOnAutopilot(acted, actorId) ? setAutopilot(acted, [actorId], false) : acted;
       await this.save(next);
       await this.recordStatsIfWon(match, next);
       this.publish(match, next, [actorId]);
-      await this.scheduleBotsIfNeeded(next);
+      await this.schedule(next);
+      this.offerIfBotSeated(match, next);
+      await this.syncIfSeatsChanged(match, next);
       return next;
     });
   }
 
-  // Schedules the next bot action a beat in the future (via the alarm API) if one is pending,
-  // rather than resolving it inline - each bot move then arrives as its own broadcast, matching
-  // the pacing a real remote player's move would have (bots.ts's botDelayMs).
-  private async scheduleBotsIfNeeded(match: MatchState): Promise<void> {
+  // Sets the alarm for whatever this match does next on its own: a bot's move a beat from now
+  // (paced like a remote player's, bots.ts's botDelayMs), or a Live deadline (live.ts) - filling
+  // the table, or a turn running out. One alarm serves all of them; alarm() works out which is due.
+  private async schedule(match: MatchState): Promise<void> {
     const action = findNextBotAction(match);
     if (action !== null) {
       await this.ctx.storage.setAlarm(Date.now() + botDelayMs(match, action));
+      return;
     }
+    const deadline = liveDeadline(match);
+    if (deadline !== null) await this.ctx.storage.setAlarm(Math.max(deadline.at, Date.now()));
   }
 
   // The play that wins the match records each human's stats (stats.ts) - only that one, so plays
@@ -330,10 +405,10 @@ export class MatchDO extends DurableObject<Env> {
     }
   }
 
-  // Runs one bot action per firing. Alarm-driven changes never pass through routes/matches.ts,
-  // which syncs the D1 lobby index for everything else, so it's synced here - by the same rules:
-  // a bot's ready-up or play refreshes the summary row, and its bid or trump call (which the
-  // routes don't sync either) writes nothing.
+  // Runs one thing per firing: the next bot move, or a Live deadline that has come due (live.ts).
+  // Alarm-driven changes never pass through routes/matches.ts, which syncs the D1 lobby index for
+  // everything else, so it's synced here - by the same rules: a bot's ready-up or play refreshes
+  // the summary row, and its bid or trump call (which the routes don't sync either) writes nothing.
   async alarm(): Promise<void> {
     // Resolved before the match is read: the first call in an isolate makes outgoing ASSETS fetches,
     // which don't hold input gates, so a request could change the match between load and save.
@@ -351,19 +426,71 @@ export class MatchDO extends DurableObject<Env> {
     if (match === null) return;
 
     const action = findNextBotAction(match);
-    if (action === null) return;
-
-    const next = applyBotAction(match, action, bot);
-    await this.save(next);
-    // Scheduled straight after the save: the saved match already points at the next bot action,
-    // so if anything below threw first, the runtime's retry would fire that action unpaced, and
-    // once its retries ran out a match waiting on a bot would be stuck.
-    await this.scheduleBotsIfNeeded(next);
-    await this.recordStatsIfWon(match, next);
-    this.publish(match, next);
-    if (action.kind === 'ready' || action.kind === 'play') {
-      await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));
+    if (action !== null) {
+      const next = applyBotAction(match, action, bot);
+      await this.save(next);
+      // Scheduled straight after the save: the saved match already points at the next bot action,
+      // so if anything below threw first, the runtime's retry would fire that action unpaced, and
+      // once its retries ran out a match waiting on a bot would be stuck.
+      await this.schedule(next);
+      await this.recordStatsIfWon(match, next);
+      this.publish(match, next);
+      this.offerIfBotSeated(match, next);
+      await this.syncIfSeatsChanged(match, next);
+      if (action.kind === 'ready' || action.kind === 'play') {
+        await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));
+      }
+      return;
     }
+
+    const deadline = liveDeadline(match);
+    if (deadline === null) return;
+    // Fired early - the alarm was set for something that has since changed: wait for the deadline.
+    if (Date.now() < deadline.at) {
+      await this.schedule(match);
+      return;
+    }
+    if (deadline.kind === 'drop') {
+      await this.drop(match);
+      return;
+    }
+    const next = deadline.kind === 'fill' ? seatBots(match) : setAutopilot(match, deadline.playerIds, true);
+    await this.save(next);
+    await this.schedule(next);
+    this.publish(match, next);
+    this.offerIfBotSeated(match, next);
+    // Filling changes who's seated, which the lobby lists; going on autopilot doesn't.
+    if (deadline.kind === 'fill') await bestEffort(next.id, () => syncLobbyIndex(this.env.DB, next));
+  }
+
+  // Drops a game with nobody left to play it: claimants hear they were let go (their app searches
+  // again), then it's deleted like a match whose last player left. No stats are written.
+  private async drop(match: MatchState): Promise<void> {
+    const claims = match.claims ?? [];
+    if (claims.length > 0) this.broadcast({ ...match, claims: [], bumped: [...(match.bumped ?? []), ...claims] });
+    await this.destroy();
+    await bestEffort(match.id, () => deleteFromLobbyIndex(this.env.DB, match.id));
+  }
+
+  // A bot just took a seat at a Live Play game: it has a seat for a newcomer, so the
+  // Matchmaker hears about it (it may have dropped the table from its list). Fire and forget - a
+  // lost offer only means the seat isn't found.
+  private offerIfBotSeated(previous: MatchState | null, next: MatchState): void {
+    if (matchMode(next) !== 'live' || next.winningTeam !== null || !hasBeenDealt(next)) return;
+    const bots = (m: MatchState | null) => m?.players.filter((p) => isBot(p.playerId)).map((p) => p.playerId) ?? [];
+    const before = new Set(bots(previous));
+    if (!bots(next).some((id) => !before.has(id))) return;
+    const matchmaker = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
+    this.ctx.waitUntil(matchmaker.offer(next.id).catch((error: unknown) => console.error(`OFFER FAILED for ${next.id}`, error)));
+  }
+
+  // Who's seated changed in a game under way (a claim seated, a bot took over): the lobby lists it.
+  // Joins and bots seated before the deal are left to the routes, which already sync them - syncing
+  // them here too would write every seat row twice.
+  private async syncIfSeatsChanged(previous: MatchState, next: MatchState): Promise<void> {
+    if (!hasBeenDealt(previous)) return;
+    const ids = (m: MatchState) => m.players.map((p) => `${p.position}:${p.playerId}`).sort().join();
+    if (ids(previous) !== ids(next)) await bestEffort(next.id, () => syncLobbyIndex(this.env.DB, next));
   }
 
   // Uses the Hibernation API (`this.ctx.acceptWebSocket`, not the plain `WebSocket` `accept()`)
@@ -403,7 +530,7 @@ export class MatchDO extends DurableObject<Env> {
 
   // Required by the Hibernation API even though clients don't send messages today - all match
   // actions go through the REST routes, not over the socket. The server sends two kinds:
-  // `{ type: 'match', match }` on every change, and `{ type: 'poke', from }` to a poked player.
+  // `{ type: 'match', match, now }` on every change, and `{ type: 'poke', from }` to a poked player.
   async webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {}
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
@@ -426,7 +553,7 @@ export class MatchDO extends DurableObject<Env> {
     this.broadcast(next);
     const watching = this.watchingPlayers();
     for (const id of onTheWay) watching.add(id);
-    const notices = pushNotices(previous, next).filter((n) => !watching.has(n.playerId));
+    const notices = noticesFor(previous, next, watching);
     if (notices.length > 0) this.ctx.waitUntil(sendNotices(this.env, notices));
   }
 
@@ -460,5 +587,28 @@ export class MatchDO extends DurableObject<Env> {
 }
 
 function matchMessageFor(match: MatchState, viewerId: string): string {
-  return JSON.stringify({ type: 'match', match: matchViewFor(match, viewerId) });
+  // `now` lets the clients count Live deadlines down by this clock rather than their own
+  // (@fortytwo/client's serverClock.ts).
+  return JSON.stringify({ type: 'match', match: matchViewFor(match, viewerId), now: Date.now() });
+}
+
+// Seats a bot at each of `positions`, or at every open seat when none are given. Each bot takes
+// the first reserved id not yet seated; the fourth seat deals.
+function seatBots(match: MatchState, positions?: number[]): MatchState {
+  const seats = positions ?? [0, 1, 2, 3].filter((position) => match.players.every((p) => p.position !== position));
+  let next = match;
+  for (const position of seats) {
+    const botId = BOT_IDS.find((id) => next.players.every((p) => p.playerId !== id))!;
+    next = takeSeat(next, botId, position, shuffledDominoOrder());
+  }
+  return next;
+}
+
+// What to push after a change: pushNotices' list, less anyone watching the match, and less anyone
+// on autopilot - a bot is taking their turns, so a push per turn would only nag. The end of the
+// match still reaches them.
+export function noticesFor(previous: MatchState | null, next: MatchState, watching: Set<string>): Notice[] {
+  return pushNotices(previous, next).filter(
+    (n) => !watching.has(n.playerId) && (n.kind === 'matchOver' || !isOnAutopilot(next, n.playerId))
+  );
 }

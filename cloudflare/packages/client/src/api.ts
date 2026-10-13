@@ -85,6 +85,10 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
   return {
     createMatch: (): Promise<MatchState> => request<MatchState>('/api/matches', { method: 'POST' }),
 
+    // Live or Async play: seats the caller at an open table of that mode, or starts one.
+    play: (mode: 'live' | 'daily'): Promise<MatchState> =>
+      request<MatchState>('/api/matchmaking', { method: 'POST', body: JSON.stringify({ mode }) }),
+
     // One page of a lobby list; pass the previous page's `nextCursor` for the next one.
     listMatches: (filter: 'Active' | 'Completed' | 'Joinable', cursor?: string): Promise<MatchPage> =>
       request<MatchPage>(`/api/matches?filter=${filter}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
@@ -108,6 +112,10 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
         method: 'PATCH',
         body: JSON.stringify({ ready }),
       }),
+
+    // Takes the caller's seat back from the bot after a Live turn ran out.
+    resume: (id: string): Promise<MatchState> =>
+      request<MatchState>(`/api/matches/${id}/players`, { method: 'PATCH', body: JSON.stringify({ autopilot: false }) }),
 
     // A vote to play the same four again once the match is over.
     rematch: (id: string): Promise<MatchState> =>

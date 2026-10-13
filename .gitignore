@@ -345,3 +345,4 @@ healthchecksdb
 
 # Git Bash crash dumps (Windows)
 *.stackdump
+.superpowers/

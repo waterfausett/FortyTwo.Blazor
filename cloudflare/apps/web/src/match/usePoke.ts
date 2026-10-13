@@ -3,7 +3,7 @@
 // decides when the button is worth showing. It hides once this turn has been poked from here.
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { pokeTarget, pokeTurnKey, pokeableAt, type PokeResult } from '@fortytwo/client';
+import { pokeTarget, pokeTurnKey, pokeableAt, serverNow, type PokeResult } from '@fortytwo/client';
 import type { MatchState } from '@fortytwo/rules';
 import { toastError, toastInfo } from '../ui/toast';
 
@@ -23,7 +23,7 @@ export function usePoke(
   const [pokedTurn, setPokedTurn] = useState<string | null>(null);
   useEffect(() => {
     if (turn == null || readyAt == null) return;
-    const timer = setTimeout(() => setIdleTurn(turn), Math.max(0, readyAt - Date.now()));
+    const timer = setTimeout(() => setIdleTurn(turn), Math.max(0, readyAt - serverNow()));
     return () => clearTimeout(timer);
   }, [turn, readyAt]);
 

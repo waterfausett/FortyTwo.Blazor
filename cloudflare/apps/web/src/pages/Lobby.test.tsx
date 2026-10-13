@@ -1,5 +1,5 @@
-// Tests the Lobby page's tabbed match list (Find a Game / Active / Game History, defaulting to
-// Active) plus its create/join actions and manual refresh button. `apiClient` (client.ts) is
+// Tests the Lobby page's tabbed match list (Active / Game History, defaulting to Active) plus
+// the New match chooser and manual refresh button. `apiClient` (client.ts) is
 // mocked at the module level rather than injected as a prop - Lobby.tsx calls `apiClient(getToken)`
 // internally - so tests control each method's mocked return/behavior directly. `@auth0/auth0-react`'s `useAuth0` is likewise
 // mocked rather than wrapped in a real `Auth0Provider`, since only a working
@@ -14,12 +14,13 @@ import type { MatchState } from '@fortytwo/rules';
 import type { MatchPage, MatchSummary } from '../api/client';
 import { Lobby } from './Lobby';
 
-const { listMatchesMock, createMatchMock, joinMatchMock, getProfileMock, patchProfileMock, mockNavigate } = vi.hoisted(() => ({
+const { listMatchesMock, createMatchMock, playMock, getConfigMock, getProfileMock, patchProfileMock, mockNavigate } = vi.hoisted(() => ({
   listMatchesMock: vi.fn(),
   getProfileMock: vi.fn(),
   patchProfileMock: vi.fn(),
   createMatchMock: vi.fn(),
-  joinMatchMock: vi.fn(),
+  playMock: vi.fn(),
+  getConfigMock: vi.fn(),
   mockNavigate: vi.fn(),
 }));
 
@@ -27,11 +28,14 @@ vi.mock('../api/client', () => ({
   apiClient: () => ({
     listMatches: listMatchesMock,
     createMatch: createMatchMock,
-    joinMatch: joinMatchMock,
+    play: playMock,
+    getConfig: getConfigMock,
     getProfile: getProfileMock,
     patchProfile: patchProfileMock,
   }),
 }));
+
+vi.mock('../api/presence', () => ({ useOnline: () => 3 }));
 
 vi.mock('@auth0/auth0-react', () => ({
   useAuth0: () => ({ getAccessTokenSilently: vi.fn(async () => 'test-token') }),
@@ -45,6 +49,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 const ACTIVE_FIXTURE: MatchSummary[] = [
   {
     id: 'active-1',
+    mode: 'custom',
     status: 'active',
     playerCount: 4,
     updatedOn: '2026-01-01T00:00:00.000Z',
@@ -55,20 +60,10 @@ const ACTIVE_FIXTURE: MatchSummary[] = [
     seats: ['Alice', 'bot-1', 'bot-2', 'bot-3'],
   },
 ];
-// Bob created it (seat 0) and Cara sat on his right (seat 3), leaving seats 1 and 2 open.
-const JOINABLE_FIXTURE: MatchSummary[] = [
-  {
-    id: 'joinable-1',
-    status: 'active',
-    playerCount: 2,
-    updatedOn: '2026-01-01T00:00:00.000Z',
-    teams: [['Bob'], ['Cara']],
-    seats: ['Bob', null, null, 'Cara'],
-  },
-];
 const COMPLETED_FIXTURE: MatchSummary[] = [
   {
     id: 'completed-1',
+    mode: 'custom',
     status: 'completed',
     playerCount: 4,
     updatedOn: '2026-01-01T00:00:00.000Z',
@@ -81,18 +76,15 @@ const COMPLETED_FIXTURE: MatchSummary[] = [
 ];
 // Each row is labelled by its matchup, not the match id.
 const ACTIVE_ROW = 'Alice & bot-2 vs bot-1 & bot-3';
-const JOINABLE_ROW = 'Bob vs Cara';
 const COMPLETED_ROW = 'Alice & Cara vs Bob & Dan';
 
 const page = (matches: MatchSummary[], nextCursor: string | null = null): MatchPage => ({ matches, nextCursor });
 
 function mockLists() {
-  listMatchesMock.mockImplementation((filter: 'Active' | 'Completed' | 'Joinable') => {
+  listMatchesMock.mockImplementation((filter: 'Active' | 'Completed') => {
     switch (filter) {
       case 'Active':
         return Promise.resolve(page(ACTIVE_FIXTURE));
-      case 'Joinable':
-        return Promise.resolve(page(JOINABLE_FIXTURE));
       case 'Completed':
         return Promise.resolve(page(COMPLETED_FIXTURE));
     }
@@ -117,6 +109,7 @@ function switchTab(name: RegExp) {
 describe('Lobby', () => {
   beforeEach(() => {
     mockLists();
+    getConfigMock.mockResolvedValue({ bots: true });
     getProfileMock.mockResolvedValue({ user_id: 'me', displayName: 'Me', seenHowToPlay: true });
   });
 
@@ -134,9 +127,8 @@ describe('Lobby', () => {
 
     await screen.findByText(ACTIVE_ROW);
 
-    expect(screen.getByRole('tab', { name: /active games/i }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab', { name: /active/i }).getAttribute('aria-selected')).toBe('true');
     expect(listMatchesMock).toHaveBeenCalledWith('Active', undefined);
-    expect(listMatchesMock).not.toHaveBeenCalledWith('Joinable', undefined);
     expect(listMatchesMock).not.toHaveBeenCalledWith('Completed', undefined);
   });
 
@@ -145,9 +137,6 @@ describe('Lobby', () => {
     await screen.findByText(ACTIVE_ROW);
     listMatchesMock.mockClear();
 
-    switchTab(/find a game/i);
-    await screen.findByText(JOINABLE_ROW);
-    expect(listMatchesMock).toHaveBeenCalledWith('Joinable', undefined);
     expect(listMatchesMock).not.toHaveBeenCalledWith('Completed', undefined);
 
     switchTab(/game history/i);
@@ -199,67 +188,48 @@ describe('Lobby', () => {
     await waitFor(() => expect(icon.className).not.toMatch(/spinner-reverse/));
   });
 
-  it('calls createMatch and navigates to the new match on click', async () => {
-    createMatchMock.mockResolvedValue({ id: 'new-match-id' } as MatchState);
+  it('shows only the Active and History tabs', async () => {
     renderLobby();
-
-    await screen.findByText(ACTIVE_ROW);
-    fireEvent.click(screen.getByRole('button', { name: /create match/i }));
-
-    await waitFor(() => expect(createMatchMock).toHaveBeenCalled());
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/new-match-id'));
+    expect(await screen.findByRole('tab', { name: /active/i })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /history/i })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: /find a game/i })).toBeNull();
   });
 
-  describe('joining', () => {
-    async function openSeatPicker() {
-      renderLobby();
-      switchTab(/find a game/i);
-      const row = (await screen.findByText(JOINABLE_ROW)).closest('li') as HTMLElement;
-      fireEvent.click(within(row).getByRole('button', { name: /join/i }));
-      return within(row).getByRole('group', { name: /pick a seat/i });
-    }
-
-    it('opens a seat picker showing who sits where, with a button in each open seat', async () => {
-      const picker = await openSeatPicker();
-
-      expect(within(picker).getByText('Bob')).toBeTruthy();
-      expect(within(picker).getByText('Cara')).toBeTruthy();
-      // Seat 1 is across from Cara, seat 2 across from Bob - each says who you'd partner with.
-      const seats = within(picker).getAllByRole('button');
-      expect(seats.map((seat) => seat.textContent)).toEqual(['Sit herewith Cara', 'Sit herewith Bob']);
-      expect(joinMatchMock).not.toHaveBeenCalled();
+  it('puts your-turn games first, with a badge', async () => {
+    listMatchesMock.mockResolvedValue({
+      matches: [
+        { ...ACTIVE_FIXTURE[0], id: 'theirs', turn: { kind: 'turn', yours: false, waitingOn: ['Eli'] } },
+        { ...ACTIVE_FIXTURE[0], id: 'mine', turn: { kind: 'turn', yours: true, waitingOn: ['Alice'] } },
+      ],
+      nextCursor: null,
     });
+    renderLobby();
+    const rows = await screen.findAllByRole('listitem');
+    expect(within(rows[0]).getByText('Your turn')).toBeTruthy();
+    expect(within(rows[1]).getByText(/Eli's turn/)).toBeTruthy();
+  });
 
-    it('joins at the picked seat, then navigates to the joined match', async () => {
-      joinMatchMock.mockResolvedValue({ id: 'joinable-1' } as MatchState);
-      const picker = await openSeatPicker();
+  it('starts Async matchmaking from the chooser and opens the match', async () => {
+    playMock.mockResolvedValue({ id: 'daily-1' } as MatchState);
+    renderLobby();
+    fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
+    fireEvent.click(screen.getByRole('button', { name: /async/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/daily-1'));
+    expect(playMock).toHaveBeenCalledWith('daily');
+  });
 
-      fireEvent.click(within(picker).getByRole('button', { name: /with bob/i }));
+  it('shows how many players are online in the chooser', async () => {
+    renderLobby();
+    fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
+    expect(await screen.findByText('3 online')).toBeTruthy();
+  });
 
-      await waitFor(() => expect(joinMatchMock).toHaveBeenCalledWith('joinable-1', 2));
-      // Joining takes the player straight to the match they just joined.
-      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/joinable-1'));
-    });
-
-    it('closes the picker on Cancel', async () => {
-      await openSeatPicker();
-
-      fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
-
-      expect(screen.queryByRole('group', { name: /pick a seat/i })).toBeNull();
-    });
-
-    it('shows the error and refreshes the list when the seat was taken first', async () => {
-      joinMatchMock.mockRejectedValue(new Error('Seat is taken: Someone is already sitting there'));
-      const picker = await openSeatPicker();
-      listMatchesMock.mockClear();
-
-      fireEvent.click(within(picker).getByRole('button', { name: /with cara/i }));
-
-      expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Seat is taken: Someone is already sitting there');
-      await waitFor(() => expect(listMatchesMock).toHaveBeenCalledWith('Joinable', undefined));
-      expect(mockNavigate).not.toHaveBeenCalled();
-    });
+  it('creates a custom table for Custom Match', async () => {
+    createMatchMock.mockResolvedValue({ id: 'custom-1' } as MatchState);
+    renderLobby();
+    fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
+    fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/custom-1'));
   });
 
   // A player who left the match page (or the creator, before anyone else joined) gets back in
@@ -270,17 +240,14 @@ describe('Lobby', () => {
     const activeLink = (await screen.findByText(ACTIVE_ROW)).closest('a');
     expect(activeLink).not.toBeNull();
     expect(activeLink?.getAttribute('href')).toBe('/match/active-1');
-
-    switchTab(/find a game/i);
-    const joinableLink = (await screen.findByText(JOINABLE_ROW)).closest('a');
-    expect(joinableLink?.getAttribute('href')).toBe('/match/joinable-1');
   });
 
   it('falls back to the match id for a row with no players listed', async () => {
     listMatchesMock.mockResolvedValue(page([
       {
         id: 'no-players',
-        status: 'active',
+        mode: 'custom',
+    status: 'active',
         playerCount: 0,
         updatedOn: '2026-01-01T00:00:00.000Z',
         teams: [[], []],

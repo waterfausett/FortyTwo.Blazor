@@ -7,6 +7,7 @@ import { Domino, dominoEquals, getSuitValue } from './domino';
 import { ValidationError } from './errors';
 import { Game, gameValue, gameWinningTeam } from './game';
 import { Hand } from './hand';
+import { letClaimsGo, seatChangesAtBreak, type MatchMode } from './live';
 import { MatchPlayerRef, selectNextPlayer } from './match';
 import { nextPosition, Positions } from './positions';
 import { Suit } from './suit';
@@ -61,6 +62,24 @@ export interface MatchState {
   rematchVotes?: string[];
   // The rematch's match id, set once everyone has agreed and that match exists.
   rematchId?: string;
+  // How the match was started: Live, Async, or a custom table (live.ts). Absent on matches stored
+  // before modes existed - read it with matchMode(), which calls those custom.
+  mode?: MatchMode;
+  // When a Live match began looking for players; bots take its empty seats LIVE_FILL_MS later.
+  searchStartedOn?: string;
+  // Players a bot is playing for, after they let a Live turn run out (live.ts).
+  autopilot?: string[];
+  // When each player on autopilot went away, written and cleared with `autopilot` (live.ts).
+  awaySince?: Record<string, string>;
+  // Players waiting to take a bot's seat at the next hand break, in the order they asked.
+  claims?: string[];
+  // A bot has sat at this table at some point, so its stats count as a bots game even after
+  // people have taken every bot's seat.
+  hadBots?: boolean;
+  // Players whose seat a bot took after they were away a whole hand, or who left.
+  replaced?: string[];
+  // Claimants let go without a seat (the match ended or was dropped first); their app searches again.
+  bumped?: string[];
 }
 
 function now(): string {
@@ -68,7 +87,7 @@ function now(): string {
 }
 
 // A new match with its creator in the first seat, waiting for three more players.
-export function createMatch(firstPlayerId: string): MatchState {
+export function createMatch(firstPlayerId: string, mode: MatchMode = 'custom'): MatchState {
   const timestamp = now();
 
   const game: Game = {
@@ -92,6 +111,8 @@ export function createMatch(firstPlayerId: string): MatchState {
     games: {},
     winningTeam: null,
     players: [{ playerId: firstPlayerId, position: Positions.First, ready: true }],
+    mode,
+    ...(mode === 'live' ? { searchStartedOn: timestamp } : {}),
   };
 }
 
@@ -156,11 +177,11 @@ function seatPlayer(match: MatchState, playerId: string, position: Positions, de
   let currentGame: Game = { ...match.currentGame, hands: [...match.currentGame.hands, newHand] };
 
   if (currentGame.hands.length === 4 && dealOrder) {
-    currentGame = { ...currentGame, hands: dealHands(currentGame.hands, players, dealOrder) };
+    currentGame = { ...currentGame, hands: dealHands(currentGame.hands, players, dealOrder), dealtOn: now() };
     players = players.map((p) => ({ ...p, ready: false }));
   }
 
-  return { ...match, currentGame, players, updatedOn: now() };
+  return { ...match, currentGame, players, updatedOn: now(), ...(isBot(playerId) ? { hadBots: true } : {}) };
 }
 
 // Whether any hand has been dealt in this match yet. Hands are empty again after a hand's last
@@ -224,8 +245,13 @@ export function patchPlayerReady(
       0
     );
 
-    const firstActionByPosition = nextPosition(players.find((p) => p.playerId === lastGame.firstActionBy)!.position);
-    const firstActionBy = players.find((p) => p.position === firstActionByPosition)!.playerId;
+    // The opener is found by seat, before any seat changes hands below: the last opener may be
+    // a player whose seat a bot or a newcomer is about to take.
+    const lastOpenerPosition = match.players.find((p) => p.playerId === lastGame.firstActionBy)!.position;
+    const seated = seatChangesAtBreak({ ...match, players });
+    players = seated.players;
+    const firstActionBy = players.find((p) => p.position === nextPosition(lastOpenerPosition))!.playerId;
+    match = seated;
 
     let hands: Hand[] = players.map((p) => ({
       playerId: p.playerId,
@@ -248,6 +274,7 @@ export function patchPlayerReady(
       hands,
       currentTrick: createTrick(),
       tricks: [],
+      dealtOn: now(),
     };
   }
 
@@ -385,7 +412,8 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
       ) as Teams)
     : null;
 
-  return { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
+  const result = { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
+  return matchWinningTeam !== null ? letClaimsGo(result) : result;
 }
 
 // Asks to play the same four again. Only once the match is over, and only from someone seated;
@@ -438,10 +466,14 @@ export function createRematch(id: string, previous: MatchState, dealOrder: Domin
       hands,
       currentTrick: createTrick(),
       tricks: [],
+      dealtOn: timestamp,
     },
     games: {},
     winningTeam: null,
     players,
+    // The same four, playing the same way.
+    ...(previous.mode !== undefined ? { mode: previous.mode } : {}),
+    ...(players.some((p) => isBot(p.playerId)) ? { hadBots: true } : {}),
   };
 }
 

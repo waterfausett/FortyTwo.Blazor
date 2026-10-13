@@ -8,6 +8,9 @@ import {
   Domino,
   Game,
   Hand,
+  isBotControlled,
+  isOnAutopilot,
+  markAutoBid,
   isOfSuit,
   MatchState,
   Suit,
@@ -63,9 +66,10 @@ export type BotAction =
   | { kind: 'setTrump'; playerId: string }
   | { kind: 'play'; playerId: string };
 
-// Inspects match state to find the single next bot action to take, or null if it's a human's
-// turn, we're waiting on a human to ready up, or the match is over. Callers act on exactly one
-// returned action, then call this again - see matchDO.ts's alarm-per-action pacing.
+// Inspects match state to find the single next action a bot takes - for a bot's own seat, or
+// for a player on autopilot (live.ts) - or null if it's a human's turn, we're waiting on a human
+// to ready up, or the match is over. Callers act on exactly one returned action, then call
+// this again - see matchDO.ts's alarm-per-action pacing.
 //
 // Once a hand is decided, bots ready up straight away, then keep playing their turns so a human
 // who wants to play the hand out can - until the last domino is down or everyone's ready.
@@ -73,18 +77,18 @@ export function findNextBotAction(match: MatchState): BotAction | null {
   if (match.winningTeam !== null) return null;
 
   if (gameWinningTeam(match.currentGame) !== null) {
-    const waitingBot = match.players.find((p) => isBot(p.playerId) && !p.ready);
+    const waitingBot = match.players.find((p) => isBotControlled(match, p.playerId) && !p.ready);
     if (waitingBot) return { kind: 'ready', playerId: waitingBot.playerId };
 
     const currentPlayerId = match.currentGame.currentPlayerId;
     const hand = match.currentGame.hands.find((h) => h.playerId === currentPlayerId);
-    return currentPlayerId !== null && isBot(currentPlayerId) && (hand?.dominoes.length ?? 0) > 0
+    return currentPlayerId !== null && isBotControlled(match, currentPlayerId) && (hand?.dominoes.length ?? 0) > 0
       ? { kind: 'play', playerId: currentPlayerId }
       : null;
   }
 
   const currentPlayerId = match.currentGame.currentPlayerId;
-  if (currentPlayerId === null || !isBot(currentPlayerId)) return null;
+  if (currentPlayerId === null || !isBotControlled(match, currentPlayerId)) return null;
 
   if (match.currentGame.hands.some((h) => h.bid === null)) {
     return { kind: 'bid', playerId: currentPlayerId };
@@ -142,7 +146,7 @@ function ml(match: MatchState, action: BotAction, bot: Bot): MatchState {
 // Performs exactly one bot action. The ML bot decides when it's loaded; if it throws or its move
 // is illegal (the rules functions throw), that action falls back to the simple rules, so a model
 // problem never stalls a match.
-export function applyBotAction(match: MatchState, action: BotAction, bot: Bot | null): MatchState {
+function decideAndApply(match: MatchState, action: BotAction, bot: Bot | null): MatchState {
   // Readying up is the simple bot's job either way, so a failure there isn't an ML failure.
   if (bot !== null && action.kind !== 'ready') {
     try {
@@ -152,4 +156,12 @@ export function applyBotAction(match: MatchState, action: BotAction, bot: Bot | 
     }
   }
   return simple(match, action);
+}
+
+// Performs exactly one bot action. A bid or trump call made for a player on autopilot is marked
+// on their hand, so it isn't counted as theirs (stats.ts).
+export function applyBotAction(match: MatchState, action: BotAction, bot: Bot | null): MatchState {
+  const next = decideAndApply(match, action, bot);
+  const forAway = (action.kind === 'bid' || action.kind === 'setTrump') && isOnAutopilot(match, action.playerId);
+  return forAway ? markAutoBid(next, action.playerId) : next;
 }

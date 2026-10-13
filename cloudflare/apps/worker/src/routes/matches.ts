@@ -21,6 +21,7 @@ import { publicUsers } from '../users/publicUsers';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
 import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
+import { turnSummaries, turnWaitsFor } from '../lobbyTurns';
 import { decodeCursor, encodeCursor } from '../cursor';
 import type { MatchPage, MatchSummary } from '@fortytwo/api-types';
 
@@ -66,16 +67,25 @@ matches.get('/', async (c) => {
   const { rows, next } = await list(c.env.DB, userId, cursor);
   const playersByMatch = await listMatchPlayers(c.env.DB, rows.map((row) => row.id));
   const allPlayerIds = [...playersByMatch.values()].flat().map((p) => p.playerId);
+  // The turn lookups (up to TURN_LOOKUP_MS) run alongside the names, not after them.
+  const waitsPending = filter === 'Active' ? turnWaitsFor(c.env, rows) : null;
   const names = await displayNames(c.env, [...new Set(allPlayerIds)]);
+  const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
+  const turns = waitsPending ? turnSummaries(await waitsPending, userId, nameOf) : null;
   const summaries = rows.map((row): MatchSummary => {
     const seated = playersByMatch.get(row.id) ?? [];
-    const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
     const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
     const seats = [0, 1, 2, 3].map((position) => {
       const player = seated.find((p) => p.position === position);
       return player ? nameOf(player.playerId) : null;
     });
-    return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
+    return {
+      ...row,
+      mode: row.mode ?? 'custom',
+      teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)],
+      seats,
+      ...(turns ? { turn: turns.get(row.id) ?? null } : {}),
+    };
   });
   return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });
@@ -127,15 +137,23 @@ matches.post('/:id/bots', async (c) => {
 });
 
 // Readying up can finish a hand's wait and deal the next one, so it always carries a deck.
+// `{ autopilot: false }` instead takes the caller's seat back from the bot (a Live turn ran out).
 matches.patch('/:id/players', async (c) => {
-  const ready = field.ready(await readBody(c));
-  const result = await matchStub(c.env, c.req.param('id')).readyUp(c.get('user').sub, ready, shuffledDominoOrder());
+  const body = await readBody(c);
+  const match = matchStub(c.env, c.req.param('id'));
+  if (body.autopilot !== undefined) {
+    field.autopilotOff(body);
+    return replyWithMatch(c, await match.resume(c.get('user').sub));
+  }
+  const result = await match.readyUp(c.get('user').sub, field.ready(body), shuffledDominoOrder());
   return replyWithMatch(c, result, { lobbySync: 'summary' });
 });
 
-// Leaves a match before its first deal. The last human out deletes it - which is how a creator
-// cancels a match nobody joined - so its lobby rows go too and the reply has no match to show.
-// Leaving a match that's already gone counts as done, and clears any lobby row it left behind (a
+// Leaves a match. Before the deal, the player is taken back out, and the last human out deletes
+// it - which is how a creator cancels a match nobody joined. A newcomer waiting on a seat gives up
+// their claim. In a Live Play game under way a bot takes the leaver's seat, unless nobody
+// else is still playing, which deletes the match. A deleted match's lobby rows go too and the
+// reply has no match to show. Leaving a match that's already gone counts as done, and clears any lobby row it left behind (a
 // retry after a failed cleanup, or a row a slower sync re-inserted after the delete).
 matches.delete('/:id/players', async (c) => {
   const matchId = c.req.param('id');

@@ -38,6 +38,31 @@ function seatOf(match: MatchState, playerId: string): number | undefined {
 }
 
 describe('MatchDO bot auto-play', () => {
+  it('marks a hand the bot bid for a player on autopilot', async () => {
+    const stub = stubFor('bots-autobid');
+    await stub.create('human-1', 'bots-autobid');
+    await stub.takeSeat('human-2', 2);
+    valueOf(await stub.addBots('human-1'));
+    const turn = valueOf(await stub.getMatch()).currentGame.currentPlayerId!;
+    expect(turn).toBe('human-1');
+    await runInDurableObject(stub, async (_i, state) => {
+      const m = (await state.storage.get<MatchState>('match'))!;
+      await state.storage.put('match', { ...m, autopilot: [turn] });
+      await state.storage.setAlarm(Date.now());
+    });
+
+    // The alarm set above may fire on its own before the test runs it, so run alarms until the bid
+    // is in rather than counting on exactly one.
+    const bidOf = async () =>
+      valueOf(await stub.getMatch()).currentGame.hands.find((h) => h.playerId === turn)!.bid;
+    for (let i = 0; i < 20 && (await bidOf()) === null; i++) await runDurableObjectAlarm(stub);
+
+    const match = valueOf(await stub.getMatch());
+    const hand = (id: string) => match.currentGame.hands.find((h) => h.playerId === id)!;
+    expect(hand(turn).bid).not.toBeNull();
+    expect(hand(turn).autoBid).toBe(true);
+  });
+
   it('seats a bot at a picked seat', async () => {
     const stub = stubFor('bots-one-seat');
     await stub.create('human-1', 'bots-one-seat');
@@ -70,6 +95,14 @@ describe('MatchDO bot auto-play', () => {
     await stub.create('human-1', 'bots-outsider');
 
     expect(await stub.addBots('stranger')).toMatchObject({ ok: false, status: 400 });
+  });
+
+  it('never adds bots at an Async table', async () => {
+    const stub = stubFor('bots-daily');
+    await stub.create('human-1', 'bots-daily', 'daily');
+
+    expect(await stub.addBots('human-1')).toMatchObject({ ok: false, status: 400 });
+    expect((valueOf(await stub.getMatch()) as MatchState).players).toHaveLength(1);
   });
 
   it('rejects a bot at a taken seat', async () => {

@@ -6,12 +6,16 @@
 // API origin and what counts as a wake-up for the socket.
 export * from './api';
 export * from './howToPlay';
+export * from './live';
 export * from './lobby';
 export * from './matchSocket';
 export * from './matchView';
 export * from './optimistic';
 export * from './playerNames';
 export * from './poke';
+export * from './presenceSocket';
+export * from './serverClock';
+export * from './socket';
 export * from './stats';
 export * from './summary';
 export * from './table';

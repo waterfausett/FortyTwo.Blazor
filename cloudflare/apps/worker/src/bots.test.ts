@@ -6,6 +6,7 @@ import {
   createDomino,
   createMatch,
   createTrick,
+  setAutopilot,
   shuffledDominoOrder,
   takeSeat,
   type Game,
@@ -294,5 +295,21 @@ describe('botsEnabled', () => {
     expect(botsEnabled({})).toBe(true);
     expect(botsEnabled({ BOTS_ENABLED: 'true' })).toBe(true);
     expect(botsEnabled({ BOTS_ENABLED: 'false' })).toBe(false);
+  });
+});
+
+describe('findNextBotAction with autopilot', () => {
+  it("acts for a human on autopilot when it's their turn", () => {
+    const match = setAutopilot(
+      baseMatch({ currentGame: baseGame({ currentPlayerId: 'p1', hands: [emptyHand('p1')] }) }),
+      ['p1'],
+      true
+    );
+    expect(findNextBotAction(match)).toEqual({ kind: 'bid', playerId: 'p1' });
+  });
+
+  it('leaves a human alone once they are off autopilot', () => {
+    const match = baseMatch({ currentGame: baseGame({ currentPlayerId: 'p1', hands: [emptyHand('p1')] }) });
+    expect(findNextBotAction(match)).toBeNull();
   });
 });

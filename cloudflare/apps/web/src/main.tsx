@@ -10,6 +10,7 @@ import './index.css'
 import './styles/hall.css'
 import { AppAuth0Provider } from './auth/Auth0Provider.tsx'
 import { AuthGate } from './auth/AuthGate.tsx'
+import { PresenceProvider } from './api/presence.tsx'
 import { NavBar } from './components/NavBar.tsx'
 import { HowToPlay } from './pages/HowToPlay.tsx'
 import { Lobby } from './pages/Lobby.tsx'
@@ -30,14 +31,16 @@ createRoot(document.getElementById('root')!).render(
       <AppAuth0Provider>
         <QueryClientProvider client={queryClient}>
           <AuthGate>
-            <NavBar />
-            <Routes>
-              <Route path="/" element={<Lobby />} />
-              <Route path="/match/:matchId" element={<MatchRoute />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/how-to-play" element={<HowToPlay />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <PresenceProvider>
+              <NavBar />
+              <Routes>
+                <Route path="/" element={<Lobby />} />
+                <Route path="/match/:matchId" element={<MatchRoute />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/how-to-play" element={<HowToPlay />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </PresenceProvider>
           </AuthGate>
         </QueryClientProvider>
       </AppAuth0Provider>

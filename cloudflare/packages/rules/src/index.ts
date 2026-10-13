@@ -60,7 +60,30 @@ export {
   hasHumanPlayers,
   WINNING_SCORE,
 } from './matchEngine';
+export type { MatchMode, TableWait, LiveDeadline } from './live';
+export {
+  LIVE_FILL_MS,
+  LIVE_TURN_MS,
+  LIVE_ABANDON_MS,
+  TAKEOVER_MAX_MARKS,
+  TABLE_PAUSED,
+  matchMode,
+  isOnAutopilot,
+  isBotControlled,
+  isPresent,
+  tableWait,
+  liveDeadline,
+  markAutoBid,
+  setAutopilot,
+  resumeControl,
+  replaceWithBot,
+  claimSeat,
+  releaseClaim,
+  isAwayAllHand,
+  seatChangesAtBreak,
+  letClaimsGo,
+} from './live';
 export { BOT_IDS, botDisplayName, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';
 export type { PlayerMatchStats, TrumpCounts, TrumpKey } from './stats';
-export { matchStatsFor, NO_TRUMPS, TRUMP_KEYS, trumpKeyOf } from './stats';
+export { matchStatsFor, MIN_HANDS_FOR_RESULT, NO_TRUMPS, TRUMP_KEYS, trumpKeyOf } from './stats';

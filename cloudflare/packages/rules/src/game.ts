@@ -15,6 +15,9 @@ export interface Game {
   hands: Hand[];
   currentTrick: Trick;
   tricks: Trick[];
+  // When the hand was dealt; absent on hands from before it was recorded. A player on autopilot
+  // since then has been away for the whole hand (live.ts).
+  dealtOn?: string;
 }
 
 // Marks the hand is worth: 1 for a points bid (up to 42), otherwise one per 42 bid. Null until

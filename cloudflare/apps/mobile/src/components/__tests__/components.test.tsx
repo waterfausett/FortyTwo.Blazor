@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { HOW_TO_PLAY } from '@fortytwo/client';
 import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
@@ -8,6 +9,7 @@ import { HelpButton } from '../HelpButton';
 import { HowToPlayCard } from '../HowToPlayCard';
 import { HowToPlayContent } from '../HowToPlayContent';
 import { JoinMatchPanel } from '../JoinMatchPanel';
+import { NewMatchSheet } from '../NewMatchSheet';
 import { SeatPicker } from '../SeatPicker';
 import { PENDING_SPINNER_DELAY_MS, Table, type SeatInfo } from '../Table';
 import { TrickHistory } from '../TrickHistory';
@@ -147,6 +149,8 @@ describe('Table', () => {
     trump: null,
     ready: null,
     dominoCount,
+    away: false,
+    clock: null,
     ...overrides,
   });
 
@@ -171,6 +175,57 @@ describe('Table', () => {
     expect(screen.getByLabelText('6 dominoes')).toBeTruthy();
     expect(screen.getByLabelText('Bo, to act')).toBeTruthy();
     expect(screen.getByText('Open seat')).toBeTruthy();
+  });
+});
+
+describe('Table seats on a Live clock', () => {
+  it("shows a seat's Live clock and marks a player who's away", async () => {
+    const seat = (name: string, overrides: Partial<SeatInfo> = {}): SeatInfo => ({
+      name,
+      side: 'them',
+      isActive: false,
+      isDealer: false,
+      bid: null,
+      isHighBidder: false,
+      trump: null,
+      ready: null,
+      dominoCount: null,
+      away: false,
+      clock: null,
+      ...overrides,
+    });
+    await render(
+      <Table
+        seats={{ bottom: seat('Me', { side: 'us', clock: '0:42' }), left: seat('Eli', { away: true }), top: null, right: null }}
+        trick={null}
+        slotSeats={[null, null, null, null]}
+        winningSlot={null}
+      />,
+    );
+    expect(screen.getByText('0:42')).toBeTruthy();
+    expect(screen.getByText('Away')).toBeTruthy();
+  });
+
+  it('marks a paused seat as waiting', async () => {
+    const seat: SeatInfo = {
+      name: 'Eli',
+      side: 'them',
+      isActive: true,
+      isDealer: false,
+      bid: null,
+      isHighBidder: false,
+      trump: null,
+      ready: null,
+      dominoCount: 3,
+      away: false,
+      clock: '0:00',
+      paused: true,
+    };
+    await render(
+      <Table seats={{ bottom: null, left: seat, top: null, right: null }} trick={null} slotSeats={[null, null, null, null]} winningSlot={null} />,
+    );
+    expect(screen.getByText('0:00')).toBeTruthy();
+    expect(screen.getByText('Waiting…')).toBeTruthy();
   });
 });
 
@@ -283,6 +338,35 @@ describe('Table', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
+const inApp = (ui: React.ReactElement) => <SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>;
+
+describe('NewMatchSheet', () => {
+  it('offers Live Play, Async and Custom Match, and reports the choice', async () => {
+    const onChoose = jest.fn();
+    await render(inApp(<NewMatchSheet visible liveEnabled online={5} pending={false} onChoose={onChoose} onClose={jest.fn()} />));
+    await fireEvent.press(screen.getByRole('button', { name: /live play/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /async/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    expect(onChoose.mock.calls).toEqual([['live'], ['daily'], ['challenge']]);
+    expect(screen.getByText('5 online')).toBeTruthy();
+    expect(screen.getByText(/kicked if away for a full hand/)).toBeTruthy();
+  });
+
+  it('labels the matchmade options apart from playing with friends', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.getByRole('header', { name: /find opponents/i })).toBeTruthy();
+    expect(screen.getByRole('header', { name: /play with friends/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /live play.*60-second turns/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /async.*take turns whenever/i })).toBeTruthy();
+  });
+
+  it('leaves Live Play out when bots are off', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled={false} online={null} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.queryByRole('button', { name: /^live play/i })).toBeNull();
   });
 });
 
