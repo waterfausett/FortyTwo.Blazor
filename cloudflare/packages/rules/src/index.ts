@@ -75,6 +75,11 @@ export {
   setAutopilot,
   resumeControl,
   replaceWithBot,
+  claimSeat,
+  releaseClaim,
+  isAwayAllHand,
+  seatChangesAtBreak,
+  letClaimsGo,
 } from './live';
 export { BOT_IDS, botDisplayName, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';

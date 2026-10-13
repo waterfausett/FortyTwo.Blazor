@@ -7,7 +7,7 @@ import { Domino, dominoEquals, getSuitValue } from './domino';
 import { ValidationError } from './errors';
 import { Game, gameValue, gameWinningTeam } from './game';
 import { Hand } from './hand';
-import type { MatchMode } from './live';
+import { letClaimsGo, seatChangesAtBreak, type MatchMode } from './live';
 import { MatchPlayerRef, selectNextPlayer } from './match';
 import { nextPosition, Positions } from './positions';
 import { Suit } from './suit';
@@ -245,8 +245,13 @@ export function patchPlayerReady(
       0
     );
 
-    const firstActionByPosition = nextPosition(players.find((p) => p.playerId === lastGame.firstActionBy)!.position);
-    const firstActionBy = players.find((p) => p.position === firstActionByPosition)!.playerId;
+    // The opener is found by seat, before any seat changes hands below: the last opener may be
+    // a player whose seat a bot or a newcomer is about to take.
+    const lastOpenerPosition = match.players.find((p) => p.playerId === lastGame.firstActionBy)!.position;
+    const seated = seatChangesAtBreak({ ...match, players });
+    players = seated.players;
+    const firstActionBy = players.find((p) => p.position === nextPosition(lastOpenerPosition))!.playerId;
+    match = seated;
 
     let hands: Hand[] = players.map((p) => ({
       playerId: p.playerId,
@@ -407,7 +412,8 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
       ) as Teams)
     : null;
 
-  return { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
+  const result = { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
+  return matchWinningTeam !== null ? letClaimsGo(result) : result;
 }
 
 // Asks to play the same four again. Only once the match is over, and only from someone seated;

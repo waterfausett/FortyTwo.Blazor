@@ -2,7 +2,7 @@
 // Worker's MatchDO turns these deadlines into alarms, and the clients count down to the same ones.
 import { BOT_IDS, isBot } from './botIds';
 import { gameWinningTeam, type Game } from './game';
-import { hasBeenDealt, type MatchState } from './matchEngine';
+import { hasBeenDealt, matchScores, type MatchState } from './matchEngine';
 import { ValidationError } from './errors';
 import { assertIsMatchPlayer } from './validation';
 
@@ -134,4 +134,63 @@ export function replaceWithBot(match: MatchState, playerId: string): MatchState 
     hadBots: true,
     updatedOn: new Date().toISOString(),
   };
+}
+
+// Asks for the next bot seat that comes up at a hand break. Only in an Over the table game under
+// way that isn't nearly over, and never more claims than bot seats, so every claim is seated at
+// the next break.
+export function claimSeat(match: MatchState, playerId: string): MatchState {
+  if (matchMode(match) !== 'live') throw new ValidationError('Only Over the table games take newcomers');
+  if (!hasBeenDealt(match) || match.winningTeam !== null) throw new ValidationError('This game has no seat to take');
+  if (Object.values(matchScores(match)).some((marks) => (marks ?? 0) >= TAKEOVER_MAX_MARKS)) {
+    throw new ValidationError('This game is nearly over');
+  }
+  const claims = match.claims ?? [];
+  if (match.players.some((p) => p.playerId === playerId) || claims.includes(playerId)) {
+    throw new ValidationError("You're already at this table");
+  }
+  if (claims.length >= match.players.filter((p) => isBot(p.playerId)).length) {
+    throw new ValidationError('No seat free at this table');
+  }
+  return { ...match, claims: [...claims, playerId] };
+}
+
+export function releaseClaim(match: MatchState, playerId: string): MatchState {
+  if (!(match.claims ?? []).includes(playerId)) return match;
+  return { ...match, claims: match.claims!.filter((id) => id !== playerId) };
+}
+
+// On autopilot since before this hand was dealt. A hand with no deal time (stored before it was
+// kept) never counts, so nobody is replaced on the strength of a guess.
+export function isAwayAllHand(match: MatchState, playerId: string): boolean {
+  const since = match.awaySince?.[playerId];
+  const dealtOn = match.currentGame.dealtOn;
+  return isOnAutopilot(match, playerId) && since !== undefined && dealtOn !== undefined && since <= dealtOn;
+}
+
+// Who sits where for the next hand of an Over the table game: players away for the whole hand
+// give their seats to bots, then claims take bot seats, lowest position first. Run as the hand
+// break deals (patchPlayerReady). Anything else passes through untouched.
+export function seatChangesAtBreak(match: MatchState): MatchState {
+  if (matchMode(match) !== 'live') return match;
+  let next = match;
+  for (const p of match.players) {
+    if (isAwayAllHand(next, p.playerId)) next = replaceWithBot(next, p.playerId);
+  }
+  const claims = [...(next.claims ?? [])];
+  // Bot seats in position order, each handed the next claim in the order they were made.
+  const taker = new Map<number, string>();
+  for (const seat of next.players.filter((p) => isBot(p.playerId)).sort((a, b) => a.position - b.position)) {
+    const claimant = claims.shift();
+    if (claimant === undefined) break;
+    taker.set(seat.position, claimant);
+  }
+  const players = next.players.map((p) => (taker.has(p.position) ? { ...p, playerId: taker.get(p.position)! } : p));
+  return { ...next, players, claims };
+}
+
+// The match ended with claims still waiting: those players are let go, and their app searches again.
+export function letClaimsGo(match: MatchState): MatchState {
+  if ((match.claims ?? []).length === 0) return match;
+  return { ...match, claims: [], bumped: [...(match.bumped ?? []), ...match.claims!] };
 }

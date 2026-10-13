@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { createMatch, takeSeat, createRematch, placeBid, setTrump, playDomino, type MatchState } from './matchEngine';
+import { createMatch, takeSeat, createRematch, placeBid, setTrump, playDomino, patchPlayerReady, type MatchState } from './matchEngine';
+import { Teams } from './teams';
+import type { Game } from './game';
 import { Bid } from './bid';
 import { Suit } from './suit';
 import { createDomino, type Domino } from './domino';
@@ -7,6 +9,10 @@ import { ValidationError } from './errors';
 import {
   LIVE_FILL_MS,
   LIVE_TURN_MS,
+  TAKEOVER_MAX_MARKS,
+  claimSeat,
+  releaseClaim,
+  letClaimsGo,
   isBotControlled,
   isPresent,
   liveDeadline,
@@ -201,5 +207,135 @@ describe('replaceWithBot', () => {
 
   it('refuses someone not at the table', () => {
     expect(() => replaceWithBot(dealt(), 'stranger')).toThrow(ValidationError);
+  });
+});
+
+// p1 and p3 against bot-1 and bot-2, dealt.
+function withBots(): MatchState {
+  let match = createMatch('p1', 'live');
+  match = takeSeat(match, 'bot-1', 1);
+  match = takeSeat(match, 'p3', 2);
+  return takeSeat(match, 'bot-2', 3, deck());
+}
+
+// A filed hand worth one mark: p1 bid 30.
+function markHand(match: MatchState): Game {
+  return {
+    ...match.currentGame,
+    biddingPlayerId: 'p1',
+    bid: Bid.Thirty,
+    hands: match.currentGame.hands.map((h) => (h.playerId === 'p1' ? { ...h, bid: Bid.Thirty } : h)),
+  };
+}
+
+// The current hand decided and everyone but `last` ready, so `last` readying deals the next one.
+// Seat 0 bid 30; seat 1's team took one trick of 31 points, more than the 12 that sets the bid.
+function atBreak(match: MatchState, last: string): MatchState {
+  const bidder = match.players.find((p) => p.position === 0)!.playerId;
+  const setter = match.players.find((p) => p.position === 1)!.playerId;
+  const counts = [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)];
+  const decided = {
+    ...match,
+    currentGame: {
+      ...match.currentGame,
+      biddingPlayerId: bidder,
+      bid: Bid.Thirty,
+      trump: Suit.Sixes,
+      tricks: [{ playerId: setter, team: Teams.TeamB, suit: Suit.Sixes, dominoes: counts }],
+    },
+  };
+  return { ...decided, players: decided.players.map((p) => ({ ...p, ready: p.playerId !== last })) };
+}
+
+describe('claimSeat', () => {
+  it('queues a newcomer for a bot seat', () => {
+    expect(claimSeat(withBots(), 'n1').claims).toEqual(['n1']);
+  });
+
+  it('allows no more claims than bot seats', () => {
+    const two = claimSeat(claimSeat(withBots(), 'n1'), 'n2');
+    expect(() => claimSeat(two, 'n3')).toThrow(ValidationError);
+  });
+
+  it('refuses outside Over the table, before the deal, once finished, near the end, and twice', () => {
+    expect(() => claimSeat({ ...withBots(), mode: 'daily' }, 'n1')).toThrow(ValidationError);
+    expect(() => claimSeat(createMatch('p1', 'live'), 'n1')).toThrow(ValidationError);
+    expect(() => claimSeat({ ...withBots(), winningTeam: Teams.TeamA }, 'n1')).toThrow(ValidationError);
+    const nearEnd = { ...withBots(), games: { [Teams.TeamA]: Array.from({ length: TAKEOVER_MAX_MARKS }, () => markHand(withBots())) } };
+    expect(() => claimSeat(nearEnd, 'n1')).toThrow(ValidationError);
+    expect(() => claimSeat(claimSeat(withBots(), 'n1'), 'n1')).toThrow(ValidationError);
+    expect(() => claimSeat(withBots(), 'p1')).toThrow(ValidationError);
+  });
+
+  it('lets a claim go', () => {
+    expect(releaseClaim(claimSeat(withBots(), 'n1'), 'n1').claims).toEqual([]);
+  });
+});
+
+describe('the hand break', () => {
+  it('seats claims in bot seats, lowest position first, ready for the deal', () => {
+    const match = atBreak(claimSeat(withBots(), 'n1'), 'p1');
+    const next = patchPlayerReady(match, 'p1', true, deck());
+    expect(next.players.find((p) => p.position === 1)!.playerId).toBe('n1');
+    expect(next.players.find((p) => p.position === 3)!.playerId).toBe('bot-2');
+    expect(next.claims).toEqual([]);
+    expect(next.currentGame.hands.find((h) => h.playerId === 'n1')!.dominoes).toHaveLength(7);
+  });
+
+  it('opens with the seat after the last opener even when that seat changed hands', () => {
+    let match = withBots();
+    match = { ...match, currentGame: { ...match.currentGame, firstActionBy: 'bot-1' } };
+    const next = patchPlayerReady(atBreak(claimSeat(match, 'n1'), 'p1'), 'p1', true, deck());
+    expect(next.currentGame.firstActionBy).toBe('p3');
+  });
+
+  it('replaces a player away for the whole hand with a bot', () => {
+    let match = setAutopilot(dealt(), ['p2'], true);
+    match = { ...match, awaySince: { p2: match.currentGame.dealtOn! } };
+    const next = patchPlayerReady(atBreak(match, 'p1'), 'p1', true, deck());
+    expect(next.replaced).toEqual(['p2']);
+    expect(next.players.find((p) => p.position === 1)!.playerId).toBe('bot-1');
+    expect(next.autopilot).toEqual([]);
+  });
+
+  it('lets a claim take the seat of a player replaced at the same break, lowest position first', () => {
+    // Bots at 1 and 3; p3 at 2 has been away all hand. Two claims: they take seats 1 and 2.
+    let match = setAutopilot(withBots(), ['p3'], true);
+    match = { ...match, awaySince: { p3: match.currentGame.dealtOn! } };
+    match = claimSeat(claimSeat(match, 'n1'), 'n2');
+    const next = patchPlayerReady(atBreak(match, 'p1'), 'p1', true, deck());
+    expect(next.players.find((p) => p.position === 1)!.playerId).toBe('n1');
+    expect(next.players.find((p) => p.position === 2)!.playerId).toBe('n2');
+    expect(next.players.find((p) => p.position === 3)!.playerId).toBe('bot-2');
+    expect(next.replaced).toEqual(['p3']);
+  });
+
+  it('keeps a player who went away partway through the hand', () => {
+    let match = setAutopilot(dealt(), ['p2'], true);
+    match = { ...match, awaySince: { p2: new Date(Date.parse(match.currentGame.dealtOn!) + 1000).toISOString() } };
+    const next = patchPlayerReady(atBreak(match, 'p1'), 'p1', true, deck());
+    expect(next.players.find((p) => p.position === 1)!.playerId).toBe('p2');
+  });
+
+  it('replaces nobody in a match stored before deal times were kept', () => {
+    let match = setAutopilot(dealt(), ['p2'], true);
+    const { dealtOn: _d, ...oldGame } = match.currentGame;
+    match = { ...match, currentGame: oldGame };
+    const next = patchPlayerReady(atBreak(match, 'p1'), 'p1', true, deck());
+    expect(next.players.find((p) => p.position === 1)!.playerId).toBe('p2');
+  });
+
+  it('does none of this outside Over the table', () => {
+    const daily = setAutopilot({ ...dealt(), mode: 'daily' as const }, ['p2'], true);
+    const next = patchPlayerReady(atBreak(daily, 'p1'), 'p1', true, deck());
+    expect(next.replaced).toBeUndefined();
+  });
+
+  it('lets claimants go when the match ends before a seat comes up', () => {
+    const next = letClaimsGo(claimSeat(withBots(), 'n1'));
+    expect(next.claims).toEqual([]);
+    expect(next.bumped).toEqual(['n1']);
+    const quiet = withBots();
+    expect(letClaimsGo(quiet)).toBe(quiet);
   });
 });
