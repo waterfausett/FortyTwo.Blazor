@@ -8,10 +8,11 @@
 // one can be claimed by a newcomer at the next hand break. A newcomer is seated at a table still
 // filling first, then claims a bot seat in the oldest game under way that takes them. A game that
 // refuses a claim (finished, nearly over, every bot seat claimed) or was deleted is found out then
-// and dropped; MatchDO offers a table back when a bot takes a seat there later. A Daily table that
-// filled (through here, an invite link, or bots) is likewise dropped at the next refused seat.
+// and dropped - though one paused on its last player stays listed, as it may come back; MatchDO
+// offers a table back when a bot takes a seat there later. A Daily table that filled (through
+// here, an invite link, or bots) is likewise dropped at the next refused seat.
 import { DurableObject } from 'cloudflare:workers';
-import { hasBeenDealt, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
+import { hasBeenDealt, shuffledDominoOrder, TABLE_PAUSED, type MatchState } from '@fortytwo/rules';
 import type { PresenceMessage } from '@fortytwo/api-types';
 import { verifyToken } from './auth/verifyJwt';
 import type { Env } from './index';
@@ -122,6 +123,9 @@ export class Matchmaker extends DurableObject<Env> {
           await this.ctx.storage.put(`claim:${playerId}`, id);
           break;
         }
+        // Paused on its last player: it may yet come back, with no bot taking a seat to offer it
+        // again, so it stays listed.
+        if (claimed.error.title === TABLE_PAUSED) continue;
         // Finished, nearly over, every bot seat claimed, or gone: off the list. A bot taking a seat
         // there later offers it back.
         const at = stillOpen.indexOf(id);

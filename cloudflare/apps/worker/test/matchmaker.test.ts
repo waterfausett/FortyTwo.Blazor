@@ -1,8 +1,8 @@
 // The Matchmaker: seats a player at the oldest open table of their mode, or starts one, and never
 // splits players who press Play together across two tables. Each test uses its own instance.
 import { describe, it, expect } from 'vitest';
-import { env, runInDurableObject } from 'cloudflare:test';
-import { createDomino, type Domino } from '@fortytwo/rules';
+import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
+import { LIVE_TURN_MS, createDomino, type Domino, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import { PRESENCE_BROADCAST_MS, presenceBroadcast } from '../src/matchmaker';
 
@@ -209,6 +209,64 @@ describe('Matchmaker and games under way', () => {
     const fresh = await mm.play('n4', 'live');
     expect(fresh.id).not.toBe(id);
     expect(fresh.players.map((p) => p.playerId)).toEqual(['n4']);
+  });
+});
+
+async function changeMatch(id: string, change: (match: MatchState) => Partial<MatchState>) {
+  await runInDurableObject(matchStub(id), async (_i, state) => {
+    const match = (await state.storage.get<MatchState>('match'))!;
+    await state.storage.put('match', { ...match, ...change(match) });
+  });
+}
+
+const claimKey = (mm: ReturnType<typeof matchmaker>, playerId: string) =>
+  runInDurableObject(mm, (_i, state) => state.storage.get<string>(`claim:${playerId}`));
+
+describe('Matchmaker and stale claims', () => {
+  it('forgets a claim in a game since finished and seats the player afresh', async () => {
+    const mm = matchmaker('mm-stale-finished');
+    const id = await underWay(mm);
+    await mm.play('n1', 'live');
+    expect(await claimKey(mm, 'n1')).toBe(id);
+    await changeMatch(id, () => ({ winningTeam: 0 }));
+
+    const fresh = await mm.play('n1', 'live');
+    expect(fresh.id).not.toBe(id);
+    expect(fresh.players.map((p) => p.playerId)).toEqual(['n1']);
+    expect(await claimKey(mm, 'n1')).toBeUndefined();
+  });
+
+  it('forgets a released claim and claims again', async () => {
+    const mm = matchmaker('mm-stale-released');
+    const id = await underWay(mm);
+    await mm.play('n1', 'live');
+    // n1 cancelled at the table; the Matchmaker's key still names it.
+    const left = await matchStub(id).leave('n1');
+    expect(left.ok && !left.value.deleted && left.value.match.claims).toEqual([]);
+    expect(await claimKey(mm, 'n1')).toBe(id);
+
+    const again = await mm.play('n1', 'live');
+    expect(again.id).toBe(id);
+    expect(again.claims).toEqual(['n1']);
+    expect(await claimKey(mm, 'n1')).toBe(id);
+  });
+
+  it('keeps a game paused on its last player listed when it refuses a claim', async () => {
+    const mm = matchmaker('mm-paused');
+    const id = await underWay(mm);
+    const stub = matchStub(id);
+    // Let the bots act until the table waits on p1, then run p1's turn out.
+    for (let i = 0; i < 10; i++) {
+      const match = await runInDurableObject(stub, async (_i, state) => (await state.storage.get<MatchState>('match'))!);
+      if (match.currentGame.currentPlayerId === 'p1') break;
+      await runDurableObjectAlarm(stub);
+    }
+    await changeMatch(id, () => ({ updatedOn: new Date(Date.now() - LIVE_TURN_MS - 1000).toISOString() }));
+
+    const elsewhere = await mm.play('n1', 'live');
+    expect(elsewhere.id).not.toBe(id);
+    const list = await runInDurableObject(mm, (_i, state) => state.storage.get<string[]>('open:live'));
+    expect(list).toContain(id);
   });
 });
 
