@@ -111,7 +111,8 @@ export interface ProfilePatch {
 }
 
 // What the presence socket (GET /presence/ws) sends: how many players have the app open. On
-// connect, then at most once a minute as people come and go.
+// connect, then at most once per the Worker's PRESENCE_BROADCAST_MS (matchmaker.ts) as people come
+// and go.
 export interface PresenceMessage {
   type: 'online';
   online: number;

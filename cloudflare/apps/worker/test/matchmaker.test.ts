@@ -301,12 +301,12 @@ describe('Matchmaker and stale claims', () => {
 describe('presenceBroadcast', () => {
   const t = 1_000_000;
 
-  it('sends at once when nothing has gone out in the last minute', () => {
+  it('sends at once when nothing has gone out within PRESENCE_BROADCAST_MS', () => {
     expect(presenceBroadcast(t, null, null)).toEqual({ kind: 'now' });
     expect(presenceBroadcast(t, t - PRESENCE_BROADCAST_MS, null)).toEqual({ kind: 'now' });
   });
 
-  it('holds a change inside the minute for one alarm when the minute is up', () => {
+  it('holds a change within PRESENCE_BROADCAST_MS for one alarm when that is up', () => {
     expect(presenceBroadcast(t, t - 10_000, null)).toEqual({ kind: 'alarm', at: t - 10_000 + PRESENCE_BROADCAST_MS });
   });
 

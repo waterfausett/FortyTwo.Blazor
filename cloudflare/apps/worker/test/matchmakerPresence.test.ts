@@ -1,6 +1,6 @@
 // The Matchmaker's presence socket: tells each connected app how many players are online.
 import { describe, it, expect, beforeAll } from 'vitest';
-import { env } from 'cloudflare:test';
+import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import type { Env } from '../src/index';
@@ -79,6 +79,35 @@ function firstMessage(ws: WebSocket): Promise<{ type: string; online: number }> 
   });
 }
 
+// Every count a socket receives, in order.
+function received(ws: WebSocket): number[] {
+  const counts: number[] = [];
+  ws.addEventListener('message', (event) => counts.push(JSON.parse((event as MessageEvent).data as string).online));
+  return counts;
+}
+
+async function openCounted(stub: DurableObjectStub, sub: string) {
+  const res = await stub.fetch(`https://matchmaker/presence/ws?token=${await signToken({ sub })}`, {
+    headers: { Upgrade: 'websocket' },
+  });
+  const ws = res.webSocket!;
+  const counts = received(ws);
+  ws.accept();
+  return { ws, counts };
+}
+
+// Closes a socket and waits until the Matchmaker has let it go.
+async function closeAndWait(stub: DurableObjectStub, ws: WebSocket, open: number) {
+  ws.close();
+  for (let i = 0; i < 100; i++) {
+    if ((await runInDurableObject(stub, async (_i, state) => state.getWebSockets().length)) < open) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('socket never closed');
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+
 describe('Matchmaker presence sockets', () => {
   it('tells a new socket how many players are online, counting each player once', async () => {
     const stub = testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('presence-count'));
@@ -98,5 +127,40 @@ describe('Matchmaker presence sockets', () => {
     const stub = testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('presence-auth'));
     const { status } = await openSocket(stub, '/presence/ws?token=nope');
     expect(status).toBe(401);
+  });
+
+  it('skips the broadcast when a player leaves and comes back before it', async () => {
+    const stub = testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('presence-repeat'));
+    const a = await openCounted(stub, 'a');
+    const b = await openCounted(stub, 'b');
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await settle();
+    expect(a.counts.at(-1)).toBe(2);
+
+    await closeAndWait(stub, b.ws, 2);
+    const back = await openCounted(stub, 'b');
+    await settle();
+    const before = [...a.counts];
+    expect(back.counts).toEqual([2]);
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await settle();
+    expect(a.counts).toEqual(before);
+    expect(back.counts).toEqual([2]);
+    for (const ws of [a.ws, back.ws]) ws.close();
+  });
+
+  it("still broadcasts when a newer socket was told a count the last broadcast didn't send", async () => {
+    const stub = testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('presence-mixed'));
+    const a = await openCounted(stub, 'a');
+    const b = await openCounted(stub, 'b');
+    await closeAndWait(stub, a.ws, 2);
+    await settle();
+    expect(b.counts).toEqual([2]);
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await settle();
+    expect(b.counts).toEqual([2, 1]);
+    b.ws.close();
   });
 });

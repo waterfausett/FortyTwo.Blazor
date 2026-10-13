@@ -1,6 +1,6 @@
 // The presence socket (the Worker's matchmaker.ts): how many players have the app open. One per
 // signed-in app while it's in front; the server sends the count on connect and then at most once
-// a minute, and the client sends nothing.
+// per its PRESENCE_BROADCAST_MS, and the client sends nothing.
 import type { PresenceMessage } from '@fortytwo/api-types';
 import { connectSocket } from './socket';
 

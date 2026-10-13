@@ -20,17 +20,18 @@ import type { MatchResult, Seating } from './matchDO';
 
 export type QueueMode = 'live' | 'daily';
 
-// How often, at most, the online count goes out to every presence socket.
 // Whether the online count is switched on (index.ts's PRESENCE_ENABLED). Off by default.
 export function presenceEnabled(env: { PRESENCE_ENABLED?: string }): boolean {
   return env.PRESENCE_ENABLED === 'true';
 }
 
-export const PRESENCE_BROADCAST_MS = 60_000;
+// How often, at most, the online count goes out to every presence socket.
+export const PRESENCE_BROADCAST_MS = 5 * 60_000;
 
 // When to send a changed online count: now, if nothing has gone out in the last
-// PRESENCE_BROADCAST_MS; else at the end of that minute, from one alarm - unless one is already
-// set. A burst of apps opening at once thus costs one message per socket a minute, not one each.
+// PRESENCE_BROADCAST_MS; else when that PRESENCE_BROADCAST_MS is up, from one alarm - unless one
+// is already set. A burst of apps opening at once thus costs one message per socket per
+// PRESENCE_BROADCAST_MS, not one each.
 export function presenceBroadcast(
   now: number,
   lastSentAt: number | null,
@@ -229,7 +230,12 @@ export class Matchmaker extends DurableObject<Env> {
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
     pair[1].serializeAttachment({ playerId: user.sub });
-    pair[1].send(onlineMessage(this.online()));
+    const online = this.online();
+    pair[1].send(onlineMessage(online));
+    // The new socket now holds a count the others may not: then the next broadcast is no repeat.
+    if (online !== (await this.ctx.storage.get<number>('presenceSentCount'))) {
+      await this.ctx.storage.delete('presenceSentCount');
+    }
     await this.presenceChanged();
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
@@ -256,9 +262,14 @@ export class Matchmaker extends DurableObject<Env> {
     await this.broadcastOnline(Date.now());
   }
 
+  // Skipped when every socket already holds the count (presenceSentCount, which fetch() clears
+  // once they don't): someone leaving and coming back before the alarm then costs no messages.
+  // Nothing went out, so the next change needn't wait out PRESENCE_BROADCAST_MS.
   private async broadcastOnline(now: number, closing?: WebSocket): Promise<void> {
-    await this.ctx.storage.put('presenceSentAt', now);
-    const message = onlineMessage(this.online(closing));
+    const online = this.online(closing);
+    if (online === (await this.ctx.storage.get<number>('presenceSentCount'))) return;
+    await this.ctx.storage.put({ presenceSentAt: now, presenceSentCount: online });
+    const message = onlineMessage(online);
     for (const ws of this.ctx.getWebSockets()) if (ws !== closing) ws.send(message);
   }
 
