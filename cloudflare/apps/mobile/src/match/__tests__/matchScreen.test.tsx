@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Alert, type AlertButton } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Positions, Teams, createDomino, type MatchState } from '@fortytwo/rules';
+import { Bid, Positions, Suit, Teams, createDomino, type MatchState } from '@fortytwo/rules';
 import { toastInfo } from '@/components/toast';
 import MatchScreen from '../../app/match/[id]';
 
@@ -193,6 +193,28 @@ describe('Match screen, Over the table', () => {
     await fireEvent.press(await screen.findByText('Leave game'));
     expect(alert).toHaveBeenCalledWith('Leave this game?', 'Nobody else is playing, so it ends.', expect.any(Array));
     alert.mockRestore();
+  });
+
+  it('counts down to the next hand in the hand-over panel, not on the seats', async () => {
+    // bot-1's team set p1's 30 bid with a 31-point trick; p3 has readied, so when the clock runs
+    // out bots ready up the rest.
+    const counts = [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)];
+    const decided = dealtLiveWithBots(
+      { updatedOn: new Date(Date.now() - 10_000).toISOString() },
+      PLAYERS.map((p) => ({ ...p, ready: p.playerId === 'p3' || p.playerId === 'bot-1' }))
+    );
+    decided.currentGame = {
+      ...decided.currentGame,
+      biddingPlayerId: 'p1',
+      bid: Bid.Thirty,
+      trump: Suit.Sixes,
+      tricks: [{ playerId: 'bot-1', team: Teams.TeamB, suit: Suit.Sixes, dominoes: counts }],
+    };
+    socket(decided);
+    await renderScreen();
+
+    expect(await screen.findByText(/^Next hand in 0:5\d$/)).toBeTruthy();
+    expect(screen.queryByText(/^\d:\d\d$/)).toBeNull();
   });
 
   it('says who took a seat', async () => {

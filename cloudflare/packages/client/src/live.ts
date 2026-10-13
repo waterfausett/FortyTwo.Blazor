@@ -1,6 +1,6 @@
 // What the match page shows of Live and Daily play: how long a search has run, and the clock on
 // a Live turn - from the same deadlines the Worker acts on (@fortytwo/rules' live.ts).
-import { LIVE_ABANDON_MS, hasBeenDealt, liveDeadline, matchMode, type MatchState } from '@fortytwo/rules';
+import { LIVE_ABANDON_MS, hasBeenDealt, liveDeadline, matchMode, tableWait, type MatchState } from '@fortytwo/rules';
 
 // A table still looking for players: a Live search counting up, or a Daily table waiting.
 export function searchState(match: MatchState, now: number): { mode: 'live'; elapsedMs: number } | { mode: 'daily' } | null {
@@ -38,8 +38,10 @@ export function seatChanges(previous: MatchState, next: MatchState): { position:
 }
 
 // Time left on a Live turn before a bot plays it, and whose it is. A paused table - the last
-// player there ran out their turn - shows them overdue until they act or it's dropped.
+// player there ran out their turn - shows them overdue until they act or it's dropped. None at the
+// hand break, where nobody is taking a turn: nextHandClock covers that wait.
 export function turnClock(match: MatchState, now: number): { playerIds: string[]; remainingMs: number; paused: boolean } | null {
+  if (tableWait(match)?.kind !== 'turn') return null;
   const deadline = liveDeadline(match);
   if (deadline === null || deadline.kind === 'fill') return null;
   if (deadline.kind === 'drop') {
@@ -47,6 +49,15 @@ export function turnClock(match: MatchState, now: number): { playerIds: string[]
     return { playerIds: deadline.playerIds, remainingMs: Math.max(0, turnEnds - now), paused: now >= turnEnds };
   }
   return { playerIds: deadline.playerIds, remainingMs: Math.max(0, deadline.at - now), paused: false };
+}
+
+// Time left at a Live hand break before bots ready up whoever hasn't, which deals the next hand.
+// Only once someone has readied: until then, running out pauses the table (a 'drop' deadline)
+// rather than dealing.
+export function nextHandClock(match: MatchState, now: number): number | null {
+  if (tableWait(match)?.kind !== 'ready') return null;
+  const deadline = liveDeadline(match);
+  return deadline?.kind === 'turn' ? Math.max(0, deadline.at - now) : null;
 }
 
 export function formatClock(ms: number): string {

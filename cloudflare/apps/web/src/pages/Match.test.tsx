@@ -2267,6 +2267,16 @@ describe('Match', () => {
       expect(toastInfoMock).not.toHaveBeenCalledWith(expect.stringMatching(/took .*'s seat/));
     });
 
+    it('counts down to the next hand in the hand-over panel, not on the seats', async () => {
+      // The hand is decided and p2 has readied: when the clock runs out, bots ready up the rest.
+      const match = { ...finishedHandMatch(), mode: 'live' as const, updatedOn: new Date(Date.now() - 10_000).toISOString() };
+      useMatchSocketMock.mockReturnValue({ match, connected: true });
+      renderMatch();
+      const panel = await screen.findByRole('region', { name: 'Hand over' });
+      expect(within(panel).getByText(/^Next hand in 0:5\d$/)).toBeTruthy();
+      expect(screen.queryByLabelText(/left$/)).toBeNull();
+    });
+
     it('marks a paused clock as waiting', async () => {
       // The last human's turn ran out a while ago, with only bots left: the table waits on them.
       const stale = new Date(Date.now() - 5 * 60_000).toISOString();

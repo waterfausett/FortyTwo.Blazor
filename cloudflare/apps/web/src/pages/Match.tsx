@@ -41,7 +41,7 @@ import {
   matchMode,
   LIVE_FILL_MS,
 } from '@fortytwo/rules';
-import { formatClock, searchState, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
+import { formatClock, nextHandClock, searchState, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
 import { useOnline } from '../api/presence';
 import { useNow } from '../match/useNow';
 import { apiClient } from '../api/client';
@@ -234,15 +234,18 @@ export function Match(): JSX.Element {
     onError: toastError,
   });
 
-  // Live search count-up and turn clocks: derived from the match, ticking only while one is shown.
-  // A paused clock sits at 0:00 until the table moves on, so it doesn't tick.
+  // Live search count-up, turn clocks and the next hand countdown: derived from the match, ticking
+  // only while one is shown. A paused clock sits at 0:00 until the table moves on, so it doesn't tick.
   const search = liveMatch ? searchState(liveMatch, serverNow()) : null;
   const clockNow = liveMatch ? turnClock(liveMatch, serverNow()) : null;
-  const clockRunning = liveMatch != null && (search?.mode === 'live' || (clockNow !== null && !clockNow.paused));
+  const nextHandNow = liveMatch ? nextHandClock(liveMatch, serverNow()) : null;
+  const clockRunning =
+    liveMatch != null && (search?.mode === 'live' || (clockNow !== null && !clockNow.paused) || nextHandNow !== null);
   const now = useNow(clockRunning);
   const liveSearch = liveMatch ? searchState(liveMatch, now) : null;
   // Stopped, `now` is as old as the last tick, so a stopped clock reads the time afresh.
   const clock = liveMatch ? (clockRunning ? turnClock(liveMatch, now) : clockNow) : null;
+  const nextHand = liveMatch ? (clockRunning ? nextHandClock(liveMatch, now) : nextHandNow) : null;
   const mode = liveMatch ? matchMode(liveMatch) : 'custom';
   const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   const resumeMutation = useMutation({
@@ -931,6 +934,7 @@ export function Match(): JSX.Element {
                           ? 'Ready up for the next hand'
                           : 'Play it out, or ready up for the next hand'}
                     </p>
+                    {nextHand !== null && <p className="hand-result-note">Next hand in {formatClock(nextHand)}</p>}
                     <button
                       type="button"
                       className="action-button"

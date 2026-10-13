@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LIVE_FILL_MS, LIVE_TURN_MS, createDomino, createMatch, takeSeat, type Domino, type MatchState } from '@fortytwo/rules';
-import { formatClock, searchState, seatChanges, turnClock, viewerRole, watchAnchor } from './live';
+import { Bid, LIVE_FILL_MS, LIVE_TURN_MS, Suit, Teams, createDomino, createMatch, takeSeat, type Domino, type MatchState } from '@fortytwo/rules';
+import { formatClock, nextHandClock, searchState, seatChanges, turnClock, viewerRole, watchAnchor } from './live';
 
 function deck(): Domino[] {
   const dominoes: Domino[] = [];
@@ -22,6 +22,23 @@ function soloWithBots(): MatchState {
   match = takeSeat(match, 'bot-1', 1);
   match = takeSeat(match, 'bot-2', 2);
   return takeSeat(match, 'bot-3', 3, deck());
+}
+
+// The hand decided - seat 1's team set seat 0's 30 bid - with `readied` ready for the next.
+function atBreak(readied: string[]): MatchState {
+  const match = dealtLive();
+  const counts = [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)];
+  return {
+    ...match,
+    players: match.players.map((p) => ({ ...p, ready: readied.includes(p.playerId) })),
+    currentGame: {
+      ...match.currentGame,
+      biddingPlayerId: 'p1',
+      bid: Bid.Thirty,
+      trump: Suit.Sixes,
+      tricks: [{ playerId: 'p2', team: Teams.TeamB, suit: Suit.Sixes, dominoes: counts }],
+    },
+  };
 }
 
 describe('searchState', () => {
@@ -77,6 +94,29 @@ describe('seatChanges', () => {
     const next = { ...previous, players: previous.players.map((p) => (p.position === 1 ? { ...p, playerId: 'n1' } : p)) };
     expect(seatChanges(previous, next)).toEqual([{ position: 1, from: previous.players.find((p) => p.position === 1)!.playerId, to: 'n1' }]);
     expect(seatChanges(previous, previous)).toEqual([]);
+  });
+});
+
+describe('the clocks at the hand break', () => {
+  it('puts no clock on the seats: nobody is taking a turn', () => {
+    const match = atBreak(['p4']);
+    expect(turnClock(match, Date.parse(match.updatedOn) + 10_000)).toBeNull();
+  });
+
+  it('counts down to the next hand once someone has readied, when bots ready up the rest', () => {
+    const match = atBreak(['p4']);
+    expect(nextHandClock(match, Date.parse(match.updatedOn) + 10_000)).toBe(LIVE_TURN_MS - 10_000);
+    expect(nextHandClock(match, Date.parse(match.updatedOn) + LIVE_TURN_MS * 2)).toBe(0);
+  });
+
+  it("has no next hand clock while nobody has readied: running out pauses the table, it doesn't deal", () => {
+    const match = atBreak([]);
+    expect(nextHandClock(match, Date.parse(match.updatedOn) + 10_000)).toBeNull();
+  });
+
+  it('has no next hand clock mid-hand', () => {
+    const match = dealtLive();
+    expect(nextHandClock(match, Date.parse(match.updatedOn))).toBeNull();
   });
 });
 

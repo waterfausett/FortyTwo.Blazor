@@ -19,6 +19,7 @@ import {
   isValidPlay,
   matchStatus,
   nameText,
+  nextHandClock,
   openSeats,
   projectPlay,
   formatClock,
@@ -164,15 +165,18 @@ export default function MatchScreen() {
   const addBots = useMutation({ mutationFn: () => api.addBots(id), onError: toastError });
   const resume = useMutation({ mutationFn: () => api.resume(id), onError: toastError });
   const online = useOnline();
-  // A Live search counts up and a Live turn counts down, so the clock ticks only while one is shown.
-  // A paused clock sits at 0:00 until the table moves on, so it doesn't tick.
+  // A Live search counts up, and a Live turn and the wait for the next hand count down, so the clock
+  // ticks only while one is shown. A paused clock sits at 0:00 until the table moves on, so it doesn't tick.
   const searchNow = liveMatch ? searchState(liveMatch, serverNow()) : null;
   const clockNow = liveMatch ? turnClock(liveMatch, serverNow()) : null;
-  const ticking = liveMatch != null && (searchNow?.mode === 'live' || (clockNow !== null && !clockNow.paused));
+  const nextHandNow = liveMatch ? nextHandClock(liveMatch, serverNow()) : null;
+  const ticking =
+    liveMatch != null && (searchNow?.mode === 'live' || (clockNow !== null && !clockNow.paused) || nextHandNow !== null);
   const now = useNow(ticking);
   const search = liveMatch ? searchState(liveMatch, now) : null;
   // Stopped, `now` is as old as the last tick, so a stopped clock reads the time afresh.
   const clock = liveMatch ? (ticking ? turnClock(liveMatch, now) : clockNow) : null;
+  const nextHand = liveMatch ? (ticking ? nextHandClock(liveMatch, now) : nextHandNow) : null;
   const mode = liveMatch ? matchMode(liveMatch) : 'custom';
   const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
@@ -737,6 +741,7 @@ export default function MatchScreen() {
                         ? 'Ready up for the next hand'
                         : 'Play it out, or ready up'}
                   </Text>
+                  {nextHand !== null && <Text style={styles.handOverDetail}>Next hand in {formatClock(nextHand)}</Text>}
                 </View>
                 <ActionButton
                   label={iAmReady ? 'Ready' : 'Ready up'}
