@@ -89,6 +89,8 @@ Success looks like:
 - Turn timers, bot fill or seat takeover for Daily and custom matches. Pokes and the 14-day idle
   sweep stay as they are.
 - Stats for a replaced player (their bids before leaving are not recorded).
+- Dealing the next hand automatically once a hand is played out ([#131](https://github.com/waterfausett/FortyTwo.Blazor/issues/131)).
+  Over the table still waits for everyone to ready up between hands.
 - Changing the History list.
 
 ## Design
