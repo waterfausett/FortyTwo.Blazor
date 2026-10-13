@@ -1,10 +1,15 @@
 // The Matchmaker: seats a player at the oldest open table of their mode, or starts one, and never
 // splits players who press Play together across two tables. Each test uses its own instance.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { LIVE_TURN_MS, Teams, createDomino, type Domino, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
-import { PRESENCE_BROADCAST_MS, presenceBroadcast } from '../src/matchmaker';
+import {
+  DEFAULT_PRESENCE_BROADCAST_MS,
+  MIN_PRESENCE_BROADCAST_MS,
+  presenceBroadcast,
+  presenceBroadcastMs,
+} from '../src/matchmaker';
 
 const testEnv = env as unknown as Env;
 
@@ -300,17 +305,43 @@ describe('Matchmaker and stale claims', () => {
 
 describe('presenceBroadcast', () => {
   const t = 1_000_000;
+  const windowMs = 60_000;
 
-  it('sends at once when nothing has gone out within PRESENCE_BROADCAST_MS', () => {
-    expect(presenceBroadcast(t, null, null)).toEqual({ kind: 'now' });
-    expect(presenceBroadcast(t, t - PRESENCE_BROADCAST_MS, null)).toEqual({ kind: 'now' });
+  it('sends at once when nothing has gone out within the window', () => {
+    expect(presenceBroadcast(t, null, null, windowMs)).toEqual({ kind: 'now' });
+    expect(presenceBroadcast(t, t - windowMs, null, windowMs)).toEqual({ kind: 'now' });
   });
 
-  it('holds a change within PRESENCE_BROADCAST_MS for one alarm when that is up', () => {
-    expect(presenceBroadcast(t, t - 10_000, null)).toEqual({ kind: 'alarm', at: t - 10_000 + PRESENCE_BROADCAST_MS });
+  it('holds a change within the window for one alarm when that is up', () => {
+    expect(presenceBroadcast(t, t - 10_000, null, windowMs)).toEqual({ kind: 'alarm', at: t - 10_000 + windowMs });
   });
 
   it('adds nothing when that alarm is already set', () => {
-    expect(presenceBroadcast(t, t - 10_000, t + 50_000)).toEqual({ kind: 'wait' });
+    expect(presenceBroadcast(t, t - 10_000, t + 50_000, windowMs)).toEqual({ kind: 'wait' });
+  });
+});
+
+describe('presenceBroadcastMs', () => {
+  it('uses PRESENCE_BROADCAST_MS when it is a number at or above the floor', () => {
+    expect(presenceBroadcastMs({ PRESENCE_BROADCAST_MS: '30000' })).toBe(30_000);
+    expect(presenceBroadcastMs({ PRESENCE_BROADCAST_MS: String(MIN_PRESENCE_BROADCAST_MS) })).toBe(MIN_PRESENCE_BROADCAST_MS);
+  });
+
+  it('falls back to the default when unset', () => {
+    expect(presenceBroadcastMs({})).toBe(DEFAULT_PRESENCE_BROADCAST_MS);
+    expect(presenceBroadcastMs({ PRESENCE_BROADCAST_MS: '' })).toBe(DEFAULT_PRESENCE_BROADCAST_MS);
+  });
+
+  it('ignores a malformed or too-small value, warning once per value', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(presenceBroadcastMs({ PRESENCE_BROADCAST_MS: '5m' })).toBe(DEFAULT_PRESENCE_BROADCAST_MS);
+      expect(presenceBroadcastMs({ PRESENCE_BROADCAST_MS: '5m' })).toBe(DEFAULT_PRESENCE_BROADCAST_MS);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(presenceBroadcastMs({ PRESENCE_BROADCAST_MS: String(MIN_PRESENCE_BROADCAST_MS - 1) })).toBe(DEFAULT_PRESENCE_BROADCAST_MS);
+      expect(warn).toHaveBeenCalledTimes(2);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

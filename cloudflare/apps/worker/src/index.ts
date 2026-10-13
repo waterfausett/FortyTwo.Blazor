@@ -31,6 +31,9 @@ export interface Env {
   // The online count (the Matchmaker's presence socket) is on only when this is exactly 'true':
   // off by default, unlike BOTS_ENABLED. Off, /presence/ws is a 404 and clients open no socket.
   PRESENCE_ENABLED?: string;
+  // How often, at most, the online count goes out to every presence socket, in milliseconds
+  // (matchmaker.ts's presenceBroadcastMs). Unset, malformed or under its floor, the default is used.
+  PRESENCE_BROADCAST_MS?: string;
   // The static-assets binding (wrangler.toml's [assets]); mlBot.ts reads the bot's weights from it.
   ASSETS?: Fetcher;
   // The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links

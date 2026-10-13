@@ -25,21 +25,43 @@ export function presenceEnabled(env: { PRESENCE_ENABLED?: string }): boolean {
   return env.PRESENCE_ENABLED === 'true';
 }
 
-// How often, at most, the online count goes out to every presence socket.
-export const PRESENCE_BROADCAST_MS = 5 * 60_000;
+// How often, at most, the online count goes out to every presence socket: index.ts's
+// PRESENCE_BROADCAST_MS when set to at least MIN_PRESENCE_BROADCAST_MS, else
+// DEFAULT_PRESENCE_BROADCAST_MS. The floor stops a typo from messaging every socket on each
+// connect.
+export const DEFAULT_PRESENCE_BROADCAST_MS = 5 * 60_000;
+export const MIN_PRESENCE_BROADCAST_MS = 10_000;
 
-// When to send a changed online count: now, if nothing has gone out in the last
-// PRESENCE_BROADCAST_MS; else when that PRESENCE_BROADCAST_MS is up, from one alarm - unless one
-// is already set. A burst of apps opening at once thus costs one message per socket per
-// PRESENCE_BROADCAST_MS, not one each.
+// The PRESENCE_BROADCAST_MS last warned about, so a bad value is logged once per isolate rather
+// than on every connect.
+let warnedPresenceBroadcastMs: string | undefined;
+
+export function presenceBroadcastMs(env: { PRESENCE_BROADCAST_MS?: string }): number {
+  const raw = env.PRESENCE_BROADCAST_MS?.trim();
+  if (!raw) return DEFAULT_PRESENCE_BROADCAST_MS;
+  const ms = Number(raw);
+  if (Number.isFinite(ms) && ms >= MIN_PRESENCE_BROADCAST_MS) return ms;
+  if (warnedPresenceBroadcastMs !== raw) {
+    warnedPresenceBroadcastMs = raw;
+    console.warn(
+      `PRESENCE_BROADCAST_MS "${raw}" ignored (not a number of at least ${MIN_PRESENCE_BROADCAST_MS}); using ${DEFAULT_PRESENCE_BROADCAST_MS}`
+    );
+  }
+  return DEFAULT_PRESENCE_BROADCAST_MS;
+}
+
+// When to send a changed online count: now, if nothing has gone out in the last `windowMs`
+// (presenceBroadcastMs); else when that is up, from one alarm - unless one is already set. A
+// burst of apps opening at once thus costs one message per socket per window, not one each.
 export function presenceBroadcast(
   now: number,
   lastSentAt: number | null,
-  alarmAt: number | null
+  alarmAt: number | null,
+  windowMs: number
 ): { kind: 'now' } | { kind: 'alarm'; at: number } | { kind: 'wait' } {
-  if (lastSentAt === null || now - lastSentAt >= PRESENCE_BROADCAST_MS) return { kind: 'now' };
+  if (lastSentAt === null || now - lastSentAt >= windowMs) return { kind: 'now' };
   if (alarmAt !== null) return { kind: 'wait' };
-  return { kind: 'alarm', at: lastSentAt + PRESENCE_BROADCAST_MS };
+  return { kind: 'alarm', at: lastSentAt + windowMs };
 }
 
 function onlineMessage(online: number): string {
@@ -253,7 +275,7 @@ export class Matchmaker extends DurableObject<Env> {
   private async presenceChanged(closing?: WebSocket): Promise<void> {
     const now = Date.now();
     const lastSentAt = (await this.ctx.storage.get<number>('presenceSentAt')) ?? null;
-    const plan = presenceBroadcast(now, lastSentAt, await this.ctx.storage.getAlarm());
+    const plan = presenceBroadcast(now, lastSentAt, await this.ctx.storage.getAlarm(), presenceBroadcastMs(this.env));
     if (plan.kind === 'now') await this.broadcastOnline(now, closing);
     else if (plan.kind === 'alarm') await this.ctx.storage.setAlarm(plan.at);
   }
@@ -264,7 +286,7 @@ export class Matchmaker extends DurableObject<Env> {
 
   // Skipped when every socket already holds the count (presenceSentCount, which fetch() clears
   // once they don't): someone leaving and coming back before the alarm then costs no messages.
-  // Nothing went out, so the next change needn't wait out PRESENCE_BROADCAST_MS.
+  // Nothing went out, so the next change needn't wait out the window (presenceBroadcastMs).
   private async broadcastOnline(now: number, closing?: WebSocket): Promise<void> {
     const online = this.online(closing);
     if (online === (await this.ctx.storage.get<number>('presenceSentCount'))) return;
