@@ -28,6 +28,8 @@ export interface SeatProps {
   away: boolean;
   // Time left on their Live turn ("0:42"), or null.
   clock: string | null;
+  // Their clock ran out and the table is waiting on them: nobody else is left to play with.
+  paused?: boolean;
 }
 
 function TileBacks({ count, seat }: { count: number; seat: SeatPosition }): JSX.Element {
@@ -55,6 +57,7 @@ export function Seat({
   dominoCount,
   away,
   clock,
+  paused = false,
 }: SeatProps): JSX.Element {
   return (
     <div
@@ -67,10 +70,11 @@ export function Seat({
         </span>
         {away && <span className="marker seat-away">Away</span>}
         {clock !== null && (
-          <span className="marker seat-clock" aria-label={`${clock} left`}>
+          <span className={`marker seat-clock${paused ? ' seat-clock-paused' : ''}`} aria-label={`${clock} left`}>
             {clock}
           </span>
         )}
+        {paused && <span className="marker seat-clock seat-clock-paused">Waiting…</span>}
         <span className="seat-markers">
           {isDealer && (
             <span className="marker marker-dealer" title="Dealer">

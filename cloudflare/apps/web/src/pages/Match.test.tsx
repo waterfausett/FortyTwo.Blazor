@@ -46,6 +46,7 @@ const {
   joinMatchMock,
   pokeMock,
   resumeMock,
+  playMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -69,6 +70,7 @@ const {
     joinMatchMock: vi.fn(),
     pokeMock: vi.fn(),
     resumeMock: vi.fn(),
+    playMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -92,6 +94,7 @@ vi.mock('../api/client', () => ({
     joinMatch: joinMatchMock,
     poke: pokeMock,
     resume: resumeMock,
+    play: playMock,
   }),
 }));
 
@@ -2147,6 +2150,122 @@ describe('Match', () => {
       useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'live', autopilot: ['p2'] }), connected: true });
       renderMatch();
       expect(await screen.findByText(/away/i)).toBeTruthy();
+    });
+  });
+
+  describe('Over the table seat takeover', () => {
+    // A live game under way with a bot in the second seat; the viewer is 'p1' unless a test says
+    // otherwise.
+    const BOT_PLAYERS = [PLAYERS[0], { playerId: 'bot-1', position: Positions.Second, ready: true }, PLAYERS[2], PLAYERS[3]];
+    function dealtLiveWithBots(overrides: Partial<MatchState> = {}): MatchState {
+      const match = baseMatch({ mode: 'live', players: BOT_PLAYERS, ...overrides });
+      match.currentGame.hands[1] = { ...match.currentGame.hands[1], playerId: 'bot-1' };
+      return match;
+    }
+    function rerenderMatch(view: ReturnType<typeof renderMatch>) {
+      view.rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+    }
+
+    it('shows a claimant the table without a hand, with Cancel', async () => {
+      currentUserId.value = 'n1';
+      leaveMatchMock.mockResolvedValue(undefined);
+      useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots({ claims: ['n1'] }), connected: true });
+      renderMatch();
+      expect(await screen.findByText(/Joining a game in progress. You'll take a seat when this hand ends./)).toBeTruthy();
+      expect(screen.queryByTestId('hand')).toBeNull();
+      expect(screen.queryByRole('heading', { name: /pick a seat|this match is full/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Leave game' })).toBeNull();
+      expect(screen.getByLabelText('Table')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(leaveMatchMock).toHaveBeenCalledWith('match-1'));
+    });
+
+    it('searches again when a claim is let go', async () => {
+      currentUserId.value = 'n1';
+      playMock.mockResolvedValue({ ...dealtLiveWithBots(), id: 'other' });
+      useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots({ bumped: ['n1'] }), connected: false, deleted: true });
+      renderMatch();
+      expect(await screen.findByText(/That game ended - finding you another table/)).toBeTruthy();
+      await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/match/other', { replace: true }));
+      expect(playMock).toHaveBeenCalledTimes(1);
+      expect(playMock).toHaveBeenCalledWith('live');
+      expect(toastInfoMock).not.toHaveBeenCalledWith('This match was deleted');
+    });
+
+    it('offers Find another when the search after a bump fails', async () => {
+      currentUserId.value = 'n1';
+      playMock.mockRejectedValueOnce(new Error('nope')).mockResolvedValue({ ...dealtLiveWithBots(), id: 'other' });
+      useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots({ bumped: ['n1'] }), connected: true });
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: 'Find another' }));
+      await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/match/other', { replace: true }));
+    });
+
+    it('tells a replaced player a bot took their seat', async () => {
+      currentUserId.value = 'n1';
+      useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots({ replaced: ['n1'] }), connected: true });
+      renderMatch();
+      expect(await screen.findByText(/A bot took your seat after you were away for a hand/)).toBeTruthy();
+      expect(screen.getByRole('link', { name: /back to lobby/i }).getAttribute('href')).toBe('/');
+    });
+
+    it('offers Leave game in an Over the table game under way, and not in a custom one', async () => {
+      leaveMatchMock.mockResolvedValue(undefined);
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots(), connected: true });
+      const view = renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: 'Leave game' }));
+      expect(confirm).toHaveBeenCalledWith('Leave this game? A bot takes your seat.');
+      await waitFor(() => expect(leaveMatchMock).toHaveBeenCalledWith('match-1'));
+      confirm.mockRestore();
+      view.unmount();
+
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+      await screen.findByTestId('hand');
+      expect(screen.queryByRole('button', { name: 'Leave game' })).toBeNull();
+    });
+
+    it('says who took a seat', async () => {
+      useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots(), connected: true });
+      const view = renderMatch();
+      const seated = dealtLiveWithBots({ players: [PLAYERS[0], PLAYERS[1], PLAYERS[2], PLAYERS[3]] });
+      useMatchSocketMock.mockReturnValue({ match: seated, connected: true });
+      rerenderMatch(view);
+      await waitFor(() => expect(toastInfoMock).toHaveBeenCalledWith("p2 took bot-1's seat"));
+    });
+
+    it("tells a claimant they're in when they take a seat", async () => {
+      currentUserId.value = 'n1';
+      useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots({ claims: ['n1'] }), connected: true });
+      const view = renderMatch();
+      await screen.findByText(/Joining a game in progress/);
+      const seated = dealtLiveWithBots({
+        players: [PLAYERS[0], { playerId: 'n1', position: Positions.Second, ready: true }, PLAYERS[2], PLAYERS[3]],
+      });
+      seated.currentGame.hands[1] = { ...seated.currentGame.hands[1], playerId: 'n1' };
+      useMatchSocketMock.mockReturnValue({ match: seated, connected: true });
+      rerenderMatch(view);
+      await waitFor(() => expect(toastInfoMock).toHaveBeenCalledWith("You're in", 'You took a seat - your first hand is dealt.'));
+      expect(toastInfoMock).not.toHaveBeenCalledWith(expect.stringMatching(/took .*'s seat/));
+    });
+
+    it('marks a paused clock as waiting', async () => {
+      // The last human's turn ran out a while ago, with only bots left: the table waits on them.
+      const stale = new Date(Date.now() - 5 * 60_000).toISOString();
+      const allBots = [PLAYERS[0], ...['bot-1', 'bot-2', 'bot-3'].map((playerId, i) => ({ playerId, position: i + 1, ready: true }))];
+      const match = baseMatch({ mode: 'live', players: allBots, updatedOn: stale });
+      match.currentGame.hands = match.currentGame.hands.map((h, i) => ({ ...h, playerId: allBots[i].playerId }));
+      useMatchSocketMock.mockReturnValue({ match, connected: true });
+      renderMatch();
+      const mine = await screen.findByTestId('my-seat');
+      expect(within(mine).getByText(/Waiting…/)).toBeTruthy();
     });
   });
 });

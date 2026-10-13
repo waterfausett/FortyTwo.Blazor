@@ -392,8 +392,15 @@
   color: var(--brass);
 }
 
-/* Shown to a player whose Live turn ran out while a bot plays for them. */
-.autopilot-bar {
+/* A clock run out, with the table waiting on its player. */
+.seat-clock-paused {
+  color: var(--danger);
+}
+
+/* Shown to a player whose Live turn ran out while a bot plays for them, and to a newcomer
+   watching a game under way until they take a seat. */
+.autopilot-bar,
+.claim-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -897,6 +904,12 @@
 .rail-poke {
   display: block;
   margin: 0 auto 0.5rem;
+}
+
+/* Leave game, under the hand: out of the way of play. */
+.rail-leave {
+  display: block;
+  margin: 0.75rem auto 0;
 }
 
 .player.active .rail-status {
