@@ -65,13 +65,31 @@ export function liveDeadline(match: MatchState): LiveDeadline | null {
   return { kind: 'turn', at: Date.parse(match.updatedOn) + LIVE_TURN_MS, playerIds: humans };
 }
 
+// How long a table whose last present player has run out their turn waits for them before it's
+// dropped. Bots don't play on meanwhile - nobody would be watching.
+export const LIVE_ABANDON_MS = 120_000;
+// Newcomers can't claim a seat once either team has this many marks: they'd join for a hand or two.
+export const TAKEOVER_MAX_MARKS = 5;
+
+// At the table and playing: seated, a person, and not on autopilot.
+export function isPresent(match: MatchState, playerId: string): boolean {
+  return match.players.some((p) => p.playerId === playerId) && !isBot(playerId) && !isOnAutopilot(match, playerId);
+}
+
 export function setAutopilot(match: MatchState, playerIds: string[], on: boolean): MatchState {
   const ids = new Set(match.autopilot ?? []);
+  const awaySince = { ...match.awaySince };
+  const at = new Date().toISOString();
   for (const id of playerIds) {
-    if (on) ids.add(id);
-    else ids.delete(id);
+    if (on) {
+      if (!ids.has(id)) awaySince[id] = at;
+      ids.add(id);
+    } else {
+      ids.delete(id);
+      delete awaySince[id];
+    }
   }
-  return { ...match, autopilot: [...ids] };
+  return { ...match, autopilot: [...ids], awaySince };
 }
 
 // A player taking their seat back from the bot. Only a player on autopilot has anything to take

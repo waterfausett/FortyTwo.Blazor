@@ -64,9 +64,12 @@ export type { MatchMode, TableWait, LiveDeadline } from './live';
 export {
   LIVE_FILL_MS,
   LIVE_TURN_MS,
+  LIVE_ABANDON_MS,
+  TAKEOVER_MAX_MARKS,
   matchMode,
   isOnAutopilot,
   isBotControlled,
+  isPresent,
   tableWait,
   liveDeadline,
   setAutopilot,

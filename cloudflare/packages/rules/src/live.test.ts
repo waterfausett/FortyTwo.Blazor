@@ -6,6 +6,7 @@ import {
   LIVE_FILL_MS,
   LIVE_TURN_MS,
   isBotControlled,
+  isPresent,
   liveDeadline,
   matchMode,
   resumeControl,
@@ -122,5 +123,36 @@ describe('autopilot', () => {
 
   it('refuses a resume from someone not at the table', () => {
     expect(() => resumeControl(dealt(), 'stranger')).toThrow(ValidationError);
+  });
+});
+
+describe('seat bookkeeping', () => {
+  it('stamps a hand with when it was dealt', () => {
+    expect(dealt().currentGame.dealtOn).toEqual(expect.any(String));
+  });
+
+  it('records when a player went away, and forgets it when they come back', () => {
+    const away = setAutopilot(dealt(), ['p2'], true);
+    expect(away.awaySince?.p2).toEqual(expect.any(String));
+    expect(setAutopilot(away, ['p2'], false).awaySince?.p2).toBeUndefined();
+  });
+
+  it('remembers that a bot ever sat down', () => {
+    let match = createMatch('p1', 'live');
+    match = takeSeat(match, 'bot-1', 1);
+    expect(match.hadBots).toBe(true);
+    expect(createMatch('p1', 'live').hadBots).toBeUndefined();
+  });
+
+  it('counts only seated humans not on autopilot as present', () => {
+    let match = createMatch('p1', 'live');
+    match = takeSeat(match, 'p2', 1);
+    match = takeSeat(match, 'bot-1', 2);
+    match = takeSeat(match, 'p4', 3, deck());
+    match = setAutopilot(match, ['p4'], true);
+    expect(isPresent(match, 'p1')).toBe(true);
+    expect(isPresent(match, 'bot-1')).toBe(false);
+    expect(isPresent(match, 'p4')).toBe(false);
+    expect(isPresent(match, 'stranger')).toBe(false);
   });
 });

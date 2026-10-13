@@ -69,6 +69,17 @@ export interface MatchState {
   searchStartedOn?: string;
   // Players a bot is playing for, after they let a Live turn run out (live.ts).
   autopilot?: string[];
+  // When each player on autopilot went away, written and cleared with `autopilot` (live.ts).
+  awaySince?: Record<string, string>;
+  // Players waiting to take a bot's seat at the next hand break, in the order they asked.
+  claims?: string[];
+  // A bot has sat at this table at some point, so its stats count as a bots game even after
+  // people have taken every bot's seat.
+  hadBots?: boolean;
+  // Players whose seat a bot took after they were away a whole hand, or who left.
+  replaced?: string[];
+  // Claimants let go without a seat (the match ended or was dropped first); their app searches again.
+  bumped?: string[];
 }
 
 function now(): string {
@@ -166,11 +177,11 @@ function seatPlayer(match: MatchState, playerId: string, position: Positions, de
   let currentGame: Game = { ...match.currentGame, hands: [...match.currentGame.hands, newHand] };
 
   if (currentGame.hands.length === 4 && dealOrder) {
-    currentGame = { ...currentGame, hands: dealHands(currentGame.hands, players, dealOrder) };
+    currentGame = { ...currentGame, hands: dealHands(currentGame.hands, players, dealOrder), dealtOn: now() };
     players = players.map((p) => ({ ...p, ready: false }));
   }
 
-  return { ...match, currentGame, players, updatedOn: now() };
+  return { ...match, currentGame, players, updatedOn: now(), ...(isBot(playerId) ? { hadBots: true } : {}) };
 }
 
 // Whether any hand has been dealt in this match yet. Hands are empty again after a hand's last
@@ -258,6 +269,7 @@ export function patchPlayerReady(
       hands,
       currentTrick: createTrick(),
       tricks: [],
+      dealtOn: now(),
     };
   }
 
@@ -448,12 +460,14 @@ export function createRematch(id: string, previous: MatchState, dealOrder: Domin
       hands,
       currentTrick: createTrick(),
       tricks: [],
+      dealtOn: timestamp,
     },
     games: {},
     winningTeam: null,
     players,
     // The same four, playing the same way.
     ...(previous.mode !== undefined ? { mode: previous.mode } : {}),
+    ...(players.some((p) => isBot(p.playerId)) ? { hadBots: true } : {}),
   };
 }
 
