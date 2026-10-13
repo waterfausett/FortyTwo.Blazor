@@ -11,8 +11,10 @@ export const BEST_PARTNER_MIN_GAMES = 3;
 // the first is usually a current player.
 const UNKNOWN_PARTNER_NAME = 'Unknown player';
 
-// A match's result counts unless the player joined too late to play MIN_HANDS_FOR_RESULT hands.
-const COUNTS = '(hands_played IS NULL OR hands_played >= ?)';
+// A match's result counts once the player played MIN_HANDS_FOR_RESULT hands, or every hand of a
+// match shorter than that. Binds MIN_HANDS_FOR_RESULT twice (COUNTS_BINDS).
+const COUNTS = '(hands_played IS NULL OR hands_played >= MIN(?, COALESCE(hands_total, ?)))';
+const COUNTS_BINDS = [MIN_HANDS_FOR_RESULT, MIN_HANDS_FOR_RESULT];
 
 // Each trump's count column: followMe -> trump_follow_me.
 const trumpColumn = (key: TrumpKey) => `trump_${key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}`;
@@ -27,12 +29,12 @@ export async function recordMatchStats(db: D1Database, match: MatchState): Promi
       db
         .prepare(
           `INSERT OR IGNORE INTO player_match_stats (match_id, player_id, partner_id, with_bots, won, marks_won,
-             bids_won, bids_made, points_bid_total, points_bid_count, marks_bids, completed_on, hands_played, ${TRUMP_COLUMNS})
-           VALUES (${Array.from({ length: 13 + TRUMP_KEYS.length }, () => '?').join(', ')})`
+             bids_won, bids_made, points_bid_total, points_bid_count, marks_bids, completed_on, hands_played, hands_total, ${TRUMP_COLUMNS})
+           VALUES (${Array.from({ length: 14 + TRUMP_KEYS.length }, () => '?').join(', ')})`
         )
         .bind(
           match.id, r.playerId, r.partnerId, r.withBots ? 1 : 0, r.won ? 1 : 0, r.marksWon,
-          r.bidsWon, r.bidsMade, r.pointsBidTotal, r.pointsBidCount, r.marksBids, match.updatedOn, r.handsPlayed,
+          r.bidsWon, r.bidsMade, r.pointsBidTotal, r.pointsBidCount, r.marksBids, match.updatedOn, r.handsPlayed, r.handsTotal,
           ...TRUMP_KEYS.map((key) => r.trumps[key])
         )
     )
@@ -132,11 +134,11 @@ export async function readPlayerStats(env: Env, playerId: string): Promise<Playe
          SUM(points_bid_count) AS pointsBidCount, SUM(marks_bids) AS marksBids,
          ${TRUMP_KEYS.map((key) => `SUM(${trumpColumn(key)}) AS ${key}`).join(', ')}
        FROM player_match_stats WHERE player_id = ? GROUP BY with_bots`
-    ).bind(MIN_HANDS_FOR_RESULT, MIN_HANDS_FOR_RESULT, MIN_HANDS_FOR_RESULT, playerId),
+    ).bind(...COUNTS_BINDS, ...COUNTS_BINDS, ...COUNTS_BINDS, playerId),
     env.DB.prepare(
       `SELECT partner_id AS partnerId, with_bots AS withBots, COUNT(*) AS played, SUM(won) AS won
        FROM player_match_stats WHERE player_id = ? AND ${COUNTS} GROUP BY partner_id, with_bots`
-    ).bind(playerId, MIN_HANDS_FOR_RESULT),
+    ).bind(playerId, ...COUNTS_BINDS),
   ]);
   // The trump sums come back as columns of their own.
   const totals = (totalsResult.results as (Omit<Totals, 'trumps'> & TrumpCounts & { withBots: number })[]).map((row) => ({

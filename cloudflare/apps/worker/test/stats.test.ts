@@ -143,13 +143,15 @@ describe('readPlayerStats', () => {
 });
 
 // A row as recordMatchStats writes it, with zeros for what a test doesn't care about.
-async function seed(row: { matchId: string; playerId: string; won: number; bidsWon: number; handsPlayed: number | null }) {
+async function seed(row: {
+  matchId: string; playerId: string; won: number; bidsWon: number; handsPlayed: number | null; handsTotal?: number | null;
+}) {
   await testEnv.DB.prepare(
     `INSERT INTO player_match_stats (match_id, player_id, partner_id, with_bots, won, marks_won, bids_won, bids_made,
-       points_bid_total, points_bid_count, marks_bids, completed_on, hands_played,
+       points_bid_total, points_bid_count, marks_bids, completed_on, hands_played, hands_total,
        trump_low, trump_follow_me, trump_blanks, trump_aces, trump_deuces, trump_threes, trump_fours, trump_fives, trump_sixes)
-     VALUES (?, ?, 'x', 0, ?, 0, ?, 0, 0, 0, 0, '2026-10-01T00:00:00.000Z', ?, 0, 0, 0, 0, 0, 0, 0, 0, 0)`
-  ).bind(row.matchId, row.playerId, row.won, row.bidsWon, row.handsPlayed).run();
+     VALUES (?, ?, 'x', 0, ?, 0, ?, 0, 0, 0, 0, '2026-10-01T00:00:00.000Z', ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0)`
+  ).bind(row.matchId, row.playerId, row.won, row.bidsWon, row.handsPlayed, row.handsTotal ?? null).run();
 }
 
 describe('hands played', () => {
@@ -165,5 +167,26 @@ describe('hands played', () => {
   it('counts rows from before hands were recorded', async () => {
     await seed({ matchId: 'm-old', playerId: 'q', won: 1, bidsWon: 0, handsPlayed: null });
     expect((await readPlayerStats(testEnv, 'q')).all.played).toBe(1);
+  });
+
+  it('counts the result of a match over in two hands for everyone who played both', async () => {
+    // Two marks bids end it: 7 marks in two hands.
+    await recordMatchStats(testEnv.DB, won('m-quick', ['me', 'x', 'sam', 'y'], Teams.TeamA, 2));
+    const row = await testEnv.DB.prepare("SELECT hands_played, hands_total FROM player_match_stats WHERE match_id = 'm-quick' AND player_id = 'me'")
+      .first<{ hands_played: number; hands_total: number }>();
+    expect(row).toEqual({ hands_played: 2, hands_total: 2 });
+
+    for (const id of ['me', 'x', 'sam', 'y']) {
+      const stats = await readPlayerStats(testEnv, id);
+      expect(stats.all.played).toBe(1);
+      expect(stats.all.won).toBe(id === 'me' || id === 'sam' ? 1 : 0);
+    }
+  });
+
+  it("still leaves out a late joiner's result when they played 2 of 8 hands", async () => {
+    await seed({ matchId: 'm-late', playerId: 'r', won: 1, bidsWon: 1, handsPlayed: 2, handsTotal: 8 });
+    const stats = await readPlayerStats(testEnv, 'r');
+    expect(stats.all.played).toBe(0);
+    expect(stats.all.bidsWon).toBe(1);
   });
 });
