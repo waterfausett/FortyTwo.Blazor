@@ -26,6 +26,12 @@ import {
   resumeControl,
   tableWait,
   assertIsMatchPlayer,
+  claimSeat,
+  releaseClaim,
+  replaceWithBot,
+  isPresent,
+  isBot,
+  hasBeenDealt,
   shuffledDominoOrder,
   ValidationError,
   type Bid,
@@ -37,7 +43,7 @@ import {
   type TableWait,
   type Teams,
 } from '@fortytwo/rules';
-import { bestEffort, syncLobbyIndex, refreshMatchSummary } from './lobby';
+import { bestEffort, syncLobbyIndex, refreshMatchSummary, deleteFromLobbyIndex } from './lobby';
 import { recordMatchStats } from './stats';
 import { pushNotices, type Notice } from './push/notices';
 import { sendNotices } from './push/send';
@@ -130,6 +136,7 @@ export class MatchDO extends DurableObject<Env> {
     await this.save(match);
     this.publish(null, match, onTheWay);
     await this.schedule(match);
+    this.offerIfBotSeated(null, match);
     await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, match));
     return match;
   }
@@ -154,11 +161,38 @@ export class MatchDO extends DurableObject<Env> {
     return this.update(playerId, (match) => takeSeat(match, playerId, position, dealOrder));
   }
 
-  // Takes a player back out of a match that hasn't been dealt. When no human is left the match is
-  // deleted outright - that's also how a creator cancels a match nobody joined. The caller drops
-  // the lobby rows (routes/matches.ts), as routes already own D1 syncing.
+  // A newcomer asks for the next bot seat at this Over the table game (the Matchmaker calls this).
+  // They're seated at the next hand break; until then they watch.
+  claimSeat(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, (match) => claimSeat(match, playerId));
+  }
+
+  // Leaving: before the deal, takes the player back out (the last human out deletes the match -
+  // how a creator cancels a match nobody joined). A claimant gives up their claim. In an Over the
+  // table game under way a bot takes the seat, unless nobody else is present, which drops the
+  // match. The caller drops the lobby rows when it's deleted (routes/matches.ts).
   leave(playerId: string): Promise<MatchResult<LeaveResult>> {
     return this.read(async (match): Promise<LeaveResult> => {
+      if ((match.claims ?? []).includes(playerId)) {
+        const next = releaseClaim(match, playerId);
+        await this.save(next);
+        this.broadcast(next);
+        return { deleted: false, match: next };
+      }
+      if (matchMode(match) === 'live' && hasBeenDealt(match) && match.winningTeam === null) {
+        assertIsMatchPlayer(match, playerId);
+        const othersPresent = match.players.some((p) => p.playerId !== playerId && isPresent(match, p.playerId));
+        if (!othersPresent) {
+          await this.drop(match);
+          return { deleted: true };
+        }
+        const next = replaceWithBot(match, playerId);
+        await this.save(next);
+        this.publish(match, next);
+        await this.schedule(next);
+        this.offerIfBotSeated(match, next);
+        return { deleted: false, match: next };
+      }
       const next = removePlayer(match, playerId);
       if (!hasHumanPlayers(next)) {
         await this.destroy();
@@ -321,6 +355,8 @@ export class MatchDO extends DurableObject<Env> {
       await this.recordStatsIfWon(match, next);
       this.publish(match, next, [actorId]);
       await this.schedule(next);
+      this.offerIfBotSeated(match, next);
+      await this.syncIfSeatsChanged(match, next);
       return next;
     });
   }
@@ -382,6 +418,8 @@ export class MatchDO extends DurableObject<Env> {
       await this.schedule(next);
       await this.recordStatsIfWon(match, next);
       this.publish(match, next);
+      this.offerIfBotSeated(match, next);
+      await this.syncIfSeatsChanged(match, next);
       if (action.kind === 'ready' || action.kind === 'play') {
         await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));
       }
@@ -395,12 +433,47 @@ export class MatchDO extends DurableObject<Env> {
       await this.schedule(match);
       return;
     }
+    if (deadline.kind === 'drop') {
+      await this.drop(match);
+      return;
+    }
     const next = deadline.kind === 'fill' ? seatBots(match) : setAutopilot(match, deadline.playerIds, true);
     await this.save(next);
     await this.schedule(next);
     this.publish(match, next);
+    this.offerIfBotSeated(match, next);
     // Filling changes who's seated, which the lobby lists; going on autopilot doesn't.
     if (deadline.kind === 'fill') await bestEffort(next.id, () => syncLobbyIndex(this.env.DB, next));
+  }
+
+  // Drops a game with nobody left to play it: claimants hear they were let go (their app searches
+  // again), then it's deleted like a match whose last player left. No stats are written.
+  private async drop(match: MatchState): Promise<void> {
+    const claims = match.claims ?? [];
+    if (claims.length > 0) this.broadcast({ ...match, claims: [], bumped: [...(match.bumped ?? []), ...claims] });
+    await this.destroy();
+    await bestEffort(match.id, () => deleteFromLobbyIndex(this.env.DB, match.id));
+  }
+
+  // A bot just took a seat at an Over the table game: it has a seat for a newcomer, so the
+  // Matchmaker hears about it (it may have dropped the table from its list). Fire and forget - a
+  // lost offer only means the seat isn't found.
+  private offerIfBotSeated(previous: MatchState | null, next: MatchState): void {
+    if (matchMode(next) !== 'live' || next.winningTeam !== null || !hasBeenDealt(next)) return;
+    const bots = (m: MatchState | null) => m?.players.filter((p) => isBot(p.playerId)).map((p) => p.playerId) ?? [];
+    const before = new Set(bots(previous));
+    if (!bots(next).some((id) => !before.has(id))) return;
+    const matchmaker = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
+    this.ctx.waitUntil(matchmaker.offer(next.id).catch((error: unknown) => console.error(`OFFER FAILED for ${next.id}`, error)));
+  }
+
+  // Who's seated changed in a game under way (a claim seated, a bot took over): the lobby lists it.
+  // Joins and bots seated before the deal are left to the routes, which already sync them - syncing
+  // them here too would write every seat row twice.
+  private async syncIfSeatsChanged(previous: MatchState, next: MatchState): Promise<void> {
+    if (!hasBeenDealt(previous)) return;
+    const ids = (m: MatchState) => m.players.map((p) => `${p.position}:${p.playerId}`).sort().join();
+    if (ids(previous) !== ids(next)) await bestEffort(next.id, () => syncLobbyIndex(this.env.DB, next));
   }
 
   // Uses the Hibernation API (`this.ctx.acceptWebSocket`, not the plain `WebSocket` `accept()`)

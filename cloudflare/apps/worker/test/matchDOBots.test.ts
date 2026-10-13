@@ -51,7 +51,11 @@ describe('MatchDO bot auto-play', () => {
       await state.storage.setAlarm(Date.now());
     });
 
-    await runDurableObjectAlarm(stub);
+    // The alarm set above may fire on its own before the test runs it, so run alarms until the bid
+    // is in rather than counting on exactly one.
+    const bidOf = async () =>
+      valueOf(await stub.getMatch()).currentGame.hands.find((h) => h.playerId === turn)!.bid;
+    for (let i = 0; i < 20 && (await bidOf()) === null; i++) await runDurableObjectAlarm(stub);
 
     const match = valueOf(await stub.getMatch());
     const hand = (id: string) => match.currentGame.hands.find((h) => h.playerId === id)!;

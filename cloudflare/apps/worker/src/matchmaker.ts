@@ -4,8 +4,9 @@
 // starts a new one. The waiting itself happens at that table (MatchDO): its socket shows the
 // seats filling, and a Live one fills with bots on its own clock (live.ts).
 //
-// It never hears from matches. A table that filled (through here, an invite link, or bots) or was
-// deleted is found out when it refuses the next seat, and dropped then.
+// The only thing it hears from matches is an offer: an Over the table game where a bot just sat
+// down has a seat for a newcomer again. A table that filled (through here, an invite link, or
+// bots) or was deleted is found out when it refuses the next seat, and dropped then.
 import { DurableObject } from 'cloudflare:workers';
 import { hasBeenDealt, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import type { PresenceMessage } from '@fortytwo/api-types';
@@ -46,6 +47,17 @@ export class Matchmaker extends DurableObject<Env> {
 
   play(playerId: string, mode: QueueMode): Promise<MatchState> {
     const turn = this.queue.then(() => this.seat(playerId, mode));
+    this.queue = turn.catch(() => undefined);
+    return turn;
+  }
+
+  // A table with a seat for a newcomer, from its MatchDO (a bot just sat down there). Runs in the
+  // same queue as play, so it can't be lost under a play's write.
+  offer(matchId: string): Promise<void> {
+    const turn = this.queue.then(async () => {
+      const open = (await this.ctx.storage.get<string[]>('open:live')) ?? [];
+      if (!open.includes(matchId)) await this.ctx.storage.put('open:live', [...open, matchId]);
+    });
     this.queue = turn.catch(() => undefined);
     return turn;
   }

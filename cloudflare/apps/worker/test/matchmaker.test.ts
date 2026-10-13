@@ -141,6 +141,14 @@ describe('Matchmaker', () => {
 
     expect(next.id).not.toBe(table.id);
   });
+
+  it('takes an offered table back onto the list, once', async () => {
+    const mm = matchmaker('mm-offer');
+    await mm.offer('t-1');
+    await mm.offer('t-1');
+    const list = await runInDurableObject(mm, (_i, state) => state.storage.get<string[]>('open:live'));
+    expect(list).toEqual(['t-1']);
+  });
 });
 
 describe('presenceBroadcast', () => {
