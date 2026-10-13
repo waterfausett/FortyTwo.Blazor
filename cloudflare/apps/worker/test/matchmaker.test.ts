@@ -2,7 +2,7 @@
 // splits players who press Play together across two tables. Each test uses its own instance.
 import { describe, it, expect } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
-import { LIVE_TURN_MS, createDomino, type Domino, type MatchState } from '@fortytwo/rules';
+import { LIVE_TURN_MS, Teams, createDomino, type Domino, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import { PRESENCE_BROADCAST_MS, presenceBroadcast } from '../src/matchmaker';
 
@@ -228,7 +228,7 @@ describe('Matchmaker and stale claims', () => {
     const id = await underWay(mm);
     await mm.play('n1', 'live');
     expect(await claimKey(mm, 'n1')).toBe(id);
-    await changeMatch(id, () => ({ winningTeam: 0 }));
+    await changeMatch(id, () => ({ winningTeam: Teams.TeamA }));
 
     const fresh = await mm.play('n1', 'live');
     expect(fresh.id).not.toBe(id);
