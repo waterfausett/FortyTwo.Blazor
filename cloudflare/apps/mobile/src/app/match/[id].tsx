@@ -637,71 +637,77 @@ export default function MatchScreen() {
           center={
             view.isTableReady ? undefined : (
               <View style={styles.waiting}>
+                {/* Kept short: it has only the middle of the table, between the open seats. */}
                 {search?.mode === 'live' && (
                   <>
-                    <Text style={styles.searchText} accessibilityRole="text">
+                    <Text style={styles.searchText} numberOfLines={1} adjustsFontSizeToFit accessibilityRole="text">
                       Finding players… {formatClock(search.elapsedMs)}
                     </Text>
-                    {online !== null && <Text style={styles.waitingText}>{online} online</Text>}
-                    <Text style={styles.waitingText}>
-                      Bots take the empty seats at {formatClock(LIVE_FILL_MS)}. Players can still join after you start.
+                    <Text style={styles.searchDetail}>
+                      {online !== null && `${online} online · `}Bots take the empty seats at{' '}
+                      {formatClock(LIVE_FILL_MS)}. Players can still join after you start.
                     </Text>
-                    {config.data?.bots && (
-                      <Pressable
-                        style={styles.smallButton}
-                        disabled={!connected || addBots.isPending}
-                        onPress={() => addBots.mutate()}
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.smallButtonText}>Start now with bots</Text>
-                      </Pressable>
-                    )}
                   </>
                 )}
                 {search?.mode === 'daily' && (
                   <Text style={styles.searchText}>Looking for players - we'll notify you when the table fills.</Text>
                 )}
-                <Text style={styles.waitingText}>
-                  {match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}
-                </Text>
-                {mode === 'custom' && emptySeatCount > 0 && (
-                  <Pressable
-                    style={styles.smallButton}
-                    onPress={() => shareInvite(match.id).catch(toastError)}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.smallButtonText}>Invite friends</Text>
-                  </Pressable>
+                {/* A Live search leaves the count to the status line under the table. */}
+                {mode !== 'live' && (
+                  <Text style={styles.waitingText}>
+                    {match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}
+                  </Text>
                 )}
-                {mode === 'custom' && config.data?.bots && emptySeatCount > 0 && (
-                  <Pressable
-                    style={styles.smallButton}
-                    disabled={!connected || addBots.isPending}
-                    onPress={() => addBots.mutate()}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.smallButtonText}>Fill with bots</Text>
-                  </Pressable>
-                )}
-                {!hasBeenDealt(match) && (
-                  <Pressable
-                    style={[styles.smallButton, styles.dangerButton, leave.isPending && styles.buttonDisabled]}
-                    disabled={leave.isPending}
-                    onPress={
-                      mode === 'live'
-                        ? () => {
-                            leavingRef.current = true;
-                            leave.mutate();
-                          }
-                        : confirmLeave
-                    }
-                    accessibilityRole="button"
-                  >
-                    <Text style={[styles.smallButtonText, styles.dangerButtonText]}>
-                      {mode === 'live' ? 'Cancel search' : onlyHumanSeated ? 'Cancel match' : 'Leave table'}
-                    </Text>
-                  </Pressable>
-                )}
+                <View style={styles.waitingButtons}>
+                  {search?.mode === 'live' && config.data?.bots && (
+                    <Pressable
+                      style={styles.smallButton}
+                      disabled={!connected || addBots.isPending}
+                      onPress={() => addBots.mutate()}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.smallButtonText}>Start with bots</Text>
+                    </Pressable>
+                  )}
+                  {mode === 'custom' && emptySeatCount > 0 && (
+                    <Pressable
+                      style={styles.smallButton}
+                      onPress={() => shareInvite(match.id).catch(toastError)}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.smallButtonText}>Invite friends</Text>
+                    </Pressable>
+                  )}
+                  {mode === 'custom' && config.data?.bots && emptySeatCount > 0 && (
+                    <Pressable
+                      style={styles.smallButton}
+                      disabled={!connected || addBots.isPending}
+                      onPress={() => addBots.mutate()}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.smallButtonText}>Fill with bots</Text>
+                    </Pressable>
+                  )}
+                  {!hasBeenDealt(match) && (
+                    <Pressable
+                      style={[styles.smallButton, styles.dangerButton, leave.isPending && styles.buttonDisabled]}
+                      disabled={leave.isPending}
+                      onPress={
+                        mode === 'live'
+                          ? () => {
+                              leavingRef.current = true;
+                              leave.mutate();
+                            }
+                          : confirmLeave
+                      }
+                      accessibilityRole="button"
+                    >
+                      <Text style={[styles.smallButtonText, styles.dangerButtonText]}>
+                        {mode === 'live' ? 'Cancel' : onlyHumanSeated ? 'Cancel match' : 'Leave table'}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
               </View>
             )
           }
@@ -948,6 +954,9 @@ const styles = StyleSheet.create({
   waiting: { alignItems: 'center', gap: 10, padding: 8 },
   waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   searchText: { color: colors.brass, fontFamily: fonts.uiBold, fontSize: 15, textAlign: 'center' },
+  searchDetail: { color: colors.bone, fontFamily: fonts.ui, fontSize: 13, textAlign: 'center' },
+  // Side by side, wrapping only when they don't fit.
+  waitingButtons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   autopilotBar: {
     flexDirection: 'row',
     alignItems: 'center',

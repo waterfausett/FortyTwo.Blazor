@@ -6,6 +6,12 @@
 //   dev-playing   trump named; your lead
 //   dev-hand-over the hand is decided; ready up
 //
+// Or still waiting for players, as each kind of match shows it:
+//
+//   dev-live-search    Live Play, alone, the search clock counting up
+//   dev-async-waiting  Async, two seated
+//   dev-custom-waiting Custom Match, two seated
+//
 // Your moves go through the real rules and come back over a stand-in socket, but nobody else
 // moves: the table waits on the next player after yours. Opening the match again starts it over.
 import {
@@ -62,7 +68,8 @@ function playAny(match: MatchState): MatchState {
   throw new Error(`${turn} has nothing to play`);
 }
 
-// Dealt from an unshuffled deck, so each is the same every time. You open the bidding.
+// Dealt from an unshuffled deck, so each is the same every time. You open the bidding. The waiting
+// ones aren't dealt yet: nobody else joins, so they wait for good.
 const SCENARIOS: Record<string, () => MatchState> = {
   'dev-bidding': () => {
     let match = createMatch(DEV_PLAYER_ID);
@@ -82,6 +89,9 @@ const SCENARIOS: Record<string, () => MatchState> = {
     while (match.currentGame.currentPlayerId != null && match.currentGame.tricks.length < 7) match = playAny(match);
     return match;
   },
+  'dev-live-search': () => createMatch(DEV_PLAYER_ID, 'live'),
+  'dev-async-waiting': () => takeSeat(createMatch(DEV_PLAYER_ID, 'daily'), 'dev|jo', 1),
+  'dev-custom-waiting': () => takeSeat(createMatch(DEV_PLAYER_ID, 'custom'), 'dev|jo', 1),
 };
 
 // The rules engine names games with crypto.randomUUID, which React Native doesn't have.
