@@ -205,6 +205,28 @@ describe('Table seats on a Live clock', () => {
     expect(screen.getByText('0:42')).toBeTruthy();
     expect(screen.getByText('Away')).toBeTruthy();
   });
+
+  it('marks a paused seat as waiting', async () => {
+    const seat: SeatInfo = {
+      name: 'Eli',
+      side: 'them',
+      isActive: true,
+      isDealer: false,
+      bid: null,
+      isHighBidder: false,
+      trump: null,
+      ready: null,
+      dominoCount: 3,
+      away: false,
+      clock: '0:00',
+      paused: true,
+    };
+    await render(
+      <Table seats={{ bottom: null, left: seat, top: null, right: null }} trick={null} slotSeats={[null, null, null, null]} winningSlot={null} />,
+    );
+    expect(screen.getByText('0:00')).toBeTruthy();
+    expect(screen.getByText('Waiting…')).toBeTruthy();
+  });
 });
 
 describe('TrickHistory', () => {

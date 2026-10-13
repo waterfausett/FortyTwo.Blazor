@@ -48,6 +48,8 @@ export interface SeatInfo {
   away: boolean;
   // Time left on their Live turn ("0:42"), or null.
   clock: string | null;
+  // Their clock ran out and the table is waiting on them: nobody else is left to play with.
+  paused?: boolean;
 }
 
 // A face-down tile for each domino a player still holds. Only ever a count: the Worker never sends
@@ -91,7 +93,8 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
           </View>
         )}
         {info.away && <Text style={styles.seatAway}>Away</Text>}
-        {info.clock !== null && <Text style={styles.seatClock}>{info.clock}</Text>}
+        {info.clock !== null && <Text style={[styles.seatClock, info.paused && styles.seatClockPaused]}>{info.clock}</Text>}
+        {info.paused && <Text style={[styles.seatClock, styles.seatClockPaused]}>Waiting…</Text>}
         {info.isDealer && (
           <View style={styles.dealer} accessibilityLabel="Dealer">
             <Text style={styles.dealerText}>D</Text>
@@ -541,6 +544,8 @@ const styles = StyleSheet.create({
   // Fixed height, so a plate doesn't change size as a bid chip comes and goes.
   seatAway: { color: colors.inkMuted, fontFamily: fonts.uiMedium, fontSize: 12 },
   seatClock: { color: colors.brass, fontFamily: fonts.uiBold, fontSize: 12, fontVariant: ['tabular-nums'] },
+  // A clock run out, with the table waiting on its player.
+  seatClockPaused: { color: colors.danger },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 20 },
   detail: { flexShrink: 1, color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 12 },
   ready: { color: colors.us },
