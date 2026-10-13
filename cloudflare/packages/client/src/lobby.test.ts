@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MatchSummary } from '@fortytwo/api-types';
-import { rowStatus, uniqueMatches, yourTurnFirst } from './lobby';
+import { MODE_LABELS, rowStatus, uniqueMatches, yourTurnFirst } from './lobby';
 
 const row = (id: string) => ({ id }) as MatchSummary;
 
@@ -27,6 +27,12 @@ const summary = (overrides: Partial<MatchSummary>): MatchSummary => ({
   seats: [null, null, null, null],
   mode: 'daily',
   ...overrides,
+});
+
+describe('MODE_LABELS', () => {
+  it('calls the matchmade live mode Over the table', () => {
+    expect(MODE_LABELS).toEqual({ live: 'Over the table', daily: 'Daily', custom: 'Custom' });
+  });
 });
 
 describe('rowStatus', () => {

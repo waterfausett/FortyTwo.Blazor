@@ -26,7 +26,7 @@ const FILTERS: { filter: Filter; label: string }[] = [
   { filter: 'Completed', label: 'History' },
 ];
 const EMPTY: Record<Filter, { title: string; detail: string }> = {
-  Active: { title: 'No games yet', detail: 'Start a new match: play Live now, take Daily turns, or challenge friends.' },
+  Active: { title: 'No games yet', detail: 'Start a new match: play over the table now, take Daily turns, or challenge friends.' },
   Completed: { title: 'Nothing finished yet', detail: 'Finished games will show up here.' },
 };
 

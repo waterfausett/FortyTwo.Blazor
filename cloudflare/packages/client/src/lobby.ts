@@ -15,7 +15,7 @@ export function uniqueMatches(pages: MatchPage[] | undefined): MatchSummary[] | 
     });
 }
 
-export const MODE_LABELS: Record<MatchMode, string> = { live: 'Live', daily: 'Daily', custom: 'Custom' };
+export const MODE_LABELS: Record<MatchMode, string> = { live: 'Over the table', daily: 'Daily', custom: 'Custom' };
 
 // What a lobby row says the match is waiting on, and whether that's the viewer.
 export function rowStatus(match: MatchSummary): { text: string; yours: boolean } {

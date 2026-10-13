@@ -2103,6 +2103,7 @@ describe('Match', () => {
       renderMatch();
       expect(await screen.findByText(/finding players… 0:2[34]/i)).toBeTruthy();
       expect(await screen.findByText('4 online')).toBeTruthy();
+      expect(screen.getByText(/bots take the empty seats at 2:30\. players can still join after you start/i)).toBeTruthy();
       expect(screen.getByRole('button', { name: /cancel search/i })).toBeTruthy();
       expect(screen.queryByRole('button', { name: /invite friends/i })).toBeNull();
       expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();

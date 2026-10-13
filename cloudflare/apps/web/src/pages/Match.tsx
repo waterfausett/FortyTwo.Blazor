@@ -38,6 +38,7 @@ import {
   isBot,
   isOnAutopilot,
   matchMode,
+  LIVE_FILL_MS,
 } from '@fortytwo/rules';
 import { formatClock, searchState, turnClock } from '@fortytwo/client';
 import { useOnline } from '../api/presence';
@@ -703,6 +704,9 @@ export function Match(): JSX.Element {
                           Finding players… {formatClock(liveSearch.elapsedMs)}
                         </p>
                         {online !== null && <p className="table-presence">{online} online</p>}
+                        <p className="table-presence">
+                          Bots take the empty seats at {formatClock(LIVE_FILL_MS)}. Players can still join after you start.
+                        </p>
                         {botsEnabled && (
                           <button
                             type="button"

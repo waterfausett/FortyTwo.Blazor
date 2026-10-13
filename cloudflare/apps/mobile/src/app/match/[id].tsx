@@ -41,6 +41,7 @@ import {
   isBot,
   isLow,
   isOnAutopilot,
+  LIVE_FILL_MS,
   lowDoublesToPrettyString,
   matchMode,
   matchScores,
@@ -522,6 +523,9 @@ export default function MatchScreen() {
                       Finding players… {formatClock(search.elapsedMs)}
                     </Text>
                     {online !== null && <Text style={styles.waitingText}>{online} online</Text>}
+                    <Text style={styles.waitingText}>
+                      Bots take the empty seats at {formatClock(LIVE_FILL_MS)}. Players can still join after you start.
+                    </Text>
                     {config.data?.bots && (
                       <Pressable
                         style={styles.smallButton}

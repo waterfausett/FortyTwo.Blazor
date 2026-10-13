@@ -21,7 +21,8 @@ const GROUPS: { id: string; label: string; icon: string; options: Option[] }[] =
     label: 'Find opponents',
     icon: 'oi-people',
     options: [
-      { choice: 'live', title: 'Live', detail: 'Matched with players online now. Start with bots any time.', icon: 'oi-bolt' },
+      { choice: 'live', title: 'Over the table',
+        detail: "Play now with whoever's online. Bots fill empty seats after 2½ min, or start with bots any time. 60-second turns; new players take over bots' seats between hands.", icon: 'oi-bolt' },
       { choice: 'daily', title: 'Daily', detail: "Matched with other Daily players. Take turns whenever; we'll notify you.", icon: 'oi-sun' },
     ],
   },
