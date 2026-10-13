@@ -193,6 +193,15 @@ describe('Matchmaker and games under way', () => {
     expect(again.id).toBe(id);
   });
 
+  it('returns a human to their own game under way and keeps it listed', async () => {
+    const mm = matchmaker('mm-own-game');
+    const id = await underWay(mm);
+    const again = await mm.play('p1', 'live');
+    expect(again.id).toBe(id);
+    const list = await runInDurableObject(mm, (_i, state) => state.storage.get<string[]>('open:live'));
+    expect(list).toContain(id);
+  });
+
   it('starts a new table once every bot seat is claimed', async () => {
     const mm = matchmaker('mm-claims-full');
     const id = await underWay(mm);

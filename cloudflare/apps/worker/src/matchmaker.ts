@@ -86,7 +86,7 @@ export class Matchmaker extends DurableObject<Env> {
         await this.ctx.storage.delete(`claim:${playerId}`);
       }
       for (const id of open) {
-        const match = await this.openMatch(id);
+        const match = await this.heldMatch(id);
         if (match?.players.some((p) => p.playerId === playerId)) return match;
       }
     }
@@ -115,7 +115,9 @@ export class Matchmaker extends DurableObject<Env> {
     if (seated === null && mode === 'live') {
       for (const id of underWay) {
         const claimed = await this.matchStub(id).claimSeat(playerId).catch(() => null);
-        if (claimed?.ok) {
+        // A call that threw may only be a bad moment: keep the game listed, try the next.
+        if (claimed === null) continue;
+        if (claimed.ok) {
           seated = claimed.value;
           await this.ctx.storage.put(`claim:${playerId}`, id);
           break;
@@ -139,11 +141,15 @@ export class Matchmaker extends DurableObject<Env> {
     return seated;
   }
 
-  // The table's match if it's still looking for players (there, under four, not dealt), else null.
-  private async openMatch(id: string): Promise<MatchState | null> {
+  // The table's match if it's one a seated player may be returned to: still looking for players
+  // (under four, not dealt), or a game under way that isn't won. Else null. A game under way is
+  // included so a human at it who presses play again gets it back, not a second table.
+  private async heldMatch(id: string): Promise<MatchState | null> {
     try {
       const found = await this.matchStub(id).getMatch();
-      if (!found.ok || found.value.players.length >= 4 || hasBeenDealt(found.value)) return null;
+      if (!found.ok) return null;
+      const filling = found.value.players.length < 4 && !hasBeenDealt(found.value);
+      if (!filling && found.value.winningTeam !== null) return null;
       return found.value;
     } catch {
       return null;
