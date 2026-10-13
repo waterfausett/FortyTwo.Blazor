@@ -223,7 +223,7 @@ export class MatchDO extends DurableObject<Env> {
       assertIsMatchPlayer(match, requesterId);
       // Live fills with bots on its own clock; Daily never does.
       if (matchMode(match) === 'daily') {
-        throw new ValidationError('No bots at Daily tables', 'Daily tables only fill with people.');
+        throw new ValidationError('No bots at Async tables', 'Async tables only fill with people.');
       }
       return seatBots(match, positions);
     });

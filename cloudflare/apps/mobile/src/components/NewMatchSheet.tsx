@@ -23,16 +23,16 @@ const GROUPS: { id: string; label: string; icon: IconName; options: Option[] }[]
     label: 'Find opponents',
     icon: 'people',
     options: [
-      { choice: 'live', title: 'Over the table',
-        detail: "Play now with whoever's online. Bots fill empty seats after 2½ min, or start with bots any time. 60-second turns; new players take over bots' seats between hands.", icon: 'flash' },
-      { choice: 'daily', title: 'Daily', detail: "Matched with other Daily players. Take turns whenever; we'll notify you.", icon: 'sunny' },
+      { choice: 'live', title: 'Live Play',
+        detail: '60-second turns; kicked if away for a full hand.', icon: 'pulse' },
+      { choice: 'daily', title: 'Async', detail: "Take turns whenever; we'll notify you.", icon: 'notifications' },
     ],
   },
   {
     id: 'friends',
     label: 'Play with friends',
     icon: 'mail',
-    options: [{ choice: 'challenge', title: 'Challenge friends', detail: 'Set up a table and send the invite link.', icon: 'mail' }],
+    options: [{ choice: 'challenge', title: 'Custom Match', detail: 'Set up a table and send the invite link.', icon: 'construct' }],
   },
 ];
 

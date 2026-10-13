@@ -345,28 +345,28 @@ const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top:
 const inApp = (ui: React.ReactElement) => <SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>;
 
 describe('NewMatchSheet', () => {
-  it('offers Over the table, Daily and Challenge friends, and reports the choice', async () => {
+  it('offers Live Play, Async and Custom Match, and reports the choice', async () => {
     const onChoose = jest.fn();
     await render(inApp(<NewMatchSheet visible liveEnabled online={5} pending={false} onChoose={onChoose} onClose={jest.fn()} />));
-    await fireEvent.press(screen.getByRole('button', { name: /over the table/i }));
-    await fireEvent.press(screen.getByRole('button', { name: /daily/i }));
-    await fireEvent.press(screen.getByRole('button', { name: /challenge friends/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /live play/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /async/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
     expect(onChoose.mock.calls).toEqual([['live'], ['daily'], ['challenge']]);
     expect(screen.getByText('5 online')).toBeTruthy();
-    expect(screen.getByText(/new players take over bots' seats between hands/)).toBeTruthy();
+    expect(screen.getByText(/kicked if away for a full hand/)).toBeTruthy();
   });
 
   it('labels the matchmade options apart from playing with friends', async () => {
     await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />));
     expect(screen.getByRole('header', { name: /find opponents/i })).toBeTruthy();
     expect(screen.getByRole('header', { name: /play with friends/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /over the table.*play now/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /daily.*matched/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /live play.*60-second turns/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /async.*take turns whenever/i })).toBeTruthy();
   });
 
-  it('leaves Over the table out when bots are off', async () => {
+  it('leaves Live Play out when bots are off', async () => {
     await render(inApp(<NewMatchSheet visible liveEnabled={false} online={null} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />));
-    expect(screen.queryByRole('button', { name: /^over the table/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^live play/i })).toBeNull();
   });
 });
 

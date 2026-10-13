@@ -5,28 +5,28 @@ import { NewMatchDialog } from './NewMatchDialog';
 afterEach(cleanup);
 
 describe('NewMatchDialog', () => {
-  it('offers Over the table, Daily and Challenge friends, and reports the choice', () => {
+  it('offers Live Play, Async and Custom Match, and reports the choice', () => {
     const onChoose = vi.fn();
     render(<NewMatchDialog open liveEnabled online={null} pending={false} onChoose={onChoose} onClose={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: /over the table/i }));
-    fireEvent.click(screen.getByRole('button', { name: /daily/i }));
-    fireEvent.click(screen.getByRole('button', { name: /challenge friends/i }));
+    fireEvent.click(screen.getByRole('button', { name: /live play/i }));
+    fireEvent.click(screen.getByRole('button', { name: /async/i }));
+    fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
     expect(onChoose.mock.calls).toEqual([['live'], ['daily'], ['challenge']]);
-    expect(screen.getByText(/new players take over bots' seats between hands/)).toBeTruthy();
+    expect(screen.getByText(/kicked if away for a full hand/)).toBeTruthy();
   });
 
   it('groups the matchmade options apart from playing with friends', () => {
     render(<NewMatchDialog open liveEnabled online={null} pending={false} onChoose={vi.fn()} onClose={vi.fn()} />);
     const matchmade = screen.getByRole('group', { name: /find opponents/i });
-    expect(within(matchmade).getByRole('button', { name: /over the table/i })).toBeTruthy();
-    expect(within(matchmade).getByRole('button', { name: /daily/i })).toBeTruthy();
+    expect(within(matchmade).getByRole('button', { name: /live play/i })).toBeTruthy();
+    expect(within(matchmade).getByRole('button', { name: /async/i })).toBeTruthy();
     const friends = screen.getByRole('group', { name: /play with friends/i });
-    expect(within(friends).getByRole('button', { name: /challenge friends/i })).toBeTruthy();
+    expect(within(friends).getByRole('button', { name: /custom match/i })).toBeTruthy();
   });
 
-  it('leaves Over the table out when bots are off', () => {
+  it('leaves Live Play out when bots are off', () => {
     render(<NewMatchDialog open liveEnabled={false} online={null} pending={false} onChoose={vi.fn()} onClose={vi.fn()} />);
-    expect(screen.queryByRole('button', { name: /over the table/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /live play/i })).toBeNull();
   });
 
   it('renders nothing while closed', () => {

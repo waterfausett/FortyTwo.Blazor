@@ -21,9 +21,9 @@ const GROUPS: { id: string; label: string; icon: string; options: Option[] }[] =
     label: 'Find opponents',
     icon: 'oi-people',
     options: [
-      { choice: 'live', title: 'Over the table',
-        detail: "Play now with whoever's online. Bots fill empty seats after 2½ min, or start with bots any time. 60-second turns; new players take over bots' seats between hands.", icon: 'oi-bolt' },
-      { choice: 'daily', title: 'Daily', detail: "Matched with other Daily players. Take turns whenever; we'll notify you.", icon: 'oi-sun' },
+      { choice: 'live', title: 'Live Play',
+        detail: "60-second turns; kicked if away for a full hand.", icon: 'oi-pulse' },
+      { choice: 'daily', title: 'Async', detail: "Take turns whenever; we'll notify you.", icon: 'oi-bell' },
     ],
   },
   {
@@ -31,7 +31,7 @@ const GROUPS: { id: string; label: string; icon: string; options: Option[] }[] =
     label: 'Play with friends',
     icon: 'oi-envelope-closed',
     options: [
-      { choice: 'challenge', title: 'Challenge friends', detail: 'Set up a table and send the invite link.', icon: 'oi-envelope-closed' },
+      { choice: 'challenge', title: 'Custom Match', detail: 'Set up a table and send the invite link.', icon: 'oi-wrench' },
     ],
   },
 ];

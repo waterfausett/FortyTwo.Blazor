@@ -213,7 +213,7 @@ describe('Lobby', () => {
     playMock.mockResolvedValue({ id: 'daily-1' } as MatchState);
     renderLobby();
     fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
-    fireEvent.click(screen.getByRole('button', { name: /daily/i }));
+    fireEvent.click(screen.getByRole('button', { name: /async/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/daily-1'));
     expect(playMock).toHaveBeenCalledWith('daily');
   });
@@ -224,11 +224,11 @@ describe('Lobby', () => {
     expect(await screen.findByText('3 online')).toBeTruthy();
   });
 
-  it('creates a custom table for Challenge friends', async () => {
+  it('creates a custom table for Custom Match', async () => {
     createMatchMock.mockResolvedValue({ id: 'custom-1' } as MatchState);
     renderLobby();
     fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
-    fireEvent.click(screen.getByRole('button', { name: /challenge friends/i }));
+    fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/custom-1'));
   });
 
