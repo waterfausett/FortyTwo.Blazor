@@ -160,4 +160,12 @@ describe('pushNotices', () => {
     expect(pushNotices(null, one)).toEqual([]);
     expect(pushNotices(one, takeSeat(one, 'p2', 1))).toEqual([]);
   });
+
+  it('tells a newcomer when they take a seat in a game under way', () => {
+    const previous = takeSeat(threeSeated(), 'bot-1', 3, deck());
+    const next = { ...previous, players: previous.players.map((p) => (p.playerId === 'bot-1' ? { ...p, playerId: 'n1' } : p)) };
+    const notices = pushNotices(previous, next);
+    expect(notices.find((n) => n.playerId === 'n1')?.kind).toBe('started');
+    expect(notices.some((n) => n.playerId !== 'n1' && n.kind === 'started')).toBe(false);
+  });
 });
