@@ -37,6 +37,7 @@ import {
   hasBeenDealt,
   isBot,
   isOnAutopilot,
+  isPresent,
   matchMode,
   LIVE_FILL_MS,
 } from '@fortytwo/rules';
@@ -548,6 +549,8 @@ export function Match(): JSX.Element {
   const canPlay = !watching && view.isMyTurnToPlay && connected && playing == null;
   // Leaving deletes the match when nobody else human is seated, so the button says so.
   const onlyHumanSeated = match.players.every((p) => p.playerId === myPlayerId || isBot(p.playerId));
+  // Over the table, a game with nobody else present is dropped when I leave it.
+  const lastPresent = match.players.every((p) => p.playerId === myPlayerId || !isPresent(match, p.playerId));
 
   // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
   // itself always reflects the true, immediate server state (used above for e.g. `isHandOver`,
@@ -1011,7 +1014,8 @@ export function Match(): JSX.Element {
                 className="btn btn-sm btn-outline-danger rail-leave"
                 disabled={leaveMutation.isPending}
                 onClick={() => {
-                  if (window.confirm('Leave this game? A bot takes your seat.')) {
+                  const outcome = lastPresent ? 'Nobody else is playing, so it ends.' : 'A bot takes your seat.';
+                  if (window.confirm(`Leave this game? ${outcome}`)) {
                     leavingRef.current = true;
                     leaveMutation.mutate();
                   }

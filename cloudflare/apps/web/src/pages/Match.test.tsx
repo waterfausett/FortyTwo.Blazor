@@ -2232,6 +2232,17 @@ describe('Match', () => {
       expect(screen.queryByRole('button', { name: 'Leave game' })).toBeNull();
     });
 
+    it('says the game ends when you leave as the last player present', async () => {
+      leaveMatchMock.mockResolvedValue(undefined);
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots({ autopilot: ['p3', 'p4'] }), connected: true });
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: 'Leave game' }));
+      expect(confirm).toHaveBeenCalledWith('Leave this game? Nobody else is playing, so it ends.');
+      expect(leaveMatchMock).not.toHaveBeenCalled();
+      confirm.mockRestore();
+    });
+
     it('says who took a seat', async () => {
       useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots(), connected: true });
       const view = renderMatch();
