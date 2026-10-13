@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchStatsFor, NO_TRUMPS } from './stats';
+import { matchStatsFor, NO_TRUMPS, MIN_HANDS_FOR_RESULT } from './stats';
 import { Bid } from './bid';
 import { Suit } from './suit';
 import { Teams } from './teams';
@@ -62,6 +62,7 @@ describe('matchStatsFor', () => {
       playerId: 'p1',
       partnerId: 'p3',
       withBots: false,
+      handsPlayed: 3,
       won: true,
       marksWon: 1 + 1 + 2 + 4,
       bidsWon: 3,
@@ -76,6 +77,7 @@ describe('matchStatsFor', () => {
       playerId: 'p2',
       partnerId: 'p4',
       withBots: false,
+      handsPlayed: 1,
       won: false,
       marksWon: 1,
       bidsWon: 1,
@@ -120,5 +122,40 @@ describe('matchStatsFor', () => {
     const stats = matchStatsFor(match(['p1', 'bot-1', 'bot-2', 'bot-3'], {}, Teams.TeamB));
     expect(stats).toHaveLength(1);
     expect(stats[0]).toMatchObject({ playerId: 'p1', partnerId: 'bot-2', withBots: true, won: false });
+  });
+
+  // p1 wins the bid in games 1, 2 and 4; hand 5 is p2's.
+  const finishedGames = (): MatchState['games'] => ({
+    [Teams.TeamA]: [hand(1, 'p1', Teams.TeamA, Bid.Thirty), hand(2, 'p1', Teams.TeamA, Bid.ThirtyFour), hand(5, 'p2', Teams.TeamB, Bid.Plunge)],
+    [Teams.TeamB]: [hand(4, 'p1', Teams.TeamA, Bid.ThirtySix)],
+  });
+  const finished = (): MatchState => match(players, finishedGames(), Teams.TeamA);
+
+  it('counts a match bots ever sat in as a bots game', () => {
+    const rows = matchStatsFor({ ...finished(), hadBots: true });
+    expect(rows.every((r) => r.withBots)).toBe(true);
+  });
+
+  it('counts the hands a player played, leaving out the ones a bot bid for them', () => {
+    const m = finished();
+    const first = m.games[Teams.TeamA]![0];
+    const games = { ...m.games, [Teams.TeamA]: [{ ...first, hands: first.hands.map((h) => (h.playerId === 'p1' ? { ...h, autoBid: true as const } : h)) }, ...m.games[Teams.TeamA]!.slice(1)] };
+    const filed = Object.values(m.games).reduce((n, gs) => n + (gs?.length ?? 0), 0);
+    expect(filed).toBe(4);
+    // The fixture files only each bidder's own hand, so p1 holds three of the four.
+    expect(matchStatsFor(m).find((r) => r.playerId === 'p1')!.handsPlayed).toBe(3);
+    const row = matchStatsFor({ ...m, games }).find((r) => r.playerId === 'p1')!;
+    expect(row.handsPlayed).toBe(2);
+    expect(MIN_HANDS_FOR_RESULT).toBe(3);
+  });
+
+  it("leaves a hand the bot bid for out of the player's bids", () => {
+    const m = finished();
+    const before = matchStatsFor(m).find((r) => r.playerId === 'p1')!;
+    const games = Object.fromEntries(Object.entries(m.games).map(([team, gs]) => [team, gs!.map((g) =>
+      g.biddingPlayerId === 'p1' ? { ...g, hands: g.hands.map((h) => (h.playerId === 'p1' ? { ...h, autoBid: true as const } : h)) } : g)]));
+    const after = matchStatsFor({ ...m, games }).find((r) => r.playerId === 'p1')!;
+    expect(before.bidsWon).toBe(3);
+    expect(after.bidsWon).toBe(0);
   });
 });

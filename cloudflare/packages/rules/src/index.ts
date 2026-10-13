@@ -72,6 +72,7 @@ export {
   isPresent,
   tableWait,
   liveDeadline,
+  markAutoBid,
   setAutopilot,
   resumeControl,
   replaceWithBot,
@@ -84,4 +85,4 @@ export {
 export { BOT_IDS, botDisplayName, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';
 export type { PlayerMatchStats, TrumpCounts, TrumpKey } from './stats';
-export { matchStatsFor, NO_TRUMPS, TRUMP_KEYS, trumpKeyOf } from './stats';
+export { matchStatsFor, MIN_HANDS_FOR_RESULT, NO_TRUMPS, TRUMP_KEYS, trumpKeyOf } from './stats';

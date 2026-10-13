@@ -38,6 +38,9 @@ export interface PlayerMatchStats {
   partnerId: string;
   // Any seat at the table held a bot.
   withBots: boolean;
+  // Filed hands they played themselves: holding the seat, and making their own bid. A match's
+  // result counts for them only from MIN_HANDS_FOR_RESULT up (the Worker's stats queries).
+  handsPlayed: number;
   won: boolean;
   // Marks their team took.
   marksWon: number;
@@ -53,10 +56,13 @@ export interface PlayerMatchStats {
   trumps: TrumpCounts;
 }
 
+// A player who took over a seat late must have played this many hands for the win or loss to count.
+export const MIN_HANDS_FOR_RESULT = 3;
+
 export function matchStatsFor(match: MatchState): PlayerMatchStats[] {
   if (match.winningTeam === null) return [];
 
-  const withBots = match.players.some((p) => isBot(p.playerId));
+  const withBots = match.hadBots ?? match.players.some((p) => isBot(p.playerId));
   const filed = (Object.entries(match.games) as [string, Game[] | undefined][]).flatMap(([key, games]) =>
     (games ?? []).map((game) => ({ game, wonBy: Number(key) as Teams }))
   );
@@ -70,6 +76,7 @@ export function matchStatsFor(match: MatchState): PlayerMatchStats[] {
         playerId: player.playerId,
         partnerId: partner?.playerId ?? '',
         withBots,
+        handsPlayed: 0,
         won: match.winningTeam === team,
         marksWon: 0,
         bidsWon: 0,
@@ -82,8 +89,11 @@ export function matchStatsFor(match: MatchState): PlayerMatchStats[] {
 
       for (const { game, wonBy } of filed) {
         if (wonBy === team) stats.marksWon += gameValue(game) ?? 0;
+        const own = game.hands.find((h) => h.playerId === player.playerId);
+        if (own === undefined || own.autoBid) continue;
+        stats.handsPlayed++;
         if (game.biddingPlayerId !== player.playerId) continue;
-        const bid = game.hands.find((h) => h.playerId === player.playerId)?.bid ?? null;
+        const bid = own.bid;
         if (bid === null || bid === Bid.Pass) continue;
 
         stats.bidsWon++;

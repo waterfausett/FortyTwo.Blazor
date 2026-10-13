@@ -9,6 +9,8 @@ import { ValidationError } from './errors';
 import {
   LIVE_FILL_MS,
   LIVE_TURN_MS,
+  LIVE_ABANDON_MS,
+  markAutoBid,
   TAKEOVER_MAX_MARKS,
   claimSeat,
   releaseClaim,
@@ -319,6 +321,8 @@ describe('the hand break', () => {
 
   it('replaces nobody in a match stored before deal times were kept', () => {
     let match = setAutopilot(dealt(), ['p2'], true);
+    // Away since the deal, so only the missing deal time keeps the seat from being replaced.
+    match = { ...match, awaySince: { p2: match.currentGame.dealtOn! } };
     const { dealtOn: _d, ...oldGame } = match.currentGame;
     match = { ...match, currentGame: oldGame };
     const next = patchPlayerReady(atBreak(match, 'p1'), 'p1', true, deck());
@@ -326,7 +330,9 @@ describe('the hand break', () => {
   });
 
   it('does none of this outside Over the table', () => {
-    const daily = setAutopilot({ ...dealt(), mode: 'daily' as const }, ['p2'], true);
+    let daily = setAutopilot({ ...dealt(), mode: 'daily' as const }, ['p2'], true);
+    // Away since the deal, so only the mode keeps the seat from being replaced.
+    daily = { ...daily, awaySince: { p2: daily.currentGame.dealtOn! } };
     const next = patchPlayerReady(atBreak(daily, 'p1'), 'p1', true, deck());
     expect(next.replaced).toBeUndefined();
   });
@@ -337,5 +343,32 @@ describe('the hand break', () => {
     expect(next.bumped).toEqual(['n1']);
     const quiet = withBots();
     expect(letClaimsGo(quiet)).toBe(quiet);
+  });
+});
+
+describe('pause and drop', () => {
+  it('drops instead of autopiloting the last present player', () => {
+    let match = createMatch('p1', 'live');
+    match = takeSeat(match, 'bot-1', 1);
+    match = takeSeat(match, 'bot-2', 2);
+    match = takeSeat(match, 'bot-3', 3, deck());
+    expect(liveDeadline(match)).toEqual({ kind: 'drop', at: Date.parse(match.updatedOn) + LIVE_TURN_MS + LIVE_ABANDON_MS, playerIds: ['p1'] });
+  });
+
+  it('still times a player out while someone else is present', () => {
+    expect(liveDeadline(dealt())!.kind).toBe('turn');
+  });
+
+  it('drops when the only other human is already away', () => {
+    const match = setAutopilot(dealt(), ['p2', 'p3', 'p4'], true);
+    expect(liveDeadline(match)!.kind).toBe('drop');
+  });
+});
+
+describe('markAutoBid', () => {
+  it('marks the hand the bot bid for', () => {
+    const next = markAutoBid(dealt(), 'p1');
+    expect(next.currentGame.hands.find((h) => h.playerId === 'p1')!.autoBid).toBe(true);
+    expect(next.currentGame.hands.find((h) => h.playerId === 'p2')!.autoBid).toBeUndefined();
   });
 });

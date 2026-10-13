@@ -49,7 +49,7 @@ export function tableWait(match: MatchState): TableWait | null {
 // the match, so `updatedOn` is when their turn began; a seated player readying up mid-hand also
 // restarts the clock, which only gives the table a little extra time.
 export interface LiveDeadline {
-  kind: 'fill' | 'turn';
+  kind: 'fill' | 'turn' | 'drop';
   at: number;
   playerIds: string[];
 }
@@ -63,7 +63,19 @@ export function liveDeadline(match: MatchState): LiveDeadline | null {
   }
   const humans = tableWait(match)?.playerIds.filter((id) => !isBotControlled(match, id)) ?? [];
   if (humans.length === 0) return null;
-  return { kind: 'turn', at: Date.parse(match.updatedOn) + LIVE_TURN_MS, playerIds: humans };
+  const turnEnds = Date.parse(match.updatedOn) + LIVE_TURN_MS;
+  // Nobody else is here to play with: rather than let bots play the table on its own, it waits,
+  // and is dropped if they don't come back.
+  const present = match.players.filter((p) => isPresent(match, p.playerId)).map((p) => p.playerId);
+  if (present.every((id) => humans.includes(id))) return { kind: 'drop', at: turnEnds + LIVE_ABANDON_MS, playerIds: humans };
+  return { kind: 'turn', at: turnEnds, playerIds: humans };
+}
+
+// The bot made this player's bid or trump call while they were on autopilot (bots.ts), so the
+// hand doesn't count as theirs in stats.
+export function markAutoBid(match: MatchState, playerId: string): MatchState {
+  const hands = match.currentGame.hands.map((h) => (h.playerId === playerId ? { ...h, autoBid: true as const } : h));
+  return { ...match, currentGame: { ...match.currentGame, hands } };
 }
 
 // How long a table whose last present player has run out their turn waits for them before it's
