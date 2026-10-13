@@ -12,10 +12,11 @@
 // offers a table back when a bot takes a seat there later. An Async table that filled (through
 // here, an invite link, or bots) is likewise dropped at the next refused seat.
 import { DurableObject } from 'cloudflare:workers';
-import { hasBeenDealt, shuffledDominoOrder, TABLE_PAUSED, type MatchState } from '@fortytwo/rules';
+import { shuffledDominoOrder, TABLE_PAUSED, type MatchState } from '@fortytwo/rules';
 import type { PresenceMessage } from '@fortytwo/api-types';
 import { verifyToken } from './auth/verifyJwt';
 import type { Env } from './index';
+import type { MatchResult, Seating } from './matchDO';
 
 export type QueueMode = 'live' | 'daily';
 
@@ -70,9 +71,6 @@ export class Matchmaker extends DurableObject<Env> {
     const key = `open:${mode}`;
     const open = (await this.ctx.storage.get<string[]>(key)) ?? [];
 
-    // One Live search at a time: look at the whole list for a table this player already waits at
-    // before seating them anywhere new, so an older table with room can't claim them too. Async
-    // players may wait at several tables.
     if (mode === 'live') {
       // A claim made earlier holds while the game is on and still lists the player; otherwise it's
       // forgotten and the player searches afresh.
@@ -86,9 +84,23 @@ export class Matchmaker extends DurableObject<Env> {
         if (found?.ok && holds) return found.value;
         await this.ctx.storage.delete(`claim:${playerId}`);
       }
-      for (const id of open) {
-        const match = await this.heldMatch(id);
-        if (match?.players.some((p) => p.playerId === playerId)) return match;
+    }
+
+    // One Live search at a time: every table is looked at up front for one this player already
+    // waits at or plays in, before seating them anywhere new, so an older table with room can't
+    // claim them too. Async players may wait at several tables, so theirs are looked at only as far
+    // as the one that seats them. Either way each table is looked at once, and the look is what
+    // seating goes by - a Seating, not the whole match.
+    const looks = mode === 'live' ? await Promise.all(open.map((id) => this.look(id))) : null;
+
+    if (looks !== null) {
+      const at = open.find((_id, i) => {
+        const look = looks[i];
+        return look?.ok === true && !look.value.won && look.value.players.some((p) => p.playerId === playerId);
+      });
+      if (at !== undefined) {
+        const found = await this.matchStub(at).getMatch().catch(() => null);
+        if (found?.ok) return found.value;
       }
     }
 
@@ -96,18 +108,23 @@ export class Matchmaker extends DurableObject<Env> {
     const underWay: string[] = [];
     let seated: MatchState | null = null;
 
-    for (const id of open) {
+    for (const [i, id] of open.entries()) {
       if (seated !== null) {
         stillOpen.push(id);
         continue;
       }
+      const look = looks !== null ? looks[i] : await this.look(id);
+      // A table that can't be reached may only be having a bad moment: keep it, try the next.
+      if (look === null) {
+        stillOpen.push(id);
+        continue;
+      }
       try {
-        const result = await this.trySeat(id, playerId, mode);
+        const result = await this.trySeat(id, look, playerId, mode);
         if (result.keep) stillOpen.push(id);
         if (result.underWay) underWay.push(id);
         seated = result.seated;
       } catch {
-        // A table that can't be reached may only be having a bad moment: keep it, try the next.
         stillOpen.push(id);
       }
     }
@@ -145,51 +162,47 @@ export class Matchmaker extends DurableObject<Env> {
     return seated;
   }
 
-  // The table's match if it's one a seated player may be returned to: still looking for players
-  // (under four, not dealt), or a game under way that isn't won. Else null. A game under way is
-  // included so a human at it who presses play again gets it back, not a second table.
-  private async heldMatch(id: string): Promise<MatchState | null> {
+  // One table's Seating, or null if it couldn't be reached.
+  private async look(id: string): Promise<MatchResult<Seating> | null> {
     try {
-      const found = await this.matchStub(id).getMatch();
-      if (!found.ok) return null;
-      const filling = found.value.players.length < 4 && !hasBeenDealt(found.value);
-      if (!filling && found.value.winningTeam !== null) return null;
-      return found.value;
+      return await this.matchStub(id).getSeating();
     } catch {
       return null;
     }
   }
 
-  // Tries to seat the player at one table still filling: `seated` is where they ended up there
-  // (null if nowhere), `keep` whether the table stays on the list, `underWay` whether it's a live
-  // game already dealt, to try for a claim once no filling table took them.
+  // Tries to seat the player at one table still filling, from the look already taken at it:
+  // `seated` is where they ended up there (null if nowhere), `keep` whether the table stays on the
+  // list, `underWay` whether it's a live game already dealt, to try for a claim once no filling
+  // table took them.
   private async trySeat(
     id: string,
+    look: MatchResult<Seating>,
     playerId: string,
     mode: QueueMode
   ): Promise<{ seated: MatchState | null; keep: boolean; underWay?: boolean }> {
     const table = this.matchStub(id);
-    let found = await table.getMatch();
-    // Two goes: a refused seat (taken a moment ago) is retried once against a fresh read.
+    let found = look;
+    // Two goes: a refused seat (taken a moment ago) is retried once against a fresh look.
     for (let attempt = 0; attempt < 2; attempt++) {
       if (!found.ok) return { seated: null, keep: false };
+      const { players, dealt, won } = found.value;
       // Full or dealt: not filling. A live game not yet won stays listed for claims.
-      if (found.value.players.length >= 4 || hasBeenDealt(found.value)) {
-        const underWay = mode === 'live' && found.value.winningTeam === null;
+      if (players.length >= 4 || dealt) {
+        const underWay = mode === 'live' && !won;
         return { seated: null, keep: underWay, underWay };
       }
-      const match = found.value;
-      if (match.players.some((p) => p.playerId === playerId)) {
-        // Live was caught by the pre-scan; an Async player may wait at several tables, so look on.
+      if (players.some((p) => p.playerId === playerId)) {
+        // Live was caught by the look up front; an Async player may wait at several tables, so look on.
         return { seated: null, keep: true };
       }
 
-      const seatAt = [0, 1, 2, 3].find((position) => match.players.every((p) => p.position !== position))!;
+      const seatAt = [0, 1, 2, 3].find((position) => players.every((p) => p.position !== position))!;
       const joined = await table.takeSeat(playerId, seatAt, shuffledDominoOrder());
       if (joined.ok) return { seated: joined.value, keep: joined.value.players.length < 4 };
       // A 404 is a deleted table; anything else (a seat taken a moment ago) may still have room.
       if (joined.status === 404) return { seated: null, keep: false };
-      found = await table.getMatch();
+      found = await table.getSeating();
     }
     return { seated: null, keep: true };
   }

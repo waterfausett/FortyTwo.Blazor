@@ -81,7 +81,7 @@ describe('Matchmaker', () => {
       const real = (instance as any).matchStub.bind(instance);
       (instance as any).matchStub = (id: string) =>
         id === broken
-          ? { getMatch: () => Promise.reject(new Error('unreachable')) }
+          ? { getSeating: () => Promise.reject(new Error('unreachable')) }
           : real(id);
     });
 
@@ -200,6 +200,34 @@ describe('Matchmaker and games under way', () => {
     expect(again.id).toBe(id);
     const list = await runInDurableObject(mm, (_i, state) => state.storage.get<string[]>('open:live'));
     expect(list).toContain(id);
+  });
+
+  it('looks at each listed table once per Live search, and never fetches a whole match to seat', async () => {
+    const mm = matchmaker('mm-one-look');
+    await matchStub('g1-busy').create('p1', 'g1-busy', 'live');
+    await matchStub('g1-busy').addBots('p1');
+    await matchStub('g1-filling').create('a', 'g1-filling', 'live');
+    await mm.offer('g1-busy');
+    await mm.offer('g1-filling');
+    const calls: string[] = [];
+    await runInDurableObject(mm, async (instance) => {
+      const real = (instance as any).matchStub.bind(instance);
+      (instance as any).matchStub = (id: string) => {
+        const stub = real(id);
+        const counted =
+          (name: string) =>
+          (...args: unknown[]) => {
+            calls.push(`${name} ${id}`);
+            return stub[name](...args);
+          };
+        return { getSeating: counted('getSeating'), getMatch: counted('getMatch'), takeSeat: counted('takeSeat') };
+      };
+    });
+
+    const seated = await mm.play('b', 'live');
+
+    expect(seated.id).toBe('g1-filling');
+    expect(calls).toEqual(['getSeating g1-busy', 'getSeating g1-filling', 'takeSeat g1-filling']);
   });
 
   it('starts a new table once every bot seat is claimed', async () => {

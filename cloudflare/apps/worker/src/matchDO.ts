@@ -75,6 +75,14 @@ export type MatchResult<T> =
   | { ok: true; value: T }
   | { ok: false; status: 400 | 404; error: { title: string; detail?: string } };
 
+// Just enough of a match for the Matchmaker to place someone at it: who sits where, whether it's
+// been dealt, whether it's won. Far smaller over RPC than the match, which carries every hand.
+export interface Seating {
+  players: { playerId: string; position: number }[];
+  dealt: boolean;
+  won: boolean;
+}
+
 export class MatchDO extends DurableObject<Env> {
   private async load(): Promise<MatchState | null> {
     return (await this.ctx.storage.get<MatchState>('match')) ?? null;
@@ -145,6 +153,15 @@ export class MatchDO extends DurableObject<Env> {
   // leaves the Worker (matchViewFor).
   getMatch(): Promise<MatchResult<MatchState>> {
     return this.read((match) => match);
+  }
+
+  // The Matchmaker's look at a table (Seating).
+  getSeating(): Promise<MatchResult<Seating>> {
+    return this.read((match) => ({
+      players: match.players.map((p) => ({ playerId: p.playerId, position: p.position })),
+      dealt: hasBeenDealt(match),
+      won: match.winningTeam !== null,
+    }));
   }
 
   getPlayerView(playerId: string): Promise<MatchResult<LoggedInPlayer>> {
