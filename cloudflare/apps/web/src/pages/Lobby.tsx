@@ -1,5 +1,5 @@
 // The lobby: the player's matches (Active, the default, and Game History) plus the New match
-// chooser - Live and Daily matchmaking, or a custom table to share with friends.
+// chooser - Live and Async matchmaking, or a custom table to share with friends.
 //
 // Only the selected tab's list is ever fetched - one page (20) at a time, with Load more for the
 // next - and the single `useInfiniteQuery` below is keyed on `activeTab`, so switching tabs just
@@ -99,7 +99,7 @@ export function Lobby(): JSX.Element {
   const online = useOnline();
   const [choosing, setChoosing] = useState(false);
 
-  // Live and Daily seat the player through matchmaking; Challenge friends starts a custom table.
+  // Live and Async seat the player through matchmaking; Custom Match starts a custom table.
   const startMatch = useMutation({
     mutationFn: (choice: NewMatchChoice) => (choice === 'challenge' ? client.createMatch() : client.play(choice)),
     onSuccess: (match) => {

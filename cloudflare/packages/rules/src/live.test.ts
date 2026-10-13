@@ -259,7 +259,7 @@ describe('claimSeat', () => {
     expect(() => claimSeat(two, 'n3')).toThrow(ValidationError);
   });
 
-  it('refuses outside Over the table, before the deal, once finished, near the end, and twice', () => {
+  it('refuses outside Live Play, before the deal, once finished, near the end, and twice', () => {
     expect(() => claimSeat({ ...withBots(), mode: 'daily' }, 'n1')).toThrow(ValidationError);
     expect(() => claimSeat(createMatch('p1', 'live'), 'n1')).toThrow(ValidationError);
     expect(() => claimSeat({ ...withBots(), winningTeam: Teams.TeamA }, 'n1')).toThrow(ValidationError);
@@ -343,7 +343,7 @@ describe('the hand break', () => {
     expect(next.players.find((p) => p.position === 1)!.playerId).toBe('p2');
   });
 
-  it('does none of this outside Over the table', () => {
+  it('does none of this outside Live Play', () => {
     let daily = setAutopilot({ ...dealt(), mode: 'daily' as const }, ['p2'], true);
     // Away since the deal, so only the mode keeps the seat from being replaced.
     daily = { ...daily, awaySince: { p2: daily.currentGame.dealtOn! } };

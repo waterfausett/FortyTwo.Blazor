@@ -1,5 +1,5 @@
 // Live matches' own clock (live.ts's liveDeadline, run by MatchDO's alarm): bots take a Live
-// table's empty seats LIVE_FILL_MS after it began looking, and nothing of the sort happens to Daily
+// table's empty seats LIVE_FILL_MS after it began looking, and nothing of the sort happens to Async
 // or custom tables. Deadlines are reached by winding the stored match's times back, as
 // matchDOPoke.test.ts does, then firing the alarm.
 import { describe, it, expect } from 'vitest';
@@ -66,7 +66,7 @@ describe('Live bot fill', () => {
     expect(row?.player_count).toBe(4);
   });
 
-  it('never fills a Daily or custom table', async () => {
+  it('never fills an Async or custom table', async () => {
     for (const mode of ['daily', 'custom'] as const) {
       const name = `no-fill-${mode}`;
       const stub = stubFor(name);

@@ -126,7 +126,7 @@ export default function MatchScreen() {
   });
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
-  // How this player stands at the table. In an Over the table game under way, a newcomer waits
+  // How this player stands at the table. In a Live Play game under way, a newcomer waits
   // for a bot's seat (claiming) and watches meanwhile; one whose wait came to nothing is bumped
   // and looks again; one away a whole hand was replaced by a bot.
   const role = liveMatch && myPlayerId ? viewerRole(liveMatch, myPlayerId) : null;
@@ -530,7 +530,7 @@ export default function MatchScreen() {
       ],
     );
   }
-  // Over the table, a player can leave a game under way: a bot takes their seat.
+  // In Live Play, a player can leave a game under way: a bot takes their seat.
   const canLeaveGame = mode === 'live' && hasBeenDealt(match) && !view.isMatchOver && !watching;
   // A game with nobody else present is dropped when I leave it.
   const lastPresent = match.players.every((p) => p.playerId === myPlayerId || !isPresent(match, p.playerId));

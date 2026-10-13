@@ -85,7 +85,7 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
   return {
     createMatch: (): Promise<MatchState> => request<MatchState>('/api/matches', { method: 'POST' }),
 
-    // Live or Daily play: seats the caller at an open table of that mode, or starts one.
+    // Live or Async play: seats the caller at an open table of that mode, or starts one.
     play: (mode: 'live' | 'daily'): Promise<MatchState> =>
       request<MatchState>('/api/matchmaking', { method: 'POST', body: JSON.stringify({ mode }) }),
 

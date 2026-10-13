@@ -117,7 +117,7 @@ export function resumeControl(match: MatchState, playerId: string): MatchState {
   return { ...cleared, updatedOn: new Date().toISOString() };
 }
 
-// A bot takes a player's seat for good: when they leave an Over the table game, or were away for
+// A bot takes a player's seat for good: when they leave a Live Play game, or were away for
 // a whole hand. Mid-hand the bot picks up their hand, bid and turn, so every id in the hand that
 // names them is renamed. Hands already filed keep the player's id.
 export function replaceWithBot(match: MatchState, playerId: string): MatchState {
@@ -151,11 +151,11 @@ export function replaceWithBot(match: MatchState, playerId: string): MatchState 
 // Why a paused table refuses a claim. The Matchmaker keeps such a table listed: it may come back.
 export const TABLE_PAUSED = 'This game is waiting on its last player';
 
-// Asks for the next bot seat that comes up at a hand break. Only in an Over the table game under
+// Asks for the next bot seat that comes up at a hand break. Only in a Live Play game under
 // way that isn't nearly over or paused, and never more claims than bot seats, so every claim is seated at
 // the next break.
 export function claimSeat(match: MatchState, playerId: string): MatchState {
-  if (matchMode(match) !== 'live') throw new ValidationError('Only Over the table games take newcomers');
+  if (matchMode(match) !== 'live') throw new ValidationError('Only Live Play games take newcomers');
   if (!hasBeenDealt(match) || match.winningTeam !== null) throw new ValidationError('This game has no seat to take');
   if (Object.values(matchScores(match)).some((marks) => (marks ?? 0) >= TAKEOVER_MAX_MARKS)) {
     throw new ValidationError('This game is nearly over');
@@ -189,7 +189,7 @@ export function isAwayAllHand(match: MatchState, playerId: string): boolean {
   return isOnAutopilot(match, playerId) && since !== undefined && dealtOn !== undefined && since <= dealtOn;
 }
 
-// Who sits where for the next hand of an Over the table game: players away for the whole hand
+// Who sits where for the next hand of a Live Play game: players away for the whole hand
 // give their seats to bots, then claims take bot seats, lowest position first. Run as the hand
 // break deals (patchPlayerReady). Anything else passes through untouched.
 export function seatChangesAtBreak(match: MatchState): MatchState {

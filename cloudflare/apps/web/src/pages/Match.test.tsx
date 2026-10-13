@@ -2092,7 +2092,7 @@ describe('Match', () => {
     });
   });
 
-  describe('Live and Daily', () => {
+  describe('Live and Async', () => {
     function searching(mode: 'live' | 'daily') {
       return baseMatch(
         { players: [PLAYERS[0]], mode, ...(mode === 'live' ? { searchStartedOn: new Date(Date.now() - 23_000).toISOString() } : {}) },
@@ -2114,7 +2114,7 @@ describe('Match', () => {
       await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
     });
 
-    it('offers no bot controls at a Daily table, even with bots enabled', async () => {
+    it('offers no bot controls at an Async table, even with bots enabled', async () => {
       useMatchSocketMock.mockReturnValue({ match: searching('daily'), connected: true });
       getConfigMock.mockResolvedValue({ bots: true });
       renderMatch();
@@ -2132,7 +2132,7 @@ describe('Match', () => {
       expect(screen.queryByRole('button', { name: /start now with bots/i })).toBeNull();
     });
 
-    it('tells a Daily player they will hear when the table fills', async () => {
+    it('tells an Async player they will hear when the table fills', async () => {
       useMatchSocketMock.mockReturnValue({ match: searching('daily'), connected: true });
       renderMatch();
       expect(await screen.findByText(/we'll notify you when the table fills/i)).toBeTruthy();
@@ -2153,7 +2153,7 @@ describe('Match', () => {
     });
   });
 
-  describe('Over the table seat takeover', () => {
+  describe('Live Play seat takeover', () => {
     // A live game under way with a bot in the second seat; the viewer is 'p1' unless a test says
     // otherwise.
     const BOT_PLAYERS = [PLAYERS[0], { playerId: 'bot-1', position: Positions.Second, ready: true }, PLAYERS[2], PLAYERS[3]];
@@ -2215,7 +2215,7 @@ describe('Match', () => {
       expect(screen.getByRole('link', { name: /back to lobby/i }).getAttribute('href')).toBe('/');
     });
 
-    it('offers Leave game in an Over the table game under way, and not in a custom one', async () => {
+    it('offers Leave game in a Live Play game under way, and not in a custom one', async () => {
       leaveMatchMock.mockResolvedValue(undefined);
       const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
       useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots(), connected: true });

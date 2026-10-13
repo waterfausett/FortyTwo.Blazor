@@ -1,5 +1,5 @@
-// The New match chooser, in two groups: Find opponents (Live and Daily, which go to matchmaking)
-// and Play with friends (Challenge friends sets up a custom table to share). Live is left out
+// The New match chooser, in two groups: Find opponents (Live and Async, which go to matchmaking)
+// and Play with friends (Custom Match sets up a custom table to share). Live is left out
 // while bots are off, since it relies on them to fill its seats.
 import { useEffect, useRef } from 'react';
 import type { JSX } from 'react';

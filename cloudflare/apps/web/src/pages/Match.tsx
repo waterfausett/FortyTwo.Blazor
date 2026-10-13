@@ -156,7 +156,7 @@ export function Match(): JSX.Element {
   // (re)connecting).
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
-  // How this player stands at the table. In an Over the table game under way, a newcomer waits
+  // How this player stands at the table. In a Live Play game under way, a newcomer waits
   // for a bot's seat (claiming) and watches meanwhile; one whose wait came to nothing is bumped
   // and looks again; one away a whole hand was replaced by a bot.
   const role = liveMatch && myPlayerId ? viewerRole(liveMatch, myPlayerId) : null;
@@ -552,7 +552,7 @@ export function Match(): JSX.Element {
   const canPlay = !watching && view.isMyTurnToPlay && connected && playing == null;
   // Leaving deletes the match when nobody else human is seated, so the button says so.
   const onlyHumanSeated = match.players.every((p) => p.playerId === myPlayerId || isBot(p.playerId));
-  // Over the table, a game with nobody else present is dropped when I leave it.
+  // In Live Play, a game with nobody else present is dropped when I leave it.
   const lastPresent = match.players.every((p) => p.playerId === myPlayerId || !isPresent(match, p.playerId));
 
   // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
@@ -1011,7 +1011,7 @@ export function Match(): JSX.Element {
               />
             )}
 
-            {/* Over the table, a player can leave a game under way: a bot takes their seat. */}
+            {/* In Live Play, a player can leave a game under way: a bot takes their seat. */}
             {mode === 'live' && hasBeenDealt(match) && !isMatchOver && !watching && (
               <button
                 type="button"

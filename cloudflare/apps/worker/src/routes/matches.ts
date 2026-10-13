@@ -151,7 +151,7 @@ matches.patch('/:id/players', async (c) => {
 
 // Leaves a match. Before the deal, the player is taken back out, and the last human out deletes
 // it - which is how a creator cancels a match nobody joined. A newcomer waiting on a seat gives up
-// their claim. In an Over the table game under way a bot takes the leaver's seat, unless nobody
+// their claim. In a Live Play game under way a bot takes the leaver's seat, unless nobody
 // else is still playing, which deletes the match. A deleted match's lobby rows go too and the
 // reply has no match to show. Leaving a match that's already gone counts as done, and clears any lobby row it left behind (a
 // retry after a failed cleanup, or a row a slower sync re-inserted after the delete).

@@ -1,15 +1,15 @@
 // The Matchmaker: one Durable Object (addressed by name 'global') that answers "which table does
-// this player sit at?" for Live and Daily play. It keeps, per mode, the ids of tables still
+// this player sit at?" for Live and Async play. It keeps, per mode, the ids of tables still
 // looking for players, oldest first, and seats the player at the first that takes them - or
 // starts a new one. The waiting itself happens at that table (MatchDO): its socket shows the
 // seats filling, and a Live one fills with bots on its own clock (live.ts).
 //
-// Over the table (live) games stay on the list while they're under way, because a bot's seat in
+// Live Play games stay on the list while they're under way, because a bot's seat in
 // one can be claimed by a newcomer at the next hand break. A newcomer is seated at a table still
 // filling first, then claims a bot seat in the oldest game under way that takes them. A game that
 // refuses a claim (finished, nearly over, every bot seat claimed) or was deleted is found out then
 // and dropped - though one paused on its last player stays listed, as it may come back; MatchDO
-// offers a table back when a bot takes a seat there later. A Daily table that filled (through
+// offers a table back when a bot takes a seat there later. An Async table that filled (through
 // here, an invite link, or bots) is likewise dropped at the next refused seat.
 import { DurableObject } from 'cloudflare:workers';
 import { hasBeenDealt, shuffledDominoOrder, TABLE_PAUSED, type MatchState } from '@fortytwo/rules';
@@ -71,7 +71,7 @@ export class Matchmaker extends DurableObject<Env> {
     const open = (await this.ctx.storage.get<string[]>(key)) ?? [];
 
     // One Live search at a time: look at the whole list for a table this player already waits at
-    // before seating them anywhere new, so an older table with room can't claim them too. Daily
+    // before seating them anywhere new, so an older table with room can't claim them too. Async
     // players may wait at several tables.
     if (mode === 'live') {
       // A claim made earlier holds while the game is on and still lists the player; otherwise it's
@@ -180,7 +180,7 @@ export class Matchmaker extends DurableObject<Env> {
       }
       const match = found.value;
       if (match.players.some((p) => p.playerId === playerId)) {
-        // Live was caught by the pre-scan; a Daily player may wait at several tables, so look on.
+        // Live was caught by the pre-scan; an Async player may wait at several tables, so look on.
         return { seated: null, keep: true };
       }
 

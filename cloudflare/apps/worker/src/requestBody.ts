@@ -72,7 +72,7 @@ export function ready(body: Body): boolean {
   return body.ready;
 }
 
-// Which matchmaking queue: Live or Daily. (Custom tables come from POST /api/matches.)
+// Which matchmaking queue: Live or Async. (Custom tables come from POST /api/matches.)
 export function mode(body: Body): 'live' | 'daily' {
   if (body.mode !== 'live' && body.mode !== 'daily') throw new BadRequestError('`mode` must be "live" or "daily".');
   return body.mode;

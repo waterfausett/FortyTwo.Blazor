@@ -1,4 +1,4 @@
-// POST /api/matchmaking { mode }: Live or Daily play. The Matchmaker (matchmaker.ts) seats the
+// POST /api/matchmaking { mode }: Live or Async play. The Matchmaker (matchmaker.ts) seats the
 // caller at an open table of that mode or starts one; the reply is that match, as the caller may
 // see it, and the client opens it. Live needs bots to fill its seats, so it's off with them
 // (BOTS_ENABLED 'false'), as adding bots is. A player has one Live game at a time: pressing Live

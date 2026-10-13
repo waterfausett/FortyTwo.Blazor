@@ -105,7 +105,7 @@ export function pushNotices(previous: MatchState | null, next: MatchState): Noti
     for (const id of humans) add(id, 'started', 'Game on', "All four seats are taken and we're ready to go!");
   }
 
-  // A newcomer took over a seat in a game under way (Over the table's hand break); the table was
+  // A newcomer took over a seat in a game under way (Live Play's hand break); the table was
   // already full, so nobody else has anything new to hear.
   if (previous !== null && hasBeenDealt(previous)) {
     const before = new Set(previous.players.map((p) => p.playerId));

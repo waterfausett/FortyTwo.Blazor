@@ -15,7 +15,7 @@ import type { ClientConfig } from '@fortytwo/api-types';
 
 export interface Env {
   MATCH_DO: DurableObjectNamespace<MatchDO>;
-  // The one Matchmaker (matchmaker.ts), addressed by name 'global', that seats Live and Daily players.
+  // The one Matchmaker (matchmaker.ts), addressed by name 'global', that seats Live and Async players.
   MATCHMAKER: DurableObjectNamespace<Matchmaker>;
   DB: D1Database;
   AUTH0_DOMAIN: string;

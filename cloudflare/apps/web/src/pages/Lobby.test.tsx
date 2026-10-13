@@ -209,7 +209,7 @@ describe('Lobby', () => {
     expect(within(rows[1]).getByText(/Eli's turn/)).toBeTruthy();
   });
 
-  it('starts Daily matchmaking from the chooser and opens the match', async () => {
+  it('starts Async matchmaking from the chooser and opens the match', async () => {
     playMock.mockResolvedValue({ id: 'daily-1' } as MatchState);
     renderLobby();
     fireEvent.click(await screen.findByRole('button', { name: /new match/i }));

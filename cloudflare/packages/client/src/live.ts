@@ -1,8 +1,8 @@
-// What the match page shows of Live and Daily play: how long a search has run, and the clock on
+// What the match page shows of Live and Async play: how long a search has run, and the clock on
 // a Live turn - from the same deadlines the Worker acts on (@fortytwo/rules' live.ts).
 import { LIVE_ABANDON_MS, hasBeenDealt, liveDeadline, matchMode, tableWait, type MatchState } from '@fortytwo/rules';
 
-// A table still looking for players: a Live search counting up, or a Daily table waiting.
+// A table still looking for players: a Live search counting up, or an Async table waiting.
 export function searchState(match: MatchState, now: number): { mode: 'live'; elapsedMs: number } | { mode: 'daily' } | null {
   if (match.players.length >= 4 || hasBeenDealt(match)) return null;
   const mode = matchMode(match);

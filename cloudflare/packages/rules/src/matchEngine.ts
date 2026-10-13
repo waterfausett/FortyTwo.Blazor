@@ -62,7 +62,7 @@ export interface MatchState {
   rematchVotes?: string[];
   // The rematch's match id, set once everyone has agreed and that match exists.
   rematchId?: string;
-  // How the match was started: Live, Daily, or a custom table (live.ts). Absent on matches stored
+  // How the match was started: Live, Async, or a custom table (live.ts). Absent on matches stored
   // before modes existed - read it with matchMode(), which calls those custom.
   mode?: MatchMode;
   // When a Live match began looking for players; bots take its empty seats LIVE_FILL_MS later.

@@ -161,7 +161,7 @@ export class MatchDO extends DurableObject<Env> {
     return this.update(playerId, (match) => takeSeat(match, playerId, position, dealOrder));
   }
 
-  // A newcomer asks for the next bot seat at this Over the table game (the Matchmaker calls this).
+  // A newcomer asks for the next bot seat at this Live Play game (the Matchmaker calls this).
   // They're seated at the next hand break; until then they watch.
   claimSeat(playerId: string): Promise<MatchResult<MatchState>> {
     return this.update(playerId, (match) => claimSeat(match, playerId));
@@ -221,7 +221,7 @@ export class MatchDO extends DurableObject<Env> {
   addBots(requesterId: string, positions?: number[]): Promise<MatchResult<MatchState>> {
     return this.update(requesterId, (match) => {
       assertIsMatchPlayer(match, requesterId);
-      // Live fills with bots on its own clock; Daily never does.
+      // Live fills with bots on its own clock; Async never does.
       if (matchMode(match) === 'daily') {
         throw new ValidationError('No bots at Async tables', 'Async tables only fill with people.');
       }
@@ -455,7 +455,7 @@ export class MatchDO extends DurableObject<Env> {
     await bestEffort(match.id, () => deleteFromLobbyIndex(this.env.DB, match.id));
   }
 
-  // A bot just took a seat at an Over the table game: it has a seat for a newcomer, so the
+  // A bot just took a seat at a Live Play game: it has a seat for a newcomer, so the
   // Matchmaker hears about it (it may have dropped the table from its list). Fire and forget - a
   // lost offer only means the seat isn't found.
   private offerIfBotSeated(previous: MatchState | null, next: MatchState): void {

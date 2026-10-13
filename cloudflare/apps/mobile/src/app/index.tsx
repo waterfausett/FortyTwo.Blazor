@@ -1,5 +1,5 @@
 // The lobby: the signed-in player's matches, one list at a time, plus starting a new match and
-// starting Live or Daily play, or a table to share. Each list loads a page at a time as it's scrolled.
+// starting Live or Async play, or a table to share. Each list loads a page at a time as it's scrolled.
 //
 // Laid out as a phone app's home screen rather than a page: a large title with the player's
 // picture (the way to their profile) in place of the navigation bar, a segmented control for the
@@ -63,7 +63,7 @@ export default function Lobby() {
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
   const online = useOnline();
   const [choosing, setChoosing] = useState(false);
-  // Live and Daily seat the player through matchmaking; Challenge friends starts a custom table.
+  // Live and Async seat the player through matchmaking; Custom Match starts a custom table.
   const start = useMutation({
     mutationFn: (choice: NewMatchChoice) => (choice === 'challenge' ? api.createMatch() : api.play(choice)),
     onSuccess: (match) => {

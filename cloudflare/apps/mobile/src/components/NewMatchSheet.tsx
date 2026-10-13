@@ -1,5 +1,5 @@
-// The New match chooser as a bottom sheet, in two groups: Find opponents (Live and Daily, which go
-// to matchmaking) and Play with friends (Challenge friends sets up a custom table to share). Live
+// The New match chooser as a bottom sheet, in two groups: Find opponents (Live and Async, which go
+// to matchmaking) and Play with friends (Custom Match sets up a custom table to share). Live
 // is left out while bots are off, since it relies on them to fill its seats.
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

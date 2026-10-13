@@ -1,4 +1,4 @@
-// The match screen in an Over the table game under way: watching while waiting for a seat, looking
+// The match screen in a Live Play game under way: watching while waiting for a seat, looking
 // again when that wait comes to nothing, a seat taken by a bot, Leave game, and who took a seat.
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -109,7 +109,7 @@ beforeEach(() => {
   mockMe.id = 'p1';
 });
 
-describe('Match screen, Over the table', () => {
+describe('Match screen, Live Play', () => {
   it('shows a claimant the table without a hand, with Cancel', async () => {
     mockMe.id = 'n1';
     mockApi.leaveMatch.mockResolvedValue(undefined);
@@ -163,7 +163,7 @@ describe('Match screen, Over the table', () => {
     expect(mockRouter.dismissTo).toHaveBeenCalledWith('/');
   });
 
-  it('offers Leave game in an Over the table game under way, and not in a custom one', async () => {
+  it('offers Leave game in a Live Play game under way, and not in a custom one', async () => {
     mockApi.leaveMatch.mockResolvedValue(undefined);
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     socket(dealtLiveWithBots());

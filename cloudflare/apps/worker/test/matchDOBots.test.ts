@@ -97,7 +97,7 @@ describe('MatchDO bot auto-play', () => {
     expect(await stub.addBots('stranger')).toMatchObject({ ok: false, status: 400 });
   });
 
-  it('never adds bots at a Daily table', async () => {
+  it('never adds bots at an Async table', async () => {
     const stub = stubFor('bots-daily');
     await stub.create('human-1', 'bots-daily', 'daily');
 

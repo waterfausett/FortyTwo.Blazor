@@ -37,7 +37,7 @@ describe('Matchmaker', () => {
     expect(a.id).toBe(b.id);
   });
 
-  it('keeps Live and Daily tables apart', async () => {
+  it('keeps Live and Async tables apart', async () => {
     const mm = matchmaker('mm-modes');
     const live = await mm.play('a', 'live');
     const daily = await mm.play('b', 'daily');
@@ -111,7 +111,7 @@ describe('Matchmaker', () => {
     expect(listedAtCreate).toEqual([table.id, [table.id]]);
   });
 
-  it('lets one player wait at several Daily tables', async () => {
+  it('lets one player wait at several Async tables', async () => {
     const mm = matchmaker('mm-daily-several');
     const first = await mm.play('a', 'daily');
     const second = await mm.play('a', 'daily');

@@ -87,7 +87,7 @@ async function apiWithBots(path: string, token: string, init: RequestInit = {}, 
 }
 
 describe('POST /api/matchmaking', () => {
-  it('seats two Daily players at one table and lists it in Active as filling', async () => {
+  it('seats two Async players at one table and lists it in Active as filling', async () => {
     const [a, b] = await Promise.all(['mm-a', 'mm-b'].map(signToken));
     const first = (await (await api('/api/matchmaking', a, { method: 'POST', body: JSON.stringify({ mode: 'daily' }) })).json()) as { id: string };
     const second = (await (await api('/api/matchmaking', b, { method: 'POST', body: JSON.stringify({ mode: 'daily' }) })).json()) as { id: string; players: unknown[] };

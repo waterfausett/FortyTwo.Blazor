@@ -48,7 +48,7 @@ describe('searchState', () => {
     expect(searchState(match, now)).toEqual({ mode: 'live', elapsedMs: 23_000 });
   });
 
-  it('says a Daily table is still looking, and nothing for a custom one or a dealt one', () => {
+  it('says an Async table is still looking, and nothing for a custom one or a dealt one', () => {
     expect(searchState(createMatch('p1', 'daily'), Date.now())).toEqual({ mode: 'daily' });
     expect(searchState(createMatch('p1'), Date.now())).toBeNull();
     expect(searchState(dealt('live'), Date.now())).toBeNull();

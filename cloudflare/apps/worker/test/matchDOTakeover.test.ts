@@ -1,4 +1,4 @@
-// Seat takeover in an Over the table game, against the real MatchDO: newcomers claim bot seats,
+// Seat takeover in a Live Play game, against the real MatchDO: newcomers claim bot seats,
 // a player who leaves mid-game hands their seat to a bot, and a table with nobody left present is
 // dropped rather than played on by bots alone. Deadlines are reached by winding the stored match's
 // times back, as matchDOLive.test.ts does, then firing the alarm.
@@ -28,7 +28,7 @@ async function windBack(stub: Stub, change: (match: MatchState) => Partial<Match
 
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
-// p1 alone with three bots in a dealt Over the table game.
+// p1 alone with three bots in a dealt Live Play game.
 async function soloWithBots(name: string) {
   const stub = stubFor(name);
   await stub.create('p1', name, 'live');
