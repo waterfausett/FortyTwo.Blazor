@@ -151,6 +151,58 @@ describe('Matchmaker', () => {
   });
 });
 
+// A dealt live table with p1 and three bots, in mm's list (p1 started it, then filled with bots).
+async function underWay(mm: ReturnType<typeof matchmaker>) {
+  const started = await mm.play('p1', 'live');
+  await matchStub(started.id).addBots('p1');
+  return started.id;
+}
+
+describe('Matchmaker and games under way', () => {
+  it('prefers a table still filling over a game under way, even an older one', async () => {
+    const mm = matchmaker('mm-prefer-filling');
+    // A game under way first in the list, then a table still filling - both made directly and
+    // offered, since playing would claim at the first before the second existed.
+    await matchStub('g-busy').create('p1', 'g-busy', 'live');
+    await matchStub('g-busy').addBots('p1');
+    await matchStub('g-filling').create('a', 'g-filling', 'live');
+    await mm.offer('g-busy');
+    await mm.offer('g-filling');
+
+    const seated = await mm.play('b', 'live');
+    expect(seated.id).toBe('g-filling');
+    const busy = await matchStub('g-busy').getMatch();
+    expect(busy.ok && (busy.value.claims ?? []).length).toBe(0);
+  });
+
+  it('claims a bot seat in a game under way when no table is filling', async () => {
+    const mm = matchmaker('mm-claim');
+    const id = await underWay(mm);
+    const joined = await mm.play('n1', 'live');
+    expect(joined.id).toBe(id);
+    expect(joined.claims).toEqual(['n1']);
+  });
+
+  it('returns the game you claim in when you press play again', async () => {
+    const mm = matchmaker('mm-claim-again');
+    const id = await underWay(mm);
+    await mm.play('n1', 'live');
+    await mm.play('n2', 'live');
+    await mm.play('n3', 'live'); // all three bot seats claimed: the table drops off the list
+    const again = await mm.play('n1', 'live');
+    expect(again.id).toBe(id);
+  });
+
+  it('starts a new table once every bot seat is claimed', async () => {
+    const mm = matchmaker('mm-claims-full');
+    const id = await underWay(mm);
+    for (const n of ['n1', 'n2', 'n3']) await mm.play(n, 'live');
+    const fresh = await mm.play('n4', 'live');
+    expect(fresh.id).not.toBe(id);
+    expect(fresh.players.map((p) => p.playerId)).toEqual(['n4']);
+  });
+});
+
 describe('presenceBroadcast', () => {
   const t = 1_000_000;
 
