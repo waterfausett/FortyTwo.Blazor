@@ -30,6 +30,7 @@ import {
   teamTricksForDisplay,
   trickLeaderId,
   trickPlayOrder,
+  serverNow,
   turnClock,
   viewerRole,
   watchAnchor,
@@ -165,8 +166,8 @@ export default function MatchScreen() {
   const online = useOnline();
   // A Live search counts up and a Live turn counts down, so the clock ticks only while one is shown.
   // A paused clock sits at 0:00 until the table moves on, so it doesn't tick.
-  const searchNow = liveMatch ? searchState(liveMatch, Date.now()) : null;
-  const clockNow = liveMatch ? turnClock(liveMatch, Date.now()) : null;
+  const searchNow = liveMatch ? searchState(liveMatch, serverNow()) : null;
+  const clockNow = liveMatch ? turnClock(liveMatch, serverNow()) : null;
   const ticking = liveMatch != null && (searchNow?.mode === 'live' || (clockNow !== null && !clockNow.paused));
   const now = useNow(ticking);
   const search = liveMatch ? searchState(liveMatch, now) : null;

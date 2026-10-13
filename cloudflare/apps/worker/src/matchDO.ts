@@ -513,7 +513,7 @@ export class MatchDO extends DurableObject<Env> {
 
   // Required by the Hibernation API even though clients don't send messages today - all match
   // actions go through the REST routes, not over the socket. The server sends two kinds:
-  // `{ type: 'match', match }` on every change, and `{ type: 'poke', from }` to a poked player.
+  // `{ type: 'match', match, now }` on every change, and `{ type: 'poke', from }` to a poked player.
   async webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {}
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
@@ -570,7 +570,9 @@ export class MatchDO extends DurableObject<Env> {
 }
 
 function matchMessageFor(match: MatchState, viewerId: string): string {
-  return JSON.stringify({ type: 'match', match: matchViewFor(match, viewerId) });
+  // `now` lets the clients count Live deadlines down by this clock rather than their own
+  // (@fortytwo/client's serverClock.ts).
+  return JSON.stringify({ type: 'match', match: matchViewFor(match, viewerId), now: Date.now() });
 }
 
 // Seats a bot at each of `positions`, or at every open seat when none are given. Each bot takes

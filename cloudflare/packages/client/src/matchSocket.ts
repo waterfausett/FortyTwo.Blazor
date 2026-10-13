@@ -1,9 +1,10 @@
 // Receives live MatchState updates from MatchDO's broadcast socket (apps/worker/src/matchDO.ts -
-// every change to a match broadcasts `{ type: 'match', match }` to connected sockets), and the
+// every change to a match broadcasts `{ type: 'match', match, now }` to connected sockets), and the
 // `{ type: 'poke', from }` a player gets when someone pokes them on their turn. A dropped
 // connection is retried with exponential backoff. Framework-free, so each app wraps it in its own
 // hook (apps/web/src/api/useMatchSocket.ts) and supplies its own wake-up signals.
 import type { MatchState } from '@fortytwo/rules';
+import { noteServerTime } from './serverClock';
 import { connectSocket } from './socket';
 
 // The Worker closes every socket with this when their match is deleted (MatchDO's
@@ -18,6 +19,8 @@ const NO_RECONNECT_CODES: ReadonlySet<number> = new Set([MATCH_DELETED_CLOSE_COD
 interface MatchSocketMessage {
   type: 'match';
   match: MatchState;
+  // The Worker's clock when it sent this (serverClock.ts). Absent from a Worker older than it.
+  now?: number;
 }
 
 interface PokeSocketMessage {
@@ -73,7 +76,10 @@ export function connectMatchSocket({ matchId, origin, getToken, onOpen, onMatch,
     getToken,
     onOpen,
     onMessage: (data) => {
-      if (isMatchSocketMessage(data)) onMatch(data.match);
+      if (isMatchSocketMessage(data)) {
+        if (typeof data.now === 'number') noteServerTime(data.now);
+        onMatch(data.match);
+      }
       else if (isPokeSocketMessage(data)) onPoke?.(data.from);
     },
     onDrop: (code) => {

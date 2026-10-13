@@ -143,10 +143,12 @@ describe('MatchDO WebSocket upgrade', () => {
       });
 
       const event = await messagePromise;
-      const payload = JSON.parse(event.data as string) as { type: string; match: { players: { playerId: string }[] } };
+      const payload = JSON.parse(event.data as string) as { type: string; match: { players: { playerId: string }[] }; now: number };
 
       expect(payload.type).toBe('match');
       expect(payload.match.players).toHaveLength(1);
+      // The Worker's clock, which the clients count Live deadlines down by.
+      expect(Math.abs(payload.now - Date.now())).toBeLessThan(5000);
       expect(payload.match.players[0].playerId).toBe('p1');
     } finally {
       ws.close();

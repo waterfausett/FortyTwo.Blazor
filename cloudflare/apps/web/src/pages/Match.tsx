@@ -41,7 +41,7 @@ import {
   matchMode,
   LIVE_FILL_MS,
 } from '@fortytwo/rules';
-import { formatClock, searchState, seatChanges, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
+import { formatClock, searchState, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
 import { useOnline } from '../api/presence';
 import { useNow } from '../match/useNow';
 import { apiClient } from '../api/client';
@@ -236,8 +236,8 @@ export function Match(): JSX.Element {
 
   // Live search count-up and turn clocks: derived from the match, ticking only while one is shown.
   // A paused clock sits at 0:00 until the table moves on, so it doesn't tick.
-  const search = liveMatch ? searchState(liveMatch, Date.now()) : null;
-  const clockNow = liveMatch ? turnClock(liveMatch, Date.now()) : null;
+  const search = liveMatch ? searchState(liveMatch, serverNow()) : null;
+  const clockNow = liveMatch ? turnClock(liveMatch, serverNow()) : null;
   const clockRunning = liveMatch != null && (search?.mode === 'live' || (clockNow !== null && !clockNow.paused));
   const now = useNow(clockRunning);
   const liveSearch = liveMatch ? searchState(liveMatch, now) : null;

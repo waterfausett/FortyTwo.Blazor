@@ -14,6 +14,7 @@ export * from './optimistic';
 export * from './playerNames';
 export * from './poke';
 export * from './presenceSocket';
+export * from './serverClock';
 export * from './socket';
 export * from './stats';
 export * from './summary';
