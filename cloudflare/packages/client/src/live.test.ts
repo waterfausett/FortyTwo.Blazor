@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LIVE_FILL_MS, LIVE_TURN_MS, createDomino, createMatch, takeSeat, type Domino, type MatchState } from '@fortytwo/rules';
-import { formatClock, searchState, turnClock } from './live';
+import { formatClock, searchState, seatChanges, turnClock, viewerRole, watchAnchor } from './live';
 
 function deck(): Domino[] {
   const dominoes: Domino[] = [];
@@ -12,6 +12,16 @@ function dealt(mode: 'live' | 'daily'): MatchState {
   match = takeSeat(match, 'p2', 1);
   match = takeSeat(match, 'p3', 2);
   return takeSeat(match, 'p4', 3, deck());
+}
+function dealtLive(): MatchState {
+  return dealt('live');
+}
+// p1 alone with the three bots, dealt, p1 to act.
+function soloWithBots(): MatchState {
+  let match = createMatch('p1', 'live');
+  match = takeSeat(match, 'bot-1', 1);
+  match = takeSeat(match, 'bot-2', 2);
+  return takeSeat(match, 'bot-3', 3, deck());
 }
 
 describe('searchState', () => {
@@ -32,13 +42,55 @@ describe('turnClock', () => {
   it('counts the Live turn down, never below zero', () => {
     const match = dealt('live');
     const start = Date.parse(match.updatedOn);
-    expect(turnClock(match, start + 10_000)).toEqual({ playerIds: ['p1'], remainingMs: LIVE_TURN_MS - 10_000 });
+    expect(turnClock(match, start + 10_000)).toEqual({ playerIds: ['p1'], remainingMs: LIVE_TURN_MS - 10_000, paused: false });
     expect(turnClock(match, start + LIVE_TURN_MS * 2)!.remainingMs).toBe(0);
   });
 
   it('has no clock outside Live, or while filling', () => {
     expect(turnClock(dealt('daily'), Date.now())).toBeNull();
     expect(turnClock(createMatch('p1', 'live'), Date.now() + LIVE_FILL_MS)).toBeNull();
+  });
+});
+
+describe('viewerRole', () => {
+  it('tells a seated player, a claimant, a bumped claimant, a replaced player and a stranger apart', () => {
+    const match = { ...dealtLive(), claims: ['c'], bumped: ['b'], replaced: ['r'] };
+    expect(viewerRole(match, 'p1')).toBe('seated');
+    expect(viewerRole(match, 'c')).toBe('claiming');
+    expect(viewerRole(match, 'b')).toBe('bumped');
+    expect(viewerRole(match, 'r')).toBe('replaced');
+    expect(viewerRole(match, 'x')).toBe('stranger');
+  });
+});
+
+describe('watchAnchor', () => {
+  it('views the table from the lowest seat, not the last one taken', () => {
+    const match = dealtLive();
+    const reversed = { ...match, players: [...match.players].reverse() };
+    expect(watchAnchor(reversed)).toBe('p1');
+  });
+});
+
+describe('seatChanges', () => {
+  it('lists seats that changed hands', () => {
+    const previous = dealtLive();
+    const next = { ...previous, players: previous.players.map((p) => (p.position === 1 ? { ...p, playerId: 'n1' } : p)) };
+    expect(seatChanges(previous, next)).toEqual([{ position: 1, from: previous.players.find((p) => p.position === 1)!.playerId, to: 'n1' }]);
+    expect(seatChanges(previous, previous)).toEqual([]);
+  });
+});
+
+describe('turnClock on a paused table', () => {
+  it('shows the last player overdue', () => {
+    const solo = soloWithBots(); // p1 + bot-1..3, dealt, p1 to act
+    const clock = turnClock(solo, Date.parse(solo.updatedOn) + LIVE_TURN_MS + 5000);
+    expect(clock).toEqual({ playerIds: ['p1'], remainingMs: 0, paused: true });
+  });
+
+  it('counts down normally until the turn has run out', () => {
+    const solo = soloWithBots();
+    const clock = turnClock(solo, Date.parse(solo.updatedOn) + 10_000);
+    expect(clock).toEqual({ playerIds: ['p1'], remainingMs: LIVE_TURN_MS - 10_000, paused: false });
   });
 });
 
