@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { createMatch, takeSeat, createRematch, type MatchState } from './matchEngine';
+import { createMatch, takeSeat, createRematch, placeBid, setTrump, playDomino, type MatchState } from './matchEngine';
+import { Bid } from './bid';
+import { Suit } from './suit';
 import { createDomino, type Domino } from './domino';
 import { ValidationError } from './errors';
 import {
@@ -9,6 +11,7 @@ import {
   isPresent,
   liveDeadline,
   matchMode,
+  replaceWithBot,
   resumeControl,
   setAutopilot,
   tableWait,
@@ -154,5 +157,49 @@ describe('seat bookkeeping', () => {
     expect(isPresent(match, 'bot-1')).toBe(false);
     expect(isPresent(match, 'p4')).toBe(false);
     expect(isPresent(match, 'stranger')).toBe(false);
+  });
+});
+
+describe('replaceWithBot', () => {
+  it('hands the seat, its hand and its turn to a free bot', () => {
+    const match = dealt();
+    const next = replaceWithBot(match, 'p1');
+    const bot = next.players.find((p) => p.position === 0)!;
+    expect(bot.playerId).toBe('bot-1');
+    expect(next.currentGame.hands.find((h) => h.playerId === 'bot-1')!.dominoes).toEqual(
+      match.currentGame.hands.find((h) => h.playerId === 'p1')!.dominoes
+    );
+    expect(next.currentGame.currentPlayerId).toBe('bot-1');
+    expect(next.currentGame.firstActionBy).toBe('bot-1');
+    expect(next.replaced).toEqual(['p1']);
+    expect(next.hadBots).toBe(true);
+  });
+
+  it('renames a high bidder and a trick winner mid-hand, so play can carry on', () => {
+    let match = dealt();
+    match = placeBid(match, 'p1', Bid.Thirty);
+    for (const id of ['p2', 'p3', 'p4']) match = placeBid(match, id, Bid.Pass);
+    match = setTrump(match, 'p1', Suit.Sixes);
+    const next = replaceWithBot(match, 'p1');
+    expect(next.currentGame.biddingPlayerId).toBe('bot-1');
+    expect(next.currentGame.currentPlayerId).toBe('bot-1');
+    const lead = next.currentGame.hands.find((h) => h.playerId === 'bot-1')!.dominoes[0];
+    expect(() => playDomino(next, 'bot-1', lead)).not.toThrow();
+  });
+
+  it('takes the player off autopilot and picks the next free bot id', () => {
+    let match = createMatch('p1', 'live');
+    match = takeSeat(match, 'bot-1', 1);
+    match = takeSeat(match, 'p3', 2);
+    match = takeSeat(match, 'p4', 3, deck());
+    match = setAutopilot(match, ['p3'], true);
+    const next = replaceWithBot(match, 'p3');
+    expect(next.players.find((p) => p.position === 2)!.playerId).toBe('bot-2');
+    expect(next.autopilot).toEqual([]);
+    expect(next.awaySince?.p3).toBeUndefined();
+  });
+
+  it('refuses someone not at the table', () => {
+    expect(() => replaceWithBot(dealt(), 'stranger')).toThrow(ValidationError);
   });
 });

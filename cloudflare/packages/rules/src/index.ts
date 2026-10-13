@@ -74,6 +74,7 @@ export {
   liveDeadline,
   setAutopilot,
   resumeControl,
+  replaceWithBot,
 } from './live';
 export { BOT_IDS, botDisplayName, isBot } from './botIds';
 export { matchViewFor, handSize } from './view';

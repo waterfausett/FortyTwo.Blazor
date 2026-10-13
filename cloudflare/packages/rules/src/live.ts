@@ -1,8 +1,9 @@
 // Live play's clocks, and who a match is waiting on. Pure, like the rest of the rules: the
 // Worker's MatchDO turns these deadlines into alarms, and the clients count down to the same ones.
-import { isBot } from './botIds';
-import { gameWinningTeam } from './game';
+import { BOT_IDS, isBot } from './botIds';
+import { gameWinningTeam, type Game } from './game';
 import { hasBeenDealt, type MatchState } from './matchEngine';
+import { ValidationError } from './errors';
 import { assertIsMatchPlayer } from './validation';
 
 export type MatchMode = 'live' | 'daily' | 'custom';
@@ -102,4 +103,35 @@ export function resumeControl(match: MatchState, playerId: string): MatchState {
   const cleared = setAutopilot(match, [playerId], false);
   if (!tableWait(match)?.playerIds.includes(playerId)) return cleared;
   return { ...cleared, updatedOn: new Date().toISOString() };
+}
+
+// A bot takes a player's seat for good: when they leave an Over the table game, or were away for
+// a whole hand. Mid-hand the bot picks up their hand, bid and turn, so every id in the hand that
+// names them is renamed. Hands already filed keep the player's id.
+export function replaceWithBot(match: MatchState, playerId: string): MatchState {
+  assertIsMatchPlayer(match, playerId);
+  const botId = BOT_IDS.find((id) => match.players.every((p) => p.playerId !== id));
+  if (botId === undefined) throw new ValidationError('No bot free to take the seat');
+
+  const rename = (id: string | null) => (id === playerId ? botId : id);
+  const game = match.currentGame;
+  const currentGame: Game = {
+    ...game,
+    firstActionBy: rename(game.firstActionBy),
+    biddingPlayerId: rename(game.biddingPlayerId),
+    currentPlayerId: rename(game.currentPlayerId),
+    hands: game.hands.map((h) => (h.playerId === playerId ? { ...h, playerId: botId } : h)),
+    tricks: game.tricks.map((t) => ({ ...t, playerId: rename(t.playerId) })),
+    currentTrick: { ...game.currentTrick, playerId: rename(game.currentTrick.playerId) },
+  };
+  const off = setAutopilot(match, [playerId], false);
+  return {
+    ...off,
+    autopilot: off.autopilot!.filter((id) => id !== playerId),
+    players: match.players.map((p) => (p.playerId === playerId ? { ...p, playerId: botId } : p)),
+    currentGame,
+    replaced: [...(match.replaced ?? []), playerId],
+    hadBots: true,
+    updatedOn: new Date().toISOString(),
+  };
 }
