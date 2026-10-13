@@ -38,6 +38,27 @@ function seatOf(match: MatchState, playerId: string): number | undefined {
 }
 
 describe('MatchDO bot auto-play', () => {
+  it('marks a hand the bot bid for a player on autopilot', async () => {
+    const stub = stubFor('bots-autobid');
+    await stub.create('human-1', 'bots-autobid');
+    await stub.takeSeat('human-2', 2);
+    valueOf(await stub.addBots('human-1'));
+    const turn = valueOf(await stub.getMatch()).currentGame.currentPlayerId!;
+    expect(turn).toBe('human-1');
+    await runInDurableObject(stub, async (_i, state) => {
+      const m = (await state.storage.get<MatchState>('match'))!;
+      await state.storage.put('match', { ...m, autopilot: [turn] });
+      await state.storage.setAlarm(Date.now());
+    });
+
+    await runDurableObjectAlarm(stub);
+
+    const match = valueOf(await stub.getMatch());
+    const hand = (id: string) => match.currentGame.hands.find((h) => h.playerId === id)!;
+    expect(hand(turn).bid).not.toBeNull();
+    expect(hand(turn).autoBid).toBe(true);
+  });
+
   it('seats a bot at a picked seat', async () => {
     const stub = stubFor('bots-one-seat');
     await stub.create('human-1', 'bots-one-seat');

@@ -1,7 +1,7 @@
 // Each player's lifetime stats (migrations/0009_player_match_stats.sql): written once per human
 // when a match is won (MatchDO), added up when they open their Profile (GET /api/users/stats).
 // Reading costs about two rows per game the player has finished - the totals, then the partners.
-import { isBot, matchStatsFor, NO_TRUMPS, TRUMP_KEYS, type MatchState, type TrumpCounts, type TrumpKey } from '@fortytwo/rules';
+import { isBot, matchStatsFor, MIN_HANDS_FOR_RESULT, NO_TRUMPS, TRUMP_KEYS, type MatchState, type TrumpCounts, type TrumpKey } from '@fortytwo/rules';
 import type { BestPartner, FavoriteTrump, PlayerStats, StatsSummary } from '@fortytwo/api-types';
 import type { Env } from './index';
 import { publicUsers } from './users/publicUsers';
@@ -10,6 +10,9 @@ export const BEST_PARTNER_MIN_GAMES = 3;
 // For a partner whose name can't be looked up just now (Auth0 unreachable) or at all: neutral, since
 // the first is usually a current player.
 const UNKNOWN_PARTNER_NAME = 'Unknown player';
+
+// A match's result counts unless the player joined too late to play MIN_HANDS_FOR_RESULT hands.
+const COUNTS = '(hands_played IS NULL OR hands_played >= ?)';
 
 // Each trump's count column: followMe -> trump_follow_me.
 const trumpColumn = (key: TrumpKey) => `trump_${key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}`;
@@ -24,12 +27,12 @@ export async function recordMatchStats(db: D1Database, match: MatchState): Promi
       db
         .prepare(
           `INSERT OR IGNORE INTO player_match_stats (match_id, player_id, partner_id, with_bots, won, marks_won,
-             bids_won, bids_made, points_bid_total, points_bid_count, marks_bids, completed_on, ${TRUMP_COLUMNS})
-           VALUES (${Array.from({ length: 12 + TRUMP_KEYS.length }, () => '?').join(', ')})`
+             bids_won, bids_made, points_bid_total, points_bid_count, marks_bids, completed_on, hands_played, ${TRUMP_COLUMNS})
+           VALUES (${Array.from({ length: 13 + TRUMP_KEYS.length }, () => '?').join(', ')})`
         )
         .bind(
           match.id, r.playerId, r.partnerId, r.withBots ? 1 : 0, r.won ? 1 : 0, r.marksWon,
-          r.bidsWon, r.bidsMade, r.pointsBidTotal, r.pointsBidCount, r.marksBids, match.updatedOn,
+          r.bidsWon, r.bidsMade, r.pointsBidTotal, r.pointsBidCount, r.marksBids, match.updatedOn, r.handsPlayed,
           ...TRUMP_KEYS.map((key) => r.trumps[key])
         )
     )
@@ -122,16 +125,18 @@ function summarize(t: Totals, best: BestPartner | null): StatsSummary {
 export async function readPlayerStats(env: Env, playerId: string): Promise<PlayerStats> {
   const [totalsResult, partnersResult] = await env.DB.batch([
     env.DB.prepare(
-      `SELECT with_bots AS withBots, COUNT(*) AS played, SUM(won) AS won, SUM(marks_won) AS marksWon,
+      `SELECT with_bots AS withBots, SUM(CASE WHEN ${COUNTS} THEN 1 ELSE 0 END) AS played,
+         SUM(CASE WHEN ${COUNTS} THEN won ELSE 0 END) AS won,
+         SUM(CASE WHEN ${COUNTS} THEN marks_won ELSE 0 END) AS marksWon,
          SUM(bids_won) AS bidsWon, SUM(bids_made) AS bidsMade, SUM(points_bid_total) AS pointsBidTotal,
          SUM(points_bid_count) AS pointsBidCount, SUM(marks_bids) AS marksBids,
          ${TRUMP_KEYS.map((key) => `SUM(${trumpColumn(key)}) AS ${key}`).join(', ')}
        FROM player_match_stats WHERE player_id = ? GROUP BY with_bots`
-    ).bind(playerId),
+    ).bind(MIN_HANDS_FOR_RESULT, MIN_HANDS_FOR_RESULT, MIN_HANDS_FOR_RESULT, playerId),
     env.DB.prepare(
       `SELECT partner_id AS partnerId, with_bots AS withBots, COUNT(*) AS played, SUM(won) AS won
-       FROM player_match_stats WHERE player_id = ? GROUP BY partner_id, with_bots`
-    ).bind(playerId),
+       FROM player_match_stats WHERE player_id = ? AND ${COUNTS} GROUP BY partner_id, with_bots`
+    ).bind(playerId, MIN_HANDS_FOR_RESULT),
   ]);
   // The trump sums come back as columns of their own.
   const totals = (totalsResult.results as (Omit<Totals, 'trumps'> & TrumpCounts & { withBots: number })[]).map((row) => ({

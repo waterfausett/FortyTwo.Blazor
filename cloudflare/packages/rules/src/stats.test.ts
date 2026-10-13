@@ -158,4 +158,25 @@ describe('matchStatsFor', () => {
     expect(before.bidsWon).toBe(3);
     expect(after.bidsWon).toBe(0);
   });
+  it("counts a non-bidder's hand as played unless a bot bid for them", () => {
+    const m = finished();
+    const full = (n: number, bidder: string, bidderTeam: Teams): Game => ({
+      ...hand(n, bidder, bidderTeam, Bid.Thirty),
+      hands: players.map((playerId, i) => ({ playerId, team: i % 2 === 0 ? Teams.TeamA : Teams.TeamB, dominoes: [], bid: Bid.Pass })),
+    });
+    // Three hands each holding all four seats: p1 bids the first, p2 the second, p3 the third.
+    const games = { [Teams.TeamA]: [full(0, 'p1', Teams.TeamA), full(1, 'p2', Teams.TeamB), full(2, 'p3', Teams.TeamA)] };
+    const rowOf = (mm: MatchState, id: string) => matchStatsFor(mm).find((r) => r.playerId === id)!;
+
+    const all = { ...m, games };
+    expect(rowOf(all, 'p1').handsPlayed).toBe(3); // bidder once, non-bidder twice
+    expect(rowOf(all, 'p4').handsPlayed).toBe(3); // never bid, still played every hand
+
+    const marked = {
+      ...all,
+      games: { [Teams.TeamA]: games[Teams.TeamA].map((g, i) => (i === 1 ? { ...g, hands: g.hands.map((h) => (h.playerId === 'p4' ? { ...h, autoBid: true as const } : h)) } : g)) },
+    };
+    expect(rowOf(marked, 'p4').handsPlayed).toBe(2);
+    expect(rowOf(marked, 'p1').handsPlayed).toBe(3);
+  });
 });

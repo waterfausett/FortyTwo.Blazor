@@ -15,12 +15,19 @@ function hand(n: number, bidder: string, bidderTeam: Teams, bid: Bid): Game {
   };
 }
 
-// A won match: seats 0 & 2 are TeamA. TeamA's filed hands are bid by seat 0 (30 each).
+// A won match: seats 0 & 2 are TeamA. TeamA's filed hands are bid by seat 0 (30 each). Every seat
+// holds a hand in each, as a played hand does, so each player has played them all.
 function won(id: string, players: string[], winner: Teams, marks = 7): MatchState {
   const bidder = players[winner === Teams.TeamA ? 0 : 1];
+  const everyone = (game: Game): Game => ({
+    ...game,
+    hands: players.map((playerId, i) =>
+      playerId === game.biddingPlayerId ? game.hands[0] : { playerId, team: i % 2 === 0 ? Teams.TeamA : Teams.TeamB, dominoes: [], bid: Bid.Pass }
+    ),
+  });
   return {
     id, createdOn: '2026-10-01T00:00:00.000Z', updatedOn: '2026-10-01T01:00:00.000Z', winningTeam: winner,
-    games: { [winner]: Array.from({ length: marks }, (_, i) => hand(i, bidder, winner, Bid.Thirty)) },
+    games: { [winner]: Array.from({ length: marks }, (_, i) => everyone(hand(i, bidder, winner, Bid.Thirty))) },
     players: players.map((playerId, position) => ({ playerId, position: position as Positions, ready: true })),
     currentGame: hand(99, players[0], Teams.TeamA, Bid.Thirty),
   };
@@ -29,7 +36,7 @@ function won(id: string, players: string[], winner: Teams, marks = 7): MatchStat
 // A match 'me' (seat 0) won, bidding 42 on every hand with these trumps.
 function bidWith(id: string, trumps: Suit[]): MatchState {
   const match = won(id, ['me', 'x', 'sam', 'y'], Teams.TeamA, trumps.length);
-  match.games[Teams.TeamA] = trumps.map((trump, i) => ({ ...hand(i, 'me', Teams.TeamA, Bid.FortyTwo), trump }));
+  match.games[Teams.TeamA] = trumps.map((trump, i) => ({ ...hand(i, 'me', Teams.TeamA, Bid.FortyTwo), trump })).map((g) => ({ ...g, hands: match.players.map((p, i) => (p.playerId === 'me' ? g.hands[0] : { playerId: p.playerId, team: i % 2 === 0 ? Teams.TeamA : Teams.TeamB, dominoes: [], bid: Bid.Pass })) }));
   return match;
 }
 
@@ -132,5 +139,31 @@ describe('readPlayerStats', () => {
     for (const id of ['g1', 'g2', 'g3']) await recordMatchStats(testEnv.DB, won(id, ['me', 'x', 'ghost', 'y'], Teams.TeamA));
     const partner = (await readPlayerStats(testEnv, 'me')).all.bestPartner;
     expect(partner).toEqual({ user: { user_id: 'ghost', displayName: 'Unknown player' }, won: 3, lost: 0 });
+  });
+});
+
+// A row as recordMatchStats writes it, with zeros for what a test doesn't care about.
+async function seed(row: { matchId: string; playerId: string; won: number; bidsWon: number; handsPlayed: number | null }) {
+  await testEnv.DB.prepare(
+    `INSERT INTO player_match_stats (match_id, player_id, partner_id, with_bots, won, marks_won, bids_won, bids_made,
+       points_bid_total, points_bid_count, marks_bids, completed_on, hands_played,
+       trump_low, trump_follow_me, trump_blanks, trump_aces, trump_deuces, trump_threes, trump_fours, trump_fives, trump_sixes)
+     VALUES (?, ?, 'x', 0, ?, 0, ?, 0, 0, 0, 0, '2026-10-01T00:00:00.000Z', ?, 0, 0, 0, 0, 0, 0, 0, 0, 0)`
+  ).bind(row.matchId, row.playerId, row.won, row.bidsWon, row.handsPlayed).run();
+}
+
+describe('hands played', () => {
+  it('counts the bids of a short match but not its result', async () => {
+    await seed({ matchId: 'm-full', playerId: 'p', won: 1, bidsWon: 1, handsPlayed: 8 });
+    await seed({ matchId: 'm-short', playerId: 'p', won: 1, bidsWon: 1, handsPlayed: 2 });
+    const stats = await readPlayerStats(testEnv, 'p');
+    expect(stats.all.played).toBe(1);
+    expect(stats.all.won).toBe(1);
+    expect(stats.all.bidsWon).toBe(2);
+  });
+
+  it('counts rows from before hands were recorded', async () => {
+    await seed({ matchId: 'm-old', playerId: 'q', won: 1, bidsWon: 0, handsPlayed: null });
+    expect((await readPlayerStats(testEnv, 'q')).all.played).toBe(1);
   });
 });

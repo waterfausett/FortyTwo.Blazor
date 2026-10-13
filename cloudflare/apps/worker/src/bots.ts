@@ -9,6 +9,8 @@ import {
   Game,
   Hand,
   isBotControlled,
+  isOnAutopilot,
+  markAutoBid,
   isOfSuit,
   MatchState,
   Suit,
@@ -144,7 +146,7 @@ function ml(match: MatchState, action: BotAction, bot: Bot): MatchState {
 // Performs exactly one bot action. The ML bot decides when it's loaded; if it throws or its move
 // is illegal (the rules functions throw), that action falls back to the simple rules, so a model
 // problem never stalls a match.
-export function applyBotAction(match: MatchState, action: BotAction, bot: Bot | null): MatchState {
+function decideAndApply(match: MatchState, action: BotAction, bot: Bot | null): MatchState {
   // Readying up is the simple bot's job either way, so a failure there isn't an ML failure.
   if (bot !== null && action.kind !== 'ready') {
     try {
@@ -154,4 +156,12 @@ export function applyBotAction(match: MatchState, action: BotAction, bot: Bot | 
     }
   }
   return simple(match, action);
+}
+
+// Performs exactly one bot action. A bid or trump call made for a player on autopilot is marked
+// on their hand, so it isn't counted as theirs (stats.ts).
+export function applyBotAction(match: MatchState, action: BotAction, bot: Bot | null): MatchState {
+  const next = decideAndApply(match, action, bot);
+  const forAway = (action.kind === 'bid' || action.kind === 'setTrump') && isOnAutopilot(match, action.playerId);
+  return forAway ? markAutoBid(next, action.playerId) : next;
 }
