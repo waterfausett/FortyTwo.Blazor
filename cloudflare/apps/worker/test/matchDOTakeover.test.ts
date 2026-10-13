@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { LIVE_ABANDON_MS, LIVE_TURN_MS, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import { syncLobbyIndex } from '../src/lobby';
 
 const testEnv = env as unknown as Env;
 
@@ -76,6 +77,11 @@ describe('seat takeover', () => {
     await windBack(stub, () => ({ updatedOn: ago(LIVE_TURN_MS + 1000) }));
     await runDurableObjectAlarm(stub);
     expect((await stored(stub)).autopilot ?? []).toEqual([]);
+
+    // The solo setup never synced the lobby, so seed the row: the null check below then shows the
+    // drop removed it rather than it never having been there.
+    await syncLobbyIndex(testEnv.DB, await stored(stub));
+    expect(await testEnv.DB.prepare('SELECT id FROM matches WHERE id = ?').bind('to-drop').first()).not.toBeNull();
 
     await windBack(stub, () => ({ updatedOn: ago(LIVE_TURN_MS + LIVE_ABANDON_MS + 1000) }));
     await runDurableObjectAlarm(stub);
