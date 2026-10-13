@@ -1,7 +1,8 @@
 // The New match chooser as a bottom sheet, in two groups: Find opponents (Live and Async, which go
 // to matchmaking) and Play with friends (Custom Match sets up a custom table to share). Live
 // is left out while bots are off, since it relies on them to fill its seats.
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '@/components/theme';
@@ -53,10 +54,35 @@ export function NewMatchSheet({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  // As a native sheet does: the scrim fades in place while only the sheet slides. The Modal's own
+  // "slide" would carry the scrim up with it. It stays mounted until the sheet is down again.
+  const shown = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = useState(visible);
+  const [sheetHeight, setSheetHeight] = useState(windowHeight);
+  useEffect(() => {
+    if (visible) setMounted(true);
+    const animation = Animated.timing(shown, {
+      toValue: visible ? 1 : 0,
+      duration: visible ? OPEN_MS : CLOSE_MS,
+      easing: visible ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (finished && !visible) setMounted(false);
+    });
+    return () => animation.stop();
+  }, [shown, visible]);
+  const translateY = shown.interpolate({ inputRange: [0, 1], outputRange: [sheetHeight, 0] });
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel="Close" />
-      <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View style={[styles.scrim, { opacity: shown }]}>
+        <Pressable style={styles.fill} onPress={onClose} accessibilityLabel="Close" />
+      </Animated.View>
+      <Animated.View
+        onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
+        style={[styles.sheet, { paddingBottom: 20 + insets.bottom, transform: [{ translateY }] }]}
+      >
         <View style={styles.grab} />
         <Text style={styles.title} accessibilityRole="header">New match</Text>
         {online !== null && <Text style={styles.online}>{online} online</Text>}
@@ -90,14 +116,23 @@ export function NewMatchSheet({
             </View>
           );
         })}
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
 
+const OPEN_MS = 280;
+const CLOSE_MS = 220;
+
 const styles = StyleSheet.create({
-  scrim: { flex: 1, backgroundColor: 'rgba(10, 6, 4, 0.6)' },
+  // Behind the sheet, to the bottom of the screen, so the sheet's rounded corners show it.
+  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(10, 6, 4, 0.6)' },
+  fill: { flex: 1 },
   sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.walnutDeep,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
