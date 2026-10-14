@@ -99,9 +99,11 @@ export function Lobby(): JSX.Element {
   const online = useOnline();
   const [choosing, setChoosing] = useState(false);
 
-  // Live and Async seat the player through matchmaking; Custom Match starts a custom table.
+  // Live and Async seat the player through matchmaking; Custom Match starts a custom table; Play
+  // vs bots starts a game against three bots.
   const startMatch = useMutation({
-    mutationFn: (choice: NewMatchChoice) => (choice === 'challenge' ? client.createMatch() : client.play(choice)),
+    mutationFn: (choice: NewMatchChoice) =>
+      choice === 'challenge' ? client.createMatch() : choice === 'bots' ? client.playBots() : client.play(choice),
     onSuccess: (match) => {
       setChoosing(false);
       queryClient.invalidateQueries({ queryKey: ['matches'] });

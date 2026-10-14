@@ -2243,6 +2243,17 @@ describe('Match', () => {
       confirm.mockRestore();
     });
 
+    it('offers Leave game in a bots match, which ends it', async () => {
+      leaveMatchMock.mockResolvedValue(undefined);
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots({ mode: 'bots', autopilot: ['p3', 'p4'] }), connected: true });
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: 'Leave game' }));
+      expect(confirm).toHaveBeenCalledWith('Leave this game? Nobody else is playing, so it ends.');
+      await waitFor(() => expect(leaveMatchMock).toHaveBeenCalledWith('match-1'));
+      confirm.mockRestore();
+    });
+
     it('says who took a seat', async () => {
       useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots(), connected: true });
       const view = renderMatch();
