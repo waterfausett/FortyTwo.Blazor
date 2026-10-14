@@ -9,7 +9,7 @@ import { HelpButton } from '../HelpButton';
 import { HowToPlayCard } from '../HowToPlayCard';
 import { HowToPlayContent } from '../HowToPlayContent';
 import { JoinMatchPanel } from '../JoinMatchPanel';
-import { NewMatchSheet } from '../NewMatchSheet';
+import { NewMatchSheet, SLOW_MS } from '../NewMatchSheet';
 import { SeatPicker } from '../SeatPicker';
 import { PENDING_SPINNER_DELAY_MS, Table, type SeatInfo } from '../Table';
 import { TrickHistory } from '../TrickHistory';
@@ -347,7 +347,7 @@ const inApp = (ui: React.ReactElement) => <SafeAreaProvider initialMetrics={metr
 describe('NewMatchSheet', () => {
   it('offers Live Play, Async and Custom Match, and reports the choice', async () => {
     const onChoose = jest.fn();
-    await render(inApp(<NewMatchSheet visible liveEnabled online={5} pending={false} onChoose={onChoose} onClose={jest.fn()} />));
+    await render(inApp(<NewMatchSheet visible liveEnabled online={5} pending={null} error={null} onChoose={onChoose} onClose={jest.fn()} />));
     await fireEvent.press(screen.getByRole('button', { name: /live play/i }));
     await fireEvent.press(screen.getByRole('button', { name: /async/i }));
     await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
@@ -357,7 +357,7 @@ describe('NewMatchSheet', () => {
   });
 
   it('labels the matchmade options apart from playing with friends', async () => {
-    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />));
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
     expect(screen.getByRole('header', { name: /find opponents/i })).toBeTruthy();
     expect(screen.getByRole('header', { name: /play with friends/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /live play.*60-second turns/i })).toBeTruthy();
@@ -365,8 +365,35 @@ describe('NewMatchSheet', () => {
   });
 
   it('leaves Live Play out when bots are off', async () => {
-    await render(inApp(<NewMatchSheet visible liveEnabled={false} online={null} pending={false} onChoose={jest.fn()} onClose={jest.fn()} />));
+    await render(inApp(<NewMatchSheet visible liveEnabled={false} online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
     expect(screen.queryByRole('button', { name: /^live play/i })).toBeNull();
+  });
+
+  it('shows which choice is working, and says so when it takes a while', async () => {
+    jest.useFakeTimers();
+    try {
+      await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending="daily" error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+      expect(screen.getByRole('button', { name: /async.*finding a seat/i })).toBeTruthy();
+      // The others still read as themselves, just disabled.
+      expect(screen.getByRole('button', { name: /custom match.*send the invite link/i })).toBeDisabled();
+
+      await act(() => jest.advanceTimersByTime(SLOW_MS));
+      expect(screen.getByRole('button', { name: /async.*still working/i })).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('stays open while a choice is working', async () => {
+    const onClose = jest.fn();
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending="challenge" error={null} onChoose={jest.fn()} onClose={onClose} />));
+    await fireEvent.press(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('shows why the last choice failed', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error="Request timed out" onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.getByRole('alert')).toHaveTextContent('Request timed out');
   });
 });
 

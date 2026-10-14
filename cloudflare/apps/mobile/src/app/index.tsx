@@ -18,7 +18,6 @@ import { NewMatchSheet, type NewMatchChoice } from '@/components/NewMatchSheet';
 import { HelpButton } from '@/components/HelpButton';
 import { HowToPlayCard } from '@/components/HowToPlayCard';
 import { colors, fonts } from '@/components/theme';
-import { toastError } from '@/components/toast';
 
 type Filter = 'Active' | 'Completed';
 const FILTERS: { filter: Filter; label: string }[] = [
@@ -71,8 +70,13 @@ export default function Lobby() {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
       router.push(`/match/${match.id}`);
     },
-    onError: toastError,
+    // The sheet shows the error. A timeout may still have seated the player, so refetch the list.
+    onError: () => queryClient.invalidateQueries({ queryKey: ['matches'] }),
   });
+  function choose() {
+    start.reset();
+    setChoosing(true);
+  }
 
   const empty = EMPTY[filter];
 
@@ -140,7 +144,7 @@ export default function Lobby() {
                 <Text style={styles.emptyTitle}>{empty.title}</Text>
                 <Text style={styles.emptyDetail}>{empty.detail}</Text>
                 {filter === 'Active' && (
-                  <Pressable onPress={() => setChoosing(true)} accessibilityRole="button" hitSlop={8}>
+                  <Pressable onPress={choose} accessibilityRole="button" hitSlop={8}>
                     <Text style={styles.emptyLink}>New match</Text>
                   </Pressable>
                 )}
@@ -154,14 +158,15 @@ export default function Lobby() {
         visible={choosing}
         liveEnabled={config.data?.bots ?? false}
         online={online}
-        pending={start.isPending}
+        pending={start.isPending ? start.variables : null}
+        error={start.error?.message ?? null}
         onChoose={(c) => start.mutate(c)}
         onClose={() => setChoosing(false)}
       />
 
       <Pressable
         style={({ pressed }) => [styles.fab, { bottom: 20 + insets.bottom }, pressed && styles.fabPressed]}
-        onPress={() => setChoosing(true)}
+        onPress={choose}
         disabled={start.isPending}
         accessibilityRole="button"
         accessibilityLabel="New match"

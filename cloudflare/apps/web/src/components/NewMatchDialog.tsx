@@ -1,7 +1,7 @@
 // The New match chooser, in two groups: Find opponents (Live and Async, which go to matchmaking)
 // and Play with friends (Custom Match sets up a custom table to share). Live is left out
 // while bots are off, since it relies on them to fill its seats.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import './NewMatchDialog.css';
 
@@ -36,11 +36,34 @@ const GROUPS: { id: string; label: string; icon: string; options: Option[] }[] =
   },
 ];
 
+// How long a choice works before its line admits it's taking a while.
+export const SLOW_MS = 3000;
+
+function workingDetail(choice: NewMatchChoice, slow: boolean): string {
+  if (slow) return 'Still working - your connection may be slow.';
+  return choice === 'challenge' ? 'Setting up the table…' : 'Finding a seat…';
+}
+
+// True once `pending` has stayed set for SLOW_MS; false again when it clears.
+function useSlow(pending: NewMatchChoice | null): boolean {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setTimeout(() => setSlow(true), SLOW_MS);
+    return () => {
+      clearTimeout(timer);
+      setSlow(false);
+    };
+  }, [pending]);
+  return slow;
+}
+
 export function NewMatchDialog({
   open,
   liveEnabled,
   online,
   pending,
+  error,
   onChoose,
   onClose,
 }: {
@@ -48,18 +71,24 @@ export function NewMatchDialog({
   liveEnabled: boolean;
   // Players online (the presence socket), or null until the first count arrives.
   online: number | null;
-  pending: boolean;
+  // The choice being started, or null. Only that option shows it's working; the dialog stays open
+  // until it lands, so the player isn't moved to a match after giving up on it.
+  pending: NewMatchChoice | null;
+  // Why the last choice failed, shown in the dialog rather than on the page behind it.
+  error: string | null;
   onChoose: (choice: NewMatchChoice) => void;
   onClose: () => void;
 }): JSX.Element | null {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const slow = useSlow(pending);
+  const close = pending ? () => {} : onClose;
   useEffect(() => {
     if (open) dialogRef.current?.focus();
   }, [open]);
   if (!open) return null;
 
   return (
-    <div className="new-match-scrim" onClick={onClose}>
+    <div className="new-match-scrim" onClick={close}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -69,11 +98,16 @@ export function NewMatchDialog({
         className="new-match-dialog"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose();
+          if (e.key === 'Escape') close();
         }}
       >
         <h2 id="new-match-title" className="new-match-title">New match</h2>
         {online !== null && <p className="new-match-online">{online} online</p>}
+        {error && !pending && (
+          <p role="alert" className="new-match-error">
+            {error}
+          </p>
+        )}
         {GROUPS.map((group) => {
           const options = group.options.filter((o) => liveEnabled || o.choice !== 'live');
           if (options.length === 0) return null;
@@ -84,23 +118,27 @@ export function NewMatchDialog({
                 <span className={`oi ${group.icon}`} aria-hidden="true"></span>
                 {group.label}
               </h3>
-              {options.map((o) => (
-                <button
-                  key={o.choice}
-                  type="button"
-                  className="new-match-option"
-                  disabled={pending}
-                  onClick={() => onChoose(o.choice)}
-                >
-                  <span className="new-match-icon" aria-hidden="true">
-                    <span className={`oi ${o.icon}`}></span>
-                  </span>
-                  <span className="new-match-text">
-                    <span className="new-match-option-title">{o.title}</span>
-                    <span className="new-match-option-detail">{o.detail}</span>
-                  </span>
-                </button>
-              ))}
+              {options.map((o) => {
+                const working = pending === o.choice;
+                return (
+                  <button
+                    key={o.choice}
+                    type="button"
+                    className={`new-match-option${working ? ' is-working' : ''}`}
+                    disabled={pending !== null}
+                    aria-busy={working}
+                    onClick={() => onChoose(o.choice)}
+                  >
+                    <span className="new-match-icon" aria-hidden="true">
+                      <span className={working ? 'oi oi-loop-circular spinner' : `oi ${o.icon}`}></span>
+                    </span>
+                    <span className="new-match-text">
+                      <span className="new-match-option-title">{o.title}</span>
+                      <span className="new-match-option-detail">{working ? workingDetail(o.choice, slow) : o.detail}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </section>
           );
         })}
