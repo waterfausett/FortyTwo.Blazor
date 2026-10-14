@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.2.0...worker-v1.3.0) (2026-10-14)
+
+
+### Features
+
+* Play vs bots from the New match chooser ([#143](https://github.com/waterfausett/FortyTwo.Blazor/issues/143)) ([78f1268](https://github.com/waterfausett/FortyTwo.Blazor/commit/78f1268e2f409f7b7e523a730e1b00e1410aa5c8))
+
+
+### Bug Fixes
+
+* show which New match choice is working, and time out slow requests ([#141](https://github.com/waterfausett/FortyTwo.Blazor/issues/141)) ([5bea60a](https://github.com/waterfausett/FortyTwo.Blazor/commit/5bea60a65f7b8a9761737d6d8a77516becfa55c9))
+* **worker:** tell a reconnecting client its match was deleted ([#140](https://github.com/waterfausett/FortyTwo.Blazor/issues/140)) ([f5a2b07](https://github.com/waterfausett/FortyTwo.Blazor/commit/f5a2b0702e792a1644796ff7694f80dbcbd66ae9))
+
 ## [1.2.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.1.0...worker-v1.2.0) (2026-10-13)
 
 
