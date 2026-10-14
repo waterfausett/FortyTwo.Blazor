@@ -1,8 +1,9 @@
-// A round "⋯" for the match screen's header, in place of the "?" while the player can leave the
-// game: How to play, and Leave game. Leaving lives up here, away from the hand, so a thumb
-// reaching for a domino can't land on it.
+// A round overflow button for the match screen's header - ⋮ on Android, ⋯ on iOS, as each
+// platform draws its own - in place of the "?" while the player can leave the game: How to play,
+// and Leave game. Leaving lives up here, away from the hand, so a thumb reaching for a domino
+// can't land on it.
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from './theme';
 
@@ -28,7 +29,7 @@ export function MatchMenu({ onHowToPlay, onLeave, leaveDisabled = false }: Match
         hitSlop={8}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}
       >
-        <Text style={styles.dots}>⋯</Text>
+        <Text style={styles.dots}>{Platform.OS === 'android' ? '⋮' : '⋯'}</Text>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Close menu">
