@@ -41,9 +41,13 @@ Existing mode checks that already do the right thing for `bots`, unchanged:
   the DO, syncs the lobby index (`bestEffort(syncLobbyIndex)`), replies `201` with
   `matchViewFor(match, userId)` — the same shape as `POST /api/matches`.
 - `MatchDO.createVsBots(playerId, matchId)`: builds `createMatch(playerId, 'bots')` with the id,
-  runs `seatBots` (the 4th seat deals), saves once, publishes, schedules, and offers the turn to
-  a bot if one opens (`offerIfBotSeated`) — as `createRematch` does for a new, already-dealt match.
-- Leaving: the existing "last human out deletes the match" path ends a bots match; nothing new.
+  runs `seatBots` (the 4th seat deals), saves once, publishes, and schedules — `schedule` sets the
+  alarm that starts the bots moving if one of them opens. (`offerIfBotSeated` is Live-only
+  matchmaking, not needed here.)
+- Leaving: `removePlayer` refuses once the dominoes are dealt, and a bots match is dealt from the
+  start, so `MatchDO.leave` gains a case: leaving a bots match that isn't over drops it (`drop`:
+  storage and lobby rows go, sockets close with 4404), as leaving a Live game with nobody else
+  present does. A finished one is left to the existing path.
 
 ## Clients
 
@@ -53,12 +57,15 @@ Existing mode checks that already do the right thing for `bots`, unchanged:
   flag, renamed only if it reads wrong).
 - Web `Lobby` and mobile `index.tsx`: the create mutation sends `'bots'` to `playBots()`, then
   opens the match as it does for the others.
-- The mobile empty-lobby hint mentions playing vs bots only if it fits; otherwise unchanged.
+- Match page (web `Match.tsx`, mobile `match/[id].tsx`): the mid-game **Leave game** button,
+  today Live-only, shows for bots matches too. Its confirm already reads "Nobody else is
+  playing, so it ends." there, since bots never count as present.
 
 ## Testing
 
 - Worker: the route returns a dealt match, caller in seat 0, three bots, mode `bots`, and a lobby
-  row; 404 with bots off; leaving deletes the match.
+  row; 404 with bots off; leaving mid-game deletes the match and its lobby row.
+- Web and mobile Match page tests: Leave game shows in a bots match and says the game ends.
 - Rules/client: `MODE_LABELS` covers `bots`.
 - Web and mobile component tests: the Practice option shows, calls `onChoose('bots')`, and is
   hidden with bots off; the Lobby calls `playBots()`.
