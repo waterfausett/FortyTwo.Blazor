@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node --test .github/scripts/
+      - run: node --test .github/scripts/quota-watch.test.mjs
       - run: node .github/scripts/quota-watch.mjs
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
