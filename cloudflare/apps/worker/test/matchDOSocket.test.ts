@@ -101,6 +101,19 @@ describe('MatchDO WebSocket upgrade', () => {
     expect(ws).toBeTruthy();
   });
 
+  // An app that was away (backgrounded, offline) when its match was deleted never got the 4404
+  // close; it reconnects later and must hear it then, or it sits on the dead match's last state.
+  it('closes a socket with 4404 straight away when there is no match', async () => {
+    const stub = stubFor('socket-no-match');
+    const token = await signToken({ sub: 'p1' });
+
+    const { ws } = await openSocket(stub, `/ws?token=${token}`);
+    const closed = new Promise<CloseEvent>((resolve) => ws?.addEventListener('close', (e) => resolve(e as CloseEvent)));
+
+    expect(ws).toBeTruthy();
+    expect((await closed).code).toBe(4404);
+  });
+
   it('rejects an upgrade with no token as 401', async () => {
     const stub = stubFor('socket-missing-token');
 
