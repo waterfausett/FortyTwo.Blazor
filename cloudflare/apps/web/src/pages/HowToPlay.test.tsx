@@ -105,4 +105,14 @@ describe('NavBar', () => {
     );
     expect(screen.getByRole('link', { name: 'How to play' }).getAttribute('href')).toBe('/how-to-play');
   });
+
+  it('leaves How to play off a match page, which has its own', () => {
+    render(
+      <MemoryRouter initialEntries={['/match/m1']}>
+        <NavBar />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('link', { name: 'How to play' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Lobby' })).toBeTruthy();
+  });
 });
