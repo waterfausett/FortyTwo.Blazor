@@ -59,6 +59,17 @@ matches.post('/', async (c) => {
   return c.json(matchViewFor(match, c.get('user').sub), 201);
 });
 
+// One tap to a match against three bots: created, seated, dealt (MatchDO's `createVsBots`).
+// Off with bots, as adding them is.
+matches.post('/bots', async (c) => {
+  if (!botsEnabled(c.env)) return c.json({ title: 'Not found' }, 404);
+  const matchId = crypto.randomUUID();
+  const userId = c.get('user').sub;
+  const match = await matchStub(c.env, matchId).createVsBots(userId, matchId);
+  await bestEffort(matchId, () => syncLobbyIndex(c.env.DB, match));
+  return c.json(matchViewFor(match, userId), 201);
+});
+
 matches.get('/', async (c) => {
   const userId = c.get('user').sub;
   const filter = c.req.query('filter') ?? 'Active';

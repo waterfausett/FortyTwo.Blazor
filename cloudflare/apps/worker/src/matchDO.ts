@@ -119,6 +119,17 @@ export class MatchDO extends DurableObject<Env> {
     return match;
   }
 
+  // A match against three bots (the 'bots' mode): the player in seat 0 and bots in the rest, so
+  // the 4th seat deals and it's under way when it's returned. Saved once, so there's never a
+  // half-built table. `schedule` starts the bots off if one of them opens.
+  async createVsBots(playerId: string, matchId: string): Promise<MatchState> {
+    const match = seatBots({ ...createMatch(playerId, 'bots'), id: matchId });
+    await this.save(match);
+    this.publish(null, match);
+    await this.schedule(match);
+    return match;
+  }
+
   // The other way a match comes into being: the finished match's DO (`rematch` below) calls this
   // on the rematch's DO. Returns an existing match untouched, so a retried call can't redeal it.
   // No route touches this match on its way in, so the lobby index is synced here, as alarm() does.
@@ -187,7 +198,8 @@ export class MatchDO extends DurableObject<Env> {
   // Leaving: before the deal, takes the player back out (the last human out deletes the match -
   // how a creator cancels a match nobody joined). A claimant gives up their claim. In an Over the
   // table game under way a bot takes the seat, unless nobody else is present, which drops the
-  // match. The caller drops the lobby rows when it's deleted (routes/matches.ts).
+  // match - as leaving a bots match under way always does, since bots never count as present. The
+  // caller drops the lobby rows when it's deleted (routes/matches.ts).
   leave(playerId: string): Promise<MatchResult<LeaveResult>> {
     return this.read(async (match): Promise<LeaveResult> => {
       if ((match.claims ?? []).includes(playerId)) {
@@ -196,7 +208,8 @@ export class MatchDO extends DurableObject<Env> {
         this.broadcast(next);
         return { deleted: false, match: next };
       }
-      if (matchMode(match) === 'live' && hasBeenDealt(match) && match.winningTeam === null) {
+      const mode = matchMode(match);
+      if ((mode === 'live' || mode === 'bots') && hasBeenDealt(match) && match.winningTeam === null) {
         assertIsMatchPlayer(match, playerId);
         const othersPresent = match.players.some((p) => p.playerId !== playerId && isPresent(match, p.playerId));
         if (!othersPresent) {

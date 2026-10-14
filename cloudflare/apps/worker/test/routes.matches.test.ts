@@ -723,6 +723,40 @@ describe('match routes', () => {
       expect(((await res.json()) as { title: string }).title).toBe('Invalid request');
     });
 
+    it('starts a dealt match against three bots, the caller in seat 0', async () => {
+      const p1 = await signToken('p1');
+
+      const res = await apiWithBots('/api/matches/bots', p1, { method: 'POST' });
+
+      expect(res.status).toBe(201);
+      const match = (await res.json()) as MatchState;
+      expect(match.mode).toBe('bots');
+      expect(match.players.find((p) => p.playerId === 'p1')?.position).toBe(0);
+      expect(match.players.filter((p) => p.playerId.startsWith('bot-')).map((p) => p.position).sort()).toEqual([1, 2, 3]);
+      expect(match.currentGame.hands.find((h) => h.playerId === 'p1')?.dominoes).toHaveLength(7);
+      const row = await testEnv.DB.prepare('SELECT player_count, mode FROM matches WHERE id = ?')
+        .bind(match.id)
+        .first<{ player_count: number; mode: string }>();
+      expect(row).toEqual({ player_count: 4, mode: 'bots' });
+    });
+
+    it('404s a bots match when bots are turned off', async () => {
+      const p1 = await signToken('p1');
+      const res = await apiWithBots('/api/matches/bots', p1, { method: 'POST' }, 'false');
+      expect(res.status).toBe(404);
+    });
+
+    it('deletes a bots match, and its lobby row, when the player leaves mid-game', async () => {
+      const p1 = await signToken('p1');
+      const match = (await (await apiWithBots('/api/matches/bots', p1, { method: 'POST' })).json()) as MatchState;
+
+      const res = await apiWithBots(`/api/matches/${match.id}/players`, p1, { method: 'DELETE' });
+
+      expect(res.status).toBe(204);
+      const row = await testEnv.DB.prepare('SELECT id FROM matches WHERE id = ?').bind(match.id).first();
+      expect(row).toBeNull();
+    });
+
     it("won't let someone outside the match add bots", async () => {
       const p1 = await signToken('p1');
       const outsider = await signToken('p5');
