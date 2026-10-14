@@ -34,8 +34,9 @@ export function MatchMenu({ onHowToPlay, onLeave, leaveDisabled = false }: Match
         style={({ pressed }) => (ANDROID ? styles.androidButton : [styles.button, pressed && styles.pressed])}
       >
         {ANDROID ? (
-          // Material's own icon, so the dots weigh what the platform's do.
-          <MaterialIcons name="more-vert" size={24} color={colors.bone} />
+          // Material's own icon, so the dots weigh what the platform's do, in the muted colour
+          // Material gives a toolbar's trailing icons.
+          <MaterialIcons name="more-vert" size={24} color={colors.inkMuted} />
         ) : (
           <Text style={styles.dots}>⋯</Text>
         )}
@@ -78,9 +79,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.6 },
-  // A 48dp target whose dots sit 22dp from the screen's edge, as Google Messages' overflow
-  // button's do: the negative margin takes back most of the header's own inset.
-  androidButton: { width: 48, height: 48, marginRight: -18, alignItems: 'center', justifyContent: 'center' },
+  // A 48dp target whose dots sit 26dp from the screen's edge, as the Pixel's own apps' overflow
+  // buttons' do: the negative margin takes back most of the header's own inset.
+  androidButton: { width: 48, height: 48, marginRight: -14, alignItems: 'center', justifyContent: 'center' },
   dots: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 17, lineHeight: 20 },
   backdrop: { flex: 1, alignItems: 'flex-end', paddingHorizontal: 12, backgroundColor: 'rgba(0, 0, 0, 0.35)' },
   menu: {
