@@ -3,6 +3,7 @@
 // and Leave game. Leaving lives up here, away from the hand, so a thumb reaching for a domino
 // can't land on it.
 import { useState } from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from './theme';
@@ -32,7 +33,12 @@ export function MatchMenu({ onHowToPlay, onLeave, leaveDisabled = false }: Match
         android_ripple={ANDROID ? { color: 'rgba(242, 234, 219, 0.2)', borderless: true, radius: 24 } : undefined}
         style={({ pressed }) => (ANDROID ? styles.androidButton : [styles.button, pressed && styles.pressed])}
       >
-        <Text style={ANDROID ? styles.androidDots : styles.dots}>{ANDROID ? '⋮' : '⋯'}</Text>
+        {ANDROID ? (
+          // Material's own icon, so the dots weigh what the platform's do.
+          <MaterialIcons name="more-vert" size={24} color={colors.bone} />
+        ) : (
+          <Text style={styles.dots}>⋯</Text>
+        )}
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Close menu">
@@ -72,10 +78,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.6 },
-  // A 48dp target whose dots sit 24dp from the screen's edge, as native apps' overflow buttons'
-  // do: the negative margin takes back most of the header's own inset.
-  androidButton: { width: 48, height: 48, marginRight: -16, alignItems: 'center', justifyContent: 'center' },
-  androidDots: { color: colors.bone, fontSize: 24, lineHeight: 28, fontWeight: '700' },
+  // A 48dp target whose dots sit 22dp from the screen's edge, as Google Messages' overflow
+  // button's do: the negative margin takes back most of the header's own inset.
+  androidButton: { width: 48, height: 48, marginRight: -18, alignItems: 'center', justifyContent: 'center' },
   dots: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 17, lineHeight: 20 },
   backdrop: { flex: 1, alignItems: 'flex-end', paddingHorizontal: 12, backgroundColor: 'rgba(0, 0, 0, 0.35)' },
   menu: {
