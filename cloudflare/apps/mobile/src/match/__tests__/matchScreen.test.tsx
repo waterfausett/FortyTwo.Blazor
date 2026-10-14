@@ -27,7 +27,8 @@ jest.mock('expo-router', () => ({
     dismissTo: (...args: unknown[]) => mockRouter.dismissTo(...args),
     push: (...args: unknown[]) => mockRouter.push(...args),
   },
-  Stack: { Screen: () => null },
+  // Draws the header's right-hand button, where the match menu lives.
+  Stack: { Screen: ({ options }: { options?: { headerRight?: () => unknown } }) => options?.headerRight?.() ?? null },
   useLocalSearchParams: () => ({ id: 'match-1' }),
 }));
 jest.mock('react-native-auth0', () => ({ useAuth0: () => ({ user: { sub: mockMe.id } }) }));
@@ -123,7 +124,7 @@ describe('Match screen, Live Play', () => {
     expect(screen.queryByLabelText('1-2')).toBeNull();
     expect(screen.queryByText('Pass')).toBeNull();
     expect(screen.queryByText('Pick a seat to join')).toBeNull();
-    expect(screen.queryByText('Leave game')).toBeNull();
+    expect(screen.queryByLabelText('Match menu')).toBeNull();
 
     await fireEvent.press(screen.getByText('Cancel'));
     await waitFor(() => expect(mockApi.leaveMatch).toHaveBeenCalledWith('match-1'));
@@ -169,7 +170,8 @@ describe('Match screen, Live Play', () => {
     socket(dealtLiveWithBots());
     const view = await renderScreen();
 
-    await fireEvent.press(await screen.findByText('Leave game'));
+    await fireEvent.press(await screen.findByLabelText('Match menu'));
+    await fireEvent.press(screen.getByText('Leave game'));
     expect(alert).toHaveBeenCalledWith('Leave this game?', 'A bot takes your seat.', expect.any(Array));
     const buttons = alert.mock.calls[0][2] as AlertButton[];
     expect(buttons.map((b) => b.text)).toEqual(['Stay', 'Leave']);
@@ -182,7 +184,8 @@ describe('Match screen, Live Play', () => {
     socket(custom);
     await renderScreen();
     await screen.findByLabelText('1-2');
-    expect(screen.queryByText('Leave game')).toBeNull();
+    expect(screen.queryByLabelText('Match menu')).toBeNull();
+    expect(screen.getByLabelText('How to play')).toBeTruthy();
   });
 
   it('offers Leave game in a bots match, which ends it', async () => {
@@ -190,7 +193,8 @@ describe('Match screen, Live Play', () => {
     socket(dealtLiveWithBots({ mode: 'bots', autopilot: ['p3', 'p4'] }));
     await renderScreen();
 
-    await fireEvent.press(await screen.findByText('Leave game'));
+    await fireEvent.press(await screen.findByLabelText('Match menu'));
+    await fireEvent.press(screen.getByText('Leave game'));
     expect(alert).toHaveBeenCalledWith('Leave this game?', 'Nobody else is playing, so it ends.', expect.any(Array));
     alert.mockRestore();
   });
@@ -200,7 +204,8 @@ describe('Match screen, Live Play', () => {
     socket(dealtLiveWithBots({ autopilot: ['p3', 'p4'] }));
     await renderScreen();
 
-    await fireEvent.press(await screen.findByText('Leave game'));
+    await fireEvent.press(await screen.findByLabelText('Match menu'));
+    await fireEvent.press(screen.getByText('Leave game'));
     expect(alert).toHaveBeenCalledWith('Leave this game?', 'Nobody else is playing, so it ends.', expect.any(Array));
     alert.mockRestore();
   });

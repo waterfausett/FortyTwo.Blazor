@@ -734,6 +734,25 @@ export function Match(): JSX.Element {
           >
             ?
           </button>
+          {/* A player can leave a game under way: in Live Play a bot takes their seat; a bots match
+              ends. Up here by the rules, well away from the hand. */}
+          {(mode === 'live' || mode === 'bots') && hasBeenDealt(match) && !isMatchOver && !watching && (
+            <button
+              type="button"
+              className="contract-leave"
+              aria-label="Leave game"
+              disabled={leaveMutation.isPending}
+              onClick={() => {
+                const outcome = lastPresent ? 'Nobody else is playing, so it ends.' : 'A bot takes your seat.';
+                if (window.confirm(`Leave this game? ${outcome}`)) {
+                  leavingRef.current = true;
+                  leaveMutation.mutate();
+                }
+              }}
+            >
+              Leave
+            </button>
+          )}
         </div>
 
         <div className="score score-them">
@@ -1011,23 +1030,6 @@ export function Match(): JSX.Element {
               />
             )}
 
-            {/* A player can leave a game under way: in Live Play a bot takes their seat; a bots match ends. */}
-            {(mode === 'live' || mode === 'bots') && hasBeenDealt(match) && !isMatchOver && !watching && (
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-danger rail-leave"
-                disabled={leaveMutation.isPending}
-                onClick={() => {
-                  const outcome = lastPresent ? 'Nobody else is playing, so it ends.' : 'A bot takes your seat.';
-                  if (window.confirm(`Leave this game? ${outcome}`)) {
-                    leavingRef.current = true;
-                    leaveMutation.mutate();
-                  }
-                }}
-              >
-                Leave game
-              </button>
-            )}
           </div>
         </PlayDndContext>
       </div>
