@@ -72,6 +72,22 @@
   cursor: default;
 }
 
+/* The choice being started stays lit while the others dim. */
+.new-match-option.is-working {
+  opacity: 1;
+  cursor: progress;
+}
+
+.new-match-option.is-working .new-match-option-detail {
+  color: var(--brass);
+}
+
+.new-match-error {
+  margin: -0.25rem 0 0.75rem;
+  font: 500 0.9rem var(--font-ui);
+  color: var(--danger);
+}
+
 .new-match-icon {
   flex: none;
   display: grid;

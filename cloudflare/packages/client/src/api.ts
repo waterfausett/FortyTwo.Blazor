@@ -40,6 +40,10 @@ export class ApiError extends Error {
   }
 }
 
+// How long a request gets before it's given up as a timeout, so a dead connection ends in an error
+// the caller can show rather than a spinner that never stops.
+export const REQUEST_TIMEOUT_MS = 15_000;
+
 // `parseJson: false` is for routes that respond with an empty body (patchProfile's underlying
 // route does `c.body(null, 200)`) - calling `res.json()` on an empty body throws, so those callers
 // opt out entirely rather than relying on a content-length/204 heuristic that may not hold across
@@ -52,8 +56,30 @@ async function requestFrom<T>(
   parseJson = true
 ): Promise<T> {
   const token = await getToken();
+  // A timer and AbortController rather than AbortSignal.timeout, which React Native lacks.
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await send<T>(origin, path, init, token, abort.signal, parseJson);
+  } catch (error) {
+    if (abort.signal.aborted) throw new ApiError('Request timed out', 'Check your connection and try again.');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function send<T>(
+  origin: string,
+  path: string,
+  init: RequestInit,
+  token: string,
+  signal: AbortSignal,
+  parseJson: boolean
+): Promise<T> {
   const res = await fetch(`${origin}${path}`, {
     ...init,
+    signal,
     headers: {
       ...(init.body ? { 'content-type': 'application/json' } : {}),
       ...init.headers,

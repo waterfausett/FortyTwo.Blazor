@@ -107,7 +107,13 @@ export function Lobby(): JSX.Element {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
       navigate(`/match/${match.id}`);
     },
+    // The dialog shows the error. A timeout may still have seated the player, so refetch the list.
+    onError: () => queryClient.invalidateQueries({ queryKey: ['matches'] }),
   });
+  function choose() {
+    startMatch.reset();
+    setChoosing(true);
+  }
 
   return (
     <div className="lobby">
@@ -116,7 +122,7 @@ export function Lobby(): JSX.Element {
         <button
           type="button"
           className="action-button"
-          onClick={() => setChoosing(true)}
+          onClick={choose}
         >
           New match
         </button>
@@ -133,15 +139,11 @@ export function Lobby(): JSX.Element {
         open={choosing}
         liveEnabled={config.data?.bots ?? false}
         online={online}
-        pending={startMatch.isPending}
+        pending={startMatch.isPending ? startMatch.variables : null}
+        error={startMatch.error ? errorMessage(startMatch.error) : null}
         onChoose={(c) => startMatch.mutate(c)}
         onClose={() => setChoosing(false)}
       />
-      {startMatch.isError && (
-        <p role="alert" className="page-error">
-          {errorMessage(startMatch.error)}
-        </p>
-      )}
 
       <div className="lobby-tabs" role="tablist" aria-label="Match lists">
         {TABS.map((tab) => (
