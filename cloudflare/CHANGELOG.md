@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.1.0...worker-v1.2.0) (2026-10-13)
+
+
+### Features
+
+* Live Play and Async matchmaking from a New match chooser ([#130](https://github.com/waterfausett/FortyTwo.Blazor/issues/130)) ([a44d647](https://github.com/waterfausett/FortyTwo.Blazor/commit/a44d64705a9896d1f7058994a149dfdb957e60e0))
+* **web:** how to play rules screen ([#125](https://github.com/waterfausett/FortyTwo.Blazor/issues/125)) ([7f266d5](https://github.com/waterfausett/FortyTwo.Blazor/commit/7f266d516156bbcbf28c6c82d7432f3a6d767858))
+* **worker:** player stats on the Profile ([#122](https://github.com/waterfausett/FortyTwo.Blazor/issues/122)) ([a44ff4d](https://github.com/waterfausett/FortyTwo.Blazor/commit/a44ff4da4f6ff91a391a40e5ddcd59b5a404cb7b))
+
+
+### Bug Fixes
+
+* **web:** grammar in the how-to-play count section ([#112](https://github.com/waterfausett/FortyTwo.Blazor/issues/112)) ([#129](https://github.com/waterfausett/FortyTwo.Blazor/issues/129)) ([76aca9e](https://github.com/waterfausett/FortyTwo.Blazor/commit/76aca9eae209afc4a01aa50f8381455d282512d8))
+
 ## [1.1.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.0.3...worker-v1.1.0) (2026-10-10)
 
 
