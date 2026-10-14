@@ -72,9 +72,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.6 },
-  // A 48dp target whose dots sit 28dp from the screen's edge, as Material's overflow button's do:
-  // the negative margin takes back most of the header's own inset.
-  androidButton: { width: 48, height: 48, marginRight: -12, alignItems: 'center', justifyContent: 'center' },
+  // A 48dp target whose dots sit 24dp from the screen's edge, as native apps' overflow buttons'
+  // do: the negative margin takes back most of the header's own inset.
+  androidButton: { width: 48, height: 48, marginRight: -16, alignItems: 'center', justifyContent: 'center' },
   androidDots: { color: colors.bone, fontSize: 24, lineHeight: 28, fontWeight: '700' },
   dots: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 17, lineHeight: 20 },
   backdrop: { flex: 1, alignItems: 'flex-end', paddingHorizontal: 12, backgroundColor: 'rgba(0, 0, 0, 0.35)' },
