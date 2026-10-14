@@ -121,11 +121,12 @@ export class MatchDO extends DurableObject<Env> {
 
   // A match against three bots (the 'bots' mode): the player in seat 0 and bots in the rest, so
   // the 4th seat deals and it's under way when it's returned. Saved once, so there's never a
-  // half-built table. `schedule` starts the bots off if one of them opens.
+  // half-built table. `schedule` starts the bots off if one of them opens. The player is on their
+  // way to it (their socket isn't open yet), so isn't pushed their own first turn.
   async createVsBots(playerId: string, matchId: string): Promise<MatchState> {
     const match = seatBots({ ...createMatch(playerId, 'bots'), id: matchId });
     await this.save(match);
-    this.publish(null, match);
+    this.publish(null, match, [playerId]);
     await this.schedule(match);
     return match;
   }

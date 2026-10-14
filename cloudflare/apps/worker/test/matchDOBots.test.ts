@@ -4,7 +4,7 @@
 // bots play by the simple rules; the kill switch only turns the ML bot off, not the alarm loop.
 import { describe, it, expect, vi } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
-import { Bid, Suit, type MatchState } from '@fortytwo/rules';
+import { Bid, Suit, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import type { MatchDO } from '../src/matchDO';
 import { syncLobbyIndex } from '../src/lobby';
@@ -12,6 +12,8 @@ import { countLobbyWrites } from './lobbyWrites';
 import { failingDb } from './failingDb';
 import { warmUpSteps } from '@fortytwo/bot';
 import { resetMlBotForTest } from '../src/mlBot';
+import { fetchMock } from './fetchMock';
+import { saveToken } from '../src/push/tokens';
 
 const testEnv = env as unknown as Env;
 
@@ -289,5 +291,39 @@ describe('MatchDO bot auto-play', () => {
       expect(after.currentGame.hands.find((h) => h.playerId === 'bot-1')!.bid).not.toBeNull();
       await runAllPendingAlarms(stub); // none left running when the test ends
     });
+  });
+});
+
+describe('MatchDO bots match', () => {
+  // The player who starts a bots match is on their way to it, like a rematch's voter, so their
+  // own first turn isn't pushed to them. A custom table dealt afterwards by another player's join,
+  // whose opener isn't watching, is pushed: had the bots match pushed, that push would show up first.
+  it("doesn't push the player their own first turn when they start one", async () => {
+    for (const id of ['vb-push-p1', 'vb-marker-p1']) await saveToken(testEnv.DB, id, `ExponentPushToken[${id}]`, 'android');
+    const sent: { to: string }[] = [];
+    fetchMock.activate();
+    fetchMock.disableNetConnect();
+    fetchMock
+      .get('https://exp.host')
+      .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
+      .reply((opts) => {
+        const messages = JSON.parse(String(opts.body)) as typeof sent;
+        sent.push(...messages);
+        return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
+      })
+      .persist();
+
+    await stubFor('vb-push').createVsBots('vb-push-p1', 'vb-push');
+    const marker = stubFor('vb-marker');
+    await marker.create('vb-marker-p1', 'vb-marker');
+    valueOf(await marker.addBots('vb-marker-p1', [1, 2]));
+    // A second player's join deals, so its opener (the creator) isn't the one acting.
+    valueOf(await marker.takeSeat('vb-marker-p2', 3, shuffledDominoOrder()));
+
+    // Polls rather than resolving a promise from the reply, which runs inside the Durable Object.
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent).toEqual([expect.objectContaining({ to: 'ExponentPushToken[vb-marker-p1]' })]);
+    // D1 isn't reset between tests.
+    await testEnv.DB.prepare('DELETE FROM push_tokens').run();
   });
 });
