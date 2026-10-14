@@ -369,6 +369,25 @@ describe('NewMatchSheet', () => {
     expect(screen.queryByRole('button', { name: /^live play/i })).toBeNull();
   });
 
+  it('offers Play vs bots under Practice', async () => {
+    const onChoose = jest.fn();
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={onChoose} onClose={jest.fn()} />));
+    expect(screen.getByRole('header', { name: /practice/i })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: /play vs bots.*jump straight in against three bots/i }));
+    expect(onChoose).toHaveBeenCalledWith('bots');
+  });
+
+  it('says Play vs bots is setting up the table while it works', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending="bots" error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.getByRole('button', { name: /play vs bots.*setting up the table/i })).toBeDisabled();
+  });
+
+  it('leaves Play vs bots out when bots are off', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled={false} online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.queryByRole('button', { name: /play vs bots/i })).toBeNull();
+    expect(screen.queryByRole('header', { name: /practice/i })).toBeNull();
+  });
+
   it('shows which choice is working, and says so when it takes a while', async () => {
     jest.useFakeTimers();
     try {

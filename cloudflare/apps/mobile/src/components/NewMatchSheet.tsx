@@ -1,13 +1,14 @@
-// The New match chooser as a bottom sheet, in two groups: Find opponents (Live and Async, which go
-// to matchmaking) and Play with friends (Custom Match sets up a custom table to share). Live
-// is left out while bots are off, since it relies on them to fill its seats.
+// The New match chooser as a bottom sheet, in three groups: Find opponents (Live and Async, which
+// go to matchmaking), Play with friends (Custom Match sets up a custom table to share) and Practice
+// (Play vs bots goes straight into a game against three bots). Live and Play vs bots are left out
+// while bots are off, since they rely on them to fill their seats.
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '@/components/theme';
 
-export type NewMatchChoice = 'live' | 'daily' | 'challenge';
+export type NewMatchChoice = 'live' | 'daily' | 'challenge' | 'bots';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -34,6 +35,12 @@ const GROUPS: { id: string; label: string; icon: IconName; options: Option[] }[]
     label: 'Play with friends',
     icon: 'mail',
     options: [{ choice: 'challenge', title: 'Custom Match', detail: 'Set up a table and send the invite link.', icon: 'construct' }],
+  },
+  {
+    id: 'practice',
+    label: 'Practice',
+    icon: 'hardware-chip',
+    options: [{ choice: 'bots', title: 'Play vs bots', detail: 'Jump straight in against three bots.', icon: 'play' }],
   },
 ];
 
@@ -99,7 +106,7 @@ export function NewMatchSheet({
           </Text>
         )}
         {GROUPS.map((group) => {
-          const options = group.options.filter((o) => liveEnabled || o.choice !== 'live');
+          const options = group.options.filter((o) => liveEnabled || (o.choice !== 'live' && o.choice !== 'bots'));
           if (options.length === 0) return null;
           return (
             <View key={group.id} style={styles.group}>
@@ -149,7 +156,7 @@ export const SLOW_MS = 3000;
 
 function workingDetail(choice: NewMatchChoice, slow: boolean): string {
   if (slow) return 'Still working - your connection may be slow.';
-  return choice === 'challenge' ? 'Setting up the table…' : 'Finding a seat…';
+  return choice === 'challenge' || choice === 'bots' ? 'Setting up the table…' : 'Finding a seat…';
 }
 
 // True once `pending` has stayed set for SLOW_MS; false again when it clears.

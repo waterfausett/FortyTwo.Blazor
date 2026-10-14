@@ -1,11 +1,12 @@
-// The New match chooser, in two groups: Find opponents (Live and Async, which go to matchmaking)
-// and Play with friends (Custom Match sets up a custom table to share). Live is left out
-// while bots are off, since it relies on them to fill its seats.
+// The New match chooser, in three groups: Find opponents (Live and Async, which go to
+// matchmaking), Play with friends (Custom Match sets up a custom table to share) and Practice
+// (Play vs bots goes straight into a game against three bots). Live and Play vs bots are left out
+// while bots are off, since they rely on them to fill their seats.
 import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import './NewMatchDialog.css';
 
-export type NewMatchChoice = 'live' | 'daily' | 'challenge';
+export type NewMatchChoice = 'live' | 'daily' | 'challenge' | 'bots';
 
 interface Option {
   choice: NewMatchChoice;
@@ -34,6 +35,14 @@ const GROUPS: { id: string; label: string; icon: string; options: Option[] }[] =
       { choice: 'challenge', title: 'Custom Match', detail: 'Set up a table and send the invite link.', icon: 'oi-wrench' },
     ],
   },
+  {
+    id: 'practice',
+    label: 'Practice',
+    icon: 'oi-laptop',
+    options: [
+      { choice: 'bots', title: 'Play vs bots', detail: 'Jump straight in against three bots.', icon: 'oi-media-play' },
+    ],
+  },
 ];
 
 // How long a choice works before its line admits it's taking a while.
@@ -41,7 +50,7 @@ export const SLOW_MS = 3000;
 
 function workingDetail(choice: NewMatchChoice, slow: boolean): string {
   if (slow) return 'Still working - your connection may be slow.';
-  return choice === 'challenge' ? 'Setting up the table…' : 'Finding a seat…';
+  return choice === 'challenge' || choice === 'bots' ? 'Setting up the table…' : 'Finding a seat…';
 }
 
 // True once `pending` has stayed set for SLOW_MS; false again when it clears.
@@ -109,7 +118,7 @@ export function NewMatchDialog({
           </p>
         )}
         {GROUPS.map((group) => {
-          const options = group.options.filter((o) => liveEnabled || o.choice !== 'live');
+          const options = group.options.filter((o) => liveEnabled || (o.choice !== 'live' && o.choice !== 'bots'));
           if (options.length === 0) return null;
           const labelId = `new-match-${group.id}`;
           return (

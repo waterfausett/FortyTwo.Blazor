@@ -13,7 +13,7 @@ export type MatchStatus = 'active' | 'completed';
 
 // How a match was started (the rules package's MatchMode, repeated here since this package
 // carries no runtime dependencies).
-export type MatchMode = 'live' | 'daily' | 'custom';
+export type MatchMode = 'live' | 'daily' | 'custom' | 'bots';
 
 // Who an Active match is waiting on, looked up from the match itself when the list loads:
 // `kind` is a turn (one player) or a ready-up between hands (everyone not yet ready);

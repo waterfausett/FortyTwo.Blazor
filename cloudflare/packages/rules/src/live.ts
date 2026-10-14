@@ -6,7 +6,7 @@ import { hasBeenDealt, matchScores, type MatchState } from './matchEngine';
 import { ValidationError } from './errors';
 import { assertIsMatchPlayer } from './validation';
 
-export type MatchMode = 'live' | 'daily' | 'custom';
+export type MatchMode = 'live' | 'daily' | 'custom' | 'bots';
 
 // How long a Live table looks for people before bots take its empty seats on their own - the
 // fallback for a table nobody is watching. Players usually press Start now with bots sooner.

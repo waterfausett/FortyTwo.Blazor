@@ -14,12 +14,13 @@ import type { MatchState } from '@fortytwo/rules';
 import type { MatchPage, MatchSummary } from '../api/client';
 import { Lobby } from './Lobby';
 
-const { listMatchesMock, createMatchMock, playMock, getConfigMock, getProfileMock, patchProfileMock, mockNavigate } = vi.hoisted(() => ({
+const { listMatchesMock, createMatchMock, playMock, playBotsMock, getConfigMock, getProfileMock, patchProfileMock, mockNavigate } = vi.hoisted(() => ({
   listMatchesMock: vi.fn(),
   getProfileMock: vi.fn(),
   patchProfileMock: vi.fn(),
   createMatchMock: vi.fn(),
   playMock: vi.fn(),
+  playBotsMock: vi.fn(),
   getConfigMock: vi.fn(),
   mockNavigate: vi.fn(),
 }));
@@ -29,6 +30,7 @@ vi.mock('../api/client', () => ({
     listMatches: listMatchesMock,
     createMatch: createMatchMock,
     play: playMock,
+    playBots: playBotsMock,
     getConfig: getConfigMock,
     getProfile: getProfileMock,
     patchProfile: patchProfileMock,
@@ -230,6 +232,14 @@ describe('Lobby', () => {
     fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
     fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/custom-1'));
+  });
+
+  it('starts a match against bots for Play vs bots', async () => {
+    playBotsMock.mockResolvedValue({ id: 'bots-1' } as MatchState);
+    renderLobby();
+    fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /play vs bots/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/bots-1'));
   });
 
   it('shows a failed start in the chooser, and clears it when the chooser opens again', async () => {

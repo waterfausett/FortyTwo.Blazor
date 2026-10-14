@@ -30,8 +30,8 @@ const summary = (overrides: Partial<MatchSummary>): MatchSummary => ({
 });
 
 describe('MODE_LABELS', () => {
-  it('calls the matchmade modes Live Play and Async', () => {
-    expect(MODE_LABELS).toEqual({ live: 'Live Play', daily: 'Async', custom: 'Custom' });
+  it('calls the matchmade modes Live Play and Async, and a bots match vs Bots', () => {
+    expect(MODE_LABELS).toEqual({ live: 'Live Play', daily: 'Async', custom: 'Custom', bots: 'vs Bots' });
   });
 });
 

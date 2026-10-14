@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env, runInDurableObject } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
-import { Positions } from '@fortytwo/rules';
+import { Positions, Teams, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 
 const testEnv = env as unknown as Env;
@@ -83,6 +83,37 @@ describe('MatchDO leave', () => {
     await stub.takeSeat('bot-1', Positions.Second);
 
     expect(await stub.leave('p1')).toEqual({ ok: true, value: { deleted: true } });
+  });
+
+  it('deletes a bots match left mid-game', async () => {
+    const stub = stubFor('leave-bots-mode');
+    await stub.createVsBots('p1', 'leave-bots-mode');
+
+    expect(await stub.leave('p1')).toEqual({ ok: true, value: { deleted: true } });
+    expect(await storedKeys(stub)).toBe(0);
+  });
+
+  it('keeps a finished bots match when the player leaves', async () => {
+    const stub = stubFor('leave-bots-finished');
+    await stub.createVsBots('p1', 'leave-bots-finished');
+    await runInDurableObject(stub, async (_i, state) => {
+      const m = (await state.storage.get<MatchState>('match'))!;
+      await state.storage.put('match', { ...m, winningTeam: Teams.TeamA });
+    });
+
+    const result = await stub.leave('p1');
+
+    expect(result.ok && result.value.deleted).not.toBe(true);
+    expect(await stub.getMatch()).toMatchObject({ ok: true });
+  });
+
+  it('starts the bots moving when a bot holds the first turn of a bots match', async () => {
+    const stub = stubFor('bots-mode-alarm');
+    const match = await stub.createVsBots('p1', 'bots-mode-alarm');
+
+    const alarm = await runInDurableObject(stub, (_i, state) => state.storage.getAlarm());
+    if (match.currentGame.currentPlayerId === 'p1') expect(alarm).toBeNull();
+    else expect(alarm).not.toBeNull();
   });
 
   it('refuses a non-player with a 400', async () => {

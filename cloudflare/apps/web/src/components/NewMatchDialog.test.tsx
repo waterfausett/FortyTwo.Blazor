@@ -30,6 +30,27 @@ describe('NewMatchDialog', () => {
     expect(screen.queryByRole('button', { name: /live play/i })).toBeNull();
   });
 
+  it('offers Play vs bots under Practice', () => {
+    const onChoose = vi.fn();
+    render(<NewMatchDialog open liveEnabled online={null} pending={null} error={null} onChoose={onChoose} onClose={vi.fn()} />);
+    const practice = screen.getByRole('group', { name: /practice/i });
+    fireEvent.click(within(practice).getByRole('button', { name: /play vs bots/i }));
+    expect(onChoose).toHaveBeenCalledWith('bots');
+    expect(screen.getByText('Jump straight in against three bots.')).toBeTruthy();
+  });
+
+  it('leaves Play vs bots out when bots are off', () => {
+    render(<NewMatchDialog open liveEnabled={false} online={null} pending={null} error={null} onChoose={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.queryByRole('group', { name: /practice/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /play vs bots/i })).toBeNull();
+  });
+
+  it('says Play vs bots is setting up the table while it works', () => {
+    render(<NewMatchDialog open liveEnabled online={null} pending="bots" error={null} onChoose={vi.fn()} onClose={vi.fn()} />);
+    const working = screen.getByRole('button', { name: /play vs bots.*setting up the table/i }) as HTMLButtonElement;
+    expect(working.disabled).toBe(true);
+  });
+
   it('renders nothing while closed', () => {
     render(<NewMatchDialog open={false} liveEnabled online={null} pending={null} error={null} onChoose={vi.fn()} onClose={vi.fn()} />);
     expect(screen.queryByRole('dialog')).toBeNull();

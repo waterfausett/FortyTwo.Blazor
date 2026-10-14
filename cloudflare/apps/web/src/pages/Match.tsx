@@ -1011,8 +1011,8 @@ export function Match(): JSX.Element {
               />
             )}
 
-            {/* In Live Play, a player can leave a game under way: a bot takes their seat. */}
-            {mode === 'live' && hasBeenDealt(match) && !isMatchOver && !watching && (
+            {/* A player can leave a game under way: in Live Play a bot takes their seat; a bots match ends. */}
+            {(mode === 'live' || mode === 'bots') && hasBeenDealt(match) && !isMatchOver && !watching && (
               <button
                 type="button"
                 className="btn btn-sm btn-outline-danger rail-leave"
