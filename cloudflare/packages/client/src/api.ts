@@ -89,6 +89,9 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
     play: (mode: 'live' | 'daily'): Promise<MatchState> =>
       request<MatchState>('/api/matchmaking', { method: 'POST', body: JSON.stringify({ mode }) }),
 
+    // A match against three bots, dealt and under way: the caller in seat 0, bots in the rest.
+    playBots: (): Promise<MatchState> => request<MatchState>('/api/matches/bots', { method: 'POST' }),
+
     // One page of a lobby list; pass the previous page's `nextCursor` for the next one.
     listMatches: (filter: 'Active' | 'Completed' | 'Joinable', cursor?: string): Promise<MatchPage> =>
       request<MatchPage>(`/api/matches?filter=${filter}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
