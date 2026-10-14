@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.3.0...worker-v1.3.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* move Leave game away from the hand ([#150](https://github.com/waterfausett/FortyTwo.Blazor/issues/150)) ([4601e33](https://github.com/waterfausett/FortyTwo.Blazor/commit/4601e3373dd00c8800b4d8afef890aa3749cf233))
+
 ## [1.3.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.2.0...worker-v1.3.0) (2026-10-14)
 
 
