@@ -68,6 +68,7 @@ import { Fade, FADE_IN_MS } from '@/components/Fade';
 import { Hand, type DragState } from '@/components/Hand';
 import { HelpButton } from '@/components/HelpButton';
 import { JoinMatchPanel } from '@/components/JoinMatchPanel';
+import { MatchMenu } from '@/components/MatchMenu';
 import { MatchSummary } from '@/components/MatchSummary';
 import { NameSkeleton } from '@/components/NameSkeleton';
 import { PipFace } from '@/components/PipFace';
@@ -565,7 +566,21 @@ export default function MatchScreen() {
       scrollEnabled={!drag.dragging}
       onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
     >
-      <Stack.Screen options={{ title: game.name, headerRight: rulesButton }} />
+      <Stack.Screen
+        options={{
+          title: game.name,
+          // Leaving sits in the header's menu, well away from the hand.
+          headerRight: canLeaveGame
+            ? () => (
+                <MatchMenu
+                  onHowToPlay={() => router.push('/how-to-play')}
+                  onLeave={confirmLeaveGame}
+                  leaveDisabled={leave.isPending}
+                />
+              )
+            : rulesButton,
+        }}
+      />
       {/* The play area fills the screen, less a peek at the trick history below, whatever the
           phase - so the hand sits in the same place from the deal to the last trick, and the
           table opening up as play starts only takes up the room between them. */}
@@ -839,16 +854,6 @@ export default function MatchScreen() {
             Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
           </Text>
         )}
-        {canLeaveGame && (
-          <Pressable
-            style={[styles.smallButton, styles.dangerButton, styles.leaveGame, leave.isPending && styles.buttonDisabled]}
-            disabled={leave.isPending}
-            onPress={confirmLeaveGame}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.smallButtonText, styles.dangerButtonText]}>Leave game</Text>
-          </Pressable>
-        )}
       </Animated.View>
 
       {view.isPlayingPhase && (
@@ -973,7 +978,6 @@ const styles = StyleSheet.create({
   dangerButton: { borderColor: colors.danger },
   dangerButtonText: { color: colors.danger },
   // Under the hand: out of the way of play.
-  leaveGame: { alignSelf: 'center' },
   // The bumped and replaced screens: a line of explanation, then the way on.
   notice: { gap: 16 },
   noticeText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },

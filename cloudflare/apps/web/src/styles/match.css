@@ -175,6 +175,30 @@
   background: rgba(201, 164, 92, 0.18);
 }
 
+/* Leave game, beside the rules: up in the scoreboard, away from the hand. */
+.contract-leave {
+  flex: none;
+  height: 1.6rem;
+  padding: 0 0.65rem;
+  border: 1.5px solid var(--danger);
+  border-radius: 0.8rem;
+  background: none;
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.contract-leave:hover:not(:disabled) {
+  background: rgba(224, 122, 95, 0.15);
+}
+
+.contract-leave:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .contract-value {
   font-family: var(--font-display);
   font-weight: 700;
@@ -904,12 +928,6 @@
 .rail-poke {
   display: block;
   margin: 0 auto 0.5rem;
-}
-
-/* Leave game, under the hand: out of the way of play. */
-.rail-leave {
-  display: block;
-  margin: 0.75rem auto 0;
 }
 
 .player.active .rail-status {
