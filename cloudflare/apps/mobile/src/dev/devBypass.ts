@@ -80,6 +80,7 @@ const handled: Partial<Api> = {
   // Creating or joining "works", landing on a match screen that can't load.
   createMatch: () => answer({ id: 'dev-new' } as MatchState),
   play: () => answer({ id: 'dev-new' } as MatchState),
+  playBots: () => answer({ id: 'dev-new' } as MatchState),
   joinMatch: (id) => answer({ id } as MatchState),
   ...devMatchApi,
 };

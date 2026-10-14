@@ -63,9 +63,11 @@ export default function Lobby() {
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
   const online = useOnline();
   const [choosing, setChoosing] = useState(false);
-  // Live and Async seat the player through matchmaking; Custom Match starts a custom table.
+  // Live and Async seat the player through matchmaking; Custom Match starts a custom table; Play
+  // vs bots starts a game against three bots.
   const start = useMutation({
-    mutationFn: (choice: NewMatchChoice) => (choice === 'challenge' ? api.createMatch() : api.play(choice)),
+    mutationFn: (choice: NewMatchChoice) =>
+      choice === 'challenge' ? api.createMatch() : choice === 'bots' ? api.playBots() : api.play(choice),
     onSuccess: (match) => {
       setChoosing(false);
       queryClient.invalidateQueries({ queryKey: ['matches'] });

@@ -530,8 +530,8 @@ export default function MatchScreen() {
       ],
     );
   }
-  // In Live Play, a player can leave a game under way: a bot takes their seat.
-  const canLeaveGame = mode === 'live' && hasBeenDealt(match) && !view.isMatchOver && !watching;
+  // A player can leave a game under way: in Live Play a bot takes their seat; a bots match ends.
+  const canLeaveGame = (mode === 'live' || mode === 'bots') && hasBeenDealt(match) && !view.isMatchOver && !watching;
   // A game with nobody else present is dropped when I leave it.
   const lastPresent = match.players.every((p) => p.playerId === myPlayerId || !isPresent(match, p.playerId));
   function confirmLeaveGame() {
