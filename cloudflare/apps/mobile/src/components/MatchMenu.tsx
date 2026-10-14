@@ -1,11 +1,13 @@
-// A round overflow button for the match screen's header - ⋮ on Android, ⋯ on iOS, as each
-// platform draws its own - in place of the "?" while the player can leave the game: How to play,
+// An overflow button for the match screen's header - a bare ⋮ with a ripple on Android, like the
+// platform's own, and a ringed ⋯ on iOS to match the "?" beside it elsewhere - in place of the "?" while the player can leave the game: How to play,
 // and Leave game. Leaving lives up here, away from the hand, so a thumb reaching for a domino
 // can't land on it.
 import { useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from './theme';
+
+const ANDROID = Platform.OS === 'android';
 
 export interface MatchMenuProps {
   onHowToPlay: () => void;
@@ -27,9 +29,10 @@ export function MatchMenu({ onHowToPlay, onLeave, leaveDisabled = false }: Match
         accessibilityRole="button"
         accessibilityLabel="Match menu"
         hitSlop={8}
-        style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+        android_ripple={ANDROID ? { color: 'rgba(242, 234, 219, 0.2)', borderless: true, radius: 20 } : undefined}
+        style={({ pressed }) => (ANDROID ? styles.androidButton : [styles.button, pressed && styles.pressed])}
       >
-        <Text style={styles.dots}>{Platform.OS === 'android' ? '⋮' : '⋯'}</Text>
+        <Text style={ANDROID ? styles.androidDots : styles.dots}>{ANDROID ? '⋮' : '⋯'}</Text>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Close menu">
@@ -69,6 +72,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.6 },
+  androidButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  androidDots: { color: colors.bone, fontSize: 24, lineHeight: 28, fontWeight: '700' },
   dots: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 17, lineHeight: 20 },
   backdrop: { flex: 1, alignItems: 'flex-end', paddingHorizontal: 12, backgroundColor: 'rgba(0, 0, 0, 0.35)' },
   menu: {
