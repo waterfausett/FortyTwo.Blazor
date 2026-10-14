@@ -530,13 +530,19 @@ export class MatchDO extends DurableObject<Env> {
 
     // Send the current match straight away rather than waiting for the next broadcast, or a client
     // that connects and then does nothing (the creator waiting for others, anyone reconnecting)
-    // would never receive any state. Nothing is sent for a DO that has no match yet.
+    // would never receive any state.
     //
     // Someone who isn't seated may still connect (the lobby links to matches you haven't joined);
     // they just see every hand hidden, same as the REST route.
+    //
+    // No match here means it was deleted (a match is stored before anyone learns its id): a client
+    // that was away when that happened missed destroy()'s close, so it gets the same close now
+    // rather than sitting on the dead match's last state.
     const existing = await this.load();
     if (existing !== null) {
       pair[1].send(matchMessageFor(existing, user.sub));
+    } else {
+      pair[1].close(MATCH_DELETED_CLOSE_CODE, 'Match deleted');
     }
 
     return new Response(null, { status: 101, webSocket: pair[0] });

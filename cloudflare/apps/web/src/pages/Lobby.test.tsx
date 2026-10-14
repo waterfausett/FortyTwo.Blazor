@@ -242,6 +242,19 @@ describe('Lobby', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/bots-1'));
   });
 
+  it('shows a failed start in the chooser, and clears it when the chooser opens again', async () => {
+    playMock.mockRejectedValue(new Error('Request timed out'));
+    renderLobby();
+    fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
+    fireEvent.click(screen.getByRole('button', { name: /async/i }));
+    const dialog = screen.getByRole('dialog');
+    expect((await within(dialog).findByRole('alert')).textContent).toBe('Request timed out');
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: /new match/i }));
+    expect(within(screen.getByRole('dialog')).queryByRole('alert')).toBeNull();
+  });
+
   // A player who left the match page (or the creator, before anyone else joined) gets back in
   // through the match's row.
   it('renders each match row as a link to its match page', async () => {
