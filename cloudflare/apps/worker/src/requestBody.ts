@@ -177,3 +177,14 @@ export function searchQuery(value: string | undefined, min: number, max: number)
   }
   return q;
 }
+
+// POST /api/matches/:id/invites: `{ userIds }`, 1 to `max` user ids, de-duplicated.
+export function invitees(body: Body, max: number): string[] {
+  const ids = body.userIds;
+  if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string' && USER_ID.test(id))) {
+    throw new BadRequestError('`userIds` must be a list of user ids.');
+  }
+  const unique = [...new Set(ids as string[])];
+  if (unique.length > max) throw new BadRequestError(`Invite at most ${max} players at a time.`);
+  return unique;
+}

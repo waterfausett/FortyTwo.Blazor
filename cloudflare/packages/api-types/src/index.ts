@@ -106,6 +106,20 @@ export type PublicUser = Pick<UserProfile, 'user_id' | 'displayName' | 'picture'
 // started games together (0 and null if none).
 export type Person = PublicUser & { isFriend: boolean; lastPlayedOn: string | null; games: number };
 
+// An invite to a custom table waiting for the caller (GET /api/invites), until they take a seat,
+// dismiss it, or the table fills or ends.
+export interface Invite {
+  matchId: string;
+  from: PublicUser;
+  createdOn: string;
+  seatsOpen: number;
+}
+
+// POST /api/matches/:id/invites: who was invited just now (anyone skipped is left out).
+export interface InviteResult {
+  invited: string[];
+}
+
 // The fields a player may change on their profile (PATCH /api/users). Blank `picture` clears it.
 export interface ProfilePatch {
   displayName?: string;

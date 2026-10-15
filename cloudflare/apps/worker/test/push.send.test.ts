@@ -2,7 +2,7 @@ import { describe, expect, it, beforeAll, beforeEach, afterEach } from 'vitest';
 import { env } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
 import type { Env } from '../src/index';
-import { messagesFor, sendNotices, type DrawnMessage } from '../src/push/send';
+import { inviteMessages, messagesFor, sendNotices, type DrawnMessage } from '../src/push/send';
 import { TOKEN_REFRESH_MS, saveToken, tokensFor } from '../src/push/tokens';
 import type { Notice, NoticeKind } from '../src/push/notices';
 import { saveUsers } from '../src/users/publicUsers';
@@ -265,5 +265,23 @@ describe('sendNotices', () => {
     await saveToken(testEnv.DB, 'p9', 'ExponentPushToken[p9]', 'ios');
     fetchMock.get('https://exp.host').intercept({ path: '/--/api/v2/push/send', method: 'POST' }).reply(500, 'down');
     await expect(sendNotices(testEnv, [turn('p9')])).resolves.toBeUndefined();
+  });
+});
+
+describe('inviteMessages', () => {
+  it('names the inviter and opens the table', () => {
+    const [message] = inviteMessages('m9', 'Ann', [{ token: 'ExponentPushToken[bo]', userId: 'bo', drawsOwn: true }]);
+    expect(message).toEqual({
+      to: 'ExponentPushToken[bo]',
+      title: 'Ann invited you to a game',
+      body: 'Tap to pick a seat',
+      data: { url: '/match/m9' },
+      sound: 'default',
+      priority: 'high',
+      channelId: 'game',
+      collapseId: 'invite-m9',
+      tag: 'invite-m9',
+      ttl: 60 * 60,
+    });
   });
 });

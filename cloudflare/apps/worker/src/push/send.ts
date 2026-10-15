@@ -27,13 +27,15 @@ const HOUR = 60 * 60;
 // expired after 14 idle days (expiry.ts) - shouldn't turn up when the phone comes back. A turn
 // (or a poke about it) and a hand to ready up for are still worth hearing about the same day; the
 // end of a match stays news a while longer, and nothing follows it to say so. The game on is
-// followed straight away by a turn notice for the first bidder, so it's soon stale.
+// followed straight away by a turn notice for the first bidder, so it's soon stale. An invite to a
+// table is stale within the hour; the Lobby's Invited to card still shows it.
 const TTL_SECONDS: Record<NoticeKind, number> = {
   turn: 12 * HOUR,
   poke: 12 * HOUR,
   handOver: 12 * HOUR,
   matchOver: 24 * HOUR,
   started: 1 * HOUR,
+  invite: 1 * HOUR,
 };
 
 // The notices the app offers a button on: Ready up on a hand over, Rematch on a match over. The ids
@@ -167,6 +169,37 @@ function messageFor(notice: Notice, device: PushDevice, names: ReadonlyMap<strin
   };
 }
 
+// Sends messages to Expo in batches, forgetting tokens it says are no longer registered.
+async function postMessages(env: Env, messages: ExpoMessage[]): Promise<void> {
+  const unregistered: string[] = [];
+  for (let i = 0; i < messages.length; i += MAX_MESSAGES_PER_REQUEST) {
+    const batch = messages.slice(i, i + MAX_MESSAGES_PER_REQUEST);
+    const res = await fetch(EXPO_PUSH_URL, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        // Only needed once "enhanced push security" is turned on for the Expo project.
+        ...(env.EXPO_ACCESS_TOKEN ? { Authorization: `Bearer ${env.EXPO_ACCESS_TOKEN}` } : {}),
+      },
+      body: JSON.stringify(batch),
+    });
+    if (!res.ok) {
+      console.error('Expo push request failed', res.status, await res.text());
+      continue;
+    }
+    // Tickets come back in the order the messages were sent.
+    const { data } = (await res.json()) as { data?: ExpoTicket[] };
+    data?.forEach((ticket, j) => {
+      if (ticket.status !== 'error') return;
+      if (ticket.details?.error === 'DeviceNotRegistered') unregistered.push(batch[j].to);
+      else console.error('Expo push ticket error', ticket.message, ticket.details);
+    });
+  }
+
+  await forgetTokens(env.DB, unregistered);
+}
+
 export async function sendNotices(env: Env, notices: Notice[]): Promise<void> {
   if (notices.length === 0) return;
   try {
@@ -174,37 +207,38 @@ export async function sendNotices(env: Env, notices: Notice[]): Promise<void> {
     // Nobody has a device to send to, so there is no one to look up.
     if (tokens.length === 0) return;
     const names = await playerNames(env, notices);
-    const messages = messagesFor(notices, tokens, names);
-    const unregistered: string[] = [];
-
-    for (let i = 0; i < messages.length; i += MAX_MESSAGES_PER_REQUEST) {
-      const batch = messages.slice(i, i + MAX_MESSAGES_PER_REQUEST);
-      const res = await fetch(EXPO_PUSH_URL, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          // Only needed once "enhanced push security" is turned on for the Expo project.
-          ...(env.EXPO_ACCESS_TOKEN ? { Authorization: `Bearer ${env.EXPO_ACCESS_TOKEN}` } : {}),
-        },
-        body: JSON.stringify(batch),
-      });
-      if (!res.ok) {
-        console.error('Expo push request failed', res.status, await res.text());
-        continue;
-      }
-      // Tickets come back in the order the messages were sent.
-      const { data } = (await res.json()) as { data?: ExpoTicket[] };
-      data?.forEach((ticket, j) => {
-        if (ticket.status !== 'error') return;
-        if (ticket.details?.error === 'DeviceNotRegistered') unregistered.push(batch[j].to);
-        else console.error('Expo push ticket error', ticket.message, ticket.details);
-      });
-    }
-
-    await forgetTokens(env.DB, unregistered);
+    await postMessages(env, messagesFor(notices, tokens, names));
   } catch (err) {
     console.error('Sending push notifications failed', err);
+  }
+}
+
+// An invite to a custom table (POST /api/matches/:id/invites). Not about a change to the match,
+// so it's sent on its own rather than worked out by notices.ts; no buttons, so drawn the same on
+// every device.
+export function inviteMessages(matchId: string, fromName: string, tokens: PushDevice[]): DrawnMessage[] {
+  const tag = `invite-${matchId}`;
+  return tokens.map((device) => ({
+    to: device.token,
+    title: `${fromName} invited you to a game`,
+    body: 'Tap to pick a seat',
+    data: { url: `/match/${matchId}` },
+    sound: 'default',
+    priority: 'high',
+    channelId: ANDROID_CHANNEL_ID,
+    collapseId: tag,
+    tag,
+    ttl: TTL_SECONDS.invite,
+  }));
+}
+
+export async function sendInvites(env: Env, matchId: string, fromName: string, toIds: string[]): Promise<void> {
+  if (toIds.length === 0) return;
+  try {
+    const tokens = await tokensFor(env.DB, toIds);
+    if (tokens.length > 0) await postMessages(env, inviteMessages(matchId, fromName, tokens));
+  } catch (err) {
+    console.error('Sending invite notifications failed', err);
   }
 }
 

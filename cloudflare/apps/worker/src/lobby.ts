@@ -95,9 +95,10 @@ export async function upsertMatchSummary(db: D1Database, summary: MatchIndexRow)
     .run();
 }
 
-// Drops a deleted match from the lobby: its seats first, then the match row they reference.
+// Drops a deleted match from the lobby: its invites and seats first, then the match row.
 export async function deleteFromLobbyIndex(db: D1Database, matchId: string): Promise<void> {
   await db.batch([
+    db.prepare('DELETE FROM invites WHERE match_id = ?').bind(matchId),
     db.prepare('DELETE FROM match_players WHERE match_id = ?').bind(matchId),
     db.prepare('DELETE FROM matches WHERE id = ?').bind(matchId),
   ]);
@@ -116,7 +117,7 @@ export async function syncMatchPlayers(
   matchId: string,
   players: Pick<MatchPlayerState, 'playerId' | 'position'>[]
 ): Promise<void> {
-  const statements = [
+  const statements: D1PreparedStatement[] = [
     db.prepare('DELETE FROM match_players WHERE match_id = ?').bind(matchId),
     ...players.map(({ playerId, position }) =>
       db
@@ -124,6 +125,14 @@ export async function syncMatchPlayers(
         .bind(matchId, playerId, teamForPosition(position), position)
     ),
   ];
+  // Invites end once the invitee is seated, or for everyone once the table is full (people/invites.ts).
+  statements.push(
+    players.length >= 4
+      ? db.prepare('DELETE FROM invites WHERE match_id = ?').bind(matchId)
+      : db
+          .prepare('DELETE FROM invites WHERE match_id = ?1 AND to_id IN (SELECT player_id FROM match_players WHERE match_id = ?1)')
+          .bind(matchId)
+  );
   await db.batch(statements);
 }
 
