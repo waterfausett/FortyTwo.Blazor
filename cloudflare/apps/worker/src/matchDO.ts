@@ -52,6 +52,7 @@ import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
 import type { PokeResult } from '@fortytwo/api-types';
 import { BOT_IDS, applyBotAction, botDelayMs, botsEnabled, findNextBotAction } from './bots';
 import { WARMING, getMlBot } from './mlBot';
+import { recordPlayedWith, startedPlayers } from './people/playedWith';
 
 // While the ML bot loads and warms up in a fresh isolate, each piece gets its own alarm, this far
 // apart (see alarm()).
@@ -568,13 +569,17 @@ export class MatchDO extends DurableObject<Env> {
   // Tells everyone about a change: each open socket gets the new match, and players who don't
   // have the match open get a push notification for anything they need to know (push/notices.ts)
   // - sent after the response, so a play never waits on the push service. `onTheWay` are players
-  // counted as watching though no socket of theirs is open yet.
+  // counted as watching though no socket of theirs is open yet. And, when a game starts, who
+  // played with whom.
   private publish(previous: MatchState | null, next: MatchState, onTheWay: string[] = []): void {
     this.broadcast(next);
     const watching = this.watchingPlayers();
     for (const id of onTheWay) watching.add(id);
     const notices = noticesFor(previous, next, watching);
     if (notices.length > 0) this.ctx.waitUntil(sendNotices(this.env, notices));
+    // A game starting: the People list's recent players (people/playedWith.ts).
+    const started = startedPlayers(previous, next);
+    if (started) this.ctx.waitUntil(bestEffort(next.id, () => recordPlayedWith(this.env.DB, started, next.updatedOn)));
   }
 
   // Players with a socket open on this match: they're looking at it, so need no push. (The app
