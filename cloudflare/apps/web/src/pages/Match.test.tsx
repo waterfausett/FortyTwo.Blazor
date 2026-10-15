@@ -284,7 +284,7 @@ describe('Match', () => {
       useMatchSocketMock.mockReturnValue({ match: waitingMatch(), connected: true });
       renderMatch();
 
-      expect(await screen.findByRole('button', { name: /invite friends/i })).toBeTruthy();
+      expect(await screen.findByRole('button', { name: /share link/i })).toBeTruthy();
     });
 
     describe('leaving', () => {
@@ -2108,7 +2108,7 @@ describe('Match', () => {
       expect(await screen.findByText('4 online')).toBeTruthy();
       expect(screen.getByText(/bots take the empty seats at 2:30\. players can still join after you start/i)).toBeTruthy();
       expect(screen.getByRole('button', { name: /cancel search/i })).toBeTruthy();
-      expect(screen.queryByRole('button', { name: /invite friends/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /share link/i })).toBeNull();
       expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
       fireEvent.click(screen.getByRole('button', { name: /start now with bots/i }));
       await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));

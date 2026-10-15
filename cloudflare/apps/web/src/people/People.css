@@ -95,3 +95,18 @@
   font-size: 1rem;
   margin: 0 0 0.5rem;
 }
+
+.people-invited {
+  font-size: 0.85em;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+/* PeoplePanel's own copies of Lobby.css's .lobby-note and hall.css's .page-error, so the panel
+   looks right on pages that don't load Lobby.css (the Invite players dialog on the Match page). */
+.people-note {
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+  color: var(--ink-muted);
+}

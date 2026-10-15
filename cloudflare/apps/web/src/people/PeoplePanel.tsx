@@ -32,14 +32,14 @@ export function PeoplePanel({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      {loading && <p className="lobby-note">Loading…</p>}
+      {loading && <p className="people-note">Loading…</p>}
       {error != null && (
         <p role="alert" className="page-error">
           {error instanceof Error ? error.message : 'Something went wrong.'}
         </p>
       )}
       {!loading && error == null && shown.length === 0 && (
-        <p className="lobby-note">{searching ? 'No players by that name.' : emptyText}</p>
+        <p className="people-note">{searching ? 'No players by that name.' : emptyText}</p>
       )}
       {shown.length > 0 && (
         <ul className="people-list">
