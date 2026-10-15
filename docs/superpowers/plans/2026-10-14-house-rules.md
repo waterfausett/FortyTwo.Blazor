@@ -327,12 +327,16 @@ git commit -m "feat(rules): house rules carried on a match and its hands"
 
 **Files:**
 - Modify: `packages/rules/src/validation.ts` (`assertValidBid`, `availableBids`, `availableTrumps`, `assertValidTrump`, new `lowAllowedIfWon`)
+- Modify: `packages/rules/src/game.ts` (new `Game.forcedBid?: true`)
+- Modify: `packages/rules/src/matchEngine.ts` (`placeBid` sets `forcedBid`)
 - Modify: `packages/rules/src/index.ts`
-- Test: `packages/rules/src/validation.test.ts`
+- Test: `packages/rules/src/validation.test.ts`, `packages/rules/src/matchEngine.test.ts`
 
 **Interfaces:**
 - Consumes: `houseRules(game)` and `Game.rules` from Task 1.
-- Produces: `lowAllowedIfWon(game: Game, playerId: string): boolean`. True when the `low` rule would let `playerId` name Low if their bid won: `'on'` always, `'off'` never, `'forcedOnly'` only when every other hand has bid `Pass`. It does **not** check the 42 minimum; that depends on the bid, and `availableTrumps` and the bot apply it.
+- Produces:
+  - `lowAllowedIfWon(game: Game, playerId: string): boolean`, for use **during bidding**. True when the `low` rule would let `playerId` name Low if the bid they're about to make won: `'on'` always, `'off'` never, `'forcedOnly'` only when every other hand has already bid `Pass`. During bidding that means `playerId` is the last to bid with three passes in front of them. It does **not** check the 42 minimum; that depends on the bid, and `availableTrumps` and the bot apply it.
+  - `Game.forcedBid?: true`, set by `placeBid` when a non-Pass bid is made by a player whose three opponents had all already passed. At trump time every hand has bid, so "the other three passed" can no longer tell an opener whose bid stood from a forced last bidder. This flag records which it was. `availableTrumps` reads it under `'forcedOnly'`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -413,12 +417,12 @@ describe('house rules: low', () => {
   });
 
   it('offers Low to a forced bidder at 42+ under forcedOnly', () => {
-    const game = biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, Bid.FortyTwo], { low: 'forcedOnly' });
+    const game = biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, Bid.FortyTwo], { low: 'forcedOnly' }, { forcedBid: true });
     expect(availableTrumps(game)).toEqual(expect.arrayContaining([...LOW_TRUMPS]));
   });
 
   it('still needs 42 from a forced bidder under forcedOnly', () => {
-    const game = biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, Bid.Thirty], { low: 'forcedOnly' });
+    const game = biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, Bid.Thirty], { low: 'forcedOnly' }, { forcedBid: true });
     expect(availableTrumps(game)).not.toContain(Suit.Low);
     expect(() => assertValidTrump(game, Suit.Low)).toThrow(/needs a bid of at least 42/);
   });
@@ -430,8 +434,10 @@ describe('house rules: low', () => {
   });
 
   it('refuses Low to an opener whose bid stood under forcedOnly', () => {
+    // The other three all passed here too, but after the opener bid: not forced, so no flag.
     const game = biddingGame([Bid.FortyTwo, Bid.Pass, Bid.Pass, Bid.Pass], { low: 'forcedOnly' });
     expect(availableTrumps(game)).not.toContain(Suit.Low);
+    expect(() => assertValidTrump(game, Suit.Low)).toThrow(/only for a player forced to bid/);
   });
 });
 
@@ -442,6 +448,25 @@ describe('lowAllowedIfWon', () => {
     expect(lowAllowedIfWon(biddingGame([null, null, null, null], { low: 'forcedOnly' }), 'p1')).toBe(false);
     expect(lowAllowedIfWon(biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, null], { low: 'forcedOnly' }), 'p4')).toBe(true);
     expect(lowAllowedIfWon(biddingGame([Bid.Pass, Bid.Thirty, Bid.Pass, null], { low: 'forcedOnly' }), 'p4')).toBe(false);
+  });
+});
+```
+
+Also append to `packages/rules/src/matchEngine.test.ts` (it has `baseMatch`, `baseGame` and `placeBid`; p1..p4 bid in seat order starting from `firstActionBy` p1):
+
+```ts
+describe('placeBid: forced bids', () => {
+  it('flags a bid made after the other three passed', () => {
+    let match = baseMatch();
+    for (const id of ['p1', 'p2', 'p3']) match = placeBid(match, id, Bid.Pass);
+    match = placeBid(match, 'p4', Bid.FortyTwo);
+    expect(match.currentGame.forcedBid).toBe(true);
+  });
+
+  it("doesn't flag an opener's bid that the other three passed", () => {
+    let match = placeBid(baseMatch(), 'p1', Bid.FortyTwo);
+    for (const id of ['p2', 'p3', 'p4']) match = placeBid(match, id, Bid.Pass);
+    expect(match.currentGame).not.toHaveProperty('forcedBid');
   });
 });
 ```
@@ -489,11 +514,25 @@ export function lowAllowedIfWon(game: Game, playerId: string): boolean {
 export function availableTrumps(game: Game): Suit[] {
   if (game.bid === Bid.Plunge) return [...NAMED_SUITS, Suit.None];
   if (game.bid === null || game.bid < Bid.FortyTwo) return [...NAMED_SUITS];
-  const low = game.biddingPlayerId !== null && lowAllowedIfWon(game, game.biddingPlayerId);
-  return low ? [...NAMED_SUITS, Suit.None, ...LOW_TRUMPS] : [...NAMED_SUITS, Suit.None];
+  const { low } = houseRules(game);
+  const lowAllowed = low === 'on' || (low === 'forcedOnly' && game.forcedBid === true);
+  return lowAllowed ? [...NAMED_SUITS, Suit.None, ...LOW_TRUMPS] : [...NAMED_SUITS, Suit.None];
 }
 ```
-   Add a line to its comment: "and Low only as the house rules allow (`lowAllowedIfWon`)."
+   Add a line to its comment: "and Low only as the house rules allow: under 'forcedOnly' only after a forced bid (`Game.forcedBid`, set by placeBid)."
+4b. In `packages/rules/src/game.ts`, add to `Game` after `redealt?`:
+```ts
+  // The winning bid was made by a player whose three opponents had all passed - they were forced
+  // to bid. Set by placeBid; read by the 'forcedOnly' Low house rule.
+  forcedBid?: true;
+```
+4c. In `packages/rules/src/matchEngine.ts`'s `placeBid`, work out whether this bid was forced before recording it:
+```ts
+  const forced =
+    bid !== Bid.Pass &&
+    match.currentGame.hands.filter((h) => h.playerId !== playerId).every((h) => h.bid === Bid.Pass);
+```
+   and add `...(forced ? { forcedBid: true as const } : {})` to the `currentGame` literal at the end of `placeBid`. Under `forceLast`, the only way all three others have passed is that this is the last bid, so a forced bid is always the winning one.
 5. Replace the message selection in `assertValidTrump`:
 ```ts
 export function assertValidTrump(game: Game, suit: Suit): void {
