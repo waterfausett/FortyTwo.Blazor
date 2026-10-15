@@ -24,6 +24,15 @@ export { Bid, bidToPrettyString, pointsToMakeBid } from './bid';
 export { Teams, teamForPosition } from './teams';
 export { Positions, nextPosition } from './positions';
 export { ValidationError } from './errors';
+export type { HouseRules, LowRule, AllPassRule } from './houseRules';
+export {
+  DEFAULT_HOUSE_RULES,
+  MIN_MARKS_TO_WIN,
+  MAX_MARKS_TO_WIN,
+  houseRules,
+  isDefaultHouseRules,
+  assertValidHouseRules,
+} from './houseRules';
 export type { MatchLike } from './validation';
 export {
   assertActive,

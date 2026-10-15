@@ -871,3 +871,58 @@ describe('leaving a match', () => {
     });
   });
 });
+
+describe('house rules on a match', () => {
+  const rules = { low: 'off', plunge: false, allPass: 'forceLast', marksToWin: 5 } as const;
+
+  it('stores the rules on the match and its first hand', () => {
+    const match = createMatch('p1', 'custom', rules);
+    expect(match.rules).toEqual(rules);
+    expect(match.currentGame.rules).toEqual(rules);
+  });
+
+  it('stores nothing when no rules are given, so stored matches look as they did', () => {
+    const match = createMatch('p1');
+    expect(match).not.toHaveProperty('rules');
+    expect(match.currentGame).not.toHaveProperty('rules');
+  });
+
+  it('keeps the rules on the first deal', () => {
+    let match = createMatch('p1', 'custom', rules);
+    match = addPlayer(match, 'p2', Teams.TeamA);
+    match = addPlayer(match, 'p3', Teams.TeamB);
+    match = addPlayer(match, 'p4', Teams.TeamB, fullDeck());
+    expect(match.currentGame.rules).toEqual(rules);
+  });
+
+  it('copies the rules onto the next hand', () => {
+    // TeamA (p1/p3) bid 30 and took a 31-point trick: a decided hand, all ready but p4.
+    const decided = baseMatch({
+      rules,
+      currentGame: baseGame({
+        rules,
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        hands: baseGame().hands.map((h) => (h.playerId === 'p1' ? { ...h, bid: Bid.Thirty } : { ...h, bid: Bid.Pass })),
+        tricks: [{
+          playerId: 'p1',
+          team: Teams.TeamA,
+          suit: Suit.Fives,
+          dominoes: [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)],
+        }],
+      }),
+      players: fourPlayers().map((p) => ({ ...p, ready: p.playerId !== 'p4' })),
+    });
+    const next = patchPlayerReady(decided, 'p4', true, fullDeck());
+    expect(next.currentGame.id).not.toBe('g1');
+    expect(next.currentGame.rules).toEqual(rules);
+  });
+
+  it('keeps the rules on a rematch', () => {
+    const previous = baseMatch({ rules, winningTeam: Teams.TeamA });
+    const rematch = createRematch('m2', previous, fullDeck());
+    expect(rematch.rules).toEqual(rules);
+    expect(rematch.currentGame.rules).toEqual(rules);
+  });
+});

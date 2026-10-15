@@ -7,6 +7,7 @@ import { Domino, dominoEquals, getSuitValue } from './domino';
 import { ValidationError } from './errors';
 import { Game, gameValue, gameWinningTeam } from './game';
 import { Hand } from './hand';
+import type { HouseRules } from './houseRules';
 import { letClaimsGo, seatChangesAtBreak, type MatchMode } from './live';
 import { MatchPlayerRef, selectNextPlayer } from './match';
 import { nextPosition, Positions } from './positions';
@@ -80,14 +81,21 @@ export interface MatchState {
   replaced?: string[];
   // Claimants let go without a seat (the match ended or was dropped first); their app searches again.
   bumped?: string[];
+  // The house rules a custom table was created with (houseRules.ts). Absent means the defaults.
+  rules?: HouseRules;
 }
 
 function now(): string {
   return new Date().toISOString();
 }
 
+// The rules field to put on a new hand: the match's own, or nothing for a match without any.
+function rulesOf(match: { rules?: HouseRules }): { rules?: HouseRules } {
+  return match.rules ? { rules: match.rules } : {};
+}
+
 // A new match with its creator in the first seat, waiting for three more players.
-export function createMatch(firstPlayerId: string, mode: MatchMode = 'custom'): MatchState {
+export function createMatch(firstPlayerId: string, mode: MatchMode = 'custom', rules?: HouseRules): MatchState {
   const timestamp = now();
 
   const game: Game = {
@@ -101,6 +109,7 @@ export function createMatch(firstPlayerId: string, mode: MatchMode = 'custom'): 
     hands: [{ playerId: firstPlayerId, team: Teams.TeamA, dominoes: [], bid: null }],
     currentTrick: createTrick(),
     tricks: [],
+    ...(rules ? { rules } : {}),
   };
 
   return {
@@ -113,6 +122,7 @@ export function createMatch(firstPlayerId: string, mode: MatchMode = 'custom'): 
     players: [{ playerId: firstPlayerId, position: Positions.First, ready: true }],
     mode,
     ...(mode === 'live' ? { searchStartedOn: timestamp } : {}),
+    ...(rules ? { rules } : {}),
   };
 }
 
@@ -275,6 +285,7 @@ export function patchPlayerReady(
       currentTrick: createTrick(),
       tricks: [],
       dealtOn: now(),
+      ...rulesOf(match),
     };
   }
 
@@ -467,6 +478,7 @@ export function createRematch(id: string, previous: MatchState, dealOrder: Domin
       currentTrick: createTrick(),
       tricks: [],
       dealtOn: timestamp,
+      ...rulesOf(previous),
     },
     games: {},
     winningTeam: null,
@@ -474,6 +486,7 @@ export function createRematch(id: string, previous: MatchState, dealOrder: Domin
     // The same four, playing the same way.
     ...(previous.mode !== undefined ? { mode: previous.mode } : {}),
     ...(players.some((p) => isBot(p.playerId)) ? { hadBots: true } : {}),
+    ...rulesOf(previous),
   };
 }
 
