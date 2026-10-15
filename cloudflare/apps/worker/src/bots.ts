@@ -12,6 +12,7 @@ import {
   isOnAutopilot,
   markAutoBid,
   isOfSuit,
+  availableBids,
   MatchState,
   Suit,
   gameWinningTeam,
@@ -29,12 +30,11 @@ import type { Bot } from '@fortytwo/bot';
 // the Worker code that already imports them from this file.
 export { BOT_IDS, isBot };
 
-// The forced-bid rule (validation.ts's assertValidBid) only ever applies to whichever hand acts
-// last in a bidding round where the other three all passed - so "forced" needs no positional
-// bookkeeping here, just a count of passes among the OTHER hands already recorded. Under the redeal
-// house rule nobody is forced, so this passes (and the fourth pass redeals).
+// Passes unless Pass isn't a legal bid: the forced-bid rule (validation.ts's availableBids) only
+// takes Pass away from the last hand to act after three passes - and not at all under the redeal
+// house rule, where that fourth pass redeals.
 export function decideBid(game: Game, hand: Hand): Bid {
-  const forced = game.hands.filter((h) => h.playerId !== hand.playerId && h.bid === Bid.Pass).length === 3;
+  const forced = !availableBids(game, hand.playerId).includes(Bid.Pass);
   return forced ? Bid.Thirty : Bid.Pass;
 }
 

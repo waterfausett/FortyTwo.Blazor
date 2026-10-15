@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import { createDomino, Teams, type Domino } from '@fortytwo/rules';
+import { Bid, createDomino, Teams, type Domino } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 
 const testEnv = env as unknown as Env;
@@ -181,7 +181,7 @@ describe('MatchDO RPC', () => {
 
       let match = dealt;
       for (let i = 0; i < 4; i++) {
-        match = valueOf(await stub.bid(match.currentGame.currentPlayerId!, 0));
+        match = valueOf(await stub.bid(match.currentGame.currentPlayerId!, Bid.Pass));
       }
 
       expect(match.currentGame.redealt).toBe(true);

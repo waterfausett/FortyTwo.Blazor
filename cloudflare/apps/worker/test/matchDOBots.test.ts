@@ -6,6 +6,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { Bid, Suit, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import { decideBid } from '../src/bots';
 import type { MatchDO } from '../src/matchDO';
 import { syncLobbyIndex } from '../src/lobby';
 import { countLobbyWrites } from './lobbyWrites';
@@ -325,5 +326,24 @@ describe('MatchDO bots match', () => {
     expect(sent).toEqual([expect.objectContaining({ to: 'ExponentPushToken[vb-marker-p1]' })]);
     // D1 isn't reset between tests.
     await testEnv.DB.prepare('DELETE FROM push_tokens').run();
+  });
+});
+
+describe('simple bot decideBid', () => {
+  // Three passes already in: the bot in fourth seat is the last to act.
+  function afterThreePasses(rules?: { allPass: 'forceLast' | 'redeal' }) {
+    const hands = ['b1', 'b2', 'b3', 'b4'].map((playerId, i) => ({ playerId, bid: i < 3 ? Bid.Pass : null, dominoes: [] }));
+    const game = { hands, bid: null, rules: rules && { low: 'on', plunge: true, marksToWin: 7, ...rules } };
+    return { game: game as unknown as Parameters<typeof decideBid>[0], hand: hands[3] as unknown as Parameters<typeof decideBid>[1] };
+  }
+
+  it('is forced to bid Thirty on the default rules', () => {
+    const { game, hand } = afterThreePasses();
+    expect(decideBid(game, hand)).toBe(Bid.Thirty);
+  });
+
+  it('passes under the redeal rule, where nobody is forced', () => {
+    const { game, hand } = afterThreePasses({ allPass: 'redeal' });
+    expect(decideBid(game, hand)).toBe(Bid.Pass);
   });
 });
