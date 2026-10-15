@@ -5,10 +5,11 @@ import { MAX_MARKS_TO_WIN, MIN_MARKS_TO_WIN, type HouseRules, type LowRule } fro
 import { setHouseRule } from '@fortytwo/client';
 
 const LOW_OPTIONS: { value: LowRule; label: string }[] = [
-  { value: 'off', label: 'Off' },
+  { value: 'forcedOnly', label: 'Forced bid only' },
   { value: 'on', label: 'On' },
-  { value: 'forcedOnly', label: 'Only when forced' },
+  { value: 'off', label: 'Off' },
 ];
+const NO_FORCED_BID = "Some options aren't available when forced bidding is disabled.";
 
 export function HouseRulesForm({
   rules,
@@ -25,6 +26,14 @@ export function HouseRulesForm({
   return (
     <div className="house-rules">
       <fieldset className="house-rules-field" disabled={disabled}>
+        <legend>Plunge</legend>
+        <label className="house-rules-choice">
+          <input type="checkbox" checked={rules.plunge} onChange={(e) => change({ plunge: e.target.checked })} />
+          Allow Plunge
+        </label>
+      </fieldset>
+
+      <fieldset className="house-rules-field" disabled={disabled}>
         <legend>Low</legend>
         {LOW_OPTIONS.map((o) => (
           <label key={o.value} className="house-rules-choice">
@@ -39,15 +48,7 @@ export function HouseRulesForm({
             {o.label}
           </label>
         ))}
-        {redeal && <p id="house-rules-redeal-note" className="house-rules-note">Nobody is forced to bid when everyone passing redeals.</p>}
-      </fieldset>
-
-      <fieldset className="house-rules-field" disabled={disabled}>
-        <legend>Plunge</legend>
-        <label className="house-rules-choice">
-          <input type="checkbox" checked={rules.plunge} onChange={(e) => change({ plunge: e.target.checked })} />
-          Allow Plunge
-        </label>
+        {redeal && <p id="house-rules-redeal-note" className="house-rules-note">{NO_FORCED_BID}</p>}
       </fieldset>
 
       <fieldset className="house-rules-field" disabled={disabled}>
@@ -58,7 +59,7 @@ export function HouseRulesForm({
         </label>
         <label className="house-rules-choice">
           <input type="radio" name="allPass" checked={redeal} onChange={() => change({ allPass: 'redeal' })} />
-          Redeal
+          Reshuffle
         </label>
       </fieldset>
 

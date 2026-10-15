@@ -10,9 +10,9 @@ describe('houseRuleLabels', () => {
 
   it('names each setting that differs, in a fixed order', () => {
     expect(houseRuleLabels({ low: 'off', plunge: false, allPass: 'redeal', marksToWin: 5 })).toEqual([
-      'No Low', 'No Plunge', 'Redeal on all pass', 'To 5 marks',
+      'No Low', 'No Plunge', 'Reshuffle on all pass', 'To 5 marks',
     ]);
-    expect(houseRuleLabels({ low: 'forcedOnly' })).toEqual(['Low only when forced']);
+    expect(houseRuleLabels({ low: 'forcedOnly' })).toEqual(['Low on forced bid only']);
     expect(houseRuleLabels({ marksToWin: 1 })).toEqual(['To 1 mark']);
   });
 });

@@ -27,15 +27,15 @@ describe('HouseRulesForm', () => {
     ]);
   });
 
-  it('moves Low only when forced to On when Redeal is picked, and disables it', () => {
+  it('moves Low forced bid only to On when Reshuffle is picked, and disables it', () => {
     const onChange = vi.fn();
     const { rerender } = render(<HouseRulesForm rules={{ ...DEFAULT_HOUSE_RULES, low: 'forcedOnly' }} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('radio', { name: /redeal/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /reshuffle/i }));
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_HOUSE_RULES, allPass: 'redeal' });
 
     rerender(<HouseRulesForm rules={{ ...DEFAULT_HOUSE_RULES, allPass: 'redeal' }} onChange={onChange} />);
-    expect((screen.getByRole('radio', { name: /only when forced/i }) as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByText(/nobody is forced to bid/i)).toBeTruthy();
+    expect((screen.getByRole('radio', { name: /forced bid only/i }) as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByText(/aren't available when forced bidding is disabled/i)).toBeTruthy();
   });
 
   it('stops the marks stepper at 1 and 21', () => {

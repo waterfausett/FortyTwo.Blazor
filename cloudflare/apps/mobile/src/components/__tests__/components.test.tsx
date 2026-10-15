@@ -367,13 +367,13 @@ describe('NewMatchSheet', () => {
     expect(onChoose).toHaveBeenLastCalledWith('challenge', { ...DEFAULT_HOUSE_RULES, low: 'off', marksToWin: 8 });
   });
 
-  it('disables Low only when forced while Redeal is picked, and says why', async () => {
+  it('disables Low forced bid only while Reshuffle is picked, and says why', async () => {
     await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
     await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
-    await fireEvent.press(screen.getByRole('radio', { name: /redeal/i }));
-    const forced = screen.getByRole('radio', { name: /only when forced/i });
+    await fireEvent.press(screen.getByRole('radio', { name: /reshuffle/i }));
+    const forced = screen.getByRole('radio', { name: /forced bid only/i });
     expect(forced.props.accessibilityState).toMatchObject({ disabled: true });
-    expect(forced.props.accessibilityHint).toMatch(/everyone passing redeals/i);
+    expect(forced.props.accessibilityHint).toMatch(/forced bidding is disabled/i);
   });
 
   it('goes back from the house rules to the choices', async () => {

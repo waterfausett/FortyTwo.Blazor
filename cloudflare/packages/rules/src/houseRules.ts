@@ -58,7 +58,7 @@ export function assertValidHouseRules(input: unknown): HouseRules {
     invalid(`\`marksToWin\` must be a whole number from ${MIN_MARKS_TO_WIN} to ${MAX_MARKS_TO_WIN}.`);
   }
   if (rules.low === 'forcedOnly' && rules.allPass === 'redeal') {
-    invalid('Nobody is ever forced to bid when everyone passing redeals, so Low can\'t be only for a forced bidder.');
+    invalid('Some options aren\'t available when forced bidding is disabled: Low can\'t be limited to a forced bid when everyone passing reshuffles.');
   }
 
   return {

@@ -6,15 +6,15 @@ import { setHouseRule } from '@fortytwo/client';
 import { colors, fonts } from '@/components/theme';
 
 const LOW_OPTIONS: { value: LowRule; label: string }[] = [
-  { value: 'off', label: 'Off' },
+  { value: 'forcedOnly', label: 'Forced bid only' },
   { value: 'on', label: 'On' },
-  { value: 'forcedOnly', label: 'Only when forced' },
+  { value: 'off', label: 'Off' },
 ];
 const ALL_PASS_OPTIONS: { value: AllPassRule; label: string }[] = [
   { value: 'forceLast', label: 'Last player must bid' },
-  { value: 'redeal', label: 'Redeal' },
+  { value: 'redeal', label: 'Reshuffle' },
 ];
-const NO_FORCED_BID = 'Nobody is forced to bid when everyone passing redeals.';
+const NO_FORCED_BID = 'Some options are\'t available when forced bidding is disabled.';
 
 function Segment<T extends string>({ options, value, onPick, unavailable, disabled }: {
   options: { value: T; label: string }[];
@@ -58,16 +58,16 @@ export function HouseRulesForm({ rules, onChange, disabled = false }: {
   const redeal = rules.allPass === 'redeal';
   return (
     <View style={styles.form}>
-      <Text style={styles.label}>Low</Text>
-      <Segment options={LOW_OPTIONS} value={rules.low} onPick={(low) => change({ low })}
-        unavailable={(v) => (v === 'forcedOnly' && redeal ? NO_FORCED_BID : undefined)} disabled={disabled} />
-      {redeal && <Text style={styles.note}>{NO_FORCED_BID}</Text>}
-
       <View style={styles.row}>
         <Text style={styles.label}>Allow Plunge</Text>
         <Switch value={rules.plunge} onValueChange={(plunge) => change({ plunge })} disabled={disabled}
           accessibilityLabel="Allow Plunge" />
       </View>
+
+      <Text style={styles.label}>Low</Text>
+      <Segment options={LOW_OPTIONS} value={rules.low} onPick={(low) => change({ low })}
+        unavailable={(v) => (v === 'forcedOnly' && redeal ? NO_FORCED_BID : undefined)} disabled={disabled} />
+      {redeal && <Text style={styles.note}>{NO_FORCED_BID}</Text>}
 
       <Text style={styles.label}>When everyone passes</Text>
       <Segment options={ALL_PASS_OPTIONS} value={rules.allPass} onPick={(allPass) => change({ allPass })} disabled={disabled} />
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   segmentTextSelected: { color: colors.walnutDeep, fontFamily: fonts.uiBold },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   step: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.brass, alignItems: 'center', justifyContent: 'center' },
-  stepText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 18 },
+  stepText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 18, top: -1 },
   marks: { minWidth: 28, textAlign: 'center', color: colors.bone, fontFamily: fonts.uiBold, fontSize: 18 },
   dim: { opacity: 0.6 },
 });

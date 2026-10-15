@@ -62,7 +62,7 @@ describe('rowLabel', () => {
   it('is the mode, then any house rules', () => {
     expect(rowLabel(summary({ mode: 'custom' }))).toBe('Custom');
     expect(rowLabel(summary({ mode: 'custom', rules: { low: 'forcedOnly', plunge: true, allPass: 'forceLast', marksToWin: 5 } }))).toBe(
-      'Custom · Low only when forced · To 5 marks'
+      'Custom · Low on forced bid only · To 5 marks'
     );
   });
 });
