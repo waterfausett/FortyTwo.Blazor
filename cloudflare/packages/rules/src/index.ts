@@ -48,6 +48,7 @@ export {
   assertIsNotMatchPlayer,
   availableBids,
   availableTrumps,
+  lowAllowedIfWon,
   assertValidTrump,
 } from './validation';
 export type { MatchPlayerState, MatchState, LoggedInPlayer } from './matchEngine';

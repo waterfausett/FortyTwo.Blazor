@@ -926,3 +926,18 @@ describe('house rules on a match', () => {
     expect(rematch.currentGame.rules).toEqual(rules);
   });
 });
+
+describe('placeBid: forced bids', () => {
+  it('flags a bid made after the other three passed', () => {
+    let match = baseMatch();
+    for (const id of ['p1', 'p2', 'p3']) match = placeBid(match, id, Bid.Pass);
+    match = placeBid(match, 'p4', Bid.FortyTwo);
+    expect(match.currentGame.forcedBid).toBe(true);
+  });
+
+  it("doesn't flag an opener's bid that the other three passed", () => {
+    let match = placeBid(baseMatch(), 'p1', Bid.FortyTwo);
+    for (const id of ['p2', 'p3', 'p4']) match = placeBid(match, id, Bid.Pass);
+    expect(match.currentGame).not.toHaveProperty('forcedBid');
+  });
+});

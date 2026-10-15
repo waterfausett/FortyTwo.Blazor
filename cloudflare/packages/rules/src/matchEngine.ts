@@ -300,6 +300,11 @@ export function placeBid(match: MatchState, playerId: string, bid: Bid): MatchSt
   assertActiveTurn(match.currentGame, playerId);
   assertValidBid(match.currentGame, playerId, bid);
 
+  // A bid after the other three passed was forced (under 'forceLast' it's always the last bid).
+  const forced =
+    bid !== Bid.Pass &&
+    match.currentGame.hands.filter((h) => h.playerId !== playerId).every((h) => h.bid === Bid.Pass);
+
   const hands = match.currentGame.hands.map((h) => (h.playerId === playerId ? { ...h, bid } : h));
 
   let gameBid = match.currentGame.bid;
@@ -327,7 +332,14 @@ export function placeBid(match: MatchState, playerId: string, bid: Bid): MatchSt
     currentPlayerId = biddingPlayerId!;
   }
 
-  const currentGame: Game = { ...match.currentGame, hands, bid: gameBid, biddingPlayerId, currentPlayerId };
+  const currentGame: Game = {
+    ...match.currentGame,
+    hands,
+    bid: gameBid,
+    biddingPlayerId,
+    currentPlayerId,
+    ...(forced ? { forcedBid: true as const } : {}),
+  };
 
   return { ...match, currentGame, updatedOn: now() };
 }

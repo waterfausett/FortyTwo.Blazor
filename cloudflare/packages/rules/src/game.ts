@@ -23,6 +23,9 @@ export interface Game {
   rules?: HouseRules;
   // This hand was dealt again because everyone passed (house rule `allPass: 'redeal'`).
   redealt?: true;
+  // The winning bid was made by a player whose three opponents had all passed - they were forced
+  // to bid. Set by placeBid; read by the 'forcedOnly' Low house rule.
+  forcedBid?: true;
 }
 
 // Marks the hand is worth: 1 for a points bid (up to 42), otherwise one per 42 bid. Null until
