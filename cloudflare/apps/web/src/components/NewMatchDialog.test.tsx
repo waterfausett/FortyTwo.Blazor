@@ -1,19 +1,36 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_HOUSE_RULES } from '@fortytwo/rules';
 import { NewMatchDialog, SLOW_MS } from './NewMatchDialog';
 
 afterEach(cleanup);
 
 describe('NewMatchDialog', () => {
-  it('offers Live Play, Async and Custom Match, and reports the choice', () => {
+  it('offers Live Play and Async straight away, and Custom Match after its house rules', () => {
     const onChoose = vi.fn();
     render(<NewMatchDialog open liveEnabled online={null} pending={null} error={null} onChoose={onChoose} onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /live play/i }));
     fireEvent.click(screen.getByRole('button', { name: /async/i }));
-    fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
-    expect(onChoose.mock.calls).toEqual([['live'], ['daily'], ['challenge']]);
     expect(screen.getByText(/kicked if away for a full hand/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
+    expect(onChoose.mock.calls).toEqual([['live'], ['daily']]);
+    expect(screen.getByRole('heading', { name: /house rules/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: 'Off' }));
+    fireEvent.click(screen.getByRole('button', { name: /create table/i }));
+    expect(onChoose).toHaveBeenLastCalledWith('challenge', { ...DEFAULT_HOUSE_RULES, low: 'off' });
+  });
+
+  it('goes back from the house rules to the choices', () => {
+    render(<NewMatchDialog open liveEnabled online={null} pending={null} error={null} onChoose={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back/i }));
+    expect(screen.getByRole('button', { name: /async/i })).toBeTruthy();
+  });
+
+  it('shows the custom table being set up on Create table', () => {
+    render(<NewMatchDialog open liveEnabled online={null} pending="challenge" error={null} onChoose={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /setting up the table/i })).toBeTruthy();
   });
 
   it('groups the matchmade options apart from playing with friends', () => {

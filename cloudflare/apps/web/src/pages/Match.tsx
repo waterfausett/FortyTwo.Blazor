@@ -63,9 +63,10 @@ import { toastError, toastInfo } from '../ui/toast';
 import type { TableCall } from '../match/TurnAlerts';
 import { TurnAlerts } from '../match/TurnAlerts';
 import {
-  MARKS_TO_WIN,
   assertPlayable,
   describeMatch,
+  houseRuleLabels,
+  marksToWin,
   isHighBidder as holdsHighBid,
   isTrickStarted,
   isValidPlay as isLegalPlay,
@@ -96,11 +97,11 @@ const TRICK_HOLD_MS = 1500;
 // The tail end of that hold is the sweep (match/sweep.ts's `sweepDurationMs`), during which the
 // trick leaves for the winning side rather than just blinking out.
 
-// MARKS_TO_WIN (@fortytwo/client) marks win the match - drawn as a tally.
-function MarkTally({ marks }: { marks: number }): JSX.Element {
+// `total` marks win the match (marksToWin: 7 unless the house rules say otherwise) - drawn as a tally.
+function MarkTally({ marks, total }: { marks: number; total: number }): JSX.Element {
   return (
     <span className="mark-tally" aria-hidden="true">
-      {Array.from({ length: MARKS_TO_WIN }, (_, i) => (
+      {Array.from({ length: total }, (_, i) => (
         <span key={i} className={i < marks ? 'mark mark-won' : 'mark'} />
       ))}
     </span>
@@ -699,7 +700,7 @@ export function Match(): JSX.Element {
         <div className="score score-us">
           <span className="score-label">Us</span>
           <span className="score-value">{scores[me.team] ?? 0}</span>
-          <MarkTally marks={scores[me.team] ?? 0} />
+          <MarkTally marks={scores[me.team] ?? 0} total={marksToWin(match)} />
         </div>
 
         <div className="contract">
@@ -758,9 +759,15 @@ export function Match(): JSX.Element {
         <div className="score score-them">
           <span className="score-label">Them</span>
           <span className="score-value">{scores[opponentTeam] ?? 0}</span>
-          <MarkTally marks={scores[opponentTeam] ?? 0} />
+          <MarkTally marks={scores[opponentTeam] ?? 0} total={marksToWin(match)} />
         </div>
       </header>
+      {houseRuleLabels(match.rules).length > 0 && (
+        <p className="house-rules-line">House rules: {houseRuleLabels(match.rules).join(' · ')}</p>
+      )}
+      {match.currentGame.redealt && isBiddingPhase && (
+        <p className="redeal-line" role="status">Everyone passed, so the hands were dealt again.</p>
+      )}
 
       <div className="game-wrapper">
         {meOnAutopilot && !watching && (

@@ -116,7 +116,16 @@
 /* Marks toward the 7 needed to win, drawn as the edges of standing dominoes. */
 .mark-tally {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 3px;
+}
+
+.house-rules-line,
+.redeal-line {
+  margin: 0.25rem 0;
+  text-align: center;
+  font: 0.8rem var(--font-ui);
+  color: var(--ink-muted);
 }
 
 .mark {
