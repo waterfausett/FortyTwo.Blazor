@@ -83,9 +83,9 @@ already recognises as a start (`push/notices.ts`):
 - **the first hand was just dealt** (`justDealt`) — the table filled, or a rematch arrived dealt;
 - **a seat taken over in a game under way** — only the newcomer's pairs.
 
-A shared `startedPlayers(previous, next): { all: string[] } | { newcomers: string[] } | null`
-helper in `push/notices.ts` replaces the inline checks so both callers agree. vs Bots games have a
-single human, so write nothing.
+The check is `startedPlayers(previous, next)` in `people/playedWith.ts`, using `hasBeenDealt`
+(true from the first deal on), not notices.ts's `isDealt`, which is about the current hand. vs Bots
+games have a single human, so write nothing.
 
 ### Invite cleanup
 
@@ -126,8 +126,8 @@ same way, and dropped from the list if that fails rather than failing the reques
 - `push/send.ts` gains `sendInvites(env, matchId, from: PublicUser, toIds)`: looks up tokens with
   `tokensFor`, builds a message titled `"{name} invited you to a game"`, body
   `"Tap to pick a seat"`, `data.url = /match/{id}`, `collapseId`/`tag` `invite-{id}`, channel
-  `game`, TTL 1 hour, no category buttons. `drawsOwn` devices get the data-only form, like other
-  kinds. Reuses the existing batching and `DeviceNotRegistered` cleanup.
+  `game`, TTL 1 hour, no category buttons - so it's drawn the same on every device (only notices
+  with buttons go headless to `drawsOwn` devices). Reuses the existing batching and `DeviceNotRegistered` cleanup.
 - Sent with `ctx.executionCtx.waitUntil` so the route doesn't wait on Expo.
 
 ## Client package
