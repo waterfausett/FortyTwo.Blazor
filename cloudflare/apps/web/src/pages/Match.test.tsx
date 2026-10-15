@@ -285,6 +285,7 @@ describe('Match', () => {
       renderMatch();
 
       expect(await screen.findByRole('button', { name: /share link/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /invite players/i })).toBeTruthy();
     });
 
     describe('leaving', () => {

@@ -100,6 +100,7 @@ export function Lobby(): JSX.Element {
       data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
     );
     void matchesQuery.refetch();
+    void queryClient.invalidateQueries({ queryKey: ['invites'] });
   }
 
   const config = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig() });

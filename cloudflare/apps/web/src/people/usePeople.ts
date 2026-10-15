@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { apiClient, Person } from '../api/client';
+import { toastError } from '../ui/toast';
 
 export type PeopleClient = Pick<ReturnType<typeof apiClient>, 'getPeople' | 'searchPeople' | 'addFriend' | 'removeFriend'>;
 
@@ -27,6 +28,7 @@ export function usePeople(client: PeopleClient, query: string) {
   const toggle = useMutation({
     mutationFn: (p: Person) => (p.isFriend ? client.removeFriend(p.user_id) : client.addFriend(p.user_id)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['people'] }),
+    onError: toastError,
   });
   const shown = searching ? search : people;
   return {

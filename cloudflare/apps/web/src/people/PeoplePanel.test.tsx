@@ -6,6 +6,9 @@ import type { Invite, Person } from '@fortytwo/client';
 import { PeoplePanel } from './PeoplePanel';
 import { InvitesCard } from './InvitesCard';
 
+const { toastErrorMock } = vi.hoisted(() => ({ toastErrorMock: vi.fn() }));
+vi.mock('../ui/toast', () => ({ toastError: toastErrorMock }));
+
 const ann: Person = { user_id: 'ann', displayName: 'Ann', isFriend: true, lastPlayedOn: null, games: 0 };
 const bo: Person = { user_id: 'bo', displayName: 'Bo', isFriend: false, lastPlayedOn: '2026-10-12T00:00:00.000Z', games: 2 };
 
@@ -29,6 +32,7 @@ function wrap(ui: React.ReactNode) {
 
 afterEach(() => {
   cleanup();
+  toastErrorMock.mockClear();
   vi.useRealTimers();
 });
 
@@ -42,6 +46,16 @@ describe('PeoplePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Bo as a friend' }));
     await waitFor(() => expect(c.removeFriend).toHaveBeenCalledWith('ann'));
     expect(c.addFriend).toHaveBeenCalledWith('bo');
+  });
+
+  it('toasts when starring a player is refused', async () => {
+    const c = client();
+    const refusal = new Error('Friend list is full');
+    c.addFriend.mockRejectedValueOnce(refusal);
+    wrap(<PeoplePanel client={c} emptyText="Nobody yet" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Bo as a friend' }));
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    expect(toastErrorMock.mock.calls[0][0]).toBe(refusal);
   });
 
   it('searches once two characters are typed', async () => {
@@ -76,6 +90,15 @@ describe('InvitesCard', () => {
     expect(screen.getByRole('link', { name: 'Join' }).getAttribute('href')).toBe('/match/m1');
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss invite from Ann' }));
     await waitFor(() => expect(c.dismissInvite).toHaveBeenCalledWith('m1'));
+  });
+
+  it('toasts when dismissing is refused', async () => {
+    const refusal = new Error('Not found');
+    const c = { getInvites: vi.fn(async () => [invite]), dismissInvite: vi.fn(async () => { throw refusal; }) };
+    wrap(<InvitesCard client={c} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss invite from Ann' }));
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    expect(toastErrorMock.mock.calls[0][0]).toBe(refusal);
   });
 
   it('shows nothing without invites', async () => {

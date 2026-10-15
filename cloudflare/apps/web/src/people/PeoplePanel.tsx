@@ -28,6 +28,7 @@ export function PeoplePanel({
         type="search"
         className="form-control people-search"
         aria-label="Find a player"
+        maxLength={40}
         placeholder="Find a player by name"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

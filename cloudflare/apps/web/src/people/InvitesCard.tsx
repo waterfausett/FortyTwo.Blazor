@@ -4,6 +4,7 @@ import type { JSX } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { apiClient } from '../api/client';
+import { toastError } from '../ui/toast';
 import './People.css';
 
 type InvitesClient = Pick<ReturnType<typeof apiClient>, 'getInvites' | 'dismissInvite'>;
@@ -14,6 +15,7 @@ export function InvitesCard({ client }: { client: InvitesClient }): JSX.Element 
   const dismiss = useMutation({
     mutationFn: (matchId: string) => client.dismissInvite(matchId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invites'] }),
+    onError: toastError,
   });
   if (!invites.data || invites.data.length === 0) return null;
 
