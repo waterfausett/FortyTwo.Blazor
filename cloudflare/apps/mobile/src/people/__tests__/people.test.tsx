@@ -59,6 +59,24 @@ describe('PeoplePanel', () => {
   });
 });
 
+// Kept ahead of InvitesCard: after that suite's dismiss test, a later render never
+// commits (cause not found), so this runs first.
+describe('InviteSheet', () => {
+  const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
+
+  it('invites a person not already seated', async () => {
+    await show(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <InviteSheet visible matchId="m1" seatedIds={['bo']} onClose={jest.fn()} />
+      </SafeAreaProvider>
+    );
+    fireEvent.press(await screen.findByLabelText('Invite Ann'));
+    await waitFor(() => expect(mockApi.invitePlayers).toHaveBeenCalledWith('m1', ['ann']));
+    expect(await screen.findByText('Invited ✓')).toBeTruthy();
+    expect(screen.queryByText('Bo')).toBeNull();
+  });
+});
+
 describe('InvitesCard', () => {
   it('joins and dismisses', async () => {
     await show(<InvitesCard />);
@@ -75,21 +93,5 @@ describe('InvitesCard', () => {
     await show(<InvitesCard />);
     await act(async () => {});
     expect(screen.queryByText(/invited you/)).toBeNull();
-  });
-});
-
-describe('InviteSheet', () => {
-  const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
-
-  it('invites a person not already seated', async () => {
-    await show(
-      <SafeAreaProvider initialMetrics={metrics}>
-        <InviteSheet visible matchId="m1" seatedIds={['bo']} onClose={jest.fn()} />
-      </SafeAreaProvider>
-    );
-    fireEvent.press(await screen.findByLabelText('Invite Ann'));
-    await waitFor(() => expect(mockApi.invitePlayers).toHaveBeenCalledWith('m1', ['ann']));
-    expect(await screen.findByText('Invited ✓')).toBeTruthy();
-    expect(screen.queryByText('Bo')).toBeNull();
   });
 });

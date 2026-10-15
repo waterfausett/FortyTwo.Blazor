@@ -64,6 +64,7 @@ import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
 import { DoublesRuleModal } from '@/components/DoublesRuleModal';
+import { InviteSheet } from '@/people/InviteSheet';
 import { Fade, FADE_IN_MS } from '@/components/Fade';
 import { Hand, type DragState } from '@/components/Hand';
 import { HelpButton } from '@/components/HelpButton';
@@ -333,6 +334,7 @@ export default function MatchScreen() {
   // the match plays out on the table like any other hand.
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [doublesOpen, setDoublesOpen] = useState(false);
+  const [inviting, setInviting] = useState(false);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
@@ -690,7 +692,12 @@ export default function MatchScreen() {
                       onPress={() => shareInvite(match.id).catch(toastError)}
                       accessibilityRole="button"
                     >
-                      <Text style={styles.smallButtonText}>Invite friends</Text>
+                      <Text style={styles.smallButtonText}>Share link</Text>
+                    </Pressable>
+                  )}
+                  {mode === 'custom' && emptySeatCount > 0 && (
+                    <Pressable style={styles.smallButton} onPress={() => setInviting(true)} accessibilityRole="button">
+                      <Text style={styles.smallButtonText}>Invite players</Text>
                     </Pressable>
                   )}
                   {mode === 'custom' && config.data?.bots && emptySeatCount > 0 && (
@@ -866,6 +873,12 @@ export default function MatchScreen() {
         </Fade>
       )}
       <DoublesRuleModal trump={doublesOpen ? game.trump : null} onClose={() => setDoublesOpen(false)} />
+      <InviteSheet
+        visible={inviting}
+        matchId={match.id}
+        seatedIds={match.players.map((p) => p.playerId)}
+        onClose={() => setInviting(false)}
+      />
       {view.isMatchOver && (
         <MatchSummary
           visible={summaryOpen}
