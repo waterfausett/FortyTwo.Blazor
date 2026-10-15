@@ -68,6 +68,8 @@ export {
   removePlayer,
   hasBeenDealt,
   hasHumanPlayers,
+  needsRedeal,
+  redeal,
   WINNING_SCORE,
 } from './matchEngine';
 export type { MatchMode, TableWait, LiveDeadline } from './live';
