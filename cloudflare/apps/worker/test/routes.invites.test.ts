@@ -134,8 +134,8 @@ describe('POST /api/matches/:id/invites', () => {
   });
 
   it('refuses a table that is not a Custom Match', async () => {
-    const res = await api('/api/matches/bots', ME, { method: 'POST' });
-    if (res.status === 404) return; // bots off in this environment
+    const res = await api('/api/matchmaking', ME, json({ mode: 'daily' }));
+    expect(res.status).toBe(200);
     const match = (await res.json()) as MatchState;
     expect((await invite(match.id, ['auth0|ann'])).status).toBe(409);
   });

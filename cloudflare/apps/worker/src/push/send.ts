@@ -232,11 +232,21 @@ export function inviteMessages(matchId: string, fromName: string, tokens: PushDe
   }));
 }
 
-export async function sendInvites(env: Env, matchId: string, fromName: string, toIds: string[]): Promise<void> {
+// Looks the inviter's name up only once there is a device to send to; a lookup that fails or finds
+// no one sends the invite anyway, from 'A player'.
+export async function sendInvites(env: Env, matchId: string, fromId: string, toIds: string[]): Promise<void> {
   if (toIds.length === 0) return;
   try {
     const tokens = await tokensFor(env.DB, toIds);
-    if (tokens.length > 0) await postMessages(env, inviteMessages(matchId, fromName, tokens));
+    if (tokens.length === 0) return;
+    let fromName = 'A player';
+    try {
+      const { users } = await publicUsers(env, [fromId]);
+      fromName = users[0]?.displayName ?? fromName;
+    } catch (err) {
+      console.error('Looking up the inviter for a push notification failed', err);
+    }
+    await postMessages(env, inviteMessages(matchId, fromName, tokens));
   } catch (err) {
     console.error('Sending invite notifications failed', err);
   }

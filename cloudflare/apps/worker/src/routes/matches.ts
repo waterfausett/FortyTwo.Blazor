@@ -159,8 +159,7 @@ matches.post('/:id/invites', async (c) => {
     return c.json({ title: 'Too many invites', detail: `A table can send at most ${MAX_INVITES_PER_TABLE} invites.` }, 409);
   }
   if (invited.length > 0) {
-    const { users } = await publicUsers(c.env, [userId]);
-    c.executionCtx.waitUntil(sendInvites(c.env, match.id, users[0]?.displayName ?? 'A player', invited));
+    c.executionCtx.waitUntil(sendInvites(c.env, match.id, userId, invited));
   }
   return c.json({ invited } satisfies InviteResult);
 });
