@@ -534,6 +534,7 @@ export function Match(): JSX.Element {
   // the first seat.
   const viewerId = watchFrom ?? myPlayerId;
   const view = describeMatch(match, viewerId);
+  const ruleLabels = houseRuleLabels(match.rules);
   const {
     me,
     opponentTeam,
@@ -762,8 +763,8 @@ export function Match(): JSX.Element {
           <MarkTally marks={scores[opponentTeam] ?? 0} total={marksToWin(match)} />
         </div>
       </header>
-      {houseRuleLabels(match.rules).length > 0 && (
-        <p className="house-rules-line">House rules: {houseRuleLabels(match.rules).join(' · ')}</p>
+      {ruleLabels.length > 0 && (
+        <p className="house-rules-line">House rules: {ruleLabels.join(' · ')}</p>
       )}
       {match.currentGame.redealt && isBiddingPhase && (
         <p className="redeal-line" role="status">Everyone passed, so the hands were dealt again.</p>

@@ -70,16 +70,12 @@ function useSlow(pending: NewMatchChoice | null): boolean {
   return slow;
 }
 
-export function NewMatchDialog({
-  open,
-  liveEnabled,
-  online,
-  pending,
-  error,
-  onChoose,
-  onClose,
-}: {
-  open: boolean;
+// The dialog's body is only mounted while open, so its step and rules start fresh on each open.
+export function NewMatchDialog({ open, ...props }: DialogProps & { open: boolean }): JSX.Element | null {
+  return open ? <OpenDialog {...props} /> : null;
+}
+
+interface DialogProps {
   liveEnabled: boolean;
   // Players online (the presence socket), or null until the first count arrives.
   online: number | null;
@@ -90,20 +86,25 @@ export function NewMatchDialog({
   error: string | null;
   onChoose: (choice: NewMatchChoice, rules?: HouseRules) => void;
   onClose: () => void;
-}): JSX.Element | null {
+}
+
+function OpenDialog({
+  liveEnabled,
+  online,
+  pending,
+  error,
+  onChoose,
+  onClose,
+}: DialogProps): JSX.Element {
   const dialogRef = useRef<HTMLDivElement>(null);
   const slow = useSlow(pending);
   const close = pending ? () => {} : onClose;
   const [step, setStep] = useState<'choose' | 'rules'>('choose');
   const [rules, setRules] = useState<HouseRules>(DEFAULT_HOUSE_RULES);
+  // On open, and when the step changes (the button that had focus unmounts), so Escape keeps working.
   useEffect(() => {
-    if (open) {
-      setStep('choose');
-      setRules(DEFAULT_HOUSE_RULES);
-      dialogRef.current?.focus();
-    }
-  }, [open]);
-  if (!open) return null;
+    dialogRef.current?.focus();
+  }, [step]);
 
   return (
     <div className="new-match-scrim" onClick={close}>

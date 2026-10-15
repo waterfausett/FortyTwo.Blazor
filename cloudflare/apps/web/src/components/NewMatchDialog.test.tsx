@@ -21,6 +21,18 @@ describe('NewMatchDialog', () => {
     expect(onChoose).toHaveBeenLastCalledWith('challenge', { ...DEFAULT_HOUSE_RULES, low: 'off' });
   });
 
+  it('starts afresh on the choices with default rules when reopened', () => {
+    const props = { liveEnabled: true, online: null, pending: null, error: null, onChoose: vi.fn(), onClose: vi.fn() };
+    const { rerender } = render(<NewMatchDialog open {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Off' }));
+    rerender(<NewMatchDialog open={false} {...props} />);
+    rerender(<NewMatchDialog open {...props} />);
+    expect(screen.getByRole('button', { name: /async/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
+    expect((screen.getByRole('radio', { name: 'On' }) as HTMLInputElement).checked).toBe(true);
+  });
+
   it('goes back from the house rules to the choices', () => {
     render(<NewMatchDialog open liveEnabled online={null} pending={null} error={null} onChoose={vi.fn()} onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /custom match/i }));

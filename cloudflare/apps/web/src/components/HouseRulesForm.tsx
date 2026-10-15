@@ -33,12 +33,13 @@ export function HouseRulesForm({
               name="low"
               checked={rules.low === o.value}
               disabled={o.value === 'forcedOnly' && redeal}
+              aria-describedby={o.value === 'forcedOnly' && redeal ? 'house-rules-redeal-note' : undefined}
               onChange={() => change({ low: o.value })}
             />
             {o.label}
           </label>
         ))}
-        {redeal && <p className="house-rules-note">Nobody is forced to bid when everyone passing redeals.</p>}
+        {redeal && <p id="house-rules-redeal-note" className="house-rules-note">Nobody is forced to bid when everyone passing redeals.</p>}
       </fieldset>
 
       <fieldset className="house-rules-field" disabled={disabled}>
