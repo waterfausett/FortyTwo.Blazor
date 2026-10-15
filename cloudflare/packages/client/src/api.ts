@@ -12,8 +12,11 @@ import type { MatchState } from '@fortytwo/rules';
 import type {
   ApiErrorBody,
   ClientConfig,
+  Invite,
+  InviteResult,
   MatchPage,
   MatchSummary,
+  Person,
   PlayerStats,
   PokeResult,
   ProfilePatch,
@@ -21,7 +24,7 @@ import type {
   UserProfile,
 } from '@fortytwo/api-types';
 
-export type { MatchPage, MatchSummary, PlayerStats, PokeResult, PublicUser, UserProfile };
+export type { Invite, InviteResult, MatchPage, MatchSummary, Person, PlayerStats, PokeResult, PublicUser, UserProfile };
 
 // Keeps the Worker's title and detail apart so a toast can show them as heading and body;
 // `message` still joins them for callers that just print it.
@@ -213,5 +216,29 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
 
     removePushToken: (token: string): Promise<void> =>
       request<void>('/api/users/push-tokens', { method: 'DELETE', body: JSON.stringify({ token }) }, false),
+
+    // The People list: friends, then recent players (GET /api/people).
+    getPeople: (): Promise<Person[]> => request<Person[]>('/api/people'),
+
+    // Players whose name starts with `q` (2-40 characters).
+    searchPeople: (q: string): Promise<Person[]> =>
+      request<Person[]>(`/api/people/search?q=${encodeURIComponent(q)}`),
+
+    // Friends are one-way: the other player isn't told.
+    addFriend: (userId: string): Promise<void> =>
+      request<void>(`/api/people/friends/${encodeURIComponent(userId)}`, { method: 'PUT' }, false),
+
+    removeFriend: (userId: string): Promise<void> =>
+      request<void>(`/api/people/friends/${encodeURIComponent(userId)}`, { method: 'DELETE' }, false),
+
+    // Invites players to a custom table the caller is seated at; resolves with who was invited.
+    invitePlayers: (matchId: string, userIds: string[]): Promise<InviteResult> =>
+      request<InviteResult>(`/api/matches/${matchId}/invites`, { method: 'POST', body: JSON.stringify({ userIds }) }),
+
+    // Invites waiting for the caller, for the Lobby's Invited to card.
+    getInvites: (): Promise<Invite[]> => request<Invite[]>('/api/invites'),
+
+    dismissInvite: (matchId: string): Promise<void> =>
+      request<void>(`/api/invites/${matchId}`, { method: 'DELETE' }, false),
   };
 }

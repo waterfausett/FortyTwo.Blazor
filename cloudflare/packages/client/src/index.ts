@@ -11,6 +11,7 @@ export * from './lobby';
 export * from './matchSocket';
 export * from './matchView';
 export * from './optimistic';
+export * from './people';
 export * from './playerNames';
 export * from './poke';
 export * from './presenceSocket';
