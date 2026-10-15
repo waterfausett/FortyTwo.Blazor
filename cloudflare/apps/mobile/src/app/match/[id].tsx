@@ -629,7 +629,7 @@ export default function MatchScreen() {
         </View>
         {ruleLabels.length > 0 && <Text style={styles.houseRules}>House rules: {ruleLabels.join(' · ')}</Text>}
         {match.currentGame.redealt && view.isBiddingPhase && (
-          <Text style={styles.redeal} accessibilityRole="alert">Everyone passed, so the hands were dealt again.</Text>
+          <Text style={styles.redeal} accessibilityLiveRegion="polite">Everyone passed, so the hands were dealt again.</Text>
         )}
 
         {meOnAutopilot && !watching && (

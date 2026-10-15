@@ -95,7 +95,7 @@ matches.get('/', async (c) => {
     return {
       ...rest,
       mode: row.mode ?? 'custom',
-      ...(rules ? { rules: JSON.parse(rules) as HouseRules } : {}),
+      ...(rules ? parsedRules(row.id, rules) : {}),
       teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)],
       seats,
       ...(turns ? { turn: turns.get(row.id) ?? null } : {}),
@@ -103,6 +103,17 @@ matches.get('/', async (c) => {
   });
   return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });
+
+// The `rules` field for a lobby row. One corrupt column value leaves the rules off that row
+// rather than failing the whole page.
+function parsedRules(matchId: string, json: string): { rules?: HouseRules } {
+  try {
+    return { rules: JSON.parse(json) as HouseRules };
+  } catch (error) {
+    console.error('LOBBY RULES PARSE FAILED', matchId, error);
+    return {};
+  }
+}
 
 // Maps player ids to display names for the lobby list (users/publicUsers.ts: D1 first, Auth0 for
 // players it hasn't seen, bots by number). Anyone it can't name keeps their id, even when Auth0

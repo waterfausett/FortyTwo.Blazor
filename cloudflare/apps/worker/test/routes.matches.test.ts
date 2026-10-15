@@ -668,6 +668,20 @@ describe('match routes', () => {
       expect(list.matches.find((m) => m.id === ruled.id)?.rules).toEqual({ low: 'on', plunge: false, allPass: 'forceLast', marksToWin: 7 });
       expect(list.matches.find((m) => m.id === plain.id)).not.toHaveProperty('rules');
     });
+
+    it('still lists a row whose rules column holds invalid JSON, without rules on it', async () => {
+      const p1 = await signToken('p1');
+      await upsertMatchSummary(testEnv.DB, { id: 'corrupt-rules', status: 'active', playerCount: 1, updatedOn: '2026-09-01T00:00:00.000Z', rules: '{not json' });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await api('/api/matches?filter=Joinable', p1);
+
+      expect(res.status).toBe(200);
+      const list = (await res.json()) as { matches: { id: string }[] };
+      expect(list.matches.find((m) => m.id === 'corrupt-rules')).not.toHaveProperty('rules');
+      expect(logged).toHaveBeenCalled();
+      logged.mockRestore();
+    });
   });
 
   describe('bots', () => {

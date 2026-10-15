@@ -113,11 +113,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Marks toward the 7 needed to win, drawn as the edges of standing dominoes. */
+/* Marks toward the match's marks to win, drawn as the edges of standing dominoes. Capped at the
+   width of 7 notches (6px each, 3px gaps) so a longer tally wraps onto further rows. */
 .mark-tally {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 3px;
+  max-width: calc(7 * 6px + 6 * 3px);
 }
 
 .house-rules-line,

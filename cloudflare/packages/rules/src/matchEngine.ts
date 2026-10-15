@@ -29,6 +29,7 @@ import {
   assertValidBid,
   assertValidDomino,
   assertValidTrump,
+  othersAllPassed,
 } from './validation';
 
 // Marks needed to win the match under the default rules (houseRules.ts).
@@ -302,9 +303,7 @@ export function placeBid(match: MatchState, playerId: string, bid: Bid): MatchSt
   assertValidBid(match.currentGame, playerId, bid);
 
   // A bid after the other three passed was forced (under 'forceLast' it's always the last bid).
-  const forced =
-    bid !== Bid.Pass &&
-    match.currentGame.hands.filter((h) => h.playerId !== playerId).every((h) => h.bid === Bid.Pass);
+  const forced = bid !== Bid.Pass && othersAllPassed(match.currentGame, playerId);
 
   const hands = match.currentGame.hands.map((h) => (h.playerId === playerId ? { ...h, bid } : h));
 

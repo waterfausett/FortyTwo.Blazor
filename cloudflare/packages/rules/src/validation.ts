@@ -137,13 +137,18 @@ export function availableBids(game: Game, userId: string): Bid[] {
 
 const NAMED_SUITS = [Suit.Blanks, Suit.Aces, Suit.Deuces, Suit.Threes, Suit.Fours, Suit.Fives, Suit.Sixes];
 
+// True when the other three players have all passed, so `playerId` is the forced last bidder.
+export function othersAllPassed(game: Game, playerId: string): boolean {
+  return game.hands.filter((h) => h.playerId !== playerId).every((h) => h.bid === Bid.Pass);
+}
+
 // Whether the house rules let `playerId` name Low if their bid wins: under 'forcedOnly' only when
 // the other three all passed, i.e. they were the forced last bidder. The 42 minimum is separate -
 // it depends on the bid (availableTrumps; the bot checks it per bid).
 export function lowAllowedIfWon(game: Game, playerId: string): boolean {
   const { low } = houseRules(game);
   if (low !== 'forcedOnly') return low === 'on';
-  return game.hands.filter((h) => h.playerId !== playerId).every((h) => h.bid === Bid.Pass);
+  return othersAllPassed(game, playerId);
 }
 
 // The trumps the bidder may call, in picker order:
