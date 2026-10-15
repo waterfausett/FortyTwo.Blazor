@@ -4,6 +4,8 @@ import { Text } from 'react-native';
 import type { Invite, Person } from '@fortytwo/client';
 import { PeoplePanel } from '../PeoplePanel';
 import { InvitesCard } from '../InvitesCard';
+import { InviteSheet } from '../InviteSheet';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const mockRouter = { push: jest.fn() };
 jest.mock('expo-router', () => ({ router: { push: (...a: unknown[]) => mockRouter.push(...a) } }));
@@ -19,8 +21,10 @@ const mockApi = {
   removeFriend: jest.fn(async () => {}),
   getInvites: jest.fn(async () => [invite]),
   dismissInvite: jest.fn(async () => {}),
+  invitePlayers: jest.fn(async (_m: string, ids: string[]) => ({ invited: ids })),
 };
 jest.mock('@/api/useApi', () => ({ useApi: () => mockApi }));
+jest.mock('@/components/toast', () => ({ toastError: jest.fn() }));
 
 async function show(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -71,5 +75,21 @@ describe('InvitesCard', () => {
     await show(<InvitesCard />);
     await act(async () => {});
     expect(screen.queryByText(/invited you/)).toBeNull();
+  });
+});
+
+describe('InviteSheet', () => {
+  const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
+
+  it('invites a person not already seated', async () => {
+    await show(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <InviteSheet visible matchId="m1" seatedIds={['bo']} onClose={jest.fn()} />
+      </SafeAreaProvider>
+    );
+    fireEvent.press(await screen.findByLabelText('Invite Ann'));
+    await waitFor(() => expect(mockApi.invitePlayers).toHaveBeenCalledWith('m1', ['ann']));
+    expect(await screen.findByText('Invited ✓')).toBeTruthy();
+    expect(screen.queryByText('Bo')).toBeNull();
   });
 });
