@@ -23,7 +23,7 @@ import { readBody } from '../requestBody';
 import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import { turnSummaries, turnWaitsFor } from '../lobbyTurns';
 import { decodeCursor, encodeCursor } from '../cursor';
-import type { MatchPage, MatchSummary } from '@fortytwo/api-types';
+import type { HouseRules, MatchPage, MatchSummary } from '@fortytwo/api-types';
 
 type AppContext = Context<AppEnv>;
 const matches = new Hono<AppEnv>();
@@ -91,9 +91,11 @@ matches.get('/', async (c) => {
       const player = seated.find((p) => p.position === position);
       return player ? nameOf(player.playerId) : null;
     });
+    const { rules, ...rest } = row;
     return {
-      ...row,
+      ...rest,
       mode: row.mode ?? 'custom',
+      ...(rules ? { rules: JSON.parse(rules) as HouseRules } : {}),
       teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)],
       seats,
       ...(turns ? { turn: turns.get(row.id) ?? null } : {}),

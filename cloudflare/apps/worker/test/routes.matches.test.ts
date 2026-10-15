@@ -658,6 +658,16 @@ describe('match routes', () => {
       expect(res.status).toBe(400);
       expect(((await res.json()) as { title: string }).title).toBe('Invalid request');
     });
+
+    it('lists the rules on the lobby row, and nothing for a default table', async () => {
+      const p1 = await signToken('p1');
+      const ruled = (await (await api('/api/matches', p1, { method: 'POST', body: JSON.stringify({ rules: { plunge: false } }) })).json()) as MatchState;
+      const plain = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as MatchState;
+
+      const list = (await (await api('/api/matches?filter=Active', p1)).json()) as { matches: { id: string; rules?: unknown }[] };
+      expect(list.matches.find((m) => m.id === ruled.id)?.rules).toEqual({ low: 'on', plunge: false, allPass: 'forceLast', marksToWin: 7 });
+      expect(list.matches.find((m) => m.id === plain.id)).not.toHaveProperty('rules');
+    });
   });
 
   describe('bots', () => {

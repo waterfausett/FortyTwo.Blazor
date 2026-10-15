@@ -15,6 +15,15 @@ export type MatchStatus = 'active' | 'completed';
 // carries no runtime dependencies).
 export type MatchMode = 'live' | 'daily' | 'custom' | 'bots';
 
+// A custom table's house rules (the rules package's HouseRules, repeated here since this package
+// is types only). Only on rows whose rules differ from the defaults.
+export interface HouseRules {
+  low: 'off' | 'on' | 'forcedOnly';
+  plunge: boolean;
+  allPass: 'forceLast' | 'redeal';
+  marksToWin: number;
+}
+
 // Who an Active match is waiting on, looked up from the match itself when the list loads:
 // `kind` is a turn (one player) or a ready-up between hands (everyone not yet ready);
 // `waitingOn` are display names; `yours` says whether the viewer is among them.
@@ -35,6 +44,7 @@ export interface MatchSummary {
   teams: [string[], string[]];
   seats: (string | null)[];
   mode: MatchMode;
+  rules?: HouseRules;
   // Active list only; null when the match couldn't say in time (the row shows without it).
   turn?: TurnSummary | null;
 }
