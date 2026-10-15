@@ -53,8 +53,9 @@ async function replyWithMatch(
 }
 
 matches.post('/', async (c) => {
+  const rules = field.houseRules(await field.readOptionalBody(c));
   const matchId = crypto.randomUUID();
-  const match = await matchStub(c.env, matchId).create(c.get('user').sub, matchId);
+  const match = await matchStub(c.env, matchId).create(c.get('user').sub, matchId, 'custom', rules);
   await bestEffort(matchId, () => syncLobbyIndex(c.env.DB, match));
   return c.json(matchViewFor(match, c.get('user').sub), 201);
 });

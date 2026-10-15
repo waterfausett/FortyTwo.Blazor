@@ -5,11 +5,11 @@ import { DurableObject } from 'cloudflare:workers';
 import type { Env } from './index';
 import { verifyToken } from './auth/verifyJwt';
 import {
+  type HouseRules,
   createMatch,
   addPlayer,
   takeSeat,
   patchPlayerReady,
-  placeBid,
   setTrump,
   playDomino,
   getPlayerView,
@@ -50,6 +50,7 @@ import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
 import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
 import type { PokeResult } from '@fortytwo/api-types';
+import { bidAndMaybeRedeal } from './redeal';
 import { BOT_IDS, applyBotAction, botDelayMs, botsEnabled, findNextBotAction } from './bots';
 import { WARMING, getMlBot } from './mlBot';
 
@@ -110,8 +111,8 @@ export class MatchDO extends DurableObject<Env> {
 
   // Stores the new match under `matchId`, the id this DO is addressed by, so every later response
   // and broadcast carries the id clients use to reach it.
-  async create(firstPlayerId: string, matchId: string, mode: MatchMode = 'custom'): Promise<MatchState> {
-    const match = { ...createMatch(firstPlayerId, mode), id: matchId };
+  async create(firstPlayerId: string, matchId: string, mode: MatchMode = 'custom', rules?: HouseRules): Promise<MatchState> {
+    const match = { ...createMatch(firstPlayerId, mode, rules), id: matchId };
     await this.save(match);
     this.publish(null, match);
     // A Live table's fill deadline starts now.
@@ -265,7 +266,7 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   bid(playerId: string, bid: Bid): Promise<MatchResult<MatchState>> {
-    return this.update(playerId, (match) => placeBid(match, playerId, bid));
+    return this.update(playerId, (match) => bidAndMaybeRedeal(match, playerId, bid));
   }
 
   setTrump(playerId: string, suit: Suit): Promise<MatchResult<MatchState>> {
