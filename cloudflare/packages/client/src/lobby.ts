@@ -1,5 +1,6 @@
 // Helpers for the lobby's paged match lists (GET /api/matches returns one MatchPage at a time).
 import type { MatchMode, MatchPage, MatchSummary } from '@fortytwo/api-types';
+import { houseRuleLabels } from './houseRules';
 
 // Every loaded page's rows in order, each match once: a match updated between page loads moves
 // to the top, so it can come back on a later page too.
@@ -16,6 +17,11 @@ export function uniqueMatches(pages: MatchPage[] | undefined): MatchSummary[] | 
 }
 
 export const MODE_LABELS: Record<MatchMode, string> = { live: 'Live Play', daily: 'Async', custom: 'Custom', bots: 'vs Bots' };
+
+// The row's "how this match is played" text: its mode, then any house rules.
+export function rowLabel(match: MatchSummary): string {
+  return [MODE_LABELS[match.mode], ...houseRuleLabels(match.rules)].join(' · ');
+}
 
 // What a lobby row says the match is waiting on, and whether that's the viewer.
 export function rowStatus(match: MatchSummary): { text: string; yours: boolean } {

@@ -42,4 +42,18 @@ describe('createApiClient', () => {
 
     await expect(api.createMatch()).rejects.toThrow('Network request failed');
   });
+
+  it('sends house rules when creating a custom match, and no body without them', async () => {
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ id: 'm1' }), { status: 201 }));
+    vi.stubGlobal('fetch', fetchSpy);
+    const api = createApiClient(async () => 'token', '');
+    const rules = { low: 'off', plunge: true, allPass: 'forceLast', marksToWin: 7 } as const;
+
+    await api.createMatch(rules);
+    await api.createMatch();
+
+    const init = (call: number) => (fetchSpy.mock.calls[call] as unknown as [string, RequestInit])[1];
+    expect(JSON.parse(init(0).body as string)).toEqual({ rules });
+    expect(init(1).body).toBeUndefined();
+  });
 });
