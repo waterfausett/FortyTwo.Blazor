@@ -162,3 +162,18 @@ function picture(value: unknown): string {
   }
   return url;
 }
+
+// A user id from a route parameter (Hono has already URL-decoded it).
+export function userIdParam(value: string | undefined): string {
+  if (value === undefined || !USER_ID.test(value)) throw new BadRequestError('That is not a user id.');
+  return value;
+}
+
+// A People search: trimmed, SEARCH_MIN to SEARCH_MAX characters.
+export function searchQuery(value: string | undefined, min: number, max: number): string {
+  const q = (value ?? '').trim();
+  if ([...q].length < min || [...q].length > max) {
+    throw new BadRequestError(`Search with ${min} to ${max} characters.`);
+  }
+  return q;
+}

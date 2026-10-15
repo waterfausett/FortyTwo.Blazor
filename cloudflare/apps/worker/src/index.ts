@@ -4,6 +4,7 @@ import { requireAuth, type AuthedUser } from './auth/verifyJwt';
 import matchesRoutes from './routes/matches';
 import matchmakingRoutes from './routes/matchmaking';
 import usersRoutes from './routes/users';
+import peopleRoutes from './routes/people';
 import { BadRequestError } from './requestBody';
 import { expireIdleMatches } from './expiry';
 import { assetLinks } from './appLinks';
@@ -119,6 +120,7 @@ app.get('/api/config', (c) =>
 app.route('/api/matches', matchesRoutes);
 app.route('/api/matchmaking', matchmakingRoutes);
 app.route('/api/users', usersRoutes);
+app.route('/api/people', peopleRoutes);
 
 export { app };
 

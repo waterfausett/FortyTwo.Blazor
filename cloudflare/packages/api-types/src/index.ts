@@ -101,6 +101,11 @@ export interface UserProfile extends Auth0User {
 // and nothing that identifies them outside the game.
 export type PublicUser = Pick<UserProfile, 'user_id' | 'displayName' | 'picture'>;
 
+// Someone in the caller's People list (GET /api/people, /api/people/search): a friend they've
+// starred, someone they've played with, or a search result. `games` and `lastPlayedOn` count
+// started games together (0 and null if none).
+export type Person = PublicUser & { isFriend: boolean; lastPlayedOn: string | null; games: number };
+
 // The fields a player may change on their profile (PATCH /api/users). Blank `picture` clears it.
 export interface ProfilePatch {
   displayName?: string;
