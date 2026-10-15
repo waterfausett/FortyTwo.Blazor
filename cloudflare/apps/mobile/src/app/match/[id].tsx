@@ -193,6 +193,7 @@ export default function MatchScreen() {
     mutationFn: () => api.leaveMatch(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
+      queryClient.invalidateQueries({ queryKey: ['invites'] });
       router.dismissTo('/');
     },
     onError: (error) => {
@@ -211,6 +212,7 @@ export default function MatchScreen() {
     if (!deleted || leavingRef.current || bumped) return;
     toastInfo('This match was deleted');
     queryClient.invalidateQueries({ queryKey: ['matches'] });
+    queryClient.invalidateQueries({ queryKey: ['invites'] });
     router.dismissTo('/');
   }, [deleted, leaveFailed, bumped, queryClient]);
 
@@ -256,6 +258,7 @@ export default function MatchScreen() {
     onSuccess: (joined) => {
       queryClient.setQueryData(['match', id], joined);
       queryClient.invalidateQueries({ queryKey: ['matches'] });
+      queryClient.invalidateQueries({ queryKey: ['invites'] });
     },
     onError: toastError,
   });

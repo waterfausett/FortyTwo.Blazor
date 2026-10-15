@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Person } from '@fortytwo/client';
 import { useApi } from '@/api/useApi';
+import { toastError } from '@/components/toast';
 
 export const SEARCH_MIN = 2;
 const SEARCH_DELAY_MS = 300;
@@ -27,6 +28,7 @@ export function usePeople(query: string) {
   const toggle = useMutation({
     mutationFn: (p: Person) => (p.isFriend ? api.removeFriend(p.user_id) : api.addFriend(p.user_id)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['people'] }),
+    onError: toastError,
   });
   const shown = searching ? search : people;
   return {

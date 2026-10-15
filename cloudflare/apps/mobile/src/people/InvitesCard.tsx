@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApi } from '@/api/useApi';
+import { toastError } from '@/components/toast';
 import { colors, fonts } from '@/components/theme';
 
 export function InvitesCard() {
@@ -13,6 +14,7 @@ export function InvitesCard() {
   const dismiss = useMutation({
     mutationFn: (matchId: string) => api.dismissInvite(matchId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invites'] }),
+    onError: toastError,
   });
   if (!invites.data || invites.data.length === 0) return null;
 

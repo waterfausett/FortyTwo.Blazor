@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Text } from 'react-native';
 import type { Invite, Person } from '@fortytwo/client';
+import { toastError } from '@/components/toast';
 import { PeoplePanel } from '../PeoplePanel';
 import { InvitesCard } from '../InvitesCard';
 import { InviteSheet } from '../InviteSheet';
@@ -27,7 +28,7 @@ jest.mock('@/api/useApi', () => ({ useApi: () => mockApi }));
 jest.mock('@/components/toast', () => ({ toastError: jest.fn() }));
 
 async function show(ui: React.ReactElement) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
   await render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
@@ -38,16 +39,25 @@ describe('PeoplePanel', () => {
     await show(<PeoplePanel emptyText="Nobody yet" />);
     expect(await screen.findByText('Ann')).toBeTruthy();
     expect(screen.getByText(/2 games/)).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Add Bo as a friend'));
+    await fireEvent.press(screen.getByLabelText('Add Bo as a friend'));
     await waitFor(() => expect(mockApi.addFriend).toHaveBeenCalledWith('bo'));
-    fireEvent.press(screen.getByLabelText('Remove Ann from friends'));
+    await fireEvent.press(screen.getByLabelText('Remove Ann from friends'));
     await waitFor(() => expect(mockApi.removeFriend).toHaveBeenCalledWith('ann'));
+  });
+
+  it('toasts when starring a player is refused', async () => {
+    const refusal = new Error('Friend list is full');
+    mockApi.addFriend.mockRejectedValueOnce(refusal);
+    await show(<PeoplePanel emptyText="Nobody yet" />);
+    await fireEvent.press(await screen.findByLabelText('Add Bo as a friend'));
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect((toastError as jest.Mock).mock.calls[0][0]).toBe(refusal);
   });
 
   it('searches once two characters are typed', async () => {
     await show(<PeoplePanel emptyText="Nobody yet" />);
     await screen.findByText('Ann');
-    fireEvent.changeText(screen.getByLabelText('Find a player'), 'bo');
+    await fireEvent.changeText(screen.getByLabelText('Find a player'), 'bo');
     await waitFor(() => expect(mockApi.searchPeople).toHaveBeenCalledWith('bo'));
     await waitFor(() => expect(screen.queryByText('Ann')).toBeNull());
   });
@@ -59,8 +69,35 @@ describe('PeoplePanel', () => {
   });
 });
 
-// Kept ahead of InvitesCard: after that suite's dismiss test, a later render never
-// commits (cause not found), so this runs first.
+describe('InvitesCard', () => {
+  it('joins and dismisses', async () => {
+    await show(<InvitesCard />);
+    expect(await screen.findByText('Ann invited you')).toBeTruthy();
+    expect(screen.getByText('1 seat open')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Join'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/match/m1');
+    await fireEvent.press(screen.getByLabelText('Dismiss invite from Ann'));
+    await waitFor(() => expect(mockApi.dismissInvite).toHaveBeenCalledWith('m1'));
+    await waitFor(() => expect(mockApi.getInvites).toHaveBeenCalledTimes(2));
+  });
+
+  it('toasts when dismissing is refused', async () => {
+    const refusal = new Error('Not found');
+    mockApi.dismissInvite.mockRejectedValueOnce(refusal);
+    await show(<InvitesCard />);
+    await fireEvent.press(await screen.findByLabelText('Dismiss invite from Ann'));
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect((toastError as jest.Mock).mock.calls[0][0]).toBe(refusal);
+  });
+
+  it('shows nothing without invites', async () => {
+    mockApi.getInvites.mockResolvedValueOnce([]);
+    await show(<InvitesCard />);
+    await act(async () => {});
+    expect(screen.queryByText(/invited you/)).toBeNull();
+  });
+});
+
 describe('InviteSheet', () => {
   const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
 
@@ -70,28 +107,9 @@ describe('InviteSheet', () => {
         <InviteSheet visible matchId="m1" seatedIds={['bo']} onClose={jest.fn()} />
       </SafeAreaProvider>
     );
-    fireEvent.press(await screen.findByLabelText('Invite Ann'));
+    await fireEvent.press(await screen.findByLabelText('Invite Ann'));
     await waitFor(() => expect(mockApi.invitePlayers).toHaveBeenCalledWith('m1', ['ann']));
     expect(await screen.findByText('Invited ✓')).toBeTruthy();
     expect(screen.queryByText('Bo')).toBeNull();
-  });
-});
-
-describe('InvitesCard', () => {
-  it('joins and dismisses', async () => {
-    await show(<InvitesCard />);
-    expect(await screen.findByText('Ann invited you')).toBeTruthy();
-    expect(screen.getByText('1 seat open')).toBeTruthy();
-    fireEvent.press(screen.getByLabelText('Join'));
-    expect(mockRouter.push).toHaveBeenCalledWith('/match/m1');
-    fireEvent.press(screen.getByLabelText('Dismiss invite from Ann'));
-    await waitFor(() => expect(mockApi.dismissInvite).toHaveBeenCalledWith('m1'));
-  });
-
-  it('shows nothing without invites', async () => {
-    mockApi.getInvites.mockResolvedValueOnce([]);
-    await show(<InvitesCard />);
-    await act(async () => {});
-    expect(screen.queryByText(/invited you/)).toBeNull();
   });
 });

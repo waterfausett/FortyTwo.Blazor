@@ -68,6 +68,17 @@ export default function Lobby() {
     void queryClient.invalidateQueries({ queryKey: ['invites'] });
   }
 
+  // The People segment's pull-to-refresh: its own spinner, until the lists are back.
+  const [peopleRefreshing, setPeopleRefreshing] = useState(false);
+  async function refreshPeople() {
+    setPeopleRefreshing(true);
+    try {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['people'] }), queryClient.invalidateQueries({ queryKey: ['invites'] })]);
+    } finally {
+      setPeopleRefreshing(false);
+    }
+  }
+
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
   const online = useOnline();
   const [choosing, setChoosing] = useState(false);
@@ -125,7 +136,19 @@ export default function Lobby() {
       </View>
 
       {segment === 'People' ? (
-        <ScrollView contentContainerStyle={[styles.list, styles.people, { paddingBottom: FAB_CLEARANCE + insets.bottom }]} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={[styles.list, styles.people, { paddingBottom: FAB_CLEARANCE + insets.bottom }]}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={peopleRefreshing}
+              onRefresh={refreshPeople}
+              tintColor={colors.brass}
+              colors={[colors.brass]}
+              progressBackgroundColor={colors.walnutDeep}
+            />
+          }
+        >
           <PeoplePanel emptyText="Play a game and the people you play with show up here." />
         </ScrollView>
       ) : matches.isPending ? (

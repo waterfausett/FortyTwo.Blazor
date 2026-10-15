@@ -30,6 +30,7 @@ export function PeoplePanel({
         placeholder="Find a player by name"
         placeholderTextColor={colors.inkMuted}
         accessibilityLabel="Find a player"
+        maxLength={40}
         autoCorrect={false}
         autoCapitalize="none"
       />
