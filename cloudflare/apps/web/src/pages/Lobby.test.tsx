@@ -14,7 +14,7 @@ import type { MatchState } from '@fortytwo/rules';
 import type { MatchPage, MatchSummary } from '../api/client';
 import { Lobby } from './Lobby';
 
-const { listMatchesMock, createMatchMock, playMock, playBotsMock, getConfigMock, getProfileMock, patchProfileMock, mockNavigate } = vi.hoisted(() => ({
+const { listMatchesMock, createMatchMock, playMock, playBotsMock, getConfigMock, getProfileMock, patchProfileMock, getPeopleMock, searchPeopleMock, addFriendMock, removeFriendMock, getInvitesMock, dismissInviteMock, mockNavigate } = vi.hoisted(() => ({
   listMatchesMock: vi.fn(),
   getProfileMock: vi.fn(),
   patchProfileMock: vi.fn(),
@@ -22,6 +22,12 @@ const { listMatchesMock, createMatchMock, playMock, playBotsMock, getConfigMock,
   playMock: vi.fn(),
   playBotsMock: vi.fn(),
   getConfigMock: vi.fn(),
+  getPeopleMock: vi.fn(),
+  searchPeopleMock: vi.fn(),
+  addFriendMock: vi.fn(),
+  removeFriendMock: vi.fn(),
+  getInvitesMock: vi.fn(),
+  dismissInviteMock: vi.fn(),
   mockNavigate: vi.fn(),
 }));
 
@@ -34,6 +40,12 @@ vi.mock('../api/client', () => ({
     getConfig: getConfigMock,
     getProfile: getProfileMock,
     patchProfile: patchProfileMock,
+    getPeople: getPeopleMock,
+    searchPeople: searchPeopleMock,
+    addFriend: addFriendMock,
+    removeFriend: removeFriendMock,
+    getInvites: getInvitesMock,
+    dismissInvite: dismissInviteMock,
   }),
 }));
 
@@ -113,6 +125,8 @@ describe('Lobby', () => {
     mockLists();
     getConfigMock.mockResolvedValue({ bots: true });
     getProfileMock.mockResolvedValue({ user_id: 'me', displayName: 'Me', seenHowToPlay: true });
+    getInvitesMock.mockResolvedValue([]);
+    getPeopleMock.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -122,6 +136,20 @@ describe('Lobby', () => {
     // Match" buttons end up in the DOM by the second test.
     cleanup();
     vi.clearAllMocks();
+  });
+
+  it('shows the People tab without fetching matches for it', async () => {
+    getPeopleMock.mockResolvedValue([{ user_id: 'bo', displayName: 'Bo', isFriend: false, lastPlayedOn: '2026-01-01T00:00:00.000Z', games: 1 }]);
+    renderLobby();
+    fireEvent.click(await screen.findByRole('tab', { name: 'People' }));
+    expect(await screen.findByText('Bo')).toBeTruthy();
+    expect(listMatchesMock).not.toHaveBeenCalledWith('People', expect.anything());
+  });
+
+  it('shows invites above the tabs', async () => {
+    getInvitesMock.mockResolvedValue([{ matchId: 'm1', from: { user_id: 'ann', displayName: 'Ann' }, createdOn: '2026-01-01T00:00:00.000Z', seatsOpen: 3 }]);
+    renderLobby();
+    expect(await screen.findByText('Ann invited you')).toBeTruthy();
   });
 
   it('defaults to the Active tab and fetches only that list', async () => {

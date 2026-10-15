@@ -1,0 +1,97 @@
+/* People: the Lobby People tab (PeoplePanel) and the Invited to card (InvitesCard). Rows borrow
+   the name plates and palette of Lobby.css so they sit on the mat panel the same way. */
+
+.people-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.people-list,
+.invites-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.people-row,
+.invites-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.9rem;
+  background: rgba(20, 13, 9, 0.55);
+  box-shadow: 0 0 0 1px rgba(242, 234, 219, 0.08);
+  color: var(--bone);
+}
+
+.people-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+}
+
+.people-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(242, 234, 219, 0.12);
+  font: 600 1rem var(--font-ui);
+}
+
+.people-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.people-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.people-detail {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.people-star,
+.invites-dismiss {
+  appearance: none;
+  flex: none;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink-muted);
+}
+
+.people-star:hover,
+.invites-dismiss:hover {
+  color: var(--bone);
+}
+
+.people-star.is-friend {
+  color: var(--brass);
+}
+
+.invites-card {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+}
+
+.invites-title {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
