@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { HOW_TO_PLAY } from '@fortytwo/client';
-import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
+import { Bid, DEFAULT_HOUSE_RULES, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
 import { HelpButton } from '../HelpButton';
@@ -350,10 +350,50 @@ describe('NewMatchSheet', () => {
     await render(inApp(<NewMatchSheet visible liveEnabled online={5} pending={null} error={null} onChoose={onChoose} onClose={jest.fn()} />));
     await fireEvent.press(screen.getByRole('button', { name: /live play/i }));
     await fireEvent.press(screen.getByRole('button', { name: /async/i }));
-    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
-    expect(onChoose.mock.calls).toEqual([['live'], ['daily'], ['challenge']]);
+    expect(onChoose.mock.calls).toEqual([['live'], ['daily']]);
     expect(screen.getByText('5 online')).toBeTruthy();
     expect(screen.getByText(/kicked if away for a full hand/)).toBeTruthy();
+  });
+
+  it('asks for house rules before creating a Custom Match', async () => {
+    const onChoose = jest.fn();
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={onChoose} onClose={jest.fn()} />));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    expect(onChoose).not.toHaveBeenCalled();
+    expect(screen.getByText('House rules')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Off' }));
+    await fireEvent.press(screen.getByRole('button', { name: /more marks/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /create table/i }));
+    expect(onChoose).toHaveBeenLastCalledWith('challenge', { ...DEFAULT_HOUSE_RULES, low: 'off', marksToWin: 8 });
+  });
+
+  it('disables Low only when forced while Redeal is picked, and says why', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    await fireEvent.press(screen.getByRole('radio', { name: /redeal/i }));
+    const forced = screen.getByRole('radio', { name: /only when forced/i });
+    expect(forced.props.accessibilityState).toMatchObject({ disabled: true });
+    expect(forced.props.accessibilityHint).toMatch(/everyone passing redeals/i);
+  });
+
+  it('goes back from the house rules to the choices', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /back/i }));
+    expect(screen.getByRole('button', { name: /async/i })).toBeTruthy();
+  });
+
+  it('shows the choices on default rules again after closing and reopening', async () => {
+    const sheet = (visible: boolean) =>
+      inApp(<NewMatchSheet visible={visible} liveEnabled online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />);
+    const { rerender } = await render(sheet(true));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Off' }));
+    await rerender(sheet(false));
+    await rerender(sheet(true));
+    expect(screen.getByRole('button', { name: /async/i })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    expect(screen.getByRole('radio', { name: 'On' }).props.accessibilityState).toMatchObject({ selected: true });
   });
 
   it('labels the matchmade options apart from playing with friends', async () => {

@@ -1,11 +1,14 @@
 // The New match chooser as a bottom sheet, in three groups: Find opponents (Live and Async, which
 // go to matchmaking), Play with friends (Custom Match sets up a custom table to share) and Practice
 // (Play vs bots goes straight into a game against three bots). Live and Play vs bots are left out
-// while bots are off, since they rely on them to fill their seats.
+// while bots are off, since they rely on them to fill their seats. Custom Match first asks for its
+// house rules.
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { DEFAULT_HOUSE_RULES, type HouseRules } from '@fortytwo/rules';
+import { HouseRulesForm } from '@/components/HouseRulesForm';
 import { colors, fonts } from '@/components/theme';
 
 export type NewMatchChoice = 'live' | 'daily' | 'challenge' | 'bots';
@@ -62,7 +65,7 @@ export function NewMatchSheet({
   pending: NewMatchChoice | null;
   // Why the last choice failed. Shown here, since a toast would sit under the sheet.
   error: string | null;
-  onChoose: (choice: NewMatchChoice) => void;
+  onChoose: (choice: NewMatchChoice, rules?: HouseRules) => void;
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -74,6 +77,14 @@ export function NewMatchSheet({
   const shown = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(visible);
   const [sheetHeight, setSheetHeight] = useState(windowHeight);
+  // Counts the opens, so the content (see SheetBody) starts fresh on each one yet stays as it was
+  // while the sheet slides down. Adjusted while rendering, so no stale frame shows on reopen.
+  const [opens, setOpens] = useState(visible ? 1 : 0);
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) setOpens(opens + 1);
+  }
   useEffect(() => {
     if (visible) setMounted(true);
     const animation = Animated.timing(shown, {
@@ -97,14 +108,63 @@ export function NewMatchSheet({
         onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
         style={[styles.sheet, { paddingBottom: 20 + insets.bottom, transform: [{ translateY }] }]}
       >
-        <View style={styles.grab} />
-        <Text style={styles.title} accessibilityRole="header">New match</Text>
-        {online !== null && <Text style={styles.online}>{online} online</Text>}
-        {error && !pending && (
-          <Text style={styles.error} accessibilityRole="alert">
-            {error}
-          </Text>
-        )}
+        <SheetBody key={opens} liveEnabled={liveEnabled} online={online} pending={pending} error={error} slow={slow} onChoose={onChoose} />
+      </Animated.View>
+    </Modal>
+  );
+}
+
+// The sheet's content, keyed by the sheet's open count: its step and rules start fresh on each open.
+function SheetBody({ liveEnabled, online, pending, error, slow, onChoose }: {
+  liveEnabled: boolean;
+  online: number | null;
+  pending: NewMatchChoice | null;
+  error: string | null;
+  slow: boolean;
+  onChoose: (choice: NewMatchChoice, rules?: HouseRules) => void;
+}) {
+  const [step, setStep] = useState<'choose' | 'rules'>('choose');
+  const [rules, setRules] = useState<HouseRules>(DEFAULT_HOUSE_RULES);
+  const creating = pending === 'challenge';
+  return (
+    <>
+      <View style={styles.grab} />
+      <Text style={styles.title} accessibilityRole="header">New match</Text>
+      {online !== null && <Text style={styles.online}>{online} online</Text>}
+      {error && !pending && (
+        <Text style={styles.error} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+      {step === 'rules' ? (
+        <View style={styles.group}>
+          <Text style={styles.groupLabelText} accessibilityRole="header">House rules</Text>
+          <HouseRulesForm rules={rules} onChange={setRules} disabled={pending !== null} />
+          <View style={styles.actions}>
+            <Pressable
+              style={[styles.back, pending !== null && styles.optionDim]}
+              disabled={pending !== null}
+              onPress={() => setStep('choose')}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Text style={styles.backText}>Back</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.create, pending !== null && !creating && styles.optionDim]}
+              disabled={pending !== null}
+              onPress={() => onChoose('challenge', rules)}
+              accessibilityRole="button"
+              accessibilityLabel={creating ? workingDetail('challenge', slow) : 'Create table'}
+              accessibilityState={{ disabled: pending !== null, busy: creating }}
+            >
+              {creating && <ActivityIndicator color={colors.walnutDeep} />}
+              <Text style={styles.createText}>{creating ? workingDetail('challenge', slow) : 'Create table'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <>
         {GROUPS.map((group) => {
           const options = group.options.filter((o) => liveEnabled || (o.choice !== 'live' && o.choice !== 'bots'));
           if (options.length === 0) return null;
@@ -122,7 +182,7 @@ export function NewMatchSheet({
                     key={o.choice}
                     style={({ pressed }) => [styles.option, (pressed || (pending && !working)) && styles.optionDim]}
                     disabled={pending !== null}
-                    onPress={() => onChoose(o.choice)}
+                    onPress={() => (o.choice === 'challenge' ? setStep('rules') : onChoose(o.choice))}
                     accessibilityRole="button"
                     accessibilityLabel={`${o.title}. ${detail}`}
                     accessibilityState={{ disabled: pending !== null, busy: working }}
@@ -144,8 +204,9 @@ export function NewMatchSheet({
             </View>
           );
         })}
-      </Animated.View>
-    </Modal>
+        </>
+      )}
+    </>
   );
 }
 
@@ -202,5 +263,13 @@ const styles = StyleSheet.create({
   optionTitle: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 16 },
   optionDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13, marginTop: 2 },
   optionWorking: { color: colors.brass, fontFamily: fonts.ui, fontSize: 13, marginTop: 2 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  back: { paddingVertical: 14, paddingHorizontal: 18, borderRadius: 14, backgroundColor: colors.mat, justifyContent: 'center' },
+  backText: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 16 },
+  create: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    padding: 14, borderRadius: 14, backgroundColor: colors.brass,
+  },
+  createText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 16 },
   error: { color: colors.danger, fontFamily: fonts.uiMedium, fontSize: 14 },
 });
