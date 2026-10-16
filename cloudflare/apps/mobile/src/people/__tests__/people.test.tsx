@@ -96,6 +96,24 @@ describe('InvitesCard', () => {
     await act(async () => {});
     expect(screen.queryByText(/invited you/)).toBeNull();
   });
+
+  it('shows the newest three, and the rest behind Show N more', async () => {
+    const names = ['Ann', 'Bo', 'Cy', 'Di', 'Ed'];
+    const invites = names.map((n, i) => ({ ...invite, matchId: `m${i}`, from: { user_id: n.toLowerCase(), displayName: n } }));
+    // Every fetch, not just the first: the card may refetch while the test runs.
+    mockApi.getInvites.mockImplementation(async () => invites);
+    try {
+      await show(<InvitesCard />);
+      expect(await screen.findByText('Cy invited you')).toBeTruthy();
+      expect(screen.queryByText('Di invited you')).toBeNull();
+      fireEvent.press(screen.getByText('Show 2 more'));
+      expect(await screen.findByText('Ed invited you')).toBeTruthy();
+      fireEvent.press(screen.getByText('Show fewer'));
+      await waitFor(() => expect(screen.queryByText('Ed invited you')).toBeNull());
+    } finally {
+      mockApi.getInvites.mockImplementation(async () => [invite]);
+    }
+  });
 });
 
 describe('InviteSheet', () => {

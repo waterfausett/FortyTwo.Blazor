@@ -107,4 +107,20 @@ describe('InvitesCard', () => {
     await act(async () => {});
     expect(container.textContent).toBe('');
   });
+
+  it('shows the newest three, and the rest behind Show N more', async () => {
+    const invites = ['Ann', 'Bo', 'Cy', 'Di', 'Ed'].map((n, i) => ({
+      ...invite,
+      matchId: `m${i}`,
+      from: { user_id: n.toLowerCase(), displayName: n },
+    }));
+    const c = { getInvites: vi.fn(async () => invites), dismissInvite: vi.fn() };
+    wrap(<InvitesCard client={c} />);
+    expect(await screen.findByText('Cy invited you')).toBeTruthy();
+    expect(screen.queryByText('Di invited you')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show 2 more' }));
+    expect(screen.getByText('Ed invited you')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show fewer' }));
+    expect(screen.queryByText('Ed invited you')).toBeNull();
+  });
 });

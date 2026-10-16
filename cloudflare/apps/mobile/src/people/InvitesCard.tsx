@@ -1,5 +1,8 @@
 // The Lobby's Invited to card: invites to custom tables waiting for the player (GET /api/invites),
-// each with Join (the table's seat picker) and Dismiss. Nothing at all when there are none.
+// each with Join (the table's seat picker) and Dismiss. The newest few show, and the rest behind
+// "Show N more", so a pile of invites doesn't push the match list down. Nothing at all when there
+// are none.
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -7,9 +10,12 @@ import { useApi } from '@/api/useApi';
 import { toastError } from '@/components/toast';
 import { colors, fonts } from '@/components/theme';
 
+export const VISIBLE_INVITES = 3;
+
 export function InvitesCard() {
   const api = useApi();
   const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
   const invites = useQuery({ queryKey: ['invites'], queryFn: () => api.getInvites() });
   const dismiss = useMutation({
     mutationFn: (matchId: string) => api.dismissInvite(matchId),
@@ -17,11 +23,13 @@ export function InvitesCard() {
     onError: toastError,
   });
   if (!invites.data || invites.data.length === 0) return null;
+  const hidden = invites.data.length - VISIBLE_INVITES;
+  const shown = expanded || hidden <= 0 ? invites.data : invites.data.slice(0, VISIBLE_INVITES);
 
   return (
     <View style={styles.card} accessibilityLabel="Invited to">
       <Text style={styles.title}>Invited to</Text>
-      {invites.data.map((invite) => (
+      {shown.map((invite) => (
         <View key={invite.matchId} style={styles.row}>
           <View style={styles.text}>
             <Text style={styles.name}>{invite.from.displayName} invited you</Text>
@@ -40,6 +48,11 @@ export function InvitesCard() {
           </Pressable>
         </View>
       ))}
+      {hidden > 0 && (
+        <Pressable onPress={() => setExpanded(!expanded)} accessibilityRole="button" accessibilityState={{ expanded }} hitSlop={8}>
+          <Text style={styles.more}>{expanded ? 'Show fewer' : `Show ${hidden} more`}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -54,4 +67,5 @@ const styles = StyleSheet.create({
   join: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.brass },
   joinText: { color: colors.walnutDeep, fontFamily: fonts.uiBold },
   dismiss: { color: colors.inkMuted, fontSize: 22 },
+  more: { color: colors.brass, fontFamily: fonts.uiBold, fontSize: 13 },
 });

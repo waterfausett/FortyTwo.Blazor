@@ -91,6 +91,21 @@
   padding: 0.75rem;
 }
 
+.invites-more {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0.5rem 0 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--brass);
+  cursor: pointer;
+}
+
+.invites-more:hover {
+  color: var(--bone);
+}
+
 .invites-title {
   font-size: 1rem;
   margin: 0 0 0.5rem;
