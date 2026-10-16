@@ -14,8 +14,8 @@ const BOT_COUNT = 3;
 export const BOT_MARK = '🤖';
 
 const NAMES = [
-  'Ada', 'Arlo', 'Bea', 'Beck', 'Cleo', 'Cyrus', 'Dani', 'Dex', 'Edie', 'Elio',
-  'Fern', 'Finn', 'Gus', 'Hana', 'Hugo', 'Iris', 'Ivo', 'Jade', 'Juno', 'Kai',
+  'Ada', 'Arlo', 'Bea', 'Beck', 'Cleo', 'Cyrus', 'Dan', 'Dex', 'Edie', 'Elio',
+  'Fern', 'Finn', 'Gus', 'Hana', 'Hugo', 'Ivy', 'Ivo', 'Jade', 'Juno', 'Kai',
   'Kit', 'Lena', 'Leo', 'Luz', 'Milo', 'Mina', 'Nico', 'Nova', 'Odie', 'Otto',
   'Pia', 'Quinn', 'Remy', 'Rhea', 'Sage', 'Theo', 'Uma', 'Vera', 'Wren', 'Zed', 'Zoe',
 ];
