@@ -216,6 +216,13 @@ export default function MatchScreen() {
     router.dismissTo('/');
   }, [deleted, leaveFailed, bumped, queryClient]);
 
+  // Arriving at a full table (often from an Invited to card fetched before it filled): the Lobby
+  // stays mounted underneath, so refresh its invites now, and the stale one is gone on the way back.
+  const full = role === 'stranger' && liveMatch !== null && liveMatch.players.length === 4;
+  useEffect(() => {
+    if (full) queryClient.invalidateQueries({ queryKey: ['invites'] });
+  }, [full, queryClient]);
+
   // Bumped - the game they were waiting on ended first - this player looks for another Over the
   // table game straight away, once, and goes to it. If that fails they can try again.
   const findAnother = useMutation({
