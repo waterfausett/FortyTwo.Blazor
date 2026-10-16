@@ -40,7 +40,9 @@ export function bidTable(w: BotWeights, hand: number[]): BidTable {
   return { points, high: binary.slice(0, 8), low: binary.slice(8, 11), plunge: doubles >= 4 ? binary[11] : null };
 }
 
-export function optionsFromTable(table: BidTable, legal: number[]): Option[] {
+// `allowLow` false (a house rule forbids this bidder from naming Low) leaves the Low options out,
+// so a hand isn't bid up on Low strength it can't use.
+export function optionsFromTable(table: BidTable, legal: number[], allowLow = true): Option[] {
   const bids = legal.filter((b) => b !== PASS);
   const pointsBids = bids.filter((b) => b < HIGH_PROBE);
   const highBids = bids.filter((b) => b >= HIGH_PROBE && b !== PLUNGE);
@@ -48,7 +50,7 @@ export function optionsFromTable(table: BidTable, legal: number[]): Option[] {
   if (pointsBids.length) for (let t = 0; t < 7; t++) for (const b of pointsBids) options.push({ bid: b, trump: t, pMake: table.points[t][b - 30] });
   if (highBids.length) {
     HIGH_TRUMPS.forEach((t, i) => { for (const b of highBids) options.push({ bid: b, trump: t, pMake: table.high[i] }); });
-    LOW_TRUMPS.forEach((t, i) => { for (const b of highBids) options.push({ bid: b, trump: t, pMake: table.low[i] }); });
+    if (allowLow) LOW_TRUMPS.forEach((t, i) => { for (const b of highBids) options.push({ bid: b, trump: t, pMake: table.low[i] }); });
   }
   if (bids.includes(PLUNGE)) {
     if (table.plunge === null) throw new Error('plunge is legal but the table has no plunge probability');

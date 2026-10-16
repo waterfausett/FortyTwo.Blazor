@@ -2301,4 +2301,32 @@ describe('Match', () => {
       expect(within(mine).getByText(/Waiting…/)).toBeTruthy();
     });
   });
+
+  describe('house rules', () => {
+    const rules = { low: 'off', plunge: true, allPass: 'forceLast', marksToWin: 5 } as const;
+
+    it('opens the house rules from a button, and shows a tally as long as marks to win', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ rules }), connected: true });
+      const { container } = renderMatch();
+      expect(screen.queryByRole('dialog', { name: 'House rules' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'House rules' }));
+      const dialog = screen.getByRole('dialog', { name: 'House rules' });
+      expect(within(dialog).getByText('Not allowed')).toBeTruthy();
+      expect(within(dialog).getByText('5')).toBeTruthy();
+      expect(container.querySelectorAll('.score-us .mark')).toHaveLength(5);
+    });
+
+    it('shows no house rules line on default rules', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      const { container } = renderMatch();
+      expect(screen.queryByText(/house rules:/i)).toBeNull();
+      expect(container.querySelectorAll('.score-us .mark')).toHaveLength(7);
+    });
+
+    it('says the hands were redealt while bidding a redealt hand', () => {
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({}, { redealt: true }), connected: true });
+      renderMatch();
+      expect(screen.getByText('Everyone passed, so the hands were dealt again.')).toBeTruthy();
+    });
+  });
 });

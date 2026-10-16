@@ -10,7 +10,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MatchState } from '@fortytwo/rules';
+import { DEFAULT_HOUSE_RULES, type MatchState } from '@fortytwo/rules';
 import type { MatchPage, MatchSummary } from '../api/client';
 import { Lobby } from './Lobby';
 
@@ -282,7 +282,9 @@ describe('Lobby', () => {
     renderLobby();
     fireEvent.click(await screen.findByRole('button', { name: /new match/i }));
     fireEvent.click(screen.getByRole('button', { name: /custom match/i }));
+    fireEvent.click(screen.getByRole('button', { name: /create table/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/match/custom-1'));
+    expect(createMatchMock).toHaveBeenCalledWith(DEFAULT_HOUSE_RULES);
   });
 
   it('starts a match against bots for Play vs bots', async () => {

@@ -11,7 +11,8 @@ import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, Styl
 import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  MARKS_TO_WIN,
+  houseRuleLabels,
+  marksToWin,
   assertPlayable,
   describeMatch,
   isHighBidder,
@@ -70,6 +71,7 @@ import { Hand, type DragState } from '@/components/Hand';
 import { HelpButton } from '@/components/HelpButton';
 import { JoinMatchPanel } from '@/components/JoinMatchPanel';
 import { MatchMenu } from '@/components/MatchMenu';
+import { HouseRulesButton, HouseRulesModal } from '@/components/HouseRulesModal';
 import { MatchSummary } from '@/components/MatchSummary';
 import { NameSkeleton } from '@/components/NameSkeleton';
 import { PipFace } from '@/components/PipFace';
@@ -345,6 +347,7 @@ export default function MatchScreen() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [doublesOpen, setDoublesOpen] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
@@ -561,6 +564,8 @@ export default function MatchScreen() {
     ]);
   }
 
+  const total = marksToWin(match);
+  const ruleLabels = houseRuleLabels(match.rules);
   const handWinnerIsUs = view.handWinner === myTeam;
   const contractBid =
     game.bid != null && game.bid !== Bid.Pass && game.biddingPlayerId != null
@@ -582,15 +587,21 @@ export default function MatchScreen() {
         options={{
           title: game.name,
           // Leaving sits in the header's menu, well away from the hand.
-          headerRight: canLeaveGame
-            ? () => (
+          // A Custom Match's house rules get a button beside it.
+          headerRight: () => (
+            <View style={styles.headerRight}>
+              {ruleLabels.length > 0 && <HouseRulesButton onPress={() => setRulesOpen(true)} />}
+              {canLeaveGame ? (
                 <MatchMenu
                   onHowToPlay={() => router.push('/how-to-play')}
                   onLeave={confirmLeaveGame}
                   leaveDisabled={leave.isPending}
                 />
-              )
-            : rulesButton,
+              ) : (
+                rulesButton()
+              )}
+            </View>
+          ),
         }}
       />
       {/* The play area fills the screen, less a peek at the trick history below, whatever the
@@ -610,7 +621,7 @@ export default function MatchScreen() {
         {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
 
         <View style={styles.scoreboard} accessibilityLabel="Scores">
-          <Score label="Us" marks={scores[myTeam] ?? 0} color={colors.us} />
+          <Score label="Us" total={total} marks={scores[myTeam] ?? 0} color={colors.us} />
           <View style={styles.contract}>
             {contractBid && (names.ready ? <Text style={styles.contractText}>{contractBid}</Text> : <NameSkeleton width={120} />)}
             {trumpLine && game.trump != null && (
@@ -634,8 +645,11 @@ export default function MatchScreen() {
               </View>
             )}
           </View>
-          <Score label="Them" marks={scores[opponentTeam] ?? 0} color={colors.them} />
+          <Score label="Them" total={total} marks={scores[opponentTeam] ?? 0} color={colors.them} />
         </View>
+        {match.currentGame.redealt && view.isBiddingPhase && (
+          <Text style={styles.redeal} accessibilityLiveRegion="polite">Everyone passed, so the hands were dealt again.</Text>
+        )}
 
         {meOnAutopilot && !watching && (
           <View style={styles.autopilotBar}>
@@ -882,6 +896,7 @@ export default function MatchScreen() {
           />
         </Fade>
       )}
+      <HouseRulesModal rules={match.rules} visible={rulesOpen} onClose={() => setRulesOpen(false)} />
       <DoublesRuleModal trump={doublesOpen ? game.trump : null} onClose={() => setDoublesOpen(false)} />
       <InviteSheet
         visible={inviting}
@@ -920,14 +935,14 @@ function seatedView(match: MatchState | null, myPlayerId: string | undefined): M
   return describeMatch(match, myPlayerId);
 }
 
-// A team's marks as a tally of MARKS_TO_WIN notches, like the web scoreboard - no number, to save
+// A team's marks as a tally of `total` notches, like the web scoreboard - no number, to save
 // room on a phone.
-function Score({ label, marks, color }: { label: string; marks: number; color: string }) {
+function Score({ label, marks, total, color }: { label: string; marks: number; total: number; color: string }) {
   return (
-    <View style={styles.score} accessibilityLabel={`${label}: ${marks} of ${MARKS_TO_WIN} marks`}>
+    <View style={styles.score} accessibilityLabel={`${label}: ${marks} of ${total} marks`}>
       <Text style={[styles.scoreLabel, { color }]}>{label}</Text>
       <View style={styles.tally}>
-        {Array.from({ length: MARKS_TO_WIN }, (_, i) => (
+        {Array.from({ length: total }, (_, i) => (
           <View key={i} style={[styles.notch, i < marks && { backgroundColor: color, borderColor: color }]} />
         ))}
       </View>
@@ -972,7 +987,10 @@ const styles = StyleSheet.create({
   },
   score: { alignItems: 'center', gap: 5 },
   scoreLabel: { fontFamily: fonts.uiBold, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
-  tally: { flexDirection: 'row', gap: 3 },
+  // Seven notches wide (9 + 3 gap each), then wraps, so 21 marks stay inside the score column.
+  tally: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, maxWidth: 7 * 9 + 6 * 3 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  redeal: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13, textAlign: 'center' },
   notch: { width: 9, height: 18, borderRadius: 2, borderWidth: 1.5, borderColor: colors.inkMuted },
   contract: { flex: 1, alignItems: 'center', gap: 2 },
   trumpRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

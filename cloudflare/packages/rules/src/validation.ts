@@ -4,6 +4,7 @@ import { Bid, bidToPrettyString } from './bid';
 import { Domino, dominoEquals, isDouble, isOfSuit } from './domino';
 import { ValidationError } from './errors';
 import { Game, gameWinningTeam } from './game';
+import { houseRules } from './houseRules';
 import { LOW_TRUMPS, Suit, isLow, suitToPrettyString } from './suit';
 import { Teams, teamForPosition } from './teams';
 
@@ -86,7 +87,11 @@ export function assertValidBid(game: Game, userId: string, bid: Bid): void {
     );
   }
 
-  if (game.hands.filter((h) => h.bid === Bid.Pass).length === 3 && bid === Bid.Pass) {
+  if (
+    houseRules(game).allPass === 'forceLast' &&
+    game.hands.filter((h) => h.bid === Bid.Pass).length === 3 &&
+    bid === Bid.Pass
+  ) {
     throw new ValidationError('Invalid Bid', "Everyone can't pass! You have to bid \u{1F605}");
   }
 
@@ -103,17 +108,20 @@ const RANKED_BIDS = (Object.values(Bid).filter((value): value is number => typeo
 
 // Every bid `userId` may legally make right now, in ascending order. The UI renders exactly this
 // list and `assertValidBid` enforces it.
-// - Pass, unless the other three already passed (the last bidder is forced to bid).
+// - Pass, unless the other three already passed (the last bidder is forced to bid), or the table
+//   redeals when everyone passes.
 // - Only bids strictly above the current high bid.
 // - Marks climb one rung at a time: 3 Marks needs a standing 84, 4 Marks a standing 3 Marks, etc.
 //   (no marks bid at all over a points bid or an empty table).
 // - Plunge needs at least four doubles in hand, and only while the high bid is under 4 Marks.
+//   It's never offered at a table that has Plunge turned off.
 export function availableBids(game: Game, userId: string): Bid[] {
+  const rules = houseRules(game);
   const current = game.bid;
   const hand = game.hands.find((h) => h.playerId === userId);
   const bids: Bid[] = [];
 
-  if (game.hands.filter((h) => h.bid === Bid.Pass).length < 3) bids.push(Bid.Pass);
+  if (rules.allPass === 'redeal' || game.hands.filter((h) => h.bid === Bid.Pass).length < 3) bids.push(Bid.Pass);
 
   for (const bid of RANKED_BIDS) {
     if (current !== null && bid <= current) continue;
@@ -122,36 +130,56 @@ export function availableBids(game: Game, userId: string): Bid[] {
   }
 
   const doubles = hand?.dominoes.filter(isDouble).length ?? 0;
-  if (doubles >= 4 && (current ?? Bid.Pass) < Bid.FourMarks) bids.push(Bid.Plunge);
+  if (rules.plunge && doubles >= 4 && (current ?? Bid.Pass) < Bid.FourMarks) bids.push(Bid.Plunge);
 
   return bids.sort((a, b) => a - b);
 }
 
 const NAMED_SUITS = [Suit.Blanks, Suit.Aces, Suit.Deuces, Suit.Threes, Suit.Fours, Suit.Fives, Suit.Sixes];
 
+// True when the other three players have all passed, so `playerId` is the forced last bidder.
+export function othersAllPassed(game: Game, playerId: string): boolean {
+  return game.hands.filter((h) => h.playerId !== playerId).every((h) => h.bid === Bid.Pass);
+}
+
+// Whether the house rules let `playerId` name Low if their bid wins: under 'forcedOnly' only when
+// the other three all passed, i.e. they were the forced last bidder. The 42 minimum is separate -
+// it depends on the bid (availableTrumps; the bot checks it per bid).
+export function lowAllowedIfWon(game: Game, playerId: string): boolean {
+  const { low } = houseRules(game);
+  if (low !== 'forcedOnly') return low === 'on';
+  return othersAllPassed(game, playerId);
+}
+
 // The trumps the bidder may call, in picker order:
 // every named suit, plus Follow Me (Suit.None) and the three Low variants (one per doubles rule)
 // once the winning bid is at least one mark (42). A Plunge has to take every trick, so it gets
-// Follow Me but never Low.
+// Follow Me but never Low. Low only as the house rules allow: under 'forcedOnly' only after a
+// forced bid (`Game.forcedBid`, set by placeBid).
 export function availableTrumps(game: Game): Suit[] {
   if (game.bid === Bid.Plunge) return [...NAMED_SUITS, Suit.None];
-  return game.bid !== null && game.bid >= Bid.FortyTwo
-    ? [...NAMED_SUITS, Suit.None, ...LOW_TRUMPS]
-    : [...NAMED_SUITS];
+  if (game.bid === null || game.bid < Bid.FortyTwo) return [...NAMED_SUITS];
+  const { low } = houseRules(game);
+  const lowAllowed = low === 'on' || (low === 'forcedOnly' && game.forcedBid === true);
+  return lowAllowed ? [...NAMED_SUITS, Suit.None, ...LOW_TRUMPS] : [...NAMED_SUITS, Suit.None];
 }
 
 // Enforces `availableTrumps`, with a reason that says why a trump isn't allowed.
 export function assertValidTrump(game: Game, suit: Suit): void {
-  if (!availableTrumps(game).includes(suit)) {
-    throw new ValidationError(
-      'Invalid Trump',
-      game.bid === Bid.Plunge && isLow(suit)
-        ? "A Plunge has to take every trick, so it can't go Low"
-        : suit === Suit.None || isLow(suit)
-          ? `<code>${suitToPrettyString(suit)}</code> needs a bid of at least 42`
-          : "That isn't a trump you can call"
-    );
-  }
+  if (availableTrumps(game).includes(suit)) return;
+  const atLeast42 = game.bid !== null && game.bid >= Bid.FortyTwo;
+  throw new ValidationError(
+    'Invalid Trump',
+    game.bid === Bid.Plunge && isLow(suit)
+      ? "A Plunge has to take every trick, so it can't go Low"
+      : isLow(suit) && atLeast42 && houseRules(game).low === 'off'
+        ? "Low isn't played at this table"
+        : isLow(suit) && atLeast42
+          ? 'At this table Low is only for a player forced to bid'
+          : suit === Suit.None || isLow(suit)
+            ? `<code>${suitToPrettyString(suit)}</code> needs a bid of at least 42`
+            : "That isn't a trump you can call"
+  );
 }
 
 export function assertBiddingComplete(game: Game): void {

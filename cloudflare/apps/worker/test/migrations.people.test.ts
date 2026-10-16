@@ -1,4 +1,4 @@
-// The 0012 migration's backfill of played_with from the lobby index. Migrations run once, before
+// The 0013 migration's backfill of played_with from the lobby index. Migrations run once, before
 // any test (applyMigrations.ts), so the backfill statement is re-run here against seeded rows.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { env, type D1Migration } from 'cloudflare:test';
@@ -7,9 +7,9 @@ import type { Env } from '../src/index';
 const testEnv = env as unknown as Env & { TEST_MIGRATIONS: D1Migration[] };
 
 function backfill(): string {
-  const migration = testEnv.TEST_MIGRATIONS.find((m) => m.name.startsWith('0012_'));
+  const migration = testEnv.TEST_MIGRATIONS.find((m) => m.name.startsWith('0013_'));
   const query = migration?.queries.find((q) => q.includes('INSERT INTO played_with'));
-  if (!query) throw new Error('0012 has no played_with backfill');
+  if (!query) throw new Error('0013 has no played_with backfill');
   return query;
 }
 
@@ -40,7 +40,7 @@ beforeEach(async () => {
   ]);
 });
 
-describe('0012 played_with backfill', () => {
+describe('0013 played_with backfill', () => {
   it('pairs every two humans at a full table, both ways, counting games and keeping the latest date', async () => {
     await seat('m1', '2026-10-01T00:00:00.000Z', ['ann', 'bo', 'cy', 'bot-1']);
     await seat('m2', '2026-10-05T00:00:00.000Z', ['ann', 'bo', 'm2_bot-2', 'm2_bot-3']);

@@ -30,7 +30,7 @@ you've played with. This adds, on web and mobile:
   list one person once per match). Backfilled once from `match_players`.
 - **Spam limits:** one invite per invitee per table, at most 6 invites per table.
 
-## Data — migration `0012_people.sql`
+## Data — migration `0013_people.sql` (numbered 0012 until master took 0012 for house rules)
 
 ```sql
 -- Who has sat at a started game with whom (#116): one row per direction, humans only.

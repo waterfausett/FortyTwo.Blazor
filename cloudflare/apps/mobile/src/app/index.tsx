@@ -12,7 +12,8 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteD
 import { router, Stack } from 'expo-router';
 import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MODE_LABELS, rowStatus, uniqueMatches, yourTurnFirst, type MatchPage, type MatchSummary, type Person } from '@fortytwo/client';
+import { rowLabel, rowStatus, uniqueMatches, yourTurnFirst, type MatchPage, type MatchSummary, type Person } from '@fortytwo/client';
+import type { HouseRules } from '@fortytwo/rules';
 import { useOnline } from '@/api/presence';
 import { useApi } from '@/api/useApi';
 import { useHowToPlay } from '@/api/useHowToPlay';
@@ -89,8 +90,8 @@ export default function Lobby() {
   // Live and Async seat the player through matchmaking; Custom Match starts a custom table; Play
   // vs bots starts a game against three bots.
   const start = useMutation({
-    mutationFn: (choice: NewMatchChoice) =>
-      choice === 'challenge' ? api.createMatch() : choice === 'bots' ? api.playBots() : api.play(choice),
+    mutationFn: ({ choice, rules }: { choice: NewMatchChoice; rules?: HouseRules }) =>
+      choice === 'challenge' ? api.createMatch(rules) : choice === 'bots' ? api.playBots() : api.play(choice),
     onSuccess: (match) => {
       setChoosing(false);
       queryClient.invalidateQueries({ queryKey: ['matches'] });
@@ -216,9 +217,9 @@ export default function Lobby() {
         visible={choosing}
         liveEnabled={config.data?.bots ?? false}
         online={online}
-        pending={start.isPending ? start.variables : null}
+        pending={start.isPending ? start.variables.choice : null}
         error={start.error?.message ?? null}
-        onChoose={(c) => start.mutate(c)}
+        onChoose={(choice, rules) => start.mutate({ choice, rules })}
         onClose={() => setChoosing(false)}
       />
 
@@ -335,7 +336,7 @@ function MatchRow({ match }: { match: MatchSummary }) {
           {teamNames(match.teams[1])}
         </Text>
         <Text style={[styles.rowStatus, status.yours && styles.rowStatusYours]}>
-          {MODE_LABELS[match.mode]} · {status.text}
+          {rowLabel(match)} · {status.text}
         </Text>
       </View>
       <View style={styles.rowTrailing}>

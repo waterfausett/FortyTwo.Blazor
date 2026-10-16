@@ -1,9 +1,12 @@
 // The New match chooser, in three groups: Find opponents (Live and Async, which go to
 // matchmaking), Play with friends (Custom Match sets up a custom table to share) and Practice
 // (Play vs bots goes straight into a game against three bots). Live and Play vs bots are left out
-// while bots are off, since they rely on them to fill their seats.
+// while bots are off, since they rely on them to fill their seats. Custom Match first asks for its
+// house rules.
 import { useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
+import { DEFAULT_HOUSE_RULES, type HouseRules } from '@fortytwo/rules';
+import { HouseRulesForm } from './HouseRulesForm';
 import './NewMatchDialog.css';
 
 export type NewMatchChoice = 'live' | 'daily' | 'challenge' | 'bots';
@@ -67,16 +70,12 @@ function useSlow(pending: NewMatchChoice | null): boolean {
   return slow;
 }
 
-export function NewMatchDialog({
-  open,
-  liveEnabled,
-  online,
-  pending,
-  error,
-  onChoose,
-  onClose,
-}: {
-  open: boolean;
+// The dialog's body is only mounted while open, so its step and rules start fresh on each open.
+export function NewMatchDialog({ open, ...props }: DialogProps & { open: boolean }): JSX.Element | null {
+  return open ? <OpenDialog {...props} /> : null;
+}
+
+interface DialogProps {
   liveEnabled: boolean;
   // Players online (the presence socket), or null until the first count arrives.
   online: number | null;
@@ -85,16 +84,27 @@ export function NewMatchDialog({
   pending: NewMatchChoice | null;
   // Why the last choice failed, shown in the dialog rather than on the page behind it.
   error: string | null;
-  onChoose: (choice: NewMatchChoice) => void;
+  onChoose: (choice: NewMatchChoice, rules?: HouseRules) => void;
   onClose: () => void;
-}): JSX.Element | null {
+}
+
+function OpenDialog({
+  liveEnabled,
+  online,
+  pending,
+  error,
+  onChoose,
+  onClose,
+}: DialogProps): JSX.Element {
   const dialogRef = useRef<HTMLDivElement>(null);
   const slow = useSlow(pending);
   const close = pending ? () => {} : onClose;
+  const [step, setStep] = useState<'choose' | 'rules'>('choose');
+  const [rules, setRules] = useState<HouseRules>(DEFAULT_HOUSE_RULES);
+  // On open, and when the step changes (the button that had focus unmounts), so Escape keeps working.
   useEffect(() => {
-    if (open) dialogRef.current?.focus();
-  }, [open]);
-  if (!open) return null;
+    dialogRef.current?.focus();
+  }, [step]);
 
   return (
     <div className="new-match-scrim" onClick={close}>
@@ -117,7 +127,27 @@ export function NewMatchDialog({
             {error}
           </p>
         )}
-        {GROUPS.map((group) => {
+        {step === 'rules' ? (
+          <section className="new-match-rules" aria-labelledby="new-match-rules-title">
+            <h3 id="new-match-rules-title" className="new-match-group-label">House rules</h3>
+            <HouseRulesForm rules={rules} onChange={setRules} disabled={pending !== null} />
+            <div className="new-match-rules-actions">
+              <button type="button" className="new-match-back" disabled={pending !== null} onClick={() => setStep('choose')}>
+                Back
+              </button>
+              <button
+                type="button"
+                className={`new-match-create${pending === 'challenge' ? ' is-working' : ''}`}
+                disabled={pending !== null}
+                aria-busy={pending === 'challenge'}
+                onClick={() => onChoose('challenge', rules)}
+              >
+                {pending === 'challenge' ? workingDetail('challenge', slow) : 'Create table'}
+              </button>
+            </div>
+          </section>
+        ) : (
+          GROUPS.map((group) => {
           const options = group.options.filter((o) => liveEnabled || (o.choice !== 'live' && o.choice !== 'bots'));
           if (options.length === 0) return null;
           const labelId = `new-match-${group.id}`;
@@ -136,7 +166,7 @@ export function NewMatchDialog({
                     className={`new-match-option${working ? ' is-working' : ''}`}
                     disabled={pending !== null}
                     aria-busy={working}
-                    onClick={() => onChoose(o.choice)}
+                    onClick={() => (o.choice === 'challenge' ? setStep('rules') : onChoose(o.choice))}
                   >
                     <span className="new-match-icon" aria-hidden="true">
                       <span className={working ? 'oi oi-loop-circular spinner' : `oi ${o.icon}`}></span>
@@ -150,7 +180,8 @@ export function NewMatchDialog({
               })}
             </section>
           );
-        })}
+          })
+        )}
       </div>
     </div>
   );

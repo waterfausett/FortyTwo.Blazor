@@ -48,6 +48,7 @@ import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
+import { HouseRulesDialog } from '../components/HouseRulesDialog';
 import { HowToPlayDialog } from '../components/HowToPlayDialog';
 import { InviteDialog } from '../people/InviteDialog';
 import { MatchSummary } from '../components/MatchSummary';
@@ -64,9 +65,10 @@ import { toastError, toastInfo } from '../ui/toast';
 import type { TableCall } from '../match/TurnAlerts';
 import { TurnAlerts } from '../match/TurnAlerts';
 import {
-  MARKS_TO_WIN,
   assertPlayable,
   describeMatch,
+  houseRuleLabels,
+  marksToWin,
   isHighBidder as holdsHighBid,
   isTrickStarted,
   isValidPlay as isLegalPlay,
@@ -97,11 +99,11 @@ const TRICK_HOLD_MS = 1500;
 // The tail end of that hold is the sweep (match/sweep.ts's `sweepDurationMs`), during which the
 // trick leaves for the winning side rather than just blinking out.
 
-// MARKS_TO_WIN (@fortytwo/client) marks win the match - drawn as a tally.
-function MarkTally({ marks }: { marks: number }): JSX.Element {
+// `total` marks win the match (marksToWin: 7 unless the house rules say otherwise) - drawn as a tally.
+function MarkTally({ marks, total }: { marks: number; total: number }): JSX.Element {
   return (
     <span className="mark-tally" aria-hidden="true">
-      {Array.from({ length: MARKS_TO_WIN }, (_, i) => (
+      {Array.from({ length: total }, (_, i) => (
         <span key={i} className={i < marks ? 'mark mark-won' : 'mark'} />
       ))}
     </span>
@@ -220,6 +222,7 @@ export function Match(): JSX.Element {
   // The rules, over the table, from the scoreboard's "?". Opening them counts as having seen them.
   const [rulesOpen, setRulesOpen] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [houseRulesOpen, setHouseRulesOpen] = useState(false);
   const howToPlay = useHowToPlay(client);
   const navigate = useNavigate();
   // The player's own settings - here, whether to outline their playable dominoes. Shared with the
@@ -535,6 +538,7 @@ export function Match(): JSX.Element {
   // the first seat.
   const viewerId = watchFrom ?? myPlayerId;
   const view = describeMatch(match, viewerId);
+  const ruleLabels = houseRuleLabels(match.rules);
   const {
     me,
     opponentTeam,
@@ -701,7 +705,7 @@ export function Match(): JSX.Element {
         <div className="score score-us">
           <span className="score-label">Us</span>
           <span className="score-value">{scores[me.team] ?? 0}</span>
-          <MarkTally marks={scores[me.team] ?? 0} />
+          <MarkTally marks={scores[me.team] ?? 0} total={marksToWin(match)} />
         </div>
 
         <div className="contract">
@@ -724,6 +728,19 @@ export function Match(): JSX.Element {
                 <span className="contract-trump-rule">Doubles {lowDoublesToPrettyString(game.trump)}</span>
               )}
             </span>
+          )}
+          {/* A Custom Match's house rules get a button beside the "?". */}
+          {ruleLabels.length > 0 && (
+            <button
+              type="button"
+              className="contract-rules"
+              aria-label="House rules"
+              onClick={() => setHouseRulesOpen(true)}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor">
+                <path d="M3 5h8v2H3zm0 6h8v2H3zm0 6h8v2H3zm10-1.4 1.4-1.4 1.6 1.6 3.6-3.6 1.4 1.4-5 5zM13.4 5.4 15 7l1.6-1.6L18 6.8 16.4 8.4 18 10l-1.4 1.4L15 9.8l-1.6 1.6L12 10l1.6-1.6L12 6.8z" />
+              </svg>
+            </button>
           )}
           <button
             type="button"
@@ -760,9 +777,12 @@ export function Match(): JSX.Element {
         <div className="score score-them">
           <span className="score-label">Them</span>
           <span className="score-value">{scores[opponentTeam] ?? 0}</span>
-          <MarkTally marks={scores[opponentTeam] ?? 0} />
+          <MarkTally marks={scores[opponentTeam] ?? 0} total={marksToWin(match)} />
         </div>
       </header>
+      {match.currentGame.redealt && isBiddingPhase && (
+        <p className="redeal-line" role="status">Everyone passed, so the hands were dealt again.</p>
+      )}
 
       <div className="game-wrapper">
         {meOnAutopilot && !watching && (
@@ -1052,6 +1072,7 @@ export function Match(): JSX.Element {
           onClose={() => setSummaryOpen(false)}
         />
       )}
+      <HouseRulesDialog rules={match.rules} open={houseRulesOpen} onClose={() => setHouseRulesOpen(false)} />
       <HowToPlayDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
       <InviteDialog
         open={inviting}

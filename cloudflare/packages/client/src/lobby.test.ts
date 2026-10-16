@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MatchSummary } from '@fortytwo/api-types';
-import { invitableTables, MODE_LABELS, rowStatus, tableDetail, tableTitle, uniqueMatches, yourTurnFirst } from './lobby';
+import { invitableTables, MODE_LABELS, rowLabel, rowStatus, tableDetail, tableTitle, uniqueMatches, yourTurnFirst } from './lobby';
 
 const row = (id: string) => ({ id }) as MatchSummary;
 
@@ -78,5 +78,14 @@ describe('tableTitle and tableDetail', () => {
     expect(tableTitle(table)).toBe('Me & Ann vs Open seats');
     expect(tableDetail(table)).toBe('2 seats open');
     expect(tableDetail(summary({ playerCount: 3 }))).toBe('1 seat open');
+  });
+});
+
+describe('rowLabel', () => {
+  it('is the mode, then any house rules', () => {
+    expect(rowLabel(summary({ mode: 'custom' }))).toBe('Custom');
+    expect(rowLabel(summary({ mode: 'custom', rules: { low: 'forcedOnly', plunge: true, allPass: 'forceLast', marksToWin: 5 } }))).toBe(
+      'Custom · Low on forced bid only · To 5 marks'
+    );
   });
 });

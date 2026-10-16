@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { availableBids, availableTrumps, assertValidBid, assertValidTrump } from './validation';
-import { Suit } from './suit';
+import { lowAllowedIfWon, availableBids, availableTrumps, assertValidBid, assertValidTrump } from './validation';
+import { Suit, LOW_TRUMPS } from './suit';
+import type { HouseRules } from './houseRules';
 import { ValidationError } from './errors';
 import { Bid } from './bid';
 import { createDomino } from './domino';
@@ -134,5 +135,117 @@ describe('assertValidBid', () => {
   it('accepts the next marks rung and a Plunge with four doubles', () => {
     expect(() => assertValidBid(game(Bid.EightyFour), 'p1', Bid.ThreeMarks)).not.toThrow();
     expect(() => assertValidBid(game(null, 4), 'p1', Bid.Plunge)).not.toThrow();
+  });
+});
+
+// Bidding order p1, p2, p3, p4. `bids` are the bids already made, in seat order.
+function biddingGame(bids: (Bid | null)[], rules?: Partial<HouseRules>, extra: Partial<Game> = {}): Game {
+  const ids = ['p1', 'p2', 'p3', 'p4'];
+  const hands = ids.map((playerId, i) => ({
+    playerId,
+    team: i % 2 === 0 ? Teams.TeamA : Teams.TeamB,
+    dominoes: [] as ReturnType<typeof createDomino>[],
+    bid: bids[i] ?? null,
+  }));
+  const high = bids.reduce<{ bid: Bid | null; by: string | null }>(
+    (best, b, i) => (b !== null && b !== Bid.Pass && (best.bid === null || b > best.bid) ? { bid: b, by: ids[i] } : best),
+    { bid: null, by: null }
+  );
+  return {
+    id: 'g1', name: 'Game 1', firstActionBy: 'p1', bid: high.bid, biddingPlayerId: high.by, trump: null,
+    currentPlayerId: ids[bids.filter((b) => b !== null).length] ?? high.by,
+    hands, currentTrick: createTrick(),
+    tricks: [],
+    ...(rules ? { rules: { low: 'on', plunge: true, allPass: 'forceLast', marksToWin: 7, ...rules } as HouseRules } : {}),
+    ...extra,
+  };
+}
+
+// The detail of the ValidationError a trump is turned down with (its message is only the title).
+function trumpError(game: Game, suit: Suit): string | undefined {
+  try {
+    assertValidTrump(game, suit);
+  } catch (e) {
+    return (e as ValidationError).detail;
+  }
+  return undefined;
+}
+
+const FOUR_DOUBLES = [createDomino(0, 0), createDomino(1, 1), createDomino(2, 2), createDomino(3, 3)];
+
+describe('house rules: all pass', () => {
+  it('forces the last bidder under the default rules', () => {
+    const game = biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, null]);
+    expect(availableBids(game, 'p4')).not.toContain(Bid.Pass);
+    expect(() => assertValidBid(game, 'p4', Bid.Pass)).toThrow(ValidationError);
+  });
+
+  it('lets the last bidder pass under redeal', () => {
+    const game = biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, null], { allPass: 'redeal' });
+    expect(availableBids(game, 'p4')[0]).toBe(Bid.Pass);
+    expect(() => assertValidBid(game, 'p4', Bid.Pass)).not.toThrow();
+  });
+});
+
+describe('house rules: plunge', () => {
+  it('offers Plunge with four doubles by default', () => {
+    const game = biddingGame([null, null, null, null]);
+    game.hands[0].dominoes = FOUR_DOUBLES;
+    expect(availableBids(game, 'p1')).toContain(Bid.Plunge);
+  });
+
+  it('never offers Plunge when it is off', () => {
+    const game = biddingGame([null, null, null, null], { plunge: false });
+    game.hands[0].dominoes = FOUR_DOUBLES;
+    expect(availableBids(game, 'p1')).not.toContain(Bid.Plunge);
+    expect(() => assertValidBid(game, 'p1', Bid.Plunge)).toThrow(ValidationError);
+  });
+});
+
+describe('house rules: low', () => {
+  it('offers Low at 42+ when on, as today', () => {
+    const game = biddingGame([Bid.FortyTwo, Bid.Pass, Bid.Pass, Bid.Pass], { low: 'on' });
+    expect(availableTrumps(game)).toEqual(expect.arrayContaining([...LOW_TRUMPS]));
+  });
+
+  it('never offers Low when off, with a reason', () => {
+    const game = biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, Bid.EightyFour], { low: 'off' });
+    expect(availableTrumps(game).some((s) => LOW_TRUMPS.includes(s as (typeof LOW_TRUMPS)[number]))).toBe(false);
+    expect(availableTrumps(game)).toContain(Suit.None);
+    expect(trumpError(game, Suit.Low)).toMatch(/isn't played at this table/);
+  });
+
+  it('offers Low to a forced bidder at 42+ under forcedOnly', () => {
+    const game = biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, Bid.FortyTwo], { low: 'forcedOnly' }, { forcedBid: true });
+    expect(availableTrumps(game)).toEqual(expect.arrayContaining([...LOW_TRUMPS]));
+  });
+
+  it('still needs 42 from a forced bidder under forcedOnly', () => {
+    const game = biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, Bid.Thirty], { low: 'forcedOnly' }, { forcedBid: true });
+    expect(availableTrumps(game)).not.toContain(Suit.Low);
+    expect(trumpError(game, Suit.Low)).toMatch(/needs a bid of at least 42/);
+  });
+
+  it('refuses Low to a bidder who outbid someone under forcedOnly', () => {
+    const game = biddingGame([Bid.Thirty, Bid.Pass, Bid.Pass, Bid.FortyTwo], { low: 'forcedOnly' });
+    expect(availableTrumps(game)).not.toContain(Suit.Low);
+    expect(trumpError(game, Suit.Low)).toMatch(/only for a player forced to bid/);
+  });
+
+  it('refuses Low to an opener whose bid stood under forcedOnly', () => {
+    // The other three all passed here too, but after the opener bid: not forced, so no flag.
+    const game = biddingGame([Bid.FortyTwo, Bid.Pass, Bid.Pass, Bid.Pass], { low: 'forcedOnly' });
+    expect(availableTrumps(game)).not.toContain(Suit.Low);
+    expect(trumpError(game, Suit.Low)).toMatch(/only for a player forced to bid/);
+  });
+});
+
+describe('lowAllowedIfWon', () => {
+  it('follows the low rule, and under forcedOnly whether the other three passed', () => {
+    expect(lowAllowedIfWon(biddingGame([null, null, null, null]), 'p1')).toBe(true);
+    expect(lowAllowedIfWon(biddingGame([null, null, null, null], { low: 'off' }), 'p1')).toBe(false);
+    expect(lowAllowedIfWon(biddingGame([null, null, null, null], { low: 'forcedOnly' }), 'p1')).toBe(false);
+    expect(lowAllowedIfWon(biddingGame([Bid.Pass, Bid.Pass, Bid.Pass, null], { low: 'forcedOnly' }), 'p4')).toBe(true);
+    expect(lowAllowedIfWon(biddingGame([Bid.Pass, Bid.Thirty, Bid.Pass, null], { low: 'forcedOnly' }), 'p4')).toBe(false);
   });
 });

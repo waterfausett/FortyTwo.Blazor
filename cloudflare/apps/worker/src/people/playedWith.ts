@@ -1,4 +1,4 @@
-// The played_with table (migrations/0012_people.sql): who has sat at a started game with whom,
+// The played_with table (migrations/0013_people.sql): who has sat at a started game with whom,
 // for the People list's recent players. Written by MatchDO when a game starts - the first deal,
 // a rematch, or a newcomer taking over a seat mid-game - so a table that never filled, or a game
 // against bots alone, adds nobody.

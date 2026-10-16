@@ -1,4 +1,4 @@
-// The invites table (migrations/0012_people.sql): invites to a custom table, sent from the table
+// The invites table (migrations/0013_people.sql): invites to a custom table, sent from the table
 // (POST /api/matches/:id/invites) and listed in the invitee's Lobby (GET /api/invites). An invite
 // reserves nothing - custom tables stay open to anyone (#84 would change that). It's deleted when
 // the invitee sits or the table fills (lobby.ts's syncMatchPlayers) or goes (deleteFromLobbyIndex),
