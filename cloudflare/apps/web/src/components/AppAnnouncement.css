@@ -48,7 +48,7 @@
   border-radius: 0.5rem;
   background: #000;
   color: #fff;
-  opacity: 0.6;
+  filter: saturate(0.5);
 }
 
 .app-badge-text {
@@ -59,7 +59,8 @@
 }
 
 .app-badge-small {
-  font-size: 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 500;
   white-space: nowrap;
 }
 
