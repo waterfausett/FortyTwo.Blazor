@@ -3,11 +3,12 @@
 // (Play vs bots goes straight into a game against three bots). Live and Play vs bots are left out
 // while bots are off, since they rely on them to fill their seats. Custom Match first asks for its
 // house rules.
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { DEFAULT_HOUSE_RULES, type HouseRules } from '@fortytwo/rules';
+import { BottomSheet } from '@/components/BottomSheet';
 import { HouseRulesForm } from '@/components/HouseRulesForm';
 import { colors, fonts } from '@/components/theme';
 
@@ -71,12 +72,6 @@ export function NewMatchSheet({
   const insets = useSafeAreaInsets();
   const slow = useSlow(pending);
   const close = pending ? () => {} : onClose;
-  const { height: windowHeight } = useWindowDimensions();
-  // As a native sheet does: the scrim fades in place while only the sheet slides. The Modal's own
-  // "slide" would carry the scrim up with it. It stays mounted until the sheet is down again.
-  const shown = useRef(new Animated.Value(0)).current;
-  const [mounted, setMounted] = useState(visible);
-  const [sheetHeight, setSheetHeight] = useState(windowHeight);
   // Counts the opens, so the content (see SheetBody) starts fresh on each one yet stays as it was
   // while the sheet slides down. Adjusted while rendering, so no stale frame shows on reopen.
   const [opens, setOpens] = useState(visible ? 1 : 0);
@@ -85,32 +80,10 @@ export function NewMatchSheet({
     setWasVisible(visible);
     if (visible) setOpens(opens + 1);
   }
-  useEffect(() => {
-    if (visible) setMounted(true);
-    const animation = Animated.timing(shown, {
-      toValue: visible ? 1 : 0,
-      duration: visible ? OPEN_MS : CLOSE_MS,
-      easing: visible ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
-      useNativeDriver: true,
-    });
-    animation.start(({ finished }) => {
-      if (finished && !visible) setMounted(false);
-    });
-    return () => animation.stop();
-  }, [shown, visible]);
-  const translateY = shown.interpolate({ inputRange: [0, 1], outputRange: [sheetHeight, 0] });
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={close}>
-      <Animated.View style={[styles.scrim, { opacity: shown }]}>
-        <Pressable style={styles.fill} onPress={close} accessibilityLabel="Close" />
-      </Animated.View>
-      <Animated.View
-        onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
-        style={[styles.sheet, { paddingBottom: 20 + insets.bottom, transform: [{ translateY }] }]}
-      >
-        <SheetBody key={opens} liveEnabled={liveEnabled} online={online} pending={pending} error={error} slow={slow} onChoose={onChoose} />
-      </Animated.View>
-    </Modal>
+    <BottomSheet visible={visible} onClose={close} style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
+      <SheetBody key={opens} liveEnabled={liveEnabled} online={online} pending={pending} error={error} slow={slow} onChoose={onChoose} />
+    </BottomSheet>
   );
 }
 
@@ -210,8 +183,6 @@ function SheetBody({ liveEnabled, online, pending, error, slow, onChoose }: {
   );
 }
 
-const OPEN_MS = 280;
-const CLOSE_MS = 220;
 // How long a choice works before its line admits it's taking a while.
 export const SLOW_MS = 3000;
 
@@ -235,17 +206,8 @@ function useSlow(pending: NewMatchChoice | null): boolean {
 }
 
 const styles = StyleSheet.create({
-  // Behind the sheet, to the bottom of the screen, so the sheet's rounded corners show it.
-  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(10, 6, 4, 0.6)' },
-  fill: { flex: 1 },
   sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     backgroundColor: colors.walnutDeep,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     paddingHorizontal: 16,
     paddingTop: 10,
     gap: 10,

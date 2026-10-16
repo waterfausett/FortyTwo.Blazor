@@ -65,6 +65,7 @@ import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
 import { DoublesRuleModal } from '@/components/DoublesRuleModal';
+import { InviteSheet } from '@/people/InviteSheet';
 import { Fade, FADE_IN_MS } from '@/components/Fade';
 import { Hand, type DragState } from '@/components/Hand';
 import { HelpButton } from '@/components/HelpButton';
@@ -194,6 +195,7 @@ export default function MatchScreen() {
     mutationFn: () => api.leaveMatch(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
+      queryClient.invalidateQueries({ queryKey: ['invites'] });
       router.dismissTo('/');
     },
     onError: (error) => {
@@ -212,8 +214,16 @@ export default function MatchScreen() {
     if (!deleted || leavingRef.current || bumped) return;
     toastInfo('This match was deleted');
     queryClient.invalidateQueries({ queryKey: ['matches'] });
+    queryClient.invalidateQueries({ queryKey: ['invites'] });
     router.dismissTo('/');
   }, [deleted, leaveFailed, bumped, queryClient]);
+
+  // Arriving at a full table (often from an Invited to card fetched before it filled): the Lobby
+  // stays mounted underneath, so refresh its invites now, and the stale one is gone on the way back.
+  const full = role === 'stranger' && liveMatch !== null && liveMatch.players.length === 4;
+  useEffect(() => {
+    if (full) queryClient.invalidateQueries({ queryKey: ['invites'] });
+  }, [full, queryClient]);
 
   // Bumped - the game they were waiting on ended first - this player looks for another Over the
   // table game straight away, once, and goes to it. If that fails they can try again.
@@ -257,6 +267,7 @@ export default function MatchScreen() {
     onSuccess: (joined) => {
       queryClient.setQueryData(['match', id], joined);
       queryClient.invalidateQueries({ queryKey: ['matches'] });
+      queryClient.invalidateQueries({ queryKey: ['invites'] });
     },
     onError: toastError,
   });
@@ -335,6 +346,7 @@ export default function MatchScreen() {
   // the match plays out on the table like any other hand.
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [doublesOpen, setDoublesOpen] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
@@ -704,7 +716,12 @@ export default function MatchScreen() {
                       onPress={() => shareInvite(match.id).catch(toastError)}
                       accessibilityRole="button"
                     >
-                      <Text style={styles.smallButtonText}>Invite friends</Text>
+                      <Text style={styles.smallButtonText}>Share link</Text>
+                    </Pressable>
+                  )}
+                  {mode === 'custom' && emptySeatCount > 0 && (
+                    <Pressable style={styles.smallButton} onPress={() => setInviting(true)} accessibilityRole="button">
+                      <Text style={styles.smallButtonText}>Invite players</Text>
                     </Pressable>
                   )}
                   {mode === 'custom' && config.data?.bots && emptySeatCount > 0 && (
@@ -881,6 +898,12 @@ export default function MatchScreen() {
       )}
       <HouseRulesModal rules={match.rules} visible={rulesOpen} onClose={() => setRulesOpen(false)} />
       <DoublesRuleModal trump={doublesOpen ? game.trump : null} onClose={() => setDoublesOpen(false)} />
+      <InviteSheet
+        visible={inviting}
+        matchId={match.id}
+        seatedIds={match.players.map((p) => p.playerId)}
+        onClose={() => setInviting(false)}
+      />
       {view.isMatchOver && (
         <MatchSummary
           visible={summaryOpen}

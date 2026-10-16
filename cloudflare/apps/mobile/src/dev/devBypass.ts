@@ -8,6 +8,7 @@
 // The lobby, the profile (stats included) work this way, and the canned matches in devMatches.ts (open
 // `match/dev-bidding` and the rest). Anything else fails with "Not in the dev bypass".
 import type { MatchState } from '@fortytwo/rules';
+import type { Invite, Person } from '@fortytwo/client';
 import type { MatchPage, MatchSummary, PlayerStats, ProfilePatch, UserProfile } from '@fortytwo/api-types';
 import type { Api } from '@/api/useApi';
 import { DEV_PLAYER_ID, devMatchApi } from './devMatches';
@@ -82,6 +83,20 @@ const handled: Partial<Api> = {
   play: () => answer({ id: 'dev-new' } as MatchState),
   playBots: () => answer({ id: 'dev-new' } as MatchState),
   joinMatch: (id) => answer({ id } as MatchState),
+  getPeople: (show) =>
+    answer<Person[]>(
+      [
+        { user_id: 'gj', displayName: 'Grandma Jo', isFriend: true, lastPlayedOn: new Date(Date.now() - 2 * 86_400_000).toISOString(), games: 9 },
+        { user_id: 'sam', displayName: 'Sam', isFriend: false, lastPlayedOn: new Date(Date.now() - 3 * 3_600_000).toISOString(), games: 1 },
+      ].filter((p) => (show === 'friends' ? p.isFriend : show === 'recent' ? !p.isFriend : true))
+    ),
+  searchPeople: () => answer<Person[]>([]),
+  addFriend: () => answer(undefined),
+  removeFriend: () => answer(undefined),
+  getInvites: () =>
+    answer<Invite[]>([{ matchId: 'dev-new', from: { user_id: 'gj', displayName: 'Grandma Jo' }, createdOn: new Date().toISOString(), seatsOpen: 2 }]),
+  dismissInvite: () => answer(undefined),
+  invitePlayers: (_matchId, userIds) => answer({ invited: userIds }),
   ...devMatchApi,
 };
 

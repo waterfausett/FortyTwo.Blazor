@@ -1,15 +1,18 @@
-// The lobby: the signed-in player's matches, one list at a time, plus starting a new match and
-// starting Live or Async play, or a table to share. Each list loads a page at a time as it's scrolled.
+// The lobby: the signed-in player's matches, one list at a time (three segments: Active, History,
+// People), plus starting a new match and starting Live or Async play, or a table to share. Each
+// list loads a page at a time as it's scrolled. Invites to custom tables wait in an Invited to card
+// above the segments.
 //
 // Laid out as a phone app's home screen rather than a page: a large title with the player's
 // picture (the way to their profile) in place of the navigation bar, a segmented control for the
-// lists, full-width rows, and a floating button for a new match.
+// lists, full-width rows, and a floating button for a new match. Each person in People has an
+// Invite that asks them to one of the player's open Custom tables (InviteToTableSheet).
 import { useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { router, Stack } from 'expo-router';
-import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { rowLabel, rowStatus, uniqueMatches, yourTurnFirst, type MatchPage, type MatchSummary } from '@fortytwo/client';
+import { rowLabel, rowStatus, uniqueMatches, yourTurnFirst, type MatchPage, type MatchSummary, type Person } from '@fortytwo/client';
 import type { HouseRules } from '@fortytwo/rules';
 import { useOnline } from '@/api/presence';
 import { useApi } from '@/api/useApi';
@@ -19,11 +22,16 @@ import { NewMatchSheet, type NewMatchChoice } from '@/components/NewMatchSheet';
 import { HelpButton } from '@/components/HelpButton';
 import { HowToPlayCard } from '@/components/HowToPlayCard';
 import { colors, fonts } from '@/components/theme';
+import { InvitesCard } from '@/people/InvitesCard';
+import { InviteToTableSheet } from '@/people/InviteToTableSheet';
+import { PeoplePanel } from '@/people/PeoplePanel';
 
 type Filter = 'Active' | 'Completed';
-const FILTERS: { filter: Filter; label: string }[] = [
-  { filter: 'Active', label: 'Active' },
-  { filter: 'Completed', label: 'History' },
+type Segment = Filter | 'People';
+const SEGMENTS: { segment: Segment; label: string }[] = [
+  { segment: 'Active', label: 'Active' },
+  { segment: 'Completed', label: 'History' },
+  { segment: 'People', label: 'Friends' },
 ];
 const EMPTY: Record<Filter, { title: string; detail: string }> = {
   Active: { title: 'No games yet', detail: 'Start a new match: play Live now, take Async turns, or set up a Custom Match.' },
@@ -37,12 +45,14 @@ export default function Lobby() {
   const api = useApi();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<Filter>('Active');
+  const [segment, setSegment] = useState<Segment>('Active');
+  const filter: Filter = segment === 'People' ? 'Active' : segment;
   // A first-time player is offered the rules until they dismiss the card or open them.
   const howToPlay = useHowToPlay();
 
   const matches = useInfiniteQuery({
     queryKey: ['matches', filter] as const,
+    enabled: segment !== 'People',
     queryFn: ({ pageParam }) => api.listMatches(filter, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
@@ -58,11 +68,25 @@ export default function Lobby() {
       data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
     );
     void matches.refetch();
+    void queryClient.invalidateQueries({ queryKey: ['invites'] });
+  }
+
+  // The People segment's pull-to-refresh: its own spinner, until the lists are back.
+  const [peopleRefreshing, setPeopleRefreshing] = useState(false);
+  async function refreshPeople() {
+    setPeopleRefreshing(true);
+    try {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['people'] }), queryClient.invalidateQueries({ queryKey: ['invites'] })]);
+    } finally {
+      setPeopleRefreshing(false);
+    }
   }
 
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
   const online = useOnline();
   const [choosing, setChoosing] = useState(false);
+  // Who the People segment's Invite is inviting to a table, while its sheet is open.
+  const [inviting, setInviting] = useState<Person | null>(null);
   // Live and Async seat the player through matchmaking; Custom Match starts a custom table; Play
   // vs bots starts a game against three bots.
   const start = useMutation({
@@ -97,13 +121,14 @@ export default function Lobby() {
           </View>
         </View>
         {howToPlay.offer && <HowToPlayCard onOpen={() => router.push('/how-to-play')} onDismiss={howToPlay.markSeen} />}
+        <InvitesCard />
         <View style={styles.segments} accessibilityRole="tablist">
-          {FILTERS.map(({ filter: f, label }) => {
-            const selected = f === filter;
+          {SEGMENTS.map(({ segment: s, label }) => {
+            const selected = s === segment;
             return (
               <Pressable
-                key={f}
-                onPress={() => setFilter(f)}
+                key={s}
+                onPress={() => setSegment(s)}
                 style={[styles.segment, selected && styles.segmentSelected]}
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
@@ -115,7 +140,36 @@ export default function Lobby() {
         </View>
       </View>
 
-      {matches.isPending ? (
+      {segment === 'People' ? (
+        <ScrollView
+          contentContainerStyle={[styles.list, styles.people, { paddingBottom: FAB_CLEARANCE + insets.bottom }]}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={peopleRefreshing}
+              onRefresh={refreshPeople}
+              tintColor={colors.brass}
+              colors={[colors.brass]}
+              progressBackgroundColor={colors.walnutDeep}
+            />
+          }
+        >
+          <PeoplePanel
+            views
+            emptyText="Play a game and the people you play with show up here."
+            action={(person) => (
+              <Pressable
+                style={styles.inviteButton}
+                onPress={() => setInviting(person)}
+                accessibilityRole="button"
+                accessibilityLabel={`Invite ${person.displayName} to a table`}
+              >
+                <Text style={styles.inviteText}>Invite</Text>
+              </Pressable>
+            )}
+          />
+        </ScrollView>
+      ) : matches.isPending ? (
         <ActivityIndicator size="large" color={colors.brass} style={styles.loading} />
       ) : (
         <FlatList
@@ -156,6 +210,8 @@ export default function Lobby() {
           }
         />
       )}
+
+      <InviteToTableSheet person={inviting} onClose={() => setInviting(null)} />
 
       <NewMatchSheet
         visible={choosing}
@@ -294,6 +350,8 @@ function MatchRow({ match }: { match: MatchSummary }) {
 const hairline = 'rgba(242, 234, 219, 0.09)';
 
 const styles = StyleSheet.create({
+  inviteButton: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: colors.brass },
+  inviteText: { color: colors.walnutDeep, fontFamily: fonts.uiBold },
   screen: { flex: 1, backgroundColor: colors.walnut },
 
   header: { paddingHorizontal: 20, paddingBottom: 12, gap: 16, backgroundColor: colors.walnut },
@@ -323,6 +381,7 @@ const styles = StyleSheet.create({
 
   loading: { marginTop: 48 },
   list: { flexGrow: 1 },
+  people: { paddingHorizontal: 20, paddingTop: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 14 },
   rowPressed: { backgroundColor: 'rgba(242, 234, 219, 0.04)' },
   rowText: { flex: 1 },

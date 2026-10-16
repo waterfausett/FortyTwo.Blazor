@@ -20,10 +20,12 @@ import { botsEnabled } from '../bots';
 import { publicUsers } from '../users/publicUsers';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
-import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
+import { Teams, matchMode, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import { turnSummaries, turnWaitsFor } from '../lobbyTurns';
 import { decodeCursor, encodeCursor } from '../cursor';
-import type { HouseRules, MatchPage, MatchSummary } from '@fortytwo/api-types';
+import { createInvites, MAX_INVITES_PER_TABLE } from '../people/invites';
+import { sendInvites } from '../push/send';
+import type { HouseRules, InviteResult, MatchPage, MatchSummary } from '@fortytwo/api-types';
 
 type AppContext = Context<AppEnv>;
 const matches = new Hono<AppEnv>();
@@ -148,6 +150,32 @@ matches.post('/:id/players', async (c) => {
       ? await match.takeSeat(userId, field.position(body), shuffledDominoOrder())
       : await match.addPlayer(userId, field.team(body), shuffledDominoOrder());
   return replyWithMatch(c, result, { lobbySync: 'seats' });
+});
+
+// Invites people to a custom table with an open seat (people/invites.ts), by push and in their
+// Lobby. Only a player at the table may send them.
+matches.post('/:id/invites', async (c) => {
+  const userId = c.get('user').sub;
+  const toIds = field.invitees(await readBody(c), MAX_INVITES_PER_TABLE);
+  const result = await matchStub(c.env, c.req.param('id')).getMatch();
+  if (!result.ok) return refusal(c, result);
+  const match = result.value;
+  if (!match.players.some((p) => p.playerId === userId)) {
+    return c.json({ title: 'Not at this table', detail: 'Only players at the table can invite.' }, 403);
+  }
+  if (matchMode(match) !== 'custom') {
+    return c.json({ title: "Can't invite here", detail: 'Only Custom Matches take invites.' }, 409);
+  }
+  if (match.winningTeam !== null) return c.json({ title: 'Match over', detail: 'This match has finished.' }, 409);
+  if (match.players.length >= 4) return c.json({ title: 'Table is full', detail: 'Every seat is taken.' }, 409);
+  const invited = await createInvites(c.env.DB, match, userId, toIds);
+  if (invited === 'tooMany') {
+    return c.json({ title: 'Too many invites', detail: `A table can send at most ${MAX_INVITES_PER_TABLE} invites.` }, 409);
+  }
+  if (invited.length > 0) {
+    c.executionCtx.waitUntil(sendInvites(c.env, match.id, userId, invited));
+  }
+  return c.json({ invited } satisfies InviteResult);
 });
 
 // Seats a bot at `{ position }`, or at every open seat when no position is given, so bots can make

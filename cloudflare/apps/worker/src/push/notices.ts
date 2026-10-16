@@ -27,7 +27,7 @@ import {
   type MatchState,
 } from '@fortytwo/rules';
 
-export type NoticeKind = 'turn' | 'handOver' | 'matchOver' | 'started' | 'poke';
+export type NoticeKind = 'turn' | 'handOver' | 'matchOver' | 'started' | 'poke' | 'invite';
 
 export interface Notice {
   playerId: string;

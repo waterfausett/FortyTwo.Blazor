@@ -111,6 +111,28 @@ export interface UserProfile extends Auth0User {
 // and nothing that identifies them outside the game.
 export type PublicUser = Pick<UserProfile, 'user_id' | 'displayName' | 'picture'>;
 
+// Someone in the caller's People list (GET /api/people, /api/people/search): a friend they've
+// starred, someone they've played with, or a search result. `games` and `lastPlayedOn` count
+// started games together (0 and null if none).
+// Which part of the People list to fetch: just friends, just recent players, or (no value) both.
+export type PeopleView = 'friends' | 'recent';
+
+export type Person = PublicUser & { isFriend: boolean; lastPlayedOn: string | null; games: number };
+
+// An invite to a custom table waiting for the caller (GET /api/invites), until they take a seat,
+// dismiss it, or the table fills or ends.
+export interface Invite {
+  matchId: string;
+  from: PublicUser;
+  createdOn: string;
+  seatsOpen: number;
+}
+
+// POST /api/matches/:id/invites: who was invited just now (anyone skipped is left out).
+export interface InviteResult {
+  invited: string[];
+}
+
 // The fields a player may change on their profile (PATCH /api/users). Blank `picture` clears it.
 export interface ProfilePatch {
   displayName?: string;

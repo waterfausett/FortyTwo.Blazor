@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MatchSummary } from '@fortytwo/api-types';
-import { MODE_LABELS, rowLabel, rowStatus, uniqueMatches, yourTurnFirst } from './lobby';
+import { invitableTables, MODE_LABELS, rowLabel, rowStatus, tableDetail, tableTitle, uniqueMatches, yourTurnFirst } from './lobby';
 
 const row = (id: string) => ({ id }) as MatchSummary;
 
@@ -55,6 +55,29 @@ describe('yourTurnFirst', () => {
       summary({ id: 'c' }),
     ];
     expect(yourTurnFirst(rows).map((r) => r.id)).toEqual(['b', 'a', 'c']);
+  });
+});
+
+describe('invitableTables', () => {
+  const open = summary({ id: 'open', mode: 'custom', playerCount: 2, seats: ['Me', null, 'Ann', null] });
+  it('keeps active Custom tables with a seat open that the person is not at', () => {
+    const rows = [
+      open,
+      summary({ id: 'full', mode: 'custom', playerCount: 4, seats: ['Me', 'Bo', 'Cy', 'Di'] }),
+      summary({ id: 'async', mode: 'daily', playerCount: 2, seats: ['Me', null, 'Bo', null] }),
+      summary({ id: 'over', mode: 'custom', status: 'completed', playerCount: 2, seats: ['Me', null, 'Bo', null] }),
+      summary({ id: 'seated', mode: 'custom', playerCount: 3, seats: ['Me', 'Bo', 'Cy', null] }),
+    ];
+    expect(invitableTables(rows, 'Bo').map((m) => m.id)).toEqual(['open']);
+  });
+});
+
+describe('tableTitle and tableDetail', () => {
+  it('name the teams, an empty one as Open seats, over how many seats are open', () => {
+    const table = summary({ playerCount: 2, teams: [['Me', 'Ann'], []] });
+    expect(tableTitle(table)).toBe('Me & Ann vs Open seats');
+    expect(tableDetail(table)).toBe('2 seats open');
+    expect(tableDetail(summary({ playerCount: 3 }))).toBe('1 seat open');
   });
 });
 

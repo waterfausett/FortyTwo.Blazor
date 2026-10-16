@@ -50,6 +50,7 @@ import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
 import { HouseRulesDialog } from '../components/HouseRulesDialog';
 import { HowToPlayDialog } from '../components/HowToPlayDialog';
+import { InviteDialog } from '../people/InviteDialog';
 import { MatchSummary } from '../components/MatchSummary';
 import { NameSkeleton } from '../components/NameSkeleton';
 import { Hand } from '../components/Hand';
@@ -220,6 +221,7 @@ export function Match(): JSX.Element {
   const [summaryOpen, setSummaryOpen] = useState(false);
   // The rules, over the table, from the scoreboard's "?". Opening them counts as having seen them.
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [houseRulesOpen, setHouseRulesOpen] = useState(false);
   const howToPlay = useHowToPlay(client);
   const navigate = useNavigate();
@@ -868,7 +870,12 @@ export function Match(): JSX.Element {
                     <p>{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
                     {mode === 'custom' && emptySeats.length > 0 && (
                       <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => void shareInvite(match.id)}>
-                        Invite friends
+                        Share link
+                      </button>
+                    )}
+                    {mode === 'custom' && emptySeats.length > 0 && (
+                      <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setInviting(true)}>
+                        Invite players
                       </button>
                     )}
                     {mode === 'custom' && botsEnabled && emptySeats.length > 0 && (
@@ -1067,6 +1074,13 @@ export function Match(): JSX.Element {
       )}
       <HouseRulesDialog rules={match.rules} open={houseRulesOpen} onClose={() => setHouseRulesOpen(false)} />
       <HowToPlayDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      <InviteDialog
+        open={inviting}
+        matchId={match.id}
+        seatedIds={match.players.map((p) => p.playerId)}
+        client={client}
+        onClose={() => setInviting(false)}
+      />
     </div>
   );
 }

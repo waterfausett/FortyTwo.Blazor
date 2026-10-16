@@ -111,6 +111,19 @@ beforeEach(() => {
 });
 
 describe('Match screen, Live Play', () => {
+  it('refreshes the Lobby invites when a stranger lands on a full table', async () => {
+    mockMe.id = 'n1';
+    socket(dealtLiveWithBots({ mode: 'custom' }));
+    const invalidate = jest.spyOn(QueryClient.prototype, 'invalidateQueries');
+    try {
+      await renderScreen();
+      expect(await screen.findByText('This match is full')).toBeTruthy();
+      await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['invites'] }));
+    } finally {
+      invalidate.mockRestore();
+    }
+  });
+
   it('shows a claimant the table without a hand, with Cancel', async () => {
     mockMe.id = 'n1';
     mockApi.leaveMatch.mockResolvedValue(undefined);

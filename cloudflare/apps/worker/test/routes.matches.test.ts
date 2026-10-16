@@ -75,6 +75,7 @@ beforeEach(async () => {
     testEnv.DB.prepare('DELETE FROM match_players'),
     testEnv.DB.prepare('DELETE FROM matches'),
     testEnv.DB.prepare('DELETE FROM users'),
+    testEnv.DB.prepare('DELETE FROM played_with'),
   ]);
 });
 
@@ -276,6 +277,13 @@ describe('match routes', () => {
     expect(afterJoins.match_players - beforeLastJoin.match_players).toBe(7);
 
     for (const token of [p1, p2, p3, p4]) await send(token, 'PATCH', '/players', { ready: true });
+    // The game started, so each of them has played with the other three (people/playedWith.ts).
+    await vi.waitFor(async () => {
+      const { n } = (await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM played_with WHERE user_id = ?')
+        .bind('p1')
+        .first<{ n: number }>())!;
+      expect(n).toBe(3);
+    });
     await send(p1, 'POST', '/games/current/bids', { bid: 30 });
     for (const token of [p2, p3, p4]) await send(token, 'POST', '/games/current/bids', { bid: 0 });
     const afterTrump = await send(p1, 'PATCH', '/games/current', { suit: 6 });

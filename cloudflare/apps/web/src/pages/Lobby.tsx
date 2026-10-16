@@ -1,5 +1,7 @@
 // The lobby: the player's matches (Active, the default, and Game History) plus the New match
-// chooser - Live and Async matchmaking, or a custom table to share with friends.
+// chooser - Live and Async matchmaking, or a custom table to share with friends. It also has a
+// People tab (friends, recent players, search; Invite asks someone to one of your open tables) and
+// an Invited to card for invites to tables.
 //
 // Only the selected tab's list is ever fetched - one page (20) at a time, with Load more for the
 // next - and the single `useInfiniteQuery` below is keyed on `activeTab`, so switching tabs just
@@ -15,21 +17,26 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { HouseRules } from '@fortytwo/rules';
 import type { JSX } from 'react';
-import { rowLabel, rowStatus, uniqueMatches, yourTurnFirst } from '@fortytwo/client';
-import { apiClient, type MatchPage, type MatchSummary } from '../api/client';
+import { formatMatchup, rowLabel, rowStatus, uniqueMatches, yourTurnFirst } from '@fortytwo/client';
+import { apiClient, type MatchPage, type Person } from '../api/client';
 import { useOnline } from '../api/presence';
 import { AppAnnouncement } from '../components/AppAnnouncement';
 import { NewMatchDialog, type NewMatchChoice } from '../components/NewMatchDialog';
 import { SEAT_SIDES } from '../components/SeatPicker';
 import { useHowToPlay } from '../match/useHowToPlay';
+import { InvitesCard } from '../people/InvitesCard';
+import { InviteToTableDialog } from '../people/InviteToTableDialog';
+import { PeoplePanel } from '../people/PeoplePanel';
 import '../components/HowToPlay.css';
 import './Lobby.css';
 
 type MatchFilter = 'Active' | 'Completed';
+type LobbyTab = MatchFilter | 'People';
 
-const TABS: { filter: MatchFilter; label: string }[] = [
-  { filter: 'Active', label: 'Active' },
-  { filter: 'Completed', label: 'Game History' },
+const TABS: { tab: LobbyTab; label: string }[] = [
+  { tab: 'Active', label: 'Active' },
+  { tab: 'Completed', label: 'Game History' },
+  { tab: 'People', label: 'Friends' },
 ];
 
 const EMPTY_LABELS: Record<MatchFilter, string> = {
@@ -47,13 +54,6 @@ function SeatGlyph({ seats }: { seats: (string | null)[] }): JSX.Element {
       ))}
     </span>
   );
-}
-
-// "Alice & Cara vs Bob & bot-3". A team nobody has joined yet reads as "?"; a row with no players
-// at all falls back to the match id so it still has a label.
-function formatMatchup({ id, teams }: MatchSummary): string {
-  if (teams.every((team) => team.length === 0)) return id;
-  return teams.map((team) => (team.length > 0 ? team.join(' & ') : '?')).join(' vs ');
 }
 
 function formatUpdated(iso: string): string {
@@ -74,12 +74,14 @@ export function Lobby(): JSX.Element {
   // A first-time player is offered the rules until they dismiss the card or open them.
   const howToPlay = useHowToPlay(client);
 
-  const [activeTab, setActiveTab] = useState<MatchFilter>('Active');
-  const activeTabLabel = TABS.find((tab) => tab.filter === activeTab)?.label ?? activeTab;
+  const [activeTab, setActiveTab] = useState<LobbyTab>('Active');
+  const matchFilter: MatchFilter = activeTab === 'People' ? 'Active' : activeTab;
+  const activeTabLabel = TABS.find((tab) => tab.tab === activeTab)?.label ?? activeTab;
 
   const matchesQuery = useInfiniteQuery({
-    queryKey: ['matches', activeTab] as const,
-    queryFn: ({ pageParam }) => client.listMatches(activeTab, pageParam),
+    queryKey: ['matches', matchFilter] as const,
+    queryFn: ({ pageParam }) => client.listMatches(matchFilter, pageParam),
+    enabled: activeTab !== 'People',
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
@@ -91,15 +93,18 @@ export function Lobby(): JSX.Element {
   // Back to the first page: drop the rest from the cache, then refetch what's left - one request,
   // with the list kept on screen meanwhile.
   function refresh() {
-    queryClient.setQueryData<InfiniteData<MatchPage, string | undefined>>(['matches', activeTab], (data) =>
+    queryClient.setQueryData<InfiniteData<MatchPage, string | undefined>>(['matches', matchFilter], (data) =>
       data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
     );
     void matchesQuery.refetch();
+    void queryClient.invalidateQueries({ queryKey: ['invites'] });
   }
 
   const config = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig() });
   const online = useOnline();
   const [choosing, setChoosing] = useState(false);
+  // Who the People tab's Invite is inviting to a table, while its dialog is open.
+  const [inviting, setInviting] = useState<Person | null>(null);
 
   // Live and Async seat the player through matchmaking; Custom Match starts a custom table; Play
   // vs bots starts a game against three bots.
@@ -150,15 +155,17 @@ export function Lobby(): JSX.Element {
         onClose={() => setChoosing(false)}
       />
 
+      <InvitesCard client={client} />
+
       <div className="lobby-tabs" role="tablist" aria-label="Match lists">
         {TABS.map((tab) => (
           <button
-            key={tab.filter}
+            key={tab.tab}
             type="button"
             role="tab"
-            aria-selected={activeTab === tab.filter}
-            className={`lobby-tab${activeTab === tab.filter ? ' lobby-tab-active' : ''}`}
-            onClick={() => setActiveTab(tab.filter)}
+            aria-selected={activeTab === tab.tab}
+            className={`lobby-tab${activeTab === tab.tab ? ' lobby-tab-active' : ''}`}
+            onClick={() => setActiveTab(tab.tab)}
           >
             {tab.label}
           </button>
@@ -168,58 +175,87 @@ export function Lobby(): JSX.Element {
           className="lobby-refresh"
           title="Refresh list"
           aria-label={`Refresh ${activeTabLabel}`}
-          disabled={refreshing}
-          onClick={refresh}
+          disabled={activeTab !== 'People' && refreshing}
+          onClick={() => {
+            if (activeTab === 'People') {
+              void queryClient.invalidateQueries({ queryKey: ['people'] });
+              void queryClient.invalidateQueries({ queryKey: ['invites'] });
+            } else {
+              refresh();
+            }
+          }}
         >
           <span
-            className={`oi oi-loop-circular${refreshing ? ' spinner-reverse' : ''}`}
+            className={`oi oi-loop-circular${activeTab !== 'People' && refreshing ? ' spinner-reverse' : ''}`}
             aria-hidden="true"
           ></span>
         </button>
       </div>
 
-      <section className="lobby-section mat-panel" aria-label={activeTabLabel}>
-        {matchesQuery.isLoading && <p className="lobby-note">Loading…</p>}
-        {matchesQuery.error != null && (
-          <p role="alert" className="page-error">
-            {errorMessage(matchesQuery.error)}
-          </p>
-        )}
-        {!matchesQuery.isLoading && matchesQuery.error == null && (rows == null || rows.length === 0) && (
-          <p className="lobby-note">{EMPTY_LABELS[activeTab]}</p>
-        )}
-        {rows != null && rows.length > 0 && (
-          <ul className="lobby-match-list">
-            {rows.map((match) => {
-              const status = rowStatus(match);
-              return (
-                <li key={match.id} className="lobby-match-row">
-                  <Link to={`/match/${match.id}`} className="lobby-match-link">
-                    <SeatGlyph seats={match.seats} />
-                    <span className="lobby-match-text">
-                      <span className="lobby-match-players">{formatMatchup(match)}</span>
-                      <span className="lobby-match-meta">
-                        {status.yours ? rowLabel(match) : `${rowLabel(match)} · ${status.text}`} · {formatUpdated(match.updatedOn)}
+      {activeTab !== 'People' && (
+        <section className="lobby-section mat-panel" aria-label={activeTabLabel}>
+          {matchesQuery.isLoading && <p className="lobby-note">Loading…</p>}
+          {matchesQuery.error != null && (
+            <p role="alert" className="page-error">
+              {errorMessage(matchesQuery.error)}
+            </p>
+          )}
+          {!matchesQuery.isLoading && matchesQuery.error == null && (rows == null || rows.length === 0) && (
+            <p className="lobby-note">{EMPTY_LABELS[matchFilter]}</p>
+          )}
+          {rows != null && rows.length > 0 && (
+            <ul className="lobby-match-list">
+              {rows.map((match) => {
+                const status = rowStatus(match);
+                return (
+                  <li key={match.id} className="lobby-match-row">
+                    <Link to={`/match/${match.id}`} className="lobby-match-link">
+                      <SeatGlyph seats={match.seats} />
+                      <span className="lobby-match-text">
+                        <span className="lobby-match-players">{formatMatchup(match)}</span>
+                        <span className="lobby-match-meta">
+                          {status.yours ? rowLabel(match) : `${rowLabel(match)} · ${status.text}`} · {formatUpdated(match.updatedOn)}
+                        </span>
                       </span>
-                    </span>
-                  </Link>
-                  {status.yours && <span className="lobby-badge">{status.text}</span>}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {matchesQuery.hasNextPage && (
-          <button
-            type="button"
-            className="action-button action-button-small lobby-load-more"
-            disabled={matchesQuery.isFetchingNextPage}
-            onClick={() => void matchesQuery.fetchNextPage()}
-          >
-            {matchesQuery.isFetchingNextPage ? 'Loading…' : 'Load more'}
-          </button>
-        )}
-      </section>
+                    </Link>
+                    {status.yours && <span className="lobby-badge">{status.text}</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {matchesQuery.hasNextPage && (
+            <button
+              type="button"
+              className="action-button action-button-small lobby-load-more"
+              disabled={matchesQuery.isFetchingNextPage}
+              onClick={() => void matchesQuery.fetchNextPage()}
+            >
+              {matchesQuery.isFetchingNextPage ? 'Loading…' : 'Load more'}
+            </button>
+          )}
+        </section>
+      )}
+      {activeTab === 'People' && (
+        <section className="lobby-section mat-panel" aria-label="People">
+          <PeoplePanel
+            views
+            client={client}
+            emptyText="Play a game and the people you play with show up here."
+            action={(person) => (
+              <button
+                type="button"
+                className="action-button action-button-small"
+                aria-label={`Invite ${person.displayName} to a table`}
+                onClick={() => setInviting(person)}
+              >
+                Invite
+              </button>
+            )}
+          />
+        </section>
+      )}
+      {inviting && <InviteToTableDialog person={inviting} client={client} onClose={() => setInviting(null)} />}
     </div>
   );
 }

@@ -4,7 +4,7 @@
 import type { Context } from 'hono';
 import { BOT_MARK, Bid, Suit, Teams, ValidationError, assertValidHouseRules, createDomino, type Domino, type HouseRules } from '@fortytwo/rules';
 import { MAX_USER_IDS } from './auth0Management';
-import type { ProfilePatch } from '@fortytwo/api-types';
+import type { PeopleView, ProfilePatch } from '@fortytwo/api-types';
 
 export class BadRequestError extends Error {
   readonly title = 'Invalid request';
@@ -193,4 +193,36 @@ function picture(value: unknown): string {
     throw new BadRequestError(`\`picture\` must be an https: URL of at most ${MAX_PICTURE_URL_LENGTH} characters.`);
   }
   return url;
+}
+
+// A user id from a route parameter (Hono has already URL-decoded it).
+export function userIdParam(value: string | undefined): string {
+  if (value === undefined || !USER_ID.test(value)) throw new BadRequestError('That is not a user id.');
+  return value;
+}
+
+// A People search: trimmed, SEARCH_MIN to SEARCH_MAX characters.
+export function peopleView(value: string | undefined): PeopleView | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'friends' || value === 'recent') return value;
+  throw new BadRequestError('show must be friends or recent.');
+}
+
+export function searchQuery(value: string | undefined, min: number, max: number): string {
+  const q = (value ?? '').trim();
+  if ([...q].length < min || [...q].length > max) {
+    throw new BadRequestError(`Search with ${min} to ${max} characters.`);
+  }
+  return q;
+}
+
+// POST /api/matches/:id/invites: `{ userIds }`, 1 to `max` user ids, de-duplicated.
+export function invitees(body: Body, max: number): string[] {
+  const ids = body.userIds;
+  if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string' && USER_ID.test(id))) {
+    throw new BadRequestError('`userIds` must be a list of user ids.');
+  }
+  const unique = [...new Set(ids as string[])];
+  if (unique.length > max) throw new BadRequestError(`Invite at most ${max} players at a time.`);
+  return unique;
 }
