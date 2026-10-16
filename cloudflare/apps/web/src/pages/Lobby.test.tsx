@@ -14,7 +14,7 @@ import type { MatchState } from '@fortytwo/rules';
 import type { MatchPage, MatchSummary } from '../api/client';
 import { Lobby } from './Lobby';
 
-const { listMatchesMock, createMatchMock, playMock, playBotsMock, getConfigMock, getProfileMock, patchProfileMock, getPeopleMock, searchPeopleMock, addFriendMock, removeFriendMock, getInvitesMock, dismissInviteMock, mockNavigate } = vi.hoisted(() => ({
+const { listMatchesMock, createMatchMock, playMock, playBotsMock, getConfigMock, getProfileMock, patchProfileMock, getPeopleMock, searchPeopleMock, addFriendMock, removeFriendMock, getInvitesMock, dismissInviteMock, invitePlayersMock, mockNavigate } = vi.hoisted(() => ({
   listMatchesMock: vi.fn(),
   getProfileMock: vi.fn(),
   patchProfileMock: vi.fn(),
@@ -28,6 +28,7 @@ const { listMatchesMock, createMatchMock, playMock, playBotsMock, getConfigMock,
   removeFriendMock: vi.fn(),
   getInvitesMock: vi.fn(),
   dismissInviteMock: vi.fn(),
+  invitePlayersMock: vi.fn(async (_m: string, ids: string[]) => ({ invited: ids })),
   mockNavigate: vi.fn(),
 }));
 
@@ -46,6 +47,7 @@ vi.mock('../api/client', () => ({
     removeFriend: removeFriendMock,
     getInvites: getInvitesMock,
     dismissInvite: dismissInviteMock,
+    invitePlayers: invitePlayersMock,
   }),
 }));
 
@@ -144,6 +146,20 @@ describe('Lobby', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'People' }));
     expect(await screen.findByText('Bo')).toBeTruthy();
     expect(listMatchesMock).not.toHaveBeenCalledWith('People', expect.anything());
+  });
+
+  it('invites a person from the People tab to one of your open tables', async () => {
+    getPeopleMock.mockResolvedValue([{ user_id: 'bo', displayName: 'Bo', isFriend: true, lastPlayedOn: null, games: 0 }]);
+    listMatchesMock.mockResolvedValue({
+      matches: [{ id: 'm1', status: 'active', playerCount: 2, updatedOn: '2026-01-01T00:00:00.000Z', teams: [['Me'], ['Ann']], seats: ['Me', null, 'Ann', null], mode: 'custom' }],
+      nextCursor: null,
+    });
+    renderLobby();
+    fireEvent.click(await screen.findByRole('tab', { name: 'People' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite Bo to a table' }));
+    expect(await screen.findByRole('heading', { name: 'Invite Bo' })).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite Bo to Me vs Ann' }));
+    await waitFor(() => expect(invitePlayersMock).toHaveBeenCalledWith('m1', ['bo']));
   });
 
   it('shows invites above the tabs', async () => {

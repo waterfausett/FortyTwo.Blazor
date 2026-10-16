@@ -17,6 +17,13 @@ export function uniqueMatches(pages: MatchPage[] | undefined): MatchSummary[] | 
 
 export const MODE_LABELS: Record<MatchMode, string> = { live: 'Live Play', daily: 'Async', custom: 'Custom', bots: 'vs Bots' };
 
+// "Alice & Cara vs Bob & bot-3". A team nobody has joined yet reads as `empty` ("?" by default); a
+// row with no players at all falls back to the match id so it still has a label.
+export function formatMatchup({ id, teams }: MatchSummary, empty = '?'): string {
+  if (teams.every((team) => team.length === 0)) return id;
+  return teams.map((team) => (team.length > 0 ? team.join(' & ') : empty)).join(' vs ');
+}
+
 // What a lobby row says the match is waiting on, and whether that's the viewer.
 export function rowStatus(match: MatchSummary): { text: string; yours: boolean } {
   if (match.status === 'completed') return { text: 'Finished', yours: false };
@@ -32,4 +39,23 @@ export function rowStatus(match: MatchSummary): { text: string; yours: boolean }
 // loaded: pages still arrive newest first.
 export function yourTurnFirst(rows: MatchSummary[]): MatchSummary[] {
   return [...rows.filter((m) => m.turn?.yours), ...rows.filter((m) => !m.turn?.yours)];
+}
+
+// The caller's tables a person could be invited to from the People tab: active Custom tables with
+// a seat open that the person isn't already at. Lobby rows carry names, not ids, so "at" goes by
+// name; the Worker turns away an invite to someone seated anyway (people/invites.ts).
+export function invitableTables(rows: MatchSummary[], personName: string): MatchSummary[] {
+  return rows.filter(
+    (m) => m.status === 'active' && m.mode === 'custom' && m.playerCount < 4 && !m.seats.includes(personName)
+  );
+}
+
+// "You & Ann vs Open seats", over "2 seats open", for a table in the Invite to a table list.
+export function tableTitle(match: MatchSummary): string {
+  return formatMatchup(match, 'Open seats');
+}
+
+export function tableDetail(match: MatchSummary): string {
+  const open = 4 - match.playerCount;
+  return open === 1 ? '1 seat open' : `${open} seats open`;
 }

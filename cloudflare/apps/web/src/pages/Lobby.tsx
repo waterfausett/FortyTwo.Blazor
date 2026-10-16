@@ -1,6 +1,7 @@
 // The lobby: the player's matches (Active, the default, and Game History) plus the New match
 // chooser - Live and Async matchmaking, or a custom table to share with friends. It also has a
-// People tab (friends, recent players, search) and an Invited to card for invites to tables.
+// People tab (friends, recent players, search; Invite asks someone to one of your open tables) and
+// an Invited to card for invites to tables.
 //
 // Only the selected tab's list is ever fetched - one page (20) at a time, with Load more for the
 // next - and the single `useInfiniteQuery` below is keyed on `activeTab`, so switching tabs just
@@ -15,14 +16,15 @@ import { useGetToken } from '../auth/useGetToken';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { JSX } from 'react';
-import { MODE_LABELS, rowStatus, uniqueMatches, yourTurnFirst } from '@fortytwo/client';
-import { apiClient, type MatchPage, type MatchSummary } from '../api/client';
+import { formatMatchup, MODE_LABELS, rowStatus, uniqueMatches, yourTurnFirst } from '@fortytwo/client';
+import { apiClient, type MatchPage, type Person } from '../api/client';
 import { useOnline } from '../api/presence';
 import { AppAnnouncement } from '../components/AppAnnouncement';
 import { NewMatchDialog, type NewMatchChoice } from '../components/NewMatchDialog';
 import { SEAT_SIDES } from '../components/SeatPicker';
 import { useHowToPlay } from '../match/useHowToPlay';
 import { InvitesCard } from '../people/InvitesCard';
+import { InviteToTableDialog } from '../people/InviteToTableDialog';
 import { PeoplePanel } from '../people/PeoplePanel';
 import '../components/HowToPlay.css';
 import './Lobby.css';
@@ -51,13 +53,6 @@ function SeatGlyph({ seats }: { seats: (string | null)[] }): JSX.Element {
       ))}
     </span>
   );
-}
-
-// "Alice & Cara vs Bob & bot-3". A team nobody has joined yet reads as "?"; a row with no players
-// at all falls back to the match id so it still has a label.
-function formatMatchup({ id, teams }: MatchSummary): string {
-  if (teams.every((team) => team.length === 0)) return id;
-  return teams.map((team) => (team.length > 0 ? team.join(' & ') : '?')).join(' vs ');
 }
 
 function formatUpdated(iso: string): string {
@@ -107,6 +102,8 @@ export function Lobby(): JSX.Element {
   const config = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig() });
   const online = useOnline();
   const [choosing, setChoosing] = useState(false);
+  // Who the People tab's Invite is inviting to a table, while its dialog is open.
+  const [inviting, setInviting] = useState<Person | null>(null);
 
   // Live and Async seat the player through matchmaking; Custom Match starts a custom table; Play
   // vs bots starts a game against three bots.
@@ -240,9 +237,23 @@ export function Lobby(): JSX.Element {
       )}
       {activeTab === 'People' && (
         <section className="lobby-section mat-panel" aria-label="People">
-          <PeoplePanel client={client} emptyText="Play a game and the people you play with show up here." />
+          <PeoplePanel
+            client={client}
+            emptyText="Play a game and the people you play with show up here."
+            action={(person) => (
+              <button
+                type="button"
+                className="action-button action-button-small"
+                aria-label={`Invite ${person.displayName} to a table`}
+                onClick={() => setInviting(person)}
+              >
+                Invite
+              </button>
+            )}
+          />
         </section>
       )}
+      {inviting && <InviteToTableDialog person={inviting} client={client} onClose={() => setInviting(null)} />}
     </div>
   );
 }

@@ -5,13 +5,14 @@
 //
 // Laid out as a phone app's home screen rather than a page: a large title with the player's
 // picture (the way to their profile) in place of the navigation bar, a segmented control for the
-// lists, full-width rows, and a floating button for a new match.
+// lists, full-width rows, and a floating button for a new match. Each person in People has an
+// Invite that asks them to one of the player's open Custom tables (InviteToTableSheet).
 import { useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { router, Stack } from 'expo-router';
 import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MODE_LABELS, rowStatus, uniqueMatches, yourTurnFirst, type MatchPage, type MatchSummary } from '@fortytwo/client';
+import { MODE_LABELS, rowStatus, uniqueMatches, yourTurnFirst, type MatchPage, type MatchSummary, type Person } from '@fortytwo/client';
 import { useOnline } from '@/api/presence';
 import { useApi } from '@/api/useApi';
 import { useHowToPlay } from '@/api/useHowToPlay';
@@ -21,6 +22,7 @@ import { HelpButton } from '@/components/HelpButton';
 import { HowToPlayCard } from '@/components/HowToPlayCard';
 import { colors, fonts } from '@/components/theme';
 import { InvitesCard } from '@/people/InvitesCard';
+import { InviteToTableSheet } from '@/people/InviteToTableSheet';
 import { PeoplePanel } from '@/people/PeoplePanel';
 
 type Filter = 'Active' | 'Completed';
@@ -82,6 +84,8 @@ export default function Lobby() {
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
   const online = useOnline();
   const [choosing, setChoosing] = useState(false);
+  // Who the People segment's Invite is inviting to a table, while its sheet is open.
+  const [inviting, setInviting] = useState<Person | null>(null);
   // Live and Async seat the player through matchmaking; Custom Match starts a custom table; Play
   // vs bots starts a game against three bots.
   const start = useMutation({
@@ -149,7 +153,19 @@ export default function Lobby() {
             />
           }
         >
-          <PeoplePanel emptyText="Play a game and the people you play with show up here." />
+          <PeoplePanel
+            emptyText="Play a game and the people you play with show up here."
+            action={(person) => (
+              <Pressable
+                style={styles.inviteButton}
+                onPress={() => setInviting(person)}
+                accessibilityRole="button"
+                accessibilityLabel={`Invite ${person.displayName} to a table`}
+              >
+                <Text style={styles.inviteText}>Invite</Text>
+              </Pressable>
+            )}
+          />
         </ScrollView>
       ) : matches.isPending ? (
         <ActivityIndicator size="large" color={colors.brass} style={styles.loading} />
@@ -192,6 +208,8 @@ export default function Lobby() {
           }
         />
       )}
+
+      <InviteToTableSheet person={inviting} onClose={() => setInviting(null)} />
 
       <NewMatchSheet
         visible={choosing}
@@ -330,6 +348,8 @@ function MatchRow({ match }: { match: MatchSummary }) {
 const hairline = 'rgba(242, 234, 219, 0.09)';
 
 const styles = StyleSheet.create({
+  inviteButton: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: colors.brass },
+  inviteText: { color: colors.walnutDeep, fontFamily: fonts.uiBold },
   screen: { flex: 1, backgroundColor: colors.walnut },
 
   header: { paddingHorizontal: 20, paddingBottom: 12, gap: 16, backgroundColor: colors.walnut },

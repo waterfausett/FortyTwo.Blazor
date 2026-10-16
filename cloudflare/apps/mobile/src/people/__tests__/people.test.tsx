@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Text } from 'react-native';
-import type { Invite, Person } from '@fortytwo/client';
+import type { Invite, MatchSummary, Person } from '@fortytwo/client';
 import { toastError } from '@/components/toast';
 import { PeoplePanel } from '../PeoplePanel';
 import { InvitesCard } from '../InvitesCard';
 import { InviteSheet } from '../InviteSheet';
+import { InviteToTableSheet } from '../InviteToTableSheet';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const mockRouter = { push: jest.fn() };
@@ -15,7 +16,22 @@ const ann: Person = { user_id: 'ann', displayName: 'Ann', isFriend: true, lastPl
 const bo: Person = { user_id: 'bo', displayName: 'Bo', isFriend: false, lastPlayedOn: '2026-10-12T00:00:00.000Z', games: 2 };
 const invite: Invite = { matchId: 'm1', from: { user_id: 'ann', displayName: 'Ann' }, createdOn: '2026-10-14T00:00:00.000Z', seatsOpen: 1 };
 
+const table = (overrides: Partial<MatchSummary>): MatchSummary => ({
+  id: 'm',
+  status: 'active',
+  playerCount: 2,
+  updatedOn: '2026-10-16T00:00:00.000Z',
+  teams: [['Me'], ['Ann']],
+  seats: ['Me', null, 'Ann', null],
+  mode: 'custom',
+  ...overrides,
+});
+
 const mockApi = {
+  listMatches: jest.fn(async () => ({
+    matches: [table({ id: 'open' }), table({ id: 'async', mode: 'daily' }), table({ id: 'with-bo', seats: ['Me', 'Bo', null, null] })],
+    nextCursor: null,
+  })),
   getPeople: jest.fn(async () => [ann, bo]),
   searchPeople: jest.fn(async (q: string) => [ann, bo].filter((p) => p.displayName.toLowerCase().startsWith(q.toLowerCase()))),
   addFriend: jest.fn(async () => {}),
@@ -129,5 +145,31 @@ describe('InviteSheet', () => {
     await waitFor(() => expect(mockApi.invitePlayers).toHaveBeenCalledWith('m1', ['ann']));
     expect(await screen.findByText('Invited ✓')).toBeTruthy();
     expect(screen.queryByText('Bo')).toBeNull();
+  });
+});
+
+describe('InviteToTableSheet', () => {
+  const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
+  it('lists only open Custom tables the person is not at, and invites to one', async () => {
+    await show(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <InviteToTableSheet person={bo} onClose={() => {}} />
+      </SafeAreaProvider>
+    );
+    expect(await screen.findByText('2 seats open')).toBeTruthy();
+    expect(screen.getAllByLabelText(/^Invite Bo to/)).toHaveLength(1);
+    await fireEvent.press(screen.getByLabelText('Invite Bo to Me vs Ann'));
+    await waitFor(() => expect(mockApi.invitePlayers).toHaveBeenCalledWith('open', ['bo']));
+    expect(await screen.findByText('Invited ✓')).toBeTruthy();
+  });
+
+  it('says so when there is no open table', async () => {
+    mockApi.listMatches.mockResolvedValueOnce({ matches: [table({ mode: 'daily' })], nextCursor: null });
+    await show(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <InviteToTableSheet person={bo} onClose={() => {}} />
+      </SafeAreaProvider>
+    );
+    expect(await screen.findByText(/No open Custom tables/)).toBeTruthy();
   });
 });
