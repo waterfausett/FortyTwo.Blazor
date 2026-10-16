@@ -6,6 +6,7 @@ import { useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { apiClient } from '../api/client';
+import { inviteDetail } from '@fortytwo/client';
 import { toastError } from '../ui/toast';
 import './People.css';
 
@@ -34,7 +35,7 @@ export function InvitesCard({ client }: { client: InvitesClient }): JSX.Element 
           <li key={invite.matchId} className="invites-row">
             <span className="people-text">
               <span className="people-name">{invite.from.displayName} invited you</span>
-              <span className="people-detail">{invite.seatsOpen === 1 ? '1 seat open' : `${invite.seatsOpen} seats open`}</span>
+              <span className="people-detail">{inviteDetail(invite)}</span>
             </span>
             <Link to={`/match/${invite.matchId}`} className="action-button action-button-small">
               Join

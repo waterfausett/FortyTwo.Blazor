@@ -86,7 +86,7 @@ describe('InvitesCard', () => {
     const c = { getInvites: vi.fn(async () => [invite]), dismissInvite: vi.fn(async () => {}) };
     wrap(<InvitesCard client={c} />);
     expect(await screen.findByText('Ann invited you')).toBeTruthy();
-    expect(screen.getByText('2 seats open')).toBeTruthy();
+    expect(screen.getByText(/ago · 2 seats open$/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Join' }).getAttribute('href')).toBe('/match/m1');
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss invite from Ann' }));
     await waitFor(() => expect(c.dismissInvite).toHaveBeenCalledWith('m1'));

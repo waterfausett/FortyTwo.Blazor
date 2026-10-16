@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { inviteDetail } from '@fortytwo/client';
 import { useApi } from '@/api/useApi';
 import { toastError } from '@/components/toast';
 import { colors, fonts } from '@/components/theme';
@@ -33,7 +34,7 @@ export function InvitesCard() {
         <View key={invite.matchId} style={styles.row}>
           <View style={styles.text}>
             <Text style={styles.name}>{invite.from.displayName} invited you</Text>
-            <Text style={styles.detail}>{invite.seatsOpen === 1 ? '1 seat open' : `${invite.seatsOpen} seats open`}</Text>
+            <Text style={styles.detail}>{inviteDetail(invite)}</Text>
           </View>
           <Pressable style={styles.join} onPress={() => router.push(`/match/${invite.matchId}`)} accessibilityRole="button" accessibilityLabel="Join">
             <Text style={styles.joinText}>Join</Text>

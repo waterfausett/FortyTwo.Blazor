@@ -73,7 +73,7 @@ describe('InvitesCard', () => {
   it('joins and dismisses', async () => {
     await show(<InvitesCard />);
     expect(await screen.findByText('Ann invited you')).toBeTruthy();
-    expect(screen.getByText('1 seat open')).toBeTruthy();
+    expect(screen.getByText(/ago · 1 seat open$/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Join'));
     expect(mockRouter.push).toHaveBeenCalledWith('/match/m1');
     await fireEvent.press(screen.getByLabelText('Dismiss invite from Ann'));
