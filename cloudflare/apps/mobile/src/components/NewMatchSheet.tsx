@@ -2,10 +2,11 @@
 // go to matchmaking), Play with friends (Custom Match sets up a custom table to share) and Practice
 // (Play vs bots goes straight into a game against three bots). Live and Play vs bots are left out
 // while bots are off, since they rely on them to fill their seats.
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { BottomSheet } from '@/components/BottomSheet';
 import { colors, fonts } from '@/components/theme';
 
 export type NewMatchChoice = 'live' | 'daily' | 'challenge' | 'bots';
@@ -68,89 +69,59 @@ export function NewMatchSheet({
   const insets = useSafeAreaInsets();
   const slow = useSlow(pending);
   const close = pending ? () => {} : onClose;
-  const { height: windowHeight } = useWindowDimensions();
-  // As a native sheet does: the scrim fades in place while only the sheet slides. The Modal's own
-  // "slide" would carry the scrim up with it. It stays mounted until the sheet is down again.
-  const shown = useRef(new Animated.Value(0)).current;
-  const [mounted, setMounted] = useState(visible);
-  const [sheetHeight, setSheetHeight] = useState(windowHeight);
-  useEffect(() => {
-    if (visible) setMounted(true);
-    const animation = Animated.timing(shown, {
-      toValue: visible ? 1 : 0,
-      duration: visible ? OPEN_MS : CLOSE_MS,
-      easing: visible ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
-      useNativeDriver: true,
-    });
-    animation.start(({ finished }) => {
-      if (finished && !visible) setMounted(false);
-    });
-    return () => animation.stop();
-  }, [shown, visible]);
-  const translateY = shown.interpolate({ inputRange: [0, 1], outputRange: [sheetHeight, 0] });
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={close}>
-      <Animated.View style={[styles.scrim, { opacity: shown }]}>
-        <Pressable style={styles.fill} onPress={close} accessibilityLabel="Close" />
-      </Animated.View>
-      <Animated.View
-        onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
-        style={[styles.sheet, { paddingBottom: 20 + insets.bottom, transform: [{ translateY }] }]}
-      >
-        <View style={styles.grab} />
-        <Text style={styles.title} accessibilityRole="header">New match</Text>
-        {online !== null && <Text style={styles.online}>{online} online</Text>}
-        {error && !pending && (
-          <Text style={styles.error} accessibilityRole="alert">
-            {error}
-          </Text>
-        )}
-        {GROUPS.map((group) => {
-          const options = group.options.filter((o) => liveEnabled || (o.choice !== 'live' && o.choice !== 'bots'));
-          if (options.length === 0) return null;
-          return (
-            <View key={group.id} style={styles.group}>
-              <View style={styles.groupLabel} accessible accessibilityRole="header" accessibilityLabel={group.label}>
-                <Ionicons name={group.icon} size={14} color={colors.inkMuted} />
-                <Text style={styles.groupLabelText}>{group.label.toUpperCase()}</Text>
-              </View>
-              {options.map((o) => {
-                const working = pending === o.choice;
-                const detail = working ? workingDetail(o.choice, slow) : o.detail;
-                return (
-                  <Pressable
-                    key={o.choice}
-                    style={({ pressed }) => [styles.option, (pressed || (pending && !working)) && styles.optionDim]}
-                    disabled={pending !== null}
-                    onPress={() => onChoose(o.choice)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${o.title}. ${detail}`}
-                    accessibilityState={{ disabled: pending !== null, busy: working }}
-                  >
-                    <View style={styles.icon}>
-                      {working ? (
-                        <ActivityIndicator color={colors.walnutDeep} />
-                      ) : (
-                        <Ionicons name={o.icon} size={18} color={colors.walnutDeep} />
-                      )}
-                    </View>
-                    <View style={styles.optionText}>
-                      <Text style={styles.optionTitle}>{o.title}</Text>
-                      <Text style={working ? styles.optionWorking : styles.optionDetail}>{detail}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
+    <BottomSheet visible={visible} onClose={close} style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
+      <View style={styles.grab} />
+      <Text style={styles.title} accessibilityRole="header">New match</Text>
+      {online !== null && <Text style={styles.online}>{online} online</Text>}
+      {error && !pending && (
+        <Text style={styles.error} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+      {GROUPS.map((group) => {
+        const options = group.options.filter((o) => liveEnabled || (o.choice !== 'live' && o.choice !== 'bots'));
+        if (options.length === 0) return null;
+        return (
+          <View key={group.id} style={styles.group}>
+            <View style={styles.groupLabel} accessible accessibilityRole="header" accessibilityLabel={group.label}>
+              <Ionicons name={group.icon} size={14} color={colors.inkMuted} />
+              <Text style={styles.groupLabelText}>{group.label.toUpperCase()}</Text>
             </View>
-          );
-        })}
-      </Animated.View>
-    </Modal>
+            {options.map((o) => {
+              const working = pending === o.choice;
+              const detail = working ? workingDetail(o.choice, slow) : o.detail;
+              return (
+                <Pressable
+                  key={o.choice}
+                  style={({ pressed }) => [styles.option, (pressed || (pending && !working)) && styles.optionDim]}
+                  disabled={pending !== null}
+                  onPress={() => onChoose(o.choice)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${o.title}. ${detail}`}
+                  accessibilityState={{ disabled: pending !== null, busy: working }}
+                >
+                  <View style={styles.icon}>
+                    {working ? (
+                      <ActivityIndicator color={colors.walnutDeep} />
+                    ) : (
+                      <Ionicons name={o.icon} size={18} color={colors.walnutDeep} />
+                    )}
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={styles.optionTitle}>{o.title}</Text>
+                    <Text style={working ? styles.optionWorking : styles.optionDetail}>{detail}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        );
+      })}
+    </BottomSheet>
   );
 }
 
-const OPEN_MS = 280;
-const CLOSE_MS = 220;
 // How long a choice works before its line admits it's taking a while.
 export const SLOW_MS = 3000;
 
@@ -174,17 +145,8 @@ function useSlow(pending: NewMatchChoice | null): boolean {
 }
 
 const styles = StyleSheet.create({
-  // Behind the sheet, to the bottom of the screen, so the sheet's rounded corners show it.
-  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(10, 6, 4, 0.6)' },
-  fill: { flex: 1 },
   sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     backgroundColor: colors.walnutDeep,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     paddingHorizontal: 16,
     paddingTop: 10,
     gap: 10,
