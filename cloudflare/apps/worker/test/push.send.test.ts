@@ -6,7 +6,7 @@ import { inviteMessages, messagesFor, sendInvites, sendNotices, type DrawnMessag
 import { TOKEN_REFRESH_MS, saveToken, tokensFor } from '../src/push/tokens';
 import type { Notice, NoticeKind } from '../src/push/notices';
 import { saveUsers } from '../src/users/publicUsers';
-import { Teams } from '@fortytwo/rules';
+import { Teams, botDisplayName } from '@fortytwo/rules';
 
 const testEnv = env as unknown as Env;
 // p1 and p3 against p2 and p4, TeamA 4 marks to TeamB's 3.
@@ -186,10 +186,10 @@ describe('messagesFor', () => {
     expect(turnMessage).toMatchObject({ title: 'You & Sam vs Alex & Jo', body: 'Your bid\nUs 4, Them 3' });
   });
 
-  it("calls a player it has no name for by their seat, as the apps do, and bots by number", () => {
+  it('calls a player it has no name for by their seat, as the apps do, and bots by their own name', () => {
     const players = [seats[0], { playerId: 'bot-2', position: 1 }, seats[2], seats[3]];
     const [m] = drawn([notice('p1', 'turn', 'Your bid', { players })], tokenFor('p1'), new Map([['p3', 'Sam']]));
-    expect(m.title).toBe('You & Sam vs Bot 2 & Player 4');
+    expect(m.title).toBe(`You & Sam vs ${botDisplayName('bot-2')} & Player 4`);
     expect(drawn([turn('p1')], tokenFor('p1'))[0].title).toBe('You & Player 3 vs Player 2 & Player 4');
   });
 });

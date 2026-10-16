@@ -50,7 +50,7 @@ import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
 import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
 import type { PokeResult } from '@fortytwo/api-types';
-import { BOT_IDS, applyBotAction, botDelayMs, botsEnabled, findNextBotAction } from './bots';
+import { mintBotId, applyBotAction, botDelayMs, botsEnabled, findNextBotAction } from './bots';
 import { WARMING, getMlBot } from './mlBot';
 import { recordPlayedWith, startedPlayers } from './people/playedWith';
 
@@ -618,12 +618,12 @@ function matchMessageFor(match: MatchState, viewerId: string): string {
 }
 
 // Seats a bot at each of `positions`, or at every open seat when none are given. Each bot takes
-// the first reserved id not yet seated; the fourth seat deals.
+// the next free bot id (rules' mintBotId); the fourth seat deals.
 function seatBots(match: MatchState, positions?: number[]): MatchState {
   const seats = positions ?? [0, 1, 2, 3].filter((position) => match.players.every((p) => p.position !== position));
   let next = match;
   for (const position of seats) {
-    const botId = BOT_IDS.find((id) => next.players.every((p) => p.playerId !== id))!;
+    const botId = mintBotId(next.id, next.players.map((p) => p.playerId))!;
     next = takeSeat(next, botId, position, shuffledDominoOrder());
   }
   return next;

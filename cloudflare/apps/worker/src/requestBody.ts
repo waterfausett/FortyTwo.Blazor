@@ -2,7 +2,7 @@
 // of the types they're declared with. Everything here throws `BadRequestError`, which index.ts's
 // `onError` turns into a 400 in the same { title, detail } shape as a rule violation.
 import type { Context } from 'hono';
-import { Bid, Suit, Teams, createDomino, type Domino } from '@fortytwo/rules';
+import { BOT_MARK, Bid, Suit, Teams, createDomino, type Domino } from '@fortytwo/rules';
 import { MAX_USER_IDS } from './auth0Management';
 import type { ProfilePatch } from '@fortytwo/api-types';
 
@@ -96,7 +96,7 @@ export function domino(body: Body): Domino {
 }
 
 // Auth0 ids are `connection|id` (e.g. `auth0|64f...`, `google-oauth2|1234`, `samlp|acme|a@b.com`);
-// bots are `bot-N`. Anything with quotes, brackets or whitespace isn't an id.
+// bots are `bot-N` or `<matchId>_bot-N`. Anything with quotes, brackets or whitespace isn't an id.
 const USER_ID = /^[A-Za-z0-9|._:@+=/-]{1,256}$/;
 
 // The body of a user search: a JSON array of up to MAX_USER_IDS user ids, de-duplicated.
@@ -134,13 +134,17 @@ function setting(body: Body, field: string): boolean {
   return value;
 }
 
-// Trimmed, 1 to MAX_DISPLAY_NAME_LENGTH characters, and no control characters.
+// Trimmed, 1 to MAX_DISPLAY_NAME_LENGTH characters, no control characters, and not the bot mark -
+// that is how the table tells a bot from a person.
 function displayName(value: unknown): string {
   const name = typeof value === 'string' ? value.trim() : '';
   if (name === '' || [...name].length > MAX_DISPLAY_NAME_LENGTH || /\p{Cc}/u.test(name)) {
     throw new BadRequestError(
       `\`displayName\` must be 1 to ${MAX_DISPLAY_NAME_LENGTH} characters, with no control characters.`
     );
+  }
+  if (name.includes(BOT_MARK)) {
+    throw new BadRequestError(`\`displayName\` can't contain ${BOT_MARK}; that marks the bots.`);
   }
   return name;
 }
