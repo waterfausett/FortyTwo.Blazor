@@ -4,7 +4,7 @@
 import type { Context } from 'hono';
 import { BOT_MARK, Bid, Suit, Teams, createDomino, type Domino } from '@fortytwo/rules';
 import { MAX_USER_IDS } from './auth0Management';
-import type { ProfilePatch } from '@fortytwo/api-types';
+import type { PeopleView, ProfilePatch } from '@fortytwo/api-types';
 
 export class BadRequestError extends Error {
   readonly title = 'Invalid request';
@@ -174,6 +174,12 @@ export function userIdParam(value: string | undefined): string {
 }
 
 // A People search: trimmed, SEARCH_MIN to SEARCH_MAX characters.
+export function peopleView(value: string | undefined): PeopleView | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'friends' || value === 'recent') return value;
+  throw new BadRequestError('show must be friends or recent.');
+}
+
 export function searchQuery(value: string | undefined, min: number, max: number): string {
   const q = (value ?? '').trim();
   if ([...q].length < min || [...q].length > max) {

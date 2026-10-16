@@ -104,6 +104,9 @@ export type PublicUser = Pick<UserProfile, 'user_id' | 'displayName' | 'picture'
 // Someone in the caller's People list (GET /api/people, /api/people/search): a friend they've
 // starred, someone they've played with, or a search result. `games` and `lastPlayedOn` count
 // started games together (0 and null if none).
+// Which part of the People list to fetch: just friends, just recent players, or (no value) both.
+export type PeopleView = 'friends' | 'recent';
+
 export type Person = PublicUser & { isFriend: boolean; lastPlayedOn: string | null; games: number };
 
 // An invite to a custom table waiting for the caller (GET /api/invites), until they take a seat,

@@ -16,6 +16,7 @@ import type {
   InviteResult,
   MatchPage,
   MatchSummary,
+  PeopleView,
   Person,
   PlayerStats,
   PokeResult,
@@ -24,7 +25,7 @@ import type {
   UserProfile,
 } from '@fortytwo/api-types';
 
-export type { Invite, InviteResult, MatchPage, MatchSummary, Person, PlayerStats, PokeResult, PublicUser, UserProfile };
+export type { Invite, InviteResult, MatchPage, MatchSummary, PeopleView, Person, PlayerStats, PokeResult, PublicUser, UserProfile };
 
 // Keeps the Worker's title and detail apart so a toast can show them as heading and body;
 // `message` still joins them for callers that just print it.
@@ -217,8 +218,8 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
     removePushToken: (token: string): Promise<void> =>
       request<void>('/api/users/push-tokens', { method: 'DELETE', body: JSON.stringify({ token }) }, false),
 
-    // The People list: friends, then recent players (GET /api/people).
-    getPeople: (): Promise<Person[]> => request<Person[]>('/api/people'),
+    // The People list: friends, then recent players, or just one of the two (GET /api/people).
+    getPeople: (show?: PeopleView): Promise<Person[]> => request<Person[]>(show ? `/api/people?show=${show}` : '/api/people'),
 
     // Players whose name starts with `q` (2-40 characters).
     searchPeople: (q: string): Promise<Person[]> =>

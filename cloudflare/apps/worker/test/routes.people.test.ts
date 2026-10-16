@@ -105,6 +105,20 @@ describe('GET /api/people', () => {
     expect(names((await (await api('/api/people', 'auth0|me')).json()) as Person[])).toEqual(['Bo', 'Ann']);
   });
 
+  it('lists only friends for ?show=friends, and only recent players for ?show=recent', async () => {
+    await played('auth0|ann', '2026-10-01T00:00:00.000Z');
+    await played('auth0|bo', '2026-10-02T00:00:00.000Z');
+    await api('/api/people/friends/auth0%7Cann', 'auth0|me', { method: 'PUT' });
+    await api('/api/people/friends/auth0%7Canna', 'auth0|me', { method: 'PUT' });
+    const show = async (v: string) => names((await (await api(`/api/people?show=${v}`, 'auth0|me')).json()) as Person[]);
+    expect(await show('friends')).toEqual(['ANNA', 'Ann']);
+    expect(await show('recent')).toEqual(['Bo']);
+  });
+
+  it('refuses an unknown ?show', async () => {
+    expect((await api('/api/people?show=everyone', 'auth0|me')).status).toBe(400);
+  });
+
   it('is empty for someone new', async () => {
     expect(await (await api('/api/people', 'auth0|me')).json()).toEqual([]);
   });
