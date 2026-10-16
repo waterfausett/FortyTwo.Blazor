@@ -240,7 +240,7 @@ export function Lobby(): JSX.Element {
       )}
       {activeTab === 'People' && (
         <section className="lobby-section mat-panel" aria-label="People">
-          <PeoplePanel client={client} emptyText="Play a game and the people you play with show up here." />
+          <PeoplePanel client={client} views emptyText="Play a game and the people you play with show up here." />
         </section>
       )}
     </div>

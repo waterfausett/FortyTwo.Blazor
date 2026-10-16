@@ -1,8 +1,9 @@
-// The People list and its search for one client: friends then recent players, swapped for search
-// results once two characters are typed (after a pause, so each keystroke isn't a request).
+// The People list and its search for one client: friends then recent players (or just one of the
+// two, given a view), swapped for search results once two characters are typed (after a pause, so
+// each keystroke isn't a request).
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { apiClient, Person } from '../api/client';
+import type { apiClient, PeopleView, Person } from '../api/client';
 import { toastError } from '../ui/toast';
 
 export type PeopleClient = Pick<ReturnType<typeof apiClient>, 'getPeople' | 'searchPeople' | 'addFriend' | 'removeFriend'>;
@@ -19,11 +20,11 @@ function useDebounced(value: string, ms: number): string {
   return settled;
 }
 
-export function usePeople(client: PeopleClient, query: string) {
+export function usePeople(client: PeopleClient, query: string, view?: PeopleView) {
   const q = useDebounced(query.trim(), SEARCH_DELAY_MS);
   const searching = q.length >= SEARCH_MIN;
   const queryClient = useQueryClient();
-  const people = useQuery({ queryKey: ['people'], queryFn: () => client.getPeople() });
+  const people = useQuery({ queryKey: ['people', 'list', view ?? 'all'], queryFn: () => client.getPeople(view) });
   const search = useQuery({ queryKey: ['people', 'search', q], queryFn: () => client.searchPeople(q), enabled: searching });
   const toggle = useMutation({
     mutationFn: (p: Person) => (p.isFriend ? client.removeFriend(p.user_id) : client.addFriend(p.user_id)),

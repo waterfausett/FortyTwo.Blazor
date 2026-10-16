@@ -125,3 +125,30 @@
   text-align: center;
   color: var(--ink-muted);
 }
+
+/* Friends / Recent players: two pills side by side, the chosen one in brass. */
+.people-views {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.people-view {
+  appearance: none;
+  padding: 0.35rem 0.85rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(20, 13, 9, 0.55);
+  box-shadow: 0 0 0 1px rgba(242, 234, 219, 0.08);
+  color: var(--ink-muted);
+  font: 600 0.9rem var(--font-ui);
+  cursor: pointer;
+}
+
+.people-view:hover {
+  color: var(--bone);
+}
+
+.people-view.is-active {
+  color: var(--bone);
+  box-shadow: 0 0 0 1px var(--brass);
+}

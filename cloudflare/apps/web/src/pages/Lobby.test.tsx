@@ -146,6 +146,13 @@ describe('Lobby', () => {
     expect(listMatchesMock).not.toHaveBeenCalledWith('People', expect.anything());
   });
 
+  it('opens People on friends only', async () => {
+    renderLobby();
+    fireEvent.click(await screen.findByRole('tab', { name: 'People' }));
+    expect(await screen.findByRole('button', { name: 'Recent players' })).toBeTruthy();
+    expect(getPeopleMock).toHaveBeenCalledWith('friends');
+  });
+
   it('shows invites above the tabs', async () => {
     getInvitesMock.mockResolvedValue([{ matchId: 'm1', from: { user_id: 'ann', displayName: 'Ann' }, createdOn: '2026-01-01T00:00:00.000Z', seatsOpen: 3 }]);
     renderLobby();

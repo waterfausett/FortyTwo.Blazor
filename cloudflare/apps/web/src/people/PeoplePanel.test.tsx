@@ -79,6 +79,71 @@ describe('PeoplePanel', () => {
   });
 });
 
+describe('PeoplePanel with views', () => {
+  // A client that, like the worker, returns only the part of the list asked for.
+  function viewClient(people: Person[] = [ann, bo]) {
+    const c = client(people);
+    c.getPeople.mockImplementation(async (show?: 'friends' | 'recent') =>
+      people.filter((p) => (show === 'friends' ? p.isFriend : show === 'recent' ? !p.isFriend : true))
+    );
+    return c;
+  }
+  const props = { views: true, emptyText: 'Nobody yet' };
+
+  it('starts on Friends and asks the worker for only friends', async () => {
+    const c = viewClient();
+    wrap(<PeoplePanel client={c} {...props} />);
+    expect(await screen.findByText('Ann')).toBeTruthy();
+    expect(screen.queryByText('Bo')).toBeNull();
+    expect(c.getPeople).toHaveBeenCalledWith('friends');
+    expect(screen.getByRole('button', { name: 'Friends' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('switches to Recent players, which asks for only recent players', async () => {
+    const c = viewClient();
+    wrap(<PeoplePanel client={c} {...props} />);
+    await screen.findByText('Ann');
+    fireEvent.click(screen.getByRole('button', { name: 'Recent players' }));
+    expect(await screen.findByText('Bo')).toBeTruthy();
+    expect(screen.queryByText('Ann')).toBeNull();
+    expect(c.getPeople).toHaveBeenCalledWith('recent');
+  });
+
+  it('says how to get a friend when there are none', async () => {
+    wrap(<PeoplePanel client={viewClient([bo])} {...props} />);
+    expect(await screen.findByText('No friends yet. Star someone from Recent players to add them.')).toBeTruthy();
+  });
+
+  it('shows the empty text under Recent players when there are none', async () => {
+    wrap(<PeoplePanel client={viewClient([ann])} {...props} />);
+    await screen.findByText('Ann');
+    fireEvent.click(screen.getByRole('button', { name: 'Recent players' }));
+    expect(await screen.findByText('Nobody yet')).toBeTruthy();
+  });
+
+  it('searches everyone, hiding the toggle until the search is cleared', async () => {
+    const c = viewClient();
+    wrap(<PeoplePanel client={c} {...props} />);
+    await screen.findByText('Ann');
+    const box = screen.getByRole('searchbox', { name: 'Find a player' });
+    fireEvent.change(box, { target: { value: 'bo' } });
+    expect(await screen.findByText('Bo')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Friends' })).toBeNull();
+    fireEvent.change(box, { target: { value: '' } });
+    expect(await screen.findByRole('button', { name: 'Friends' })).toBeTruthy();
+    expect(await screen.findByText('Ann')).toBeTruthy();
+  });
+
+  it('shows everyone, with no toggle, without views', async () => {
+    const c = viewClient();
+    wrap(<PeoplePanel client={c} emptyText="Nobody yet" />);
+    expect(await screen.findByText('Ann')).toBeTruthy();
+    expect(screen.getByText('Bo')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Friends' })).toBeNull();
+    expect(c.getPeople).toHaveBeenCalledWith(undefined);
+  });
+});
+
 describe('InvitesCard', () => {
   const invite: Invite = { matchId: 'm1', from: { user_id: 'ann', displayName: 'Ann' }, createdOn: '2026-10-14T00:00:00.000Z', seatsOpen: 2 };
 
