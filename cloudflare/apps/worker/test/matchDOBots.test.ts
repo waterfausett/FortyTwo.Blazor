@@ -73,7 +73,7 @@ describe('MatchDO bot auto-play', () => {
     const match = valueOf(await stub.addBots('human-1', [2]));
 
     expect(match.players).toHaveLength(2);
-    expect(seatOf(match, 'bot-1')).toBe(2);
+    expect(seatOf(match, 'bots-one-seat_bot-1')).toBe(2);
   });
 
   it('fills every open seat around the humans when no seat is given, dealing the hand', async () => {
@@ -85,8 +85,8 @@ describe('MatchDO bot auto-play', () => {
     const match = valueOf(await stub.addBots('human-2'));
 
     expect(match.players.map((p) => [p.playerId, p.position]).sort()).toEqual([
-      ['bot-1', 1],
-      ['bot-2', 3],
+      ['bots-fill_bot-1', 1],
+      ['bots-fill_bot-2', 3],
       ['human-1', 0],
       ['human-2', 2],
     ]);
@@ -289,7 +289,7 @@ describe('MatchDO bot auto-play', () => {
       }
       expect(await runDurableObjectAlarm(stub)).toBe(true);
       const after = valueOf(await stub.getMatch());
-      expect(after.currentGame.hands.find((h) => h.playerId === 'bot-1')!.bid).not.toBeNull();
+      expect(after.currentGame.hands.find((h) => h.playerId === 'bots-ml-warming_bot-1')!.bid).not.toBeNull();
       await runAllPendingAlarms(stub); // none left running when the test ends
     });
   });

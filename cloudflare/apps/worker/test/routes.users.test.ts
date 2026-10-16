@@ -8,6 +8,7 @@ import { toPublicUser, toUserResponse } from '../src/routes/users';
 import type { Auth0User } from '../src/auth0Management';
 import { saveUsers } from '../src/users/publicUsers';
 import type { PlayerStats } from '@fortytwo/api-types';
+import { botDisplayName } from '@fortytwo/rules';
 
 // Must match the AUTH0_DOMAIN/AUTH0_AUDIENCE test-pool bindings in vitest.config.ts, as in
 // routes.matches.test.ts.
@@ -151,7 +152,7 @@ describe('user routes', () => {
         body: JSON.stringify(['auth0|p2', 'bot-1', 'auth0|p2']),
       });
       expect(seen.query).toBe('user_id:("auth0|p2")');
-      expect(await res.json()).toEqual([{ user_id: 'bot-1', displayName: 'Bot 1' }]);
+      expect(await res.json()).toEqual([{ user_id: 'bot-1', displayName: botDisplayName('bot-1') }]);
     });
 
     it('answers from D1 for players it has seen, without asking Auth0', async () => {
@@ -305,6 +306,7 @@ describe('user routes', () => {
       ['a picture that is not a URL', { picture: 'me.png' }],
       ['an over-long picture URL', { picture: `https://example.com/${'x'.repeat(2048)}` }],
       ['an array body', ['displayName']],
+      ['a display name with the bot mark', { displayName: 'Ada 🤖' }],
       ['a non-boolean highlight setting', { highlightPlayable: 'yes' }],
       ['a non-boolean push notifications setting', { pushNotifications: 1 }],
       ['a non-boolean seen-how-to-play setting', { seenHowToPlay: 'yes' }],
@@ -438,6 +440,11 @@ describe('toUserResponse', () => {
   });
 
   describe('displayName', () => {
+    it('never carries the bot mark, whatever the account says', () => {
+      expect(toUserResponse({ user_id: 'u1', nickname: 'Ada 🤖' }).displayName).toBe('Ada');
+      expect(toUserResponse({ user_id: 'u1', name: '🤖' }).displayName).toBe('Player');
+    });
+
     it('prefers user_metadata.displayName over everything else', () => {
       const u: Auth0User = {
         user_id: 'u1',

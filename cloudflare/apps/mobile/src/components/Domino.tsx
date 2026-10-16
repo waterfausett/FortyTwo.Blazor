@@ -33,6 +33,8 @@ const PIP_CELLS: Record<number, number[]> = {
   6: [0, 2, 3, 5, 6, 8],
 };
 const PIP_DIAMETER = 1.2;
+// How far the pre-selected ring sits outside the face.
+const RING_GAP = 3;
 
 // Pip centres for a half showing `value`, in units, relative to that half's top-left corner.
 export function pipCenters(value: number): { x: number; y: number }[] {
@@ -51,6 +53,9 @@ export interface DominoProps {
   dimmed?: boolean;
   // A brass outline: playable now, or the winning domino of a trick.
   highlighted?: boolean;
+  // A ring in the danger colour around the tile, like the web's: picked to be played as soon as
+  // it's the player's turn.
+  preselected?: boolean;
   accessibilityLabel?: string;
   // False when a wrapping control already names the tile.
   accessible?: boolean;
@@ -66,6 +71,7 @@ export const Domino = memo(function Domino({
   onPress,
   dimmed = false,
   highlighted = false,
+  preselected = false,
   accessibilityLabel,
   accessible = true,
 }: DominoProps) {
@@ -133,6 +139,15 @@ export const Domino = memo(function Domino({
           style={[styles.outline, { borderRadius: radius }, highlighted && styles.highlighted]}
         />
       </View>
+      {preselected && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.preselected,
+            { left: -RING_GAP, top: -RING_GAP, width: faceW + RING_GAP * 2, height: faceH + RING_GAP * 2, borderRadius: radius + RING_GAP },
+          ]}
+        />
+      )}
     </View>
   );
 
@@ -158,6 +173,7 @@ const styles = StyleSheet.create({
   face: { position: 'absolute', left: 0, top: 0, backgroundColor: colors.bone },
   outline: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderWidth: 1, borderColor: colors.boneEdge },
   highlighted: { borderWidth: 2, borderColor: colors.brass },
+  preselected: { position: 'absolute', borderWidth: 3, borderColor: colors.danger },
   divider: { position: 'absolute', backgroundColor: colors.boneEdge },
   dimmed: { opacity: 0.35 },
   pressed: { transform: [{ translateY: -3 }] },

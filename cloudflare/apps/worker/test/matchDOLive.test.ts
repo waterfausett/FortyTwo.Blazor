@@ -60,7 +60,7 @@ describe('Live bot fill', () => {
     await runDurableObjectAlarm(stub);
 
     const match = await stored(stub);
-    expect(match.players.map((p) => p.playerId).sort()).toEqual(['bot-1', 'bot-2', 'p1', 'p2']);
+    expect(match.players.map((p) => p.playerId).sort()).toEqual(['live-fill_bot-1', 'live-fill_bot-2', 'p1', 'p2']);
     expect(match.currentGame.hands.every((h) => h.dominoes.length === 7)).toBe(true);
     const row = await testEnv.DB.prepare('SELECT player_count FROM matches WHERE id = ?').bind('live-fill').first<{ player_count: number }>();
     expect(row?.player_count).toBe(4);

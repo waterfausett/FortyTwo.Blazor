@@ -16,8 +16,8 @@ import {
   MatchState,
   Suit,
   gameWinningTeam,
-  BOT_IDS,
   isBot,
+  mintBotId,
   patchPlayerReady,
   playDomino,
   setTrump,
@@ -28,7 +28,7 @@ import type { Bot } from '@fortytwo/bot';
 
 // Defined in the rules package so the web client can tell bots apart too; re-exported here for
 // the Worker code that already imports them from this file.
-export { BOT_IDS, isBot };
+export { isBot, mintBotId };
 
 // Passes unless Pass isn't a legal bid: the forced-bid rule (validation.ts's availableBids) only
 // takes Pass away from the last hand to act after three passes - and not at all under the redeal

@@ -1,6 +1,6 @@
 // Live play's clocks, and who a match is waiting on. Pure, like the rest of the rules: the
 // Worker's MatchDO turns these deadlines into alarms, and the clients count down to the same ones.
-import { BOT_IDS, isBot } from './botIds';
+import { isBot, mintBotId } from './botIds';
 import { gameWinningTeam, type Game } from './game';
 import { hasBeenDealt, matchScores, type MatchState } from './matchEngine';
 import { ValidationError } from './errors';
@@ -122,7 +122,7 @@ export function resumeControl(match: MatchState, playerId: string): MatchState {
 // names them is renamed. Hands already filed keep the player's id.
 export function replaceWithBot(match: MatchState, playerId: string): MatchState {
   assertIsMatchPlayer(match, playerId);
-  const botId = BOT_IDS.find((id) => match.players.every((p) => p.playerId !== id));
+  const botId = mintBotId(match.id, match.players.map((p) => p.playerId));
   if (botId === undefined) throw new ValidationError('No bot free to take the seat');
 
   const rename = (id: string | null) => (id === playerId ? botId : id);

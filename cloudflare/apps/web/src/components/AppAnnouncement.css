@@ -1,0 +1,102 @@
+/* AppAnnouncement.tsx: the "coming to your phone" card. In the flow under the Lobby header on
+   narrow screens; on wide ones it moves into the empty gutter left of the 44rem Lobby column. */
+
+.app-announcement {
+  position: relative;
+  margin-bottom: 1.5rem;
+  padding: 0.9rem 2rem 0.75rem 1rem;
+  border: 1px solid rgba(242, 234, 219, 0.18);
+  border-radius: 0.6rem;
+  background: rgba(36, 25, 19, 0.6);
+}
+
+.app-announcement-title {
+  margin: 0 0 0.6rem;
+  color: var(--bone);
+  font-weight: 600;
+}
+
+.app-announcement-dismiss {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.app-announcement-badges {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.app-badge {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.app-badge-body {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.6rem 0.35rem;
+  border: 1px solid #a6a6a6;
+  border-radius: 0.5rem;
+  background: #000;
+  color: #fff;
+  filter: saturate(0.5);
+}
+
+.app-badge-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.app-badge-small {
+  font-size: 0.62rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.app-badge-big {
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.app-badge-soon {
+  position: absolute;
+  top: -0.6rem;
+  right: 0.3rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--brass);
+  color: #241913;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* The 44rem column leaves (100vw - 44rem) / 2 each side; the 13rem card plus its 1.5rem gap and a
+   little air fits from 76rem. */
+@media (min-width: 76rem) {
+  .app-announcement {
+    position: absolute;
+    top: 2rem;
+    right: 100%;
+    width: 13rem;
+    margin: 0 1.5rem 0 0;
+  }
+
+  .app-announcement-badges {
+    flex-direction: column;
+  }
+}

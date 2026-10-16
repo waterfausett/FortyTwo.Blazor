@@ -149,6 +149,10 @@ export function describeMatch(match: MatchState, myPlayerId: string): MatchView 
   };
 }
 
+// How long a pre-selected domino (picked before it's this player's turn) stays marked once the
+// turn arrives, before it's played - a moment to notice, and to play a different one instead.
+export const PRESELECT_AUTO_PLAY_DELAY_MS = 400;
+
 // Whether `domino` is a legal play for me right now, by the same follow-suit rule the server
 // enforces (`assertValidDomino`). Before a trick has a suit - or when I've already played into the
 // current trick, so the pick is for the next one - anything goes.

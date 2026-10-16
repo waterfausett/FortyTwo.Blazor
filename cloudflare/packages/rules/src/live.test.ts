@@ -173,12 +173,13 @@ describe('replaceWithBot', () => {
     const match = dealt();
     const next = replaceWithBot(match, 'p1');
     const bot = next.players.find((p) => p.position === 0)!;
-    expect(bot.playerId).toBe('bot-1');
-    expect(next.currentGame.hands.find((h) => h.playerId === 'bot-1')!.dominoes).toEqual(
+    const botId = `${match.id}_bot-1`;
+    expect(bot.playerId).toBe(botId);
+    expect(next.currentGame.hands.find((h) => h.playerId === botId)!.dominoes).toEqual(
       match.currentGame.hands.find((h) => h.playerId === 'p1')!.dominoes
     );
-    expect(next.currentGame.currentPlayerId).toBe('bot-1');
-    expect(next.currentGame.firstActionBy).toBe('bot-1');
+    expect(next.currentGame.currentPlayerId).toBe(botId);
+    expect(next.currentGame.firstActionBy).toBe(botId);
     expect(next.replaced).toEqual(['p1']);
     expect(next.hadBots).toBe(true);
   });
@@ -189,10 +190,11 @@ describe('replaceWithBot', () => {
     for (const id of ['p2', 'p3', 'p4']) match = placeBid(match, id, Bid.Pass);
     match = setTrump(match, 'p1', Suit.Sixes);
     const next = replaceWithBot(match, 'p1');
-    expect(next.currentGame.biddingPlayerId).toBe('bot-1');
-    expect(next.currentGame.currentPlayerId).toBe('bot-1');
-    const lead = next.currentGame.hands.find((h) => h.playerId === 'bot-1')!.dominoes[0];
-    expect(() => playDomino(next, 'bot-1', lead)).not.toThrow();
+    const botId = `${match.id}_bot-1`;
+    expect(next.currentGame.biddingPlayerId).toBe(botId);
+    expect(next.currentGame.currentPlayerId).toBe(botId);
+    const lead = next.currentGame.hands.find((h) => h.playerId === botId)!.dominoes[0];
+    expect(() => playDomino(next, botId, lead)).not.toThrow();
   });
 
   it('takes the player off autopilot and picks the next free bot id', () => {
@@ -202,6 +204,7 @@ describe('replaceWithBot', () => {
     match = takeSeat(match, 'p4', 3, deck());
     match = setAutopilot(match, ['p3'], true);
     const next = replaceWithBot(match, 'p3');
+    // A bare bot is already seated, so the new one stays bare too.
     expect(next.players.find((p) => p.position === 2)!.playerId).toBe('bot-2');
     expect(next.autopilot).toEqual([]);
     expect(next.awaySince?.p3).toBeUndefined();
@@ -310,7 +313,7 @@ describe('the hand break', () => {
     match = { ...match, awaySince: { p2: match.currentGame.dealtOn! } };
     const next = patchPlayerReady(atBreak(match, 'p1'), 'p1', true, deck());
     expect(next.replaced).toEqual(['p2']);
-    expect(next.players.find((p) => p.position === 1)!.playerId).toBe('bot-1');
+    expect(next.players.find((p) => p.position === 1)!.playerId).toBe(`${match.id}_bot-1`);
     expect(next.autopilot).toEqual([]);
   });
 

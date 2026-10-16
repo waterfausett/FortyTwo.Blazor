@@ -31,6 +31,7 @@ import {
   type DragStartEvent,
   type Modifier,
 } from '@dnd-kit/core';
+import { PRESELECT_AUTO_PLAY_DELAY_MS } from '@fortytwo/client';
 import type { Domino as DominoType } from '@fortytwo/rules';
 import { Domino } from './Domino';
 import { PLAY_ZONE_ID } from './PlayDnd';
@@ -40,7 +41,7 @@ export interface HandProps {
   selectable: boolean;
   onPlay: (domino: DominoType) => void;
   // Reports whether double-clicking `domino` right now (before it's this player's turn) is worth
-  // queuing up as an auto-play - see `PRESELECT_AUTO_PLAY_DELAY_MS` below. Defaults to "anything
+  // queuing up as an auto-play - see `PRESELECT_AUTO_PLAY_DELAY_MS` (@fortytwo/client). Defaults to "anything
   // goes" so callers that don't care about follow-suit/etc. validation aren't forced to supply one.
   isValidPlay?: (domino: DominoType) => boolean;
   // The player's "highlight playable dominoes" setting: on their turn, outline the legal plays
@@ -50,12 +51,6 @@ export interface HandProps {
   // away it comes back where it was.
   playingId?: string | null;
 }
-
-// How long a preselected domino "flashes" as pending once it's actually this player's turn,
-// before it auto-submits - a small window to notice and react (e.g. by manually clicking a
-// different tile, which plays it immediately and pre-empts the queued auto-play) rather than it
-// firing the instant the turn arrives.
-const PRESELECT_AUTO_PLAY_DELAY_MS = 400;
 
 // Keeps the drag ghost fully on screen.
 const restrictToViewport: Modifier = ({ transform, draggingNodeRect, windowRect }) => {
@@ -186,8 +181,9 @@ export function Hand({
     setPreselectedId(null);
   }
 
-  // Fires the preselected domino a beat after it's actually this player's turn - see
-  // PRESELECT_AUTO_PLAY_DELAY_MS's comment for why the delay exists. Cancelled (via the cleanup)
+  // Fires the preselected domino a beat after it's actually this player's turn - a small window
+  // to notice and react (e.g. by manually clicking a different tile, which plays it immediately
+  // and pre-empts the queued auto-play) rather than it firing the instant the turn arrives. Cancelled (via the cleanup)
   // whenever the preselection changes or is cleared - including by `playDomino` below, which
   // clears it as soon as ANY domino is actually played (manually or via a previous firing of this
   // same timer).

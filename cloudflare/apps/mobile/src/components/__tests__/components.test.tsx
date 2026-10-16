@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { HOW_TO_PLAY } from '@fortytwo/client';
+import { HOW_TO_PLAY, PRESELECT_AUTO_PLAY_DELAY_MS } from '@fortytwo/client';
 import { Bid, DEFAULT_HOUSE_RULES, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
@@ -108,6 +108,120 @@ describe('Hand', () => {
     );
     await fireEvent(screen.getByLabelText('6-6'), 'longPress');
     expect(onDragChange).toHaveBeenCalledWith({ dragging: true, overDropZone: false });
+  });
+
+  describe('double-tap to pre-select', () => {
+    const preselected = (label: string) => screen.getByLabelText(label).props.accessibilityState.selected;
+    const doubleTap = async (label: string) => {
+      await fireEvent.press(screen.getByLabelText(label));
+      await fireEvent.press(screen.getByLabelText(label));
+    };
+    const hand = (props: Partial<Parameters<typeof Hand>[0]> = {}) => (
+      <Hand dominoes={dominoes} canPlay={false} isValidPlay={() => true} onPlay={jest.fn()} {...props} />
+    );
+
+    afterEach(() => jest.useRealTimers());
+
+    it('pre-selects a legal domino on a double-tap before the turn, without playing it', async () => {
+      const onPlay = jest.fn();
+      await render(hand({ onPlay }));
+
+      await doubleTap('6-6');
+      expect(preselected('6-6')).toBe(true);
+      expect(onPlay).not.toHaveBeenCalled();
+    });
+
+    it("doesn't pre-select on a single tap, or on two taps far apart", async () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      await render(hand());
+
+      await fireEvent.press(screen.getByLabelText('6-6'));
+      expect(preselected('6-6')).toBe(false);
+      now.mockReturnValue(2000);
+      await fireEvent.press(screen.getByLabelText('6-6'));
+      expect(preselected('6-6')).toBe(false);
+      now.mockRestore();
+    });
+
+    it('ignores a domino that is not a legal play', async () => {
+      await render(hand({ isValidPlay: (d) => d.top === 6 }));
+
+      await doubleTap('1-2');
+      expect(preselected('1-2')).toBe(false);
+    });
+
+    it('clears the pick when the same domino is double-tapped again', async () => {
+      await render(hand());
+
+      await doubleTap('6-6');
+      await doubleTap('6-6');
+      expect(preselected('6-6')).toBe(false);
+    });
+
+    it('moves the pick to another double-tapped domino', async () => {
+      await render(hand());
+
+      await doubleTap('6-6');
+      await doubleTap('1-2');
+      expect(preselected('6-6')).toBe(false);
+      expect(preselected('1-2')).toBe(true);
+    });
+
+    it('keeps the pick across a broadcast that leaves the hand the same', async () => {
+      const { rerender } = await render(hand());
+      await doubleTap('6-6');
+
+      await rerender(hand({ dominoes: dominoes.map((d) => ({ ...d })) }));
+      expect(preselected('6-6')).toBe(true);
+    });
+
+    it('clears the pick when the hand changes', async () => {
+      const three = [...dominoes, createDomino(3, 4)];
+      const { rerender } = await render(hand({ dominoes: three }));
+      await doubleTap('6-6');
+
+      await rerender(hand({ dominoes: three.slice(1) }));
+      await rerender(hand({ dominoes: three }));
+      expect(preselected('6-6')).toBe(false);
+    });
+
+    it("plays the pick a beat after the player's turn comes", async () => {
+      jest.useFakeTimers();
+      const onPlay = jest.fn();
+      const { rerender } = await render(hand({ onPlay }));
+      await doubleTap('6-6');
+
+      await rerender(hand({ onPlay, canPlay: true }));
+      expect(onPlay).not.toHaveBeenCalled();
+      expect(preselected('6-6')).toBe(true);
+
+      await act(() => jest.advanceTimersByTime(PRESELECT_AUTO_PLAY_DELAY_MS));
+      expect(onPlay).toHaveBeenCalledTimes(1);
+      expect(onPlay).toHaveBeenCalledWith(dominoes[0]);
+      expect(preselected('6-6')).toBe(false);
+    });
+
+    it('lets a domino played by hand in that beat override the pick', async () => {
+      jest.useFakeTimers();
+      const onPlay = jest.fn();
+      const { rerender } = await render(hand({ onPlay }));
+      await doubleTap('6-6');
+
+      await rerender(hand({ onPlay, canPlay: true }));
+      await fireEvent.press(screen.getByLabelText('1-2'));
+      await act(() => jest.advanceTimersByTime(PRESELECT_AUTO_PLAY_DELAY_MS));
+      expect(onPlay).toHaveBeenCalledTimes(1);
+      expect(onPlay).toHaveBeenCalledWith(dominoes[1]);
+    });
+
+    it("plays on the first tap on the player's turn, rather than pre-selecting", async () => {
+      const onPlay = jest.fn();
+      await render(hand({ onPlay, canPlay: true }));
+
+      await doubleTap('6-6');
+      expect(preselected('6-6')).toBe(false);
+      expect(onPlay).toHaveBeenCalledWith(dominoes[0]);
+    });
   });
 });
 

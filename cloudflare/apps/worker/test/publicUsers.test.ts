@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
 import type { Env } from '../src/index';
+import { botDisplayName } from '@fortytwo/rules';
 import { publicUsers, saveUsers } from '../src/users/publicUsers';
 
 const testEnv = env as unknown as Env;
@@ -40,7 +41,7 @@ describe('publicUsers', () => {
     expect(found).toEqual(
       expect.arrayContaining([
         { user_id: 'auth0|b', displayName: 'Bea', picture: 'b.png' },
-        { user_id: 'bot-2', displayName: 'Bot 2' },
+        { user_id: 'bot-2', displayName: botDisplayName('bot-2') },
       ])
     );
     expect(found).toHaveLength(2);

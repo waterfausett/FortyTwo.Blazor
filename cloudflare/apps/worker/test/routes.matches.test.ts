@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { env, runInDurableObject, SELF } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
-import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
+import { Teams, botDisplayName, isBot, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { app, type Env } from '../src/index';
 import { upsertMatchSummary } from '../src/lobby';
@@ -722,7 +722,7 @@ describe('match routes', () => {
       });
       expect(one.status).toBe(200);
       const afterOne = (await one.json()) as { players: { playerId: string; position: number }[] };
-      expect(afterOne.players.find((p) => p.playerId === 'bot-1')?.position).toBe(2);
+      expect(afterOne.players.find((p) => p.playerId === `${created.id}_bot-1`)?.position).toBe(2);
 
       const fill = await apiWithBots(`/api/matches/${created.id}/bots`, p1, { method: 'POST', body: '{}' });
       expect(fill.status).toBe(200);
@@ -734,7 +734,7 @@ describe('match routes', () => {
       expect(row?.player_count).toBe(4);
     });
 
-    it('names a seated bot "Bot N" in the lobby list', async () => {
+    it("names a seated bot by the match's own cast in the lobby list", async () => {
       const p1 = await signToken('p1');
       const p2 = await signToken('p2');
       const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
@@ -748,8 +748,9 @@ describe('match routes', () => {
       expect(res.status).toBe(200);
       const rows = (await res.json()) as { matches: { id: string; teams: string[][]; seats: (string | null)[] }[] };
       const row = rows.matches.find((m) => m.id === created.id);
-      expect(row?.seats[2]).toBe('Bot 1');
-      expect(row?.teams.flat()).toContain('Bot 1');
+      const botName = botDisplayName(`${created.id}_bot-1`);
+      expect(row?.seats[2]).toBe(botName);
+      expect(row?.teams.flat()).toContain(botName);
     });
 
     it('404s when bots are turned off', async () => {
@@ -783,7 +784,7 @@ describe('match routes', () => {
       const match = (await res.json()) as MatchState;
       expect(match.mode).toBe('bots');
       expect(match.players.find((p) => p.playerId === 'p1')?.position).toBe(0);
-      expect(match.players.filter((p) => p.playerId.startsWith('bot-')).map((p) => p.position).sort()).toEqual([1, 2, 3]);
+      expect(match.players.filter((p) => isBot(p.playerId)).map((p) => p.position).sort()).toEqual([1, 2, 3]);
       expect(match.currentGame.hands.find((h) => h.playerId === 'p1')?.dominoes).toHaveLength(7);
       const row = await testEnv.DB.prepare('SELECT player_count, mode FROM matches WHERE id = ?')
         .bind(match.id)

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.3.1...worker-v1.3.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **web:** show How to play once on the match screen ([#153](https://github.com/waterfausett/FortyTwo.Blazor/issues/153)) ([9072d46](https://github.com/waterfausett/FortyTwo.Blazor/commit/9072d465358fa32bced151de666c4ddbc36e0ade))
+
 ## [1.3.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.3.0...worker-v1.3.1) (2026-10-14)
 
 
