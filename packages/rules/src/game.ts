@@ -1,5 +1,6 @@
 import { Bid, pointsToMakeBid } from './bid';
 import { Hand } from './hand';
+import type { HouseRules } from './houseRules';
 import { Suit, isLow } from './suit';
 import { Teams } from './teams';
 import { Trick, trickValue } from './trick';
@@ -15,6 +16,16 @@ export interface Game {
   hands: Hand[];
   currentTrick: Trick;
   tricks: Trick[];
+  // When the hand was dealt; absent on hands from before it was recorded. A player on autopilot
+  // since then has been away for the whole hand (live.ts).
+  dealtOn?: string;
+  // The match's house rules (houseRules.ts), copied onto each hand dealt; absent means defaults.
+  rules?: HouseRules;
+  // This hand was dealt again because everyone passed (house rule `allPass: 'redeal'`).
+  redealt?: true;
+  // The winning bid was made by a player whose three opponents had all passed - they were forced
+  // to bid. Set by placeBid; read by the 'forcedOnly' Low house rule.
+  forcedBid?: true;
 }
 
 // Marks the hand is worth: 1 for a points bid (up to 42), otherwise one per 42 bid. Null until

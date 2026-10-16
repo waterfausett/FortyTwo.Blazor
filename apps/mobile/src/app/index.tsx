@@ -1,30 +1,40 @@
-// The lobby: the signed-in player's matches, one list at a time, plus starting a new match and
-// joining an open seat in someone else's. Each list loads a page at a time as it's scrolled.
+// The lobby: the signed-in player's matches, one list at a time (three segments: Active, History,
+// People), plus starting a new match and starting Live or Async play, or a table to share. Each
+// list loads a page at a time as it's scrolled. Invites to custom tables wait in an Invited to card
+// above the segments.
 //
 // Laid out as a phone app's home screen rather than a page: a large title with the player's
 // picture (the way to their profile) in place of the navigation bar, a segmented control for the
-// lists, full-width rows, and a floating button for a new match.
+// lists, full-width rows, and a floating button for a new match. Each person in People has an
+// Invite that asks them to one of the player's open Custom tables (InviteToTableSheet).
 import { useState } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { router, Stack } from 'expo-router';
-import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { uniqueMatches, type MatchPage, type MatchSummary } from '@fortytwo/client';
+import { rowLabel, rowStatus, uniqueMatches, yourTurnFirst, type MatchPage, type MatchSummary, type Person } from '@fortytwo/client';
+import type { HouseRules } from '@fortytwo/rules';
+import { useOnline } from '@/api/presence';
 import { useApi } from '@/api/useApi';
+import { useHowToPlay } from '@/api/useHowToPlay';
 import { useProfile } from '@/api/useProfile';
-import { SeatPicker } from '@/components/SeatPicker';
+import { NewMatchSheet, type NewMatchChoice } from '@/components/NewMatchSheet';
+import { HelpButton } from '@/components/HelpButton';
+import { HowToPlayCard } from '@/components/HowToPlayCard';
 import { colors, fonts } from '@/components/theme';
-import { toastError } from '@/components/toast';
+import { InvitesCard } from '@/people/InvitesCard';
+import { InviteToTableSheet } from '@/people/InviteToTableSheet';
+import { PeoplePanel } from '@/people/PeoplePanel';
 
-type Filter = 'Active' | 'Joinable' | 'Completed';
-const FILTERS: { filter: Filter; label: string }[] = [
-  { filter: 'Active', label: 'Active' },
-  { filter: 'Joinable', label: 'Find a game' },
-  { filter: 'Completed', label: 'History' },
+type Filter = 'Active' | 'Completed';
+type Segment = Filter | 'People';
+const SEGMENTS: { segment: Segment; label: string }[] = [
+  { segment: 'Active', label: 'Active' },
+  { segment: 'Completed', label: 'History' },
+  { segment: 'People', label: 'Friends' },
 ];
 const EMPTY: Record<Filter, { title: string; detail: string }> = {
-  Active: { title: 'No games yet', detail: 'Start a match and invite your table, or find an open seat in one.' },
-  Joinable: { title: 'No open seats', detail: 'Start a match and others can join it.' },
+  Active: { title: 'No games yet', detail: 'Start a new match: play Live now, take Async turns, or set up a Custom Match.' },
   Completed: { title: 'Nothing finished yet', detail: 'Finished games will show up here.' },
 };
 
@@ -35,12 +45,14 @@ export default function Lobby() {
   const api = useApi();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<Filter>('Active');
-  // The Find a game row whose seat picker is open, if any.
-  const [pickingSeatIn, setPickingSeatIn] = useState<string | null>(null);
+  const [segment, setSegment] = useState<Segment>('Active');
+  const filter: Filter = segment === 'People' ? 'Active' : segment;
+  // A first-time player is offered the rules until they dismiss the card or open them.
+  const howToPlay = useHowToPlay();
 
   const matches = useInfiniteQuery({
     queryKey: ['matches', filter] as const,
+    enabled: segment !== 'People',
     queryFn: ({ pageParam }) => api.listMatches(filter, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
@@ -56,30 +68,42 @@ export default function Lobby() {
       data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
     );
     void matches.refetch();
+    void queryClient.invalidateQueries({ queryKey: ['invites'] });
   }
 
-  const create = useMutation({
-    mutationFn: () => api.createMatch(),
-    onSuccess: (match) => {
-      queryClient.invalidateQueries({ queryKey: ['matches'] });
-      router.push(`/match/${match.id}`);
-    },
-    onError: toastError,
-  });
+  // The People segment's pull-to-refresh: its own spinner, until the lists are back.
+  const [peopleRefreshing, setPeopleRefreshing] = useState(false);
+  async function refreshPeople() {
+    setPeopleRefreshing(true);
+    try {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['people'] }), queryClient.invalidateQueries({ queryKey: ['invites'] })]);
+    } finally {
+      setPeopleRefreshing(false);
+    }
+  }
 
-  const join = useMutation({
-    mutationFn: ({ id, position }: { id: string; position: number }) => api.joinMatch(id, position),
+  const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
+  const online = useOnline();
+  const [choosing, setChoosing] = useState(false);
+  // Who the People segment's Invite is inviting to a table, while its sheet is open.
+  const [inviting, setInviting] = useState<Person | null>(null);
+  // Live and Async seat the player through matchmaking; Custom Match starts a custom table; Play
+  // vs bots starts a game against three bots.
+  const start = useMutation({
+    mutationFn: ({ choice, rules }: { choice: NewMatchChoice; rules?: HouseRules }) =>
+      choice === 'challenge' ? api.createMatch(rules) : choice === 'bots' ? api.playBots() : api.play(choice),
     onSuccess: (match) => {
-      setPickingSeatIn(null);
+      setChoosing(false);
       queryClient.invalidateQueries({ queryKey: ['matches'] });
       router.push(`/match/${match.id}`);
     },
-    // Most likely someone took the seat first - refetch so the picker shows who.
-    onError: (error) => {
-      toastError(error);
-      queryClient.invalidateQueries({ queryKey: ['matches'] });
-    },
+    // The sheet shows the error. A timeout may still have seated the player, so refetch the list.
+    onError: () => queryClient.invalidateQueries({ queryKey: ['matches'] }),
   });
+  function choose() {
+    start.reset();
+    setChoosing(true);
+  }
 
   const empty = EMPTY[filter];
 
@@ -91,15 +115,20 @@ export default function Lobby() {
           <Text style={styles.title} accessibilityRole="header">
             Matches
           </Text>
-          <ProfileButton />
+          <View style={styles.headerButtons}>
+            <HelpButton onPress={() => router.push('/how-to-play')} />
+            <ProfileButton />
+          </View>
         </View>
+        {howToPlay.offer && <HowToPlayCard onOpen={() => router.push('/how-to-play')} onDismiss={howToPlay.markSeen} />}
+        <InvitesCard />
         <View style={styles.segments} accessibilityRole="tablist">
-          {FILTERS.map(({ filter: f, label }) => {
-            const selected = f === filter;
+          {SEGMENTS.map(({ segment: s, label }) => {
+            const selected = s === segment;
             return (
               <Pressable
-                key={f}
-                onPress={() => setFilter(f)}
+                key={s}
+                onPress={() => setSegment(s)}
                 style={[styles.segment, selected && styles.segmentSelected]}
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
@@ -111,23 +140,43 @@ export default function Lobby() {
         </View>
       </View>
 
-      {matches.isPending ? (
+      {segment === 'People' ? (
+        <ScrollView
+          contentContainerStyle={[styles.list, styles.people, { paddingBottom: FAB_CLEARANCE + insets.bottom }]}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={peopleRefreshing}
+              onRefresh={refreshPeople}
+              tintColor={colors.brass}
+              colors={[colors.brass]}
+              progressBackgroundColor={colors.walnutDeep}
+            />
+          }
+        >
+          <PeoplePanel
+            views
+            emptyText="Play a game and the people you play with show up here."
+            action={(person) => (
+              <Pressable
+                style={styles.inviteButton}
+                onPress={() => setInviting(person)}
+                accessibilityRole="button"
+                accessibilityLabel={`Invite ${person.displayName} to a table`}
+              >
+                <Text style={styles.inviteText}>Invite</Text>
+              </Pressable>
+            )}
+          />
+        </ScrollView>
+      ) : matches.isPending ? (
         <ActivityIndicator size="large" color={colors.brass} style={styles.loading} />
       ) : (
         <FlatList
-          data={uniqueMatches(matches.data?.pages) ?? []}
+          data={yourTurnFirst(uniqueMatches(matches.data?.pages) ?? [])}
           keyExtractor={(m) => m.id}
           contentContainerStyle={[styles.list, { paddingBottom: FAB_CLEARANCE + insets.bottom }]}
-          renderItem={({ item }) => (
-            <MatchRow
-              match={item}
-              joinable={filter === 'Joinable'}
-              picking={pickingSeatIn === item.id}
-              onToggleJoin={() => setPickingSeatIn(pickingSeatIn === item.id ? null : item.id)}
-              joining={join.isPending}
-              onPick={(position) => join.mutate({ id: item.id, position })}
-            />
-          )}
+          renderItem={({ item }) => <MatchRow match={item} />}
           ItemSeparatorComponent={Separator}
           refreshControl={
             <RefreshControl
@@ -152,8 +201,8 @@ export default function Lobby() {
                 <Text style={styles.emptyTitle}>{empty.title}</Text>
                 <Text style={styles.emptyDetail}>{empty.detail}</Text>
                 {filter === 'Active' && (
-                  <Pressable onPress={() => setFilter('Joinable')} accessibilityRole="button" hitSlop={8}>
-                    <Text style={styles.emptyLink}>Find a game</Text>
+                  <Pressable onPress={choose} accessibilityRole="button" hitSlop={8}>
+                    <Text style={styles.emptyLink}>New match</Text>
                   </Pressable>
                 )}
               </View>
@@ -162,14 +211,26 @@ export default function Lobby() {
         />
       )}
 
+      <InviteToTableSheet person={inviting} onClose={() => setInviting(null)} />
+
+      <NewMatchSheet
+        visible={choosing}
+        liveEnabled={config.data?.bots ?? false}
+        online={online}
+        pending={start.isPending ? start.variables.choice : null}
+        error={start.error?.message ?? null}
+        onChoose={(choice, rules) => start.mutate({ choice, rules })}
+        onClose={() => setChoosing(false)}
+      />
+
       <Pressable
         style={({ pressed }) => [styles.fab, { bottom: 20 + insets.bottom }, pressed && styles.fabPressed]}
-        onPress={() => create.mutate()}
-        disabled={create.isPending}
+        onPress={choose}
+        disabled={start.isPending}
         accessibilityRole="button"
         accessibilityLabel="New match"
       >
-        {create.isPending ? (
+        {start.isPending ? (
           <ActivityIndicator color={colors.walnutDeep} />
         ) : (
           <Text style={styles.fabPlus}>+</Text>
@@ -242,14 +303,6 @@ function teamNames(team: string[]): string {
   return team.length > 0 ? team.join(' & ') : 'Open seats';
 }
 
-// What the match is waiting on, from the lobby's point of view.
-function matchStatus(match: MatchSummary): { text: string; waiting: boolean } {
-  if (match.status === 'completed') return { text: 'Finished', waiting: false };
-  const open = 4 - match.playerCount;
-  if (open > 0) return { text: `Waiting for ${open} more ${open === 1 ? 'player' : 'players'}`, waiting: true };
-  return { text: 'In play', waiting: false };
-}
-
 // "Now", "5m", "3h", "2d", then a date.
 function updatedLabel(iso: string, now = Date.now()): string {
   const minutes = Math.floor((now - new Date(iso).getTime()) / 60_000);
@@ -264,24 +317,15 @@ function Separator() {
   return <View style={styles.separator} />;
 }
 
-function MatchRow({
-  match,
-  joinable,
-  picking,
-  onToggleJoin,
-  joining,
-  onPick,
-}: {
-  match: MatchSummary;
-  joinable: boolean;
-  picking: boolean;
-  onToggleJoin: () => void;
-  joining: boolean;
-  onPick: (position: number) => void;
-}) {
-  const status = matchStatus(match);
-  const body = (
-    <>
+function MatchRow({ match }: { match: MatchSummary }) {
+  const status = rowStatus(match);
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      android_ripple={{ color: 'rgba(242, 234, 219, 0.06)' }}
+      onPress={() => router.push(`/match/${match.id}`)}
+      accessibilityRole="button"
+    >
       <SeatGlyph seats={match.seats} />
       <View style={styles.rowText}>
         <Text style={styles.rowTitle} numberOfLines={1}>
@@ -291,52 +335,28 @@ function MatchRow({
           <Text style={styles.rowVs}>vs </Text>
           {teamNames(match.teams[1])}
         </Text>
-        <Text style={[styles.rowStatus, status.waiting && styles.rowStatusWaiting]}>{status.text}</Text>
+        <Text style={[styles.rowStatus, status.yours && styles.rowStatusYours]}>
+          {rowLabel(match)} · {status.text}
+        </Text>
       </View>
-    </>
-  );
-  // You can only open a match you're in, so a joinable row's only action is joining.
-  if (!joinable) {
-    return (
-      <Pressable
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-        android_ripple={{ color: 'rgba(242, 234, 219, 0.06)' }}
-        onPress={() => router.push(`/match/${match.id}`)}
-        accessibilityRole="button"
-      >
-        {body}
-        <View style={styles.rowTrailing}>
-          <Text style={styles.rowTime}>{updatedLabel(match.updatedOn)}</Text>
-          <Text style={styles.chevron}>›</Text>
-        </View>
-      </Pressable>
-    );
-  }
-  return (
-    <View style={[styles.joinable, picking && styles.joinablePicking]}>
-      <View style={styles.row}>
-        {body}
-        <Pressable
-          style={({ pressed }) => [styles.joinButton, picking && styles.cancelButton, pressed && styles.joinPressed]}
-          onPress={onToggleJoin}
-          accessibilityRole="button"
-          hitSlop={6}
-        >
-          <Text style={picking ? styles.cancelText : styles.joinText}>{picking ? 'Cancel' : 'Join'}</Text>
-        </Pressable>
+      <View style={styles.rowTrailing}>
+        <Text style={styles.rowTime}>{updatedLabel(match.updatedOn)}</Text>
+        <Text style={styles.chevron}>›</Text>
       </View>
-      {picking && <SeatPicker seats={match.seats} disabled={joining} onPick={onPick} />}
-    </View>
+    </Pressable>
   );
 }
 
 const hairline = 'rgba(242, 234, 219, 0.09)';
 
 const styles = StyleSheet.create({
+  inviteButton: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: colors.brass },
+  inviteText: { color: colors.walnutDeep, fontFamily: fonts.uiBold },
   screen: { flex: 1, backgroundColor: colors.walnut },
 
   header: { paddingHorizontal: 20, paddingBottom: 12, gap: 16, backgroundColor: colors.walnut },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerButtons: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   title: { color: colors.bone, fontFamily: fonts.display, fontSize: 34, lineHeight: 40 },
   avatar: {
     width: 38,
@@ -361,25 +381,18 @@ const styles = StyleSheet.create({
 
   loading: { marginTop: 48 },
   list: { flexGrow: 1 },
+  people: { paddingHorizontal: 20, paddingTop: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 14 },
   rowPressed: { backgroundColor: 'rgba(242, 234, 219, 0.04)' },
   rowText: { flex: 1 },
   rowTitle: { color: colors.bone, fontFamily: fonts.uiBold, fontSize: 16, lineHeight: 21 },
   rowVs: { color: colors.inkMuted, fontFamily: fonts.ui },
   rowStatus: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 14, marginTop: 4 },
-  rowStatusWaiting: { color: colors.brass, fontFamily: fonts.uiMedium },
+  rowStatusYours: { color: colors.brass, fontFamily: fonts.uiBold },
   rowTrailing: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingTop: 2 },
   rowTime: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
   chevron: { color: colors.inkMuted, fontSize: 22, lineHeight: 22, marginTop: -2 },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: hairline, marginLeft: 20 + 44 + 14 },
-
-  joinable: {},
-  joinablePicking: { backgroundColor: 'rgba(20, 13, 9, 0.35)', paddingBottom: 8 },
-  joinButton: { backgroundColor: colors.brass, paddingHorizontal: 18, paddingVertical: 8, borderRadius: 18 },
-  cancelButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.inkMuted },
-  joinPressed: { opacity: 0.75 },
-  joinText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 15 },
-  cancelText: { color: colors.bone, fontFamily: fonts.uiMedium, fontSize: 15 },
 
   glyph: { backgroundColor: colors.walnutDeep, alignItems: 'center', justifyContent: 'center' },
   glyphTable: { backgroundColor: colors.mat, borderWidth: 1, borderColor: colors.matLight },

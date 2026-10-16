@@ -1,5 +1,5 @@
 // Hono routes for player profiles, backed by Auth0's Management API (auth0Management.ts) and the D1 `users` table
-// of display names (users/publicUsers.ts).
+// of display names (users/publicUsers.ts), plus the caller's own stats from the D1 `player_match_stats` table (stats.ts).
 import { Hono } from 'hono';
 import type { AppEnv } from '../index';
 import { getUser, updateUser } from '../auth0Management';
@@ -7,6 +7,7 @@ import { BadRequestError, profilePatch, readBody, readUserIds } from '../request
 import { isExpoPushToken, removeToken, saveToken } from '../push/tokens';
 import { toPublicUser, toUserResponse } from '../users/profile';
 import { publicUsers, rememberUser } from '../users/publicUsers';
+import { readPlayerStats } from '../stats';
 
 // They live in users/profile.ts (so users/publicUsers.ts can use them without importing the routes);
 // re-exported here for the tests that import them from this module.
@@ -22,6 +23,10 @@ users.get('/profile', async (c) => {
   await rememberUser(c.env.DB, user);
   return c.json(toUserResponse(user));
 });
+
+// The caller's own lifetime stats for the Profile (stats.ts). Only ever their own: no route reads
+// another player's.
+users.get('/stats', async (c) => c.json(await readPlayerStats(c.env, c.get('user').sub)));
 
 // A player Auth0 couldn't be asked about would otherwise stay "Player N" for the rest of the
 // match (the apps never look a name up twice), so that's a 503 the apps retry, not a short list.
@@ -47,7 +52,11 @@ users.put('/push-tokens', async (c) => {
   if (body.platform !== 'android' && body.platform !== 'ios') {
     throw new BadRequestError('`platform` must be "android" or "ios".');
   }
-  await saveToken(c.env.DB, c.get('user').sub, body.token, body.platform);
+  // Sent by an app that draws its own notices with buttons (push/send.ts); older versions don't.
+  if (body.drawsOwn !== undefined && typeof body.drawsOwn !== 'boolean') {
+    throw new BadRequestError('`drawsOwn` must be true or false.');
+  }
+  await saveToken(c.env.DB, c.get('user').sub, body.token, body.platform, { drawsOwn: body.drawsOwn === true });
   return c.body(null, 204);
 });
 

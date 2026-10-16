@@ -101,6 +101,19 @@ describe('MatchDO WebSocket upgrade', () => {
     expect(ws).toBeTruthy();
   });
 
+  // An app that was away (backgrounded, offline) when its match was deleted never got the 4404
+  // close; it reconnects later and must hear it then, or it sits on the dead match's last state.
+  it('closes a socket with 4404 straight away when there is no match', async () => {
+    const stub = stubFor('socket-no-match');
+    const token = await signToken({ sub: 'p1' });
+
+    const { ws } = await openSocket(stub, `/ws?token=${token}`);
+    const closed = new Promise<CloseEvent>((resolve) => ws?.addEventListener('close', (e) => resolve(e as CloseEvent)));
+
+    expect(ws).toBeTruthy();
+    expect((await closed).code).toBe(4404);
+  });
+
   it('rejects an upgrade with no token as 401', async () => {
     const stub = stubFor('socket-missing-token');
 
@@ -143,10 +156,12 @@ describe('MatchDO WebSocket upgrade', () => {
       });
 
       const event = await messagePromise;
-      const payload = JSON.parse(event.data as string) as { type: string; match: { players: { playerId: string }[] } };
+      const payload = JSON.parse(event.data as string) as { type: string; match: { players: { playerId: string }[] }; now: number };
 
       expect(payload.type).toBe('match');
       expect(payload.match.players).toHaveLength(1);
+      // The Worker's clock, which the clients count Live deadlines down by.
+      expect(Math.abs(payload.now - Date.now())).toBeLessThan(5000);
       expect(payload.match.players[0].playerId).toBe('p1');
     } finally {
       ws.close();
@@ -283,9 +298,9 @@ describe('MatchDO WebSocket upgrade', () => {
 });
 
 // MatchDO's push notifications: a change notifies the players it concerns (push/notices.ts), except
-// anyone watching the match through an open socket.
+// anyone watching the match through an open socket, and the player who made it.
 describe('MatchDO push notifications', () => {
-  it('pushes to players without the match open, and not to one who has it open', async () => {
+  it('pushes to players without the match open, and not to one who has it open or made the change', async () => {
     const dealOrder: Domino[] = [];
     for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dealOrder.push(createDomino(i, j));
     for (const id of ['p1', 'p2', 'p3', 'p4']) await saveToken(testEnv.DB, id, `ExponentPushToken[${id}]`, 'android');
@@ -305,12 +320,13 @@ describe('MatchDO push notifications', () => {
         return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
       });
 
-    // The last seat fills the table and deals: everyone hears the game is on, but p2 is watching.
+    // The last seat fills the table and deals: everyone hears the game is on, but p2 is watching,
+    // and p4 just sat down - in the app that's the match screen, its socket maybe not open yet.
     await stub.takeSeat('p4', 3, dealOrder);
     // Polls rather than resolving a promise from the reply: that runs inside the Durable Object's
     // request, and a test resumed from there can't touch its socket or stub any more.
     await vi.waitFor(() => expect(sentTo).toBeDefined());
-    expect(sentTo).toEqual(['ExponentPushToken[p1]', 'ExponentPushToken[p3]', 'ExponentPushToken[p4]']);
+    expect(sentTo).toEqual(['ExponentPushToken[p1]', 'ExponentPushToken[p3]']);
 
     ws?.close();
   });

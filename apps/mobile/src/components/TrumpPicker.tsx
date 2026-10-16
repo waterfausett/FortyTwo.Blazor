@@ -4,15 +4,10 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LOW_TRUMPS, Suit, availableTrumps, isLow, lowDoublesToPrettyString, suitToPrettyString, type Game } from '@fortytwo/rules';
 import { StyleSheet } from 'react-native';
+import { DOUBLES_DETAIL } from '@fortytwo/client';
 import { pickerStyles } from './BiddingPanel';
 import { PipFace } from './PipFace';
 import { colors, fonts } from './theme';
-
-export const DOUBLES_DETAIL: Record<(typeof LOW_TRUMPS)[number], string> = {
-  [Suit.Low]: 'Each double tops its suit',
-  [Suit.LowDoublesLow]: 'Each double is the lowest of its suit',
-  [Suit.LowDoublesOwnSuit]: 'Doubles form a suit, double-six highest',
-};
 
 export interface TrumpPickerProps {
   game: Game;

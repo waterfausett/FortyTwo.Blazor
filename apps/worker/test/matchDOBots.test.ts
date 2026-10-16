@@ -4,14 +4,17 @@
 // bots play by the simple rules; the kill switch only turns the ML bot off, not the alarm loop.
 import { describe, it, expect, vi } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
-import { Bid, Suit, type MatchState } from '@fortytwo/rules';
+import { Bid, Suit, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
+import { decideBid } from '../src/bots';
 import type { MatchDO } from '../src/matchDO';
 import { syncLobbyIndex } from '../src/lobby';
 import { countLobbyWrites } from './lobbyWrites';
 import { failingDb } from './failingDb';
 import { warmUpSteps } from '@fortytwo/bot';
 import { resetMlBotForTest } from '../src/mlBot';
+import { fetchMock } from './fetchMock';
+import { saveToken } from '../src/push/tokens';
 
 const testEnv = env as unknown as Env;
 
@@ -38,6 +41,31 @@ function seatOf(match: MatchState, playerId: string): number | undefined {
 }
 
 describe('MatchDO bot auto-play', () => {
+  it('marks a hand the bot bid for a player on autopilot', async () => {
+    const stub = stubFor('bots-autobid');
+    await stub.create('human-1', 'bots-autobid');
+    await stub.takeSeat('human-2', 2);
+    valueOf(await stub.addBots('human-1'));
+    const turn = valueOf(await stub.getMatch()).currentGame.currentPlayerId!;
+    expect(turn).toBe('human-1');
+    await runInDurableObject(stub, async (_i, state) => {
+      const m = (await state.storage.get<MatchState>('match'))!;
+      await state.storage.put('match', { ...m, autopilot: [turn] });
+      await state.storage.setAlarm(Date.now());
+    });
+
+    // The alarm set above may fire on its own before the test runs it, so run alarms until the bid
+    // is in rather than counting on exactly one.
+    const bidOf = async () =>
+      valueOf(await stub.getMatch()).currentGame.hands.find((h) => h.playerId === turn)!.bid;
+    for (let i = 0; i < 20 && (await bidOf()) === null; i++) await runDurableObjectAlarm(stub);
+
+    const match = valueOf(await stub.getMatch());
+    const hand = (id: string) => match.currentGame.hands.find((h) => h.playerId === id)!;
+    expect(hand(turn).bid).not.toBeNull();
+    expect(hand(turn).autoBid).toBe(true);
+  });
+
   it('seats a bot at a picked seat', async () => {
     const stub = stubFor('bots-one-seat');
     await stub.create('human-1', 'bots-one-seat');
@@ -45,7 +73,7 @@ describe('MatchDO bot auto-play', () => {
     const match = valueOf(await stub.addBots('human-1', [2]));
 
     expect(match.players).toHaveLength(2);
-    expect(seatOf(match, 'bot-1')).toBe(2);
+    expect(seatOf(match, 'bots-one-seat_bot-1')).toBe(2);
   });
 
   it('fills every open seat around the humans when no seat is given, dealing the hand', async () => {
@@ -57,8 +85,8 @@ describe('MatchDO bot auto-play', () => {
     const match = valueOf(await stub.addBots('human-2'));
 
     expect(match.players.map((p) => [p.playerId, p.position]).sort()).toEqual([
-      ['bot-1', 1],
-      ['bot-2', 3],
+      ['bots-fill_bot-1', 1],
+      ['bots-fill_bot-2', 3],
       ['human-1', 0],
       ['human-2', 2],
     ]);
@@ -70,6 +98,14 @@ describe('MatchDO bot auto-play', () => {
     await stub.create('human-1', 'bots-outsider');
 
     expect(await stub.addBots('stranger')).toMatchObject({ ok: false, status: 400 });
+  });
+
+  it('never adds bots at an Async table', async () => {
+    const stub = stubFor('bots-daily');
+    await stub.create('human-1', 'bots-daily', 'daily');
+
+    expect(await stub.addBots('human-1')).toMatchObject({ ok: false, status: 400 });
+    expect((valueOf(await stub.getMatch()) as MatchState).players).toHaveLength(1);
   });
 
   it('rejects a bot at a taken seat', async () => {
@@ -196,15 +232,20 @@ describe('MatchDO bot auto-play', () => {
     }
 
     // A match where the human has opened the bidding and bot-1 is next, in a fresh isolate (no
-    // ML bot loaded yet).
+    // ML bot loaded yet). Its alarms are set an hour later than asked, so only the test runs them:
+    // a warm-up tick is 100 ms, which a slow runner can pass between two of the test's, firing
+    // one the test then counts on (and, as the bots' moves have no fixed count, it can't adjust).
     async function humanHasBid(name: string, botsEnabled: string, assets: Fetcher) {
       resetMlBotForTest();
       const stub = stubFor(name);
       await stub.create('human-1', name);
       await stub.addBots('human-1');
       await runInDurableObject(stub, async (instance: MatchDO) => {
-        const withEnv = instance as unknown as { env: Env };
+        const withEnv = instance as unknown as { env: Env; ctx: DurableObjectState };
         withEnv.env = { ...withEnv.env, BOTS_ENABLED: botsEnabled, ASSETS: assets };
+        const storage = withEnv.ctx.storage;
+        const setAlarm = storage.setAlarm.bind(storage);
+        storage.setAlarm = (time, options) => setAlarm(new Date(time).getTime() + 60 * 60 * 1000, options);
       });
       await stub.bid('human-1', Bid.Thirty);
       return stub;
@@ -244,13 +285,65 @@ describe('MatchDO bot auto-play', () => {
       const before = valueOf(await stub.getMatch());
 
       for (let tick = 0; tick < 1 + warmUpSteps().steps.length; tick++) {
-        expect(await runDurableObjectAlarm(stub)).toBe(true);
-        expect(valueOf(await stub.getMatch())).toEqual(before);
+        expect(await runDurableObjectAlarm(stub)).toBe(true);        expect(valueOf(await stub.getMatch())).toEqual(before);
       }
       expect(await runDurableObjectAlarm(stub)).toBe(true);
       const after = valueOf(await stub.getMatch());
-      expect(after.currentGame.hands.find((h) => h.playerId === 'bot-1')!.bid).not.toBeNull();
+      expect(after.currentGame.hands.find((h) => h.playerId === 'bots-ml-warming_bot-1')!.bid).not.toBeNull();
       await runAllPendingAlarms(stub); // none left running when the test ends
     });
+  });
+});
+
+describe('MatchDO bots match', () => {
+  // The player who starts a bots match is on their way to it, like a rematch's voter, so their
+  // own first turn isn't pushed to them. A custom table dealt afterwards by another player's join,
+  // whose opener isn't watching, is pushed: had the bots match pushed, that push would show up first.
+  it("doesn't push the player their own first turn when they start one", async () => {
+    for (const id of ['vb-push-p1', 'vb-marker-p1']) await saveToken(testEnv.DB, id, `ExponentPushToken[${id}]`, 'android');
+    const sent: { to: string }[] = [];
+    fetchMock.activate();
+    fetchMock.disableNetConnect();
+    fetchMock
+      .get('https://exp.host')
+      .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
+      .reply((opts) => {
+        const messages = JSON.parse(String(opts.body)) as typeof sent;
+        sent.push(...messages);
+        return { statusCode: 200, data: JSON.stringify({ data: messages.map(() => ({ status: 'ok', id: 't' })) }) };
+      })
+      .persist();
+
+    await stubFor('vb-push').createVsBots('vb-push-p1', 'vb-push');
+    const marker = stubFor('vb-marker');
+    await marker.create('vb-marker-p1', 'vb-marker');
+    valueOf(await marker.addBots('vb-marker-p1', [1, 2]));
+    // A second player's join deals, so its opener (the creator) isn't the one acting.
+    valueOf(await marker.takeSeat('vb-marker-p2', 3, shuffledDominoOrder()));
+
+    // Polls rather than resolving a promise from the reply, which runs inside the Durable Object.
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent).toEqual([expect.objectContaining({ to: 'ExponentPushToken[vb-marker-p1]' })]);
+    // D1 isn't reset between tests.
+    await testEnv.DB.prepare('DELETE FROM push_tokens').run();
+  });
+});
+
+describe('simple bot decideBid', () => {
+  // Three passes already in: the bot in fourth seat is the last to act.
+  function afterThreePasses(rules?: { allPass: 'forceLast' | 'redeal' }) {
+    const hands = ['b1', 'b2', 'b3', 'b4'].map((playerId, i) => ({ playerId, bid: i < 3 ? Bid.Pass : null, dominoes: [] }));
+    const game = { hands, bid: null, rules: rules && { low: 'on', plunge: true, marksToWin: 7, ...rules } };
+    return { game: game as unknown as Parameters<typeof decideBid>[0], hand: hands[3] as unknown as Parameters<typeof decideBid>[1] };
+  }
+
+  it('is forced to bid Thirty on the default rules', () => {
+    const { game, hand } = afterThreePasses();
+    expect(decideBid(game, hand)).toBe(Bid.Thirty);
+  });
+
+  it('passes under the redeal rule, where nobody is forced', () => {
+    const { game, hand } = afterThreePasses({ allPass: 'redeal' });
+    expect(decideBid(game, hand)).toBe(Bid.Pass);
   });
 });

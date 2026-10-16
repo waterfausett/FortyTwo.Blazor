@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { env } from 'cloudflare:test';
-import { createDomino, Teams, type Domino } from '@fortytwo/rules';
+import { Bid, createDomino, Teams, type Domino } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 
 const testEnv = env as unknown as Env;
@@ -158,6 +158,38 @@ describe('MatchDO RPC', () => {
       }
       // No deal happened, so ready flags are untouched (still true from each join).
       expect(match.players.every((p) => p.ready === true)).toBe(true);
+    });
+  });
+
+  describe('house rules', () => {
+    const rules = { low: 'on', plunge: true, allPass: 'redeal', marksToWin: 5 } as const;
+
+    it('creates a custom match with the rules it was given', async () => {
+      const stub = stubFor('house-rules-create');
+      const match = await stub.create('p1', 'house-rules-create', 'custom', rules);
+      expect(match.rules).toEqual(rules);
+      expect(valueOf(await stub.getMatch()).currentGame.rules).toEqual(rules);
+    });
+
+    it('redeals in the same update when everyone passes, with the same opener', async () => {
+      const stub = stubFor('house-rules-redeal');
+      await stub.create('p1', 'house-rules-redeal', 'custom', rules);
+      await stub.addPlayer('p2', Teams.TeamA);
+      await stub.addPlayer('p3', Teams.TeamB);
+      const dealt = valueOf(await stub.addPlayer('p4', Teams.TeamB, fullDeck()));
+      const opener = dealt.currentGame.firstActionBy;
+
+      let match = dealt;
+      for (let i = 0; i < 4; i++) {
+        match = valueOf(await stub.bid(match.currentGame.currentPlayerId!, Bid.Pass));
+      }
+
+      expect(match.currentGame.redealt).toBe(true);
+      expect(match.currentGame.firstActionBy).toBe(opener);
+      expect(match.currentGame.currentPlayerId).toBe(opener);
+      expect(match.currentGame.hands.every((h) => h.bid === null && h.dominoes.length === 7)).toBe(true);
+      // And that is what was stored, not a half-way all-passed hand.
+      expect(valueOf(await stub.getMatch()).currentGame.redealt).toBe(true);
     });
   });
 });

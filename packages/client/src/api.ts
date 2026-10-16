@@ -8,19 +8,24 @@
 //
 // Response shapes come from @fortytwo/api-types, shared with the Worker, and MatchState from
 // @fortytwo/rules.
-import type { MatchState } from '@fortytwo/rules';
+import type { HouseRules, MatchState } from '@fortytwo/rules';
 import type {
   ApiErrorBody,
   ClientConfig,
+  Invite,
+  InviteResult,
   MatchPage,
   MatchSummary,
+  PeopleView,
+  Person,
+  PlayerStats,
   PokeResult,
   ProfilePatch,
   PublicUser,
   UserProfile,
 } from '@fortytwo/api-types';
 
-export type { MatchPage, MatchSummary, PokeResult, PublicUser, UserProfile };
+export type { Invite, InviteResult, MatchPage, MatchSummary, PeopleView, Person, PlayerStats, PokeResult, PublicUser, UserProfile };
 
 // Keeps the Worker's title and detail apart so a toast can show them as heading and body;
 // `message` still joins them for callers that just print it.
@@ -39,6 +44,10 @@ export class ApiError extends Error {
   }
 }
 
+// How long a request gets before it's given up as a timeout, so a dead connection ends in an error
+// the caller can show rather than a spinner that never stops.
+export const REQUEST_TIMEOUT_MS = 15_000;
+
 // `parseJson: false` is for routes that respond with an empty body (patchProfile's underlying
 // route does `c.body(null, 200)`) - calling `res.json()` on an empty body throws, so those callers
 // opt out entirely rather than relying on a content-length/204 heuristic that may not hold across
@@ -51,8 +60,30 @@ async function requestFrom<T>(
   parseJson = true
 ): Promise<T> {
   const token = await getToken();
+  // A timer and AbortController rather than AbortSignal.timeout, which React Native lacks.
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await send<T>(origin, path, init, token, abort.signal, parseJson);
+  } catch (error) {
+    if (abort.signal.aborted) throw new ApiError('Request timed out', 'Check your connection and try again.');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function send<T>(
+  origin: string,
+  path: string,
+  init: RequestInit,
+  token: string,
+  signal: AbortSignal,
+  parseJson: boolean
+): Promise<T> {
   const res = await fetch(`${origin}${path}`, {
     ...init,
+    signal,
     headers: {
       ...(init.body ? { 'content-type': 'application/json' } : {}),
       ...init.headers,
@@ -82,7 +113,16 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
     requestFrom<T>(getToken, origin, path, init, parseJson);
 
   return {
-    createMatch: (): Promise<MatchState> => request<MatchState>('/api/matches', { method: 'POST' }),
+    // A custom table, on the given house rules or the defaults.
+    createMatch: (rules?: HouseRules): Promise<MatchState> =>
+      request<MatchState>('/api/matches', { method: 'POST', ...(rules ? { body: JSON.stringify({ rules }) } : {}) }),
+
+    // Live or Async play: seats the caller at an open table of that mode, or starts one.
+    play: (mode: 'live' | 'daily'): Promise<MatchState> =>
+      request<MatchState>('/api/matchmaking', { method: 'POST', body: JSON.stringify({ mode }) }),
+
+    // A match against three bots, dealt and under way: the caller in seat 0, bots in the rest.
+    playBots: (): Promise<MatchState> => request<MatchState>('/api/matches/bots', { method: 'POST' }),
 
     // One page of a lobby list; pass the previous page's `nextCursor` for the next one.
     listMatches: (filter: 'Active' | 'Completed' | 'Joinable', cursor?: string): Promise<MatchPage> =>
@@ -107,6 +147,10 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
         method: 'PATCH',
         body: JSON.stringify({ ready }),
       }),
+
+    // Takes the caller's seat back from the bot after a Live turn ran out.
+    resume: (id: string): Promise<MatchState> =>
+      request<MatchState>(`/api/matches/${id}/players`, { method: 'PATCH', body: JSON.stringify({ autopilot: false }) }),
 
     // A vote to play the same four again once the match is over.
     rematch: (id: string): Promise<MatchState> =>
@@ -147,6 +191,9 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
 
     getProfile: (): Promise<UserProfile> => request<UserProfile>('/api/users/profile'),
 
+    // The caller's own lifetime stats, for the Profile.
+    getStats: (): Promise<PlayerStats> => request<PlayerStats>('/api/users/stats'),
+
     // Ids with no Auth0 account (bots) are simply absent from the result.
     searchUsers: (userIds: string[]): Promise<PublicUser[]> =>
       request<PublicUser[]>('/api/users/search', {
@@ -166,10 +213,35 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
 
     // This device's Expo push token, so the player's turns and the like reach it as push
     // notifications (the mobile app only). Registering a token another account had moves it here.
-    registerPushToken: (token: string, platform: 'android' | 'ios'): Promise<void> =>
-      request<void>('/api/users/push-tokens', { method: 'PUT', body: JSON.stringify({ token, platform }) }, false),
+    // `drawsOwn`: the app draws the notices with buttons itself, so the Worker sends them headless.
+    registerPushToken: (token: string, platform: 'android' | 'ios', drawsOwn = false): Promise<void> =>
+      request<void>('/api/users/push-tokens', { method: 'PUT', body: JSON.stringify({ token, platform, drawsOwn }) }, false),
 
     removePushToken: (token: string): Promise<void> =>
       request<void>('/api/users/push-tokens', { method: 'DELETE', body: JSON.stringify({ token }) }, false),
+
+    // The People list: friends, then recent players, or just one of the two (GET /api/people).
+    getPeople: (show?: PeopleView): Promise<Person[]> => request<Person[]>(show ? `/api/people?show=${show}` : '/api/people'),
+
+    // Players whose name starts with `q` (2-40 characters).
+    searchPeople: (q: string): Promise<Person[]> =>
+      request<Person[]>(`/api/people/search?q=${encodeURIComponent(q)}`),
+
+    // Friends are one-way: the other player isn't told.
+    addFriend: (userId: string): Promise<void> =>
+      request<void>(`/api/people/friends/${encodeURIComponent(userId)}`, { method: 'PUT' }, false),
+
+    removeFriend: (userId: string): Promise<void> =>
+      request<void>(`/api/people/friends/${encodeURIComponent(userId)}`, { method: 'DELETE' }, false),
+
+    // Invites players to a custom table the caller is seated at; resolves with who was invited.
+    invitePlayers: (matchId: string, userIds: string[]): Promise<InviteResult> =>
+      request<InviteResult>(`/api/matches/${matchId}/invites`, { method: 'POST', body: JSON.stringify({ userIds }) }),
+
+    // Invites waiting for the caller, for the Lobby's Invited to card.
+    getInvites: (): Promise<Invite[]> => request<Invite[]>('/api/invites'),
+
+    dismissInvite: (matchId: string): Promise<void> =>
+      request<void>(`/api/invites/${matchId}`, { method: 'DELETE' }, false),
   };
 }

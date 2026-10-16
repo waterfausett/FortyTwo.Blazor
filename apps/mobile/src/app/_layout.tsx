@@ -13,6 +13,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Auth0Provider, useAuth0 } from 'react-native-auth0';
+import { PresenceProvider } from '@/api/presence';
 import { colors, fonts } from '@/components/theme';
 import { ToastHost } from '@/components/ToastHost';
 import { config } from '@/config';
@@ -58,6 +59,7 @@ function RootStack() {
   if (!ready) return <View style={styles.loading} />;
 
   return (
+    <PresenceProvider enabled={signedIn && !DEV_BYPASS}>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.walnutDeep },
@@ -70,11 +72,13 @@ function RootStack() {
         <Stack.Screen name="index" options={{ title: 'Matches' }} />
         <Stack.Screen name="match/[id]" options={{ title: 'Match' }} />
         <Stack.Screen name="profile" options={{ title: 'Profile' }} />
+        <Stack.Screen name="how-to-play" options={{ title: 'How to play' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
+    </PresenceProvider>
   );
 }
 

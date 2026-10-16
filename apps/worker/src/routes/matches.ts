@@ -20,9 +20,12 @@ import { botsEnabled } from '../bots';
 import { publicUsers } from '../users/publicUsers';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
-import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
+import { Teams, matchMode, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
+import { turnSummaries, turnWaitsFor } from '../lobbyTurns';
 import { decodeCursor, encodeCursor } from '../cursor';
-import type { MatchPage, MatchSummary } from '@fortytwo/api-types';
+import { createInvites, MAX_INVITES_PER_TABLE } from '../people/invites';
+import { sendInvites } from '../push/send';
+import type { HouseRules, InviteResult, MatchPage, MatchSummary } from '@fortytwo/api-types';
 
 type AppContext = Context<AppEnv>;
 const matches = new Hono<AppEnv>();
@@ -52,10 +55,22 @@ async function replyWithMatch(
 }
 
 matches.post('/', async (c) => {
+  const rules = field.houseRules(await field.readOptionalBody(c));
   const matchId = crypto.randomUUID();
-  const match = await matchStub(c.env, matchId).create(c.get('user').sub, matchId);
+  const match = await matchStub(c.env, matchId).create(c.get('user').sub, matchId, 'custom', rules);
   await bestEffort(matchId, () => syncLobbyIndex(c.env.DB, match));
   return c.json(matchViewFor(match, c.get('user').sub), 201);
+});
+
+// One tap to a match against three bots: created, seated, dealt (MatchDO's `createVsBots`).
+// Off with bots, as adding them is.
+matches.post('/bots', async (c) => {
+  if (!botsEnabled(c.env)) return c.json({ title: 'Not found' }, 404);
+  const matchId = crypto.randomUUID();
+  const userId = c.get('user').sub;
+  const match = await matchStub(c.env, matchId).createVsBots(userId, matchId);
+  await bestEffort(matchId, () => syncLobbyIndex(c.env.DB, match));
+  return c.json(matchViewFor(match, userId), 201);
 });
 
 matches.get('/', async (c) => {
@@ -66,19 +81,41 @@ matches.get('/', async (c) => {
   const { rows, next } = await list(c.env.DB, userId, cursor);
   const playersByMatch = await listMatchPlayers(c.env.DB, rows.map((row) => row.id));
   const allPlayerIds = [...playersByMatch.values()].flat().map((p) => p.playerId);
+  // The turn lookups (up to TURN_LOOKUP_MS) run alongside the names, not after them.
+  const waitsPending = filter === 'Active' ? turnWaitsFor(c.env, rows) : null;
   const names = await displayNames(c.env, [...new Set(allPlayerIds)]);
+  const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
+  const turns = waitsPending ? turnSummaries(await waitsPending, userId, nameOf) : null;
   const summaries = rows.map((row): MatchSummary => {
     const seated = playersByMatch.get(row.id) ?? [];
-    const nameOf = (playerId: string) => names.get(playerId) ?? playerId;
     const namesOn = (team: Teams) => seated.filter((p) => p.team === team).map((p) => nameOf(p.playerId));
     const seats = [0, 1, 2, 3].map((position) => {
       const player = seated.find((p) => p.position === position);
       return player ? nameOf(player.playerId) : null;
     });
-    return { ...row, teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)], seats };
+    const { rules, ...rest } = row;
+    return {
+      ...rest,
+      mode: row.mode ?? 'custom',
+      ...(rules ? parsedRules(row.id, rules) : {}),
+      teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)],
+      seats,
+      ...(turns ? { turn: turns.get(row.id) ?? null } : {}),
+    };
   });
   return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });
+
+// The `rules` field for a lobby row. One corrupt column value leaves the rules off that row
+// rather than failing the whole page.
+function parsedRules(matchId: string, json: string): { rules?: HouseRules } {
+  try {
+    return { rules: JSON.parse(json) as HouseRules };
+  } catch (error) {
+    console.error('LOBBY RULES PARSE FAILED', matchId, error);
+    return {};
+  }
+}
 
 // Maps player ids to display names for the lobby list (users/publicUsers.ts: D1 first, Auth0 for
 // players it hasn't seen, bots by number). Anyone it can't name keeps their id, even when Auth0
@@ -115,6 +152,32 @@ matches.post('/:id/players', async (c) => {
   return replyWithMatch(c, result, { lobbySync: 'seats' });
 });
 
+// Invites people to a custom table with an open seat (people/invites.ts), by push and in their
+// Lobby. Only a player at the table may send them.
+matches.post('/:id/invites', async (c) => {
+  const userId = c.get('user').sub;
+  const toIds = field.invitees(await readBody(c), MAX_INVITES_PER_TABLE);
+  const result = await matchStub(c.env, c.req.param('id')).getMatch();
+  if (!result.ok) return refusal(c, result);
+  const match = result.value;
+  if (!match.players.some((p) => p.playerId === userId)) {
+    return c.json({ title: 'Not at this table', detail: 'Only players at the table can invite.' }, 403);
+  }
+  if (matchMode(match) !== 'custom') {
+    return c.json({ title: "Can't invite here", detail: 'Only Custom Matches take invites.' }, 409);
+  }
+  if (match.winningTeam !== null) return c.json({ title: 'Match over', detail: 'This match has finished.' }, 409);
+  if (match.players.length >= 4) return c.json({ title: 'Table is full', detail: 'Every seat is taken.' }, 409);
+  const invited = await createInvites(c.env.DB, match, userId, toIds);
+  if (invited === 'tooMany') {
+    return c.json({ title: 'Too many invites', detail: `A table can send at most ${MAX_INVITES_PER_TABLE} invites.` }, 409);
+  }
+  if (invited.length > 0) {
+    c.executionCtx.waitUntil(sendInvites(c.env, match.id, userId, invited));
+  }
+  return c.json({ invited } satisfies InviteResult);
+});
+
 // Seats a bot at `{ position }`, or at every open seat when no position is given, so bots can make
 // up the numbers (404 when BOTS_ENABLED is 'false'). Only a player already at the table can add
 // bots (checked by MatchDO's `addBots`).
@@ -127,15 +190,23 @@ matches.post('/:id/bots', async (c) => {
 });
 
 // Readying up can finish a hand's wait and deal the next one, so it always carries a deck.
+// `{ autopilot: false }` instead takes the caller's seat back from the bot (a Live turn ran out).
 matches.patch('/:id/players', async (c) => {
-  const ready = field.ready(await readBody(c));
-  const result = await matchStub(c.env, c.req.param('id')).readyUp(c.get('user').sub, ready, shuffledDominoOrder());
+  const body = await readBody(c);
+  const match = matchStub(c.env, c.req.param('id'));
+  if (body.autopilot !== undefined) {
+    field.autopilotOff(body);
+    return replyWithMatch(c, await match.resume(c.get('user').sub));
+  }
+  const result = await match.readyUp(c.get('user').sub, field.ready(body), shuffledDominoOrder());
   return replyWithMatch(c, result, { lobbySync: 'summary' });
 });
 
-// Leaves a match before its first deal. The last human out deletes it - which is how a creator
-// cancels a match nobody joined - so its lobby rows go too and the reply has no match to show.
-// Leaving a match that's already gone counts as done, and clears any lobby row it left behind (a
+// Leaves a match. Before the deal, the player is taken back out, and the last human out deletes
+// it - which is how a creator cancels a match nobody joined. A newcomer waiting on a seat gives up
+// their claim. In a Live Play game under way a bot takes the leaver's seat, unless nobody
+// else is still playing, which deletes the match. A deleted match's lobby rows go too and the
+// reply has no match to show. Leaving a match that's already gone counts as done, and clears any lobby row it left behind (a
 // retry after a failed cleanup, or a row a slower sync re-inserted after the delete).
 matches.delete('/:id/players', async (c) => {
   const matchId = c.req.param('id');

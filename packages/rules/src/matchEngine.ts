@@ -7,6 +7,8 @@ import { Domino, dominoEquals, getSuitValue } from './domino';
 import { ValidationError } from './errors';
 import { Game, gameValue, gameWinningTeam } from './game';
 import { Hand } from './hand';
+import { houseRules, type HouseRules } from './houseRules';
+import { letClaimsGo, seatChangesAtBreak, type MatchMode } from './live';
 import { MatchPlayerRef, selectNextPlayer } from './match';
 import { nextPosition, Positions } from './positions';
 import { Suit } from './suit';
@@ -27,10 +29,11 @@ import {
   assertValidBid,
   assertValidDomino,
   assertValidTrump,
+  othersAllPassed,
 } from './validation';
 
-// Marks needed to win the match.
-const WINNING_SCORE = 7;
+// Marks needed to win the match under the default rules (houseRules.ts).
+export const WINNING_SCORE = 7;
 
 export interface MatchPlayerState extends MatchPlayerRef {
   ready: boolean;
@@ -61,14 +64,39 @@ export interface MatchState {
   rematchVotes?: string[];
   // The rematch's match id, set once everyone has agreed and that match exists.
   rematchId?: string;
+  // How the match was started: Live, Async, or a custom table (live.ts). Absent on matches stored
+  // before modes existed - read it with matchMode(), which calls those custom.
+  mode?: MatchMode;
+  // When a Live match began looking for players; bots take its empty seats LIVE_FILL_MS later.
+  searchStartedOn?: string;
+  // Players a bot is playing for, after they let a Live turn run out (live.ts).
+  autopilot?: string[];
+  // When each player on autopilot went away, written and cleared with `autopilot` (live.ts).
+  awaySince?: Record<string, string>;
+  // Players waiting to take a bot's seat at the next hand break, in the order they asked.
+  claims?: string[];
+  // A bot has sat at this table at some point, so its stats count as a bots game even after
+  // people have taken every bot's seat.
+  hadBots?: boolean;
+  // Players whose seat a bot took after they were away a whole hand, or who left.
+  replaced?: string[];
+  // Claimants let go without a seat (the match ended or was dropped first); their app searches again.
+  bumped?: string[];
+  // The house rules a custom table was created with (houseRules.ts). Absent means the defaults.
+  rules?: HouseRules;
 }
 
 function now(): string {
   return new Date().toISOString();
 }
 
+// The rules field to put on a new hand: the match's own, or nothing for a match without any.
+function rulesOf(match: { rules?: HouseRules }): { rules?: HouseRules } {
+  return match.rules ? { rules: match.rules } : {};
+}
+
 // A new match with its creator in the first seat, waiting for three more players.
-export function createMatch(firstPlayerId: string): MatchState {
+export function createMatch(firstPlayerId: string, mode: MatchMode = 'custom', rules?: HouseRules): MatchState {
   const timestamp = now();
 
   const game: Game = {
@@ -82,6 +110,7 @@ export function createMatch(firstPlayerId: string): MatchState {
     hands: [{ playerId: firstPlayerId, team: Teams.TeamA, dominoes: [], bid: null }],
     currentTrick: createTrick(),
     tricks: [],
+    ...(rules ? { rules } : {}),
   };
 
   return {
@@ -92,6 +121,9 @@ export function createMatch(firstPlayerId: string): MatchState {
     games: {},
     winningTeam: null,
     players: [{ playerId: firstPlayerId, position: Positions.First, ready: true }],
+    mode,
+    ...(mode === 'live' ? { searchStartedOn: timestamp } : {}),
+    ...(rules ? { rules } : {}),
   };
 }
 
@@ -156,11 +188,11 @@ function seatPlayer(match: MatchState, playerId: string, position: Positions, de
   let currentGame: Game = { ...match.currentGame, hands: [...match.currentGame.hands, newHand] };
 
   if (currentGame.hands.length === 4 && dealOrder) {
-    currentGame = { ...currentGame, hands: dealHands(currentGame.hands, players, dealOrder) };
+    currentGame = { ...currentGame, hands: dealHands(currentGame.hands, players, dealOrder), dealtOn: now() };
     players = players.map((p) => ({ ...p, ready: false }));
   }
 
-  return { ...match, currentGame, players, updatedOn: now() };
+  return { ...match, currentGame, players, updatedOn: now(), ...(isBot(playerId) ? { hadBots: true } : {}) };
 }
 
 // Whether any hand has been dealt in this match yet. Hands are empty again after a hand's last
@@ -224,8 +256,13 @@ export function patchPlayerReady(
       0
     );
 
-    const firstActionByPosition = nextPosition(players.find((p) => p.playerId === lastGame.firstActionBy)!.position);
-    const firstActionBy = players.find((p) => p.position === firstActionByPosition)!.playerId;
+    // The opener is found by seat, before any seat changes hands below: the last opener may be
+    // a player whose seat a bot or a newcomer is about to take.
+    const lastOpenerPosition = match.players.find((p) => p.playerId === lastGame.firstActionBy)!.position;
+    const seated = seatChangesAtBreak({ ...match, players });
+    players = seated.players;
+    const firstActionBy = players.find((p) => p.position === nextPosition(lastOpenerPosition))!.playerId;
+    match = seated;
 
     let hands: Hand[] = players.map((p) => ({
       playerId: p.playerId,
@@ -248,6 +285,8 @@ export function patchPlayerReady(
       hands,
       currentTrick: createTrick(),
       tricks: [],
+      dealtOn: now(),
+      ...rulesOf(match),
     };
   }
 
@@ -255,12 +294,16 @@ export function patchPlayerReady(
 }
 
 // Records the current player's bid and moves on: to the next bidder, or once everyone has bid, to
-// the winning bidder (their partner, on a Plunge) to name trump.
+// the winning bidder (their partner, on a Plunge) to name trump. Under the redeal house rule all
+// four may pass, which leaves the hand waiting for `redeal`.
 export function placeBid(match: MatchState, playerId: string, bid: Bid): MatchState {
   assertActive(match);
   assertActive(match.currentGame);
   assertActiveTurn(match.currentGame, playerId);
   assertValidBid(match.currentGame, playerId, bid);
+
+  // A bid after the other three passed was forced (under 'forceLast' it's always the last bid).
+  const forced = bid !== Bid.Pass && othersAllPassed(match.currentGame, playerId);
 
   const hands = match.currentGame.hands.map((h) => (h.playerId === playerId ? { ...h, bid } : h));
 
@@ -272,7 +315,7 @@ export function placeBid(match: MatchState, playerId: string, bid: Bid): MatchSt
     biddingPlayerId = playerId;
   }
 
-  let currentPlayerId: string;
+  let currentPlayerId: string | null;
 
   if (hands.some((h) => h.bid === null)) {
     currentPlayerId = selectNextPlayer(
@@ -281,16 +324,61 @@ export function placeBid(match: MatchState, playerId: string, bid: Bid): MatchSt
       match.currentGame.trump,
       match.players
     );
+  } else if (biddingPlayerId === null) {
+    // Everyone passed (only possible under the redeal house rule): nobody acts until `redeal`.
+    currentPlayerId = null;
   } else if (gameBid === Bid.Plunge) {
     const plungePlayerPosition = match.players.find((p) => p.playerId === biddingPlayerId)!.position;
     const plungePartnerPosition = nextPosition(nextPosition(plungePlayerPosition));
     currentPlayerId = match.players.find((p) => p.position === plungePartnerPosition)!.playerId;
   } else {
-    currentPlayerId = biddingPlayerId!;
+    currentPlayerId = biddingPlayerId;
   }
 
-  const currentGame: Game = { ...match.currentGame, hands, bid: gameBid, biddingPlayerId, currentPlayerId };
+  const currentGame: Game = {
+    ...match.currentGame,
+    hands,
+    bid: gameBid,
+    biddingPlayerId,
+    currentPlayerId,
+    ...(forced ? { forcedBid: true as const } : {}),
+  };
 
+  return { ...match, currentGame, updatedOn: now() };
+}
+
+// Every hand has bid and all of them passed - only possible under the redeal house rule. The
+// caller deals again with `redeal` in the same update, so this state is never stored.
+export function needsRedeal(match: MatchState): boolean {
+  const hands = match.currentGame.hands;
+  return hands.length === 4 && hands.every((h) => h.bid === Bid.Pass);
+}
+
+// Deals new hands to the same seats after everyone passed. The same player opens again, and the
+// hand keeps its name: it's the same hand of the match, dealt again.
+export function redeal(match: MatchState, dealOrder: Domino[]): MatchState {
+  if (!needsRedeal(match)) throw new Error('Only a hand everyone passed can be redealt');
+  const last = match.currentGame;
+  const hands = dealHands(
+    last.hands.map((h) => ({ playerId: h.playerId, team: h.team, dominoes: [], bid: null })),
+    match.players,
+    dealOrder
+  );
+  const currentGame: Game = {
+    id: crypto.randomUUID(),
+    name: last.name,
+    firstActionBy: last.firstActionBy,
+    bid: null,
+    biddingPlayerId: null,
+    trump: null,
+    currentPlayerId: last.firstActionBy,
+    hands,
+    currentTrick: createTrick(),
+    tricks: [],
+    dealtOn: now(),
+    ...rulesOf(match),
+    redealt: true,
+  };
   return { ...match, currentGame, updatedOn: now() };
 }
 
@@ -310,7 +398,7 @@ export function setTrump(match: MatchState, playerId: string, suit: Suit): Match
 
 // Plays a domino into the current trick. When the trick fills, its winner leads the next one; when
 // the play decides the hand, the hand is filed under the team that won it, and the match is won
-// once a team reaches WINNING_SCORE marks.
+// once a team reaches the match's marks to win (7 unless the house rules say otherwise).
 //
 // Unlike the other actions, this deliberately skips `assertActive` for both the hand and the
 // match: a decided hand can be played out if the players want to, and that includes the hand that
@@ -374,18 +462,20 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
     games = { ...games, [winningTeam]: [...(games[winningTeam] ?? []), currentGame] };
   }
 
+  const marksToWin = houseRules(match).marksToWin;
   const scores = matchScores({ ...match, games });
   const scoreEntries = Object.entries(scores) as [string, number][];
 
   // On a tie the lower `Teams` value wins: `Object.entries` lists integer keys in ascending order,
   // and the reduce only replaces a strictly higher score.
-  const matchWinningTeam: Teams | null = scoreEntries.some(([, value]) => value >= WINNING_SCORE)
+  const matchWinningTeam: Teams | null = scoreEntries.some(([, value]) => value >= marksToWin)
     ? (Number(
         scoreEntries.reduce((best, current) => (current[1] > best[1] ? current : best))[0]
       ) as Teams)
     : null;
 
-  return { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
+  const result = { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
+  return matchWinningTeam !== null ? letClaimsGo(result) : result;
 }
 
 // Asks to play the same four again. Only once the match is over, and only from someone seated;
@@ -438,10 +528,16 @@ export function createRematch(id: string, previous: MatchState, dealOrder: Domin
       hands,
       currentTrick: createTrick(),
       tricks: [],
+      dealtOn: timestamp,
+      ...rulesOf(previous),
     },
     games: {},
     winningTeam: null,
     players,
+    // The same four, playing the same way.
+    ...(previous.mode !== undefined ? { mode: previous.mode } : {}),
+    ...(players.some((p) => isBot(p.playerId)) ? { hadBots: true } : {}),
+    ...rulesOf(previous),
   };
 }
 

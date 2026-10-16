@@ -11,7 +11,8 @@ import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, Styl
 import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  MARKS_TO_WIN,
+  houseRuleLabels,
+  marksToWin,
   assertPlayable,
   describeMatch,
   isHighBidder,
@@ -19,14 +20,22 @@ import {
   isValidPlay,
   matchStatus,
   nameText,
+  nextHandClock,
   openSeats,
   projectPlay,
+  formatClock,
+  searchState,
+  seatChanges,
   seatFor,
   shouldStackTricks,
   teamTrickPoints,
   teamTricksForDisplay,
   trickLeaderId,
   trickPlayOrder,
+  serverNow,
+  turnClock,
+  viewerRole,
+  watchAnchor,
   type MatchView,
   type Seat,
 } from '@fortytwo/client';
@@ -37,7 +46,11 @@ import {
   hasBeenDealt,
   isBot,
   isLow,
+  isOnAutopilot,
+  isPresent,
+  LIVE_FILL_MS,
   lowDoublesToPrettyString,
+  matchMode,
   matchScores,
   rematchAgreed,
   suitToPrettyString,
@@ -45,15 +58,20 @@ import {
   type MatchState,
   Suit,
 } from '@fortytwo/rules';
+import { useOnline } from '@/api/presence';
 import { useApi } from '@/api/useApi';
 import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
 import { DoublesRuleModal } from '@/components/DoublesRuleModal';
+import { InviteSheet } from '@/people/InviteSheet';
 import { Fade, FADE_IN_MS } from '@/components/Fade';
 import { Hand, type DragState } from '@/components/Hand';
+import { HelpButton } from '@/components/HelpButton';
 import { JoinMatchPanel } from '@/components/JoinMatchPanel';
+import { MatchMenu } from '@/components/MatchMenu';
+import { HouseRulesButton, HouseRulesModal } from '@/components/HouseRulesModal';
 import { MatchSummary } from '@/components/MatchSummary';
 import { NameSkeleton } from '@/components/NameSkeleton';
 import { PipFace } from '@/components/PipFace';
@@ -66,6 +84,7 @@ import { DEV_BYPASS } from '@/dev/devBypass';
 import { DEV_PLAYER_ID } from '@/dev/devMatches';
 import { shareInvite } from '@/linking/invite';
 import { askOnceForPush } from '@/notifications/push';
+import { useNow } from '@/match/useNow';
 import { useLatch } from '@/match/useLatch';
 import { usePlayerNames } from '@/match/usePlayerNames';
 import { usePoke } from '@/match/usePoke';
@@ -77,6 +96,9 @@ import { useTrickHold } from '@/match/useTrickHold';
 function doublesRule(trump: Suit): string {
   return trump === Suit.LowDoublesOwnSuit ? 'suit' : lowDoublesToPrettyString(trump).toLowerCase();
 }
+
+// The header's "?": the rules, pushed over the match, which stays as it was underneath.
+const rulesButton = () => <HelpButton onPress={() => router.push('/how-to-play')} />;
 
 export default function MatchScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -108,6 +130,14 @@ export default function MatchScreen() {
   });
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
+  // How this player stands at the table. In a Live Play game under way, a newcomer waits
+  // for a bot's seat (claiming) and watches meanwhile; one whose wait came to nothing is bumped
+  // and looks again; one away a whole hand was replaced by a bot.
+  const role = liveMatch && myPlayerId ? viewerRole(liveMatch, myPlayerId) : null;
+  // A claimant watches from the first seat's side; everything that acts is switched off for them.
+  const watching = role === 'claiming';
+  const watchFrom = watching ? watchAnchor(liveMatch!) : null;
+
   // Display names for everyone seated (match/usePlayerNames.ts). Until a name loads it reads null
   // here and the screen shows a placeholder; one that can't be found reads "Player N". Never the id.
   const names = usePlayerNames(liveMatch?.players ?? [], myPlayerId, (ids) => api.searchUsers(ids));
@@ -137,6 +167,22 @@ export default function MatchScreen() {
   const readyUp = useMutation({ mutationFn: () => api.readyUp(id, true), ...sent('ready') });
   const rematch = useMutation({ mutationFn: () => api.rematch(id), onError: toastError });
   const addBots = useMutation({ mutationFn: () => api.addBots(id), onError: toastError });
+  const resume = useMutation({ mutationFn: () => api.resume(id), onError: toastError });
+  const online = useOnline();
+  // A Live search counts up, and a Live turn and the wait for the next hand count down, so the clock
+  // ticks only while one is shown. A paused clock sits at 0:00 until the table moves on, so it doesn't tick.
+  const searchNow = liveMatch ? searchState(liveMatch, serverNow()) : null;
+  const clockNow = liveMatch ? turnClock(liveMatch, serverNow()) : null;
+  const nextHandNow = liveMatch ? nextHandClock(liveMatch, serverNow()) : null;
+  const ticking =
+    liveMatch != null && (searchNow?.mode === 'live' || (clockNow !== null && !clockNow.paused) || nextHandNow !== null);
+  const now = useNow(ticking);
+  const search = liveMatch ? searchState(liveMatch, now) : null;
+  // Stopped, `now` is as old as the last tick, so a stopped clock reads the time afresh.
+  const clock = liveMatch ? (ticking ? turnClock(liveMatch, now) : clockNow) : null;
+  const nextHand = liveMatch ? (ticking ? nextHandClock(liveMatch, now) : nextHandNow) : null;
+  const mode = liveMatch ? matchMode(liveMatch) : 'custom';
+  const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
   // then seats the player here; the lobby's lists change too.
   const queryClient = useQueryClient();
@@ -149,6 +195,7 @@ export default function MatchScreen() {
     mutationFn: () => api.leaveMatch(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
+      queryClient.invalidateQueries({ queryKey: ['invites'] });
       router.dismissTo('/');
     },
     onError: (error) => {
@@ -159,19 +206,68 @@ export default function MatchScreen() {
 
   // The match was deleted (its last human left, or it expired) - there's nothing left to show.
   // Re-checked when this player's own leave fails, since by then the match may be gone anyway.
+  // A bumped player is already on their way to another table (below), so isn't told either: a
+  // dropped match's last broadcast, which bumps them, arrives before the socket closes.
   const leaveFailed = leave.isError;
+  const bumped = role === 'bumped';
   useEffect(() => {
-    if (!deleted || leavingRef.current) return;
+    if (!deleted || leavingRef.current || bumped) return;
     toastInfo('This match was deleted');
     queryClient.invalidateQueries({ queryKey: ['matches'] });
+    queryClient.invalidateQueries({ queryKey: ['invites'] });
     router.dismissTo('/');
-  }, [deleted, leaveFailed, queryClient]);
+  }, [deleted, leaveFailed, bumped, queryClient]);
+
+  // Arriving at a full table (often from an Invited to card fetched before it filled): the Lobby
+  // stays mounted underneath, so refresh its invites now, and the stale one is gone on the way back.
+  const full = role === 'stranger' && liveMatch !== null && liveMatch.players.length === 4;
+  useEffect(() => {
+    if (full) queryClient.invalidateQueries({ queryKey: ['invites'] });
+  }, [full, queryClient]);
+
+  // Bumped - the game they were waiting on ended first - this player looks for another Over the
+  // table game straight away, once, and goes to it. If that fails they can try again.
+  const findAnother = useMutation({
+    mutationFn: () => api.play('live'),
+    onSuccess: (found) => router.replace(`/match/${found.id}`),
+  });
+  const { mutate: searchAgain } = findAnother;
+  const searchedAgainRef = useRef(false);
+  useEffect(() => {
+    if (!bumped || searchedAgainRef.current) return;
+    searchedAgainRef.current = true;
+    searchAgain();
+  }, [bumped, searchAgain]);
+
+  // "Sam took Bot 2's seat", for each seat that changes hands, once the newcomer's name is in;
+  // a player who has just been seated is told they're in instead.
+  const previousMatchRef = useRef<MatchState | null>(null);
+  const pendingSeatChangesRef = useRef<{ from: string; to: string }[]>([]);
+  useEffect(() => {
+    if (!liveMatch) return;
+    const previous = previousMatchRef.current;
+    previousMatchRef.current = liveMatch;
+    if (previous && previous.id === liveMatch.id) {
+      for (const change of seatChanges(previous, liveMatch)) {
+        if (change.to === myPlayerId) toastInfo("You're in", 'You took a seat - your first hand is dealt.');
+        // The one leaving has a screen of their own to see.
+        else if (change.from !== myPlayerId) pendingSeatChangesRef.current.push(change);
+      }
+    }
+    if (!names.ready) return;
+    for (const change of pendingSeatChangesRef.current.splice(0)) {
+      const to = nameText(names.nameFor(change.to)) ?? 'A player';
+      const from = nameText(names.nameFor(change.from)) ?? 'a player';
+      toastInfo(`${to} took ${from}'s seat`);
+    }
+  }, [liveMatch, myPlayerId, names]);
 
   const join = useMutation({
     mutationFn: (position: number) => api.joinMatch(id, position),
     onSuccess: (joined) => {
       queryClient.setQueryData(['match', id], joined);
       queryClient.invalidateQueries({ queryKey: ['matches'] });
+      queryClient.invalidateQueries({ queryKey: ['invites'] });
     },
     onError: toastError,
   });
@@ -229,10 +325,11 @@ export default function MatchScreen() {
   // Bidding and naming trump don't use the table, so it folds down to a strip for them. On a new
   // deal the bids wait for it to finish folding: arriving while it's still full height, they'd
   // briefly push the hand down the screen.
-  const early = seatedView(liveMatch, myPlayerId);
+  // A claimant's view is the first seat's, like the table they're watching.
+  const early = seatedView(liveMatch, watchFrom ?? myPlayerId);
   // Sitting at a match is when notifications start to matter: ask for permission then, if the
   // player hasn't turned them off.
-  const seated = early != null;
+  const seated = role === 'seated';
   const wantsPush = profile != null && profile.pushNotifications;
   useEffect(() => {
     if (seated && wantsPush) askOnceForPush(api);
@@ -249,6 +346,8 @@ export default function MatchScreen() {
   // the match plays out on the table like any other hand.
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [doublesOpen, setDoublesOpen] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
@@ -280,16 +379,49 @@ export default function MatchScreen() {
       </View>
     );
   }
-  if (!liveMatch.players.some((p) => p.playerId === myPlayerId)) {
-    // Having just left, the table's broadcast without this player usually arrives before the
-    // leave's own reply navigates away - that's not a seat picker to show them.
-    if (leave.isPending || leave.isSuccess) {
-      return (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.brass} accessibilityLabel="Leaving match" />
-        </View>
-      );
-    }
+  // Having just left, the table's broadcast without this player usually arrives before the
+  // leave's own reply navigates away - that's not a seat picker (or a "replaced" note) to show them.
+  if (role !== 'seated' && (leave.isPending || leave.isSuccess)) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.brass} accessibilityLabel="Leaving match" />
+      </View>
+    );
+  }
+  if (role === 'bumped') {
+    return (
+      <View style={[styles.centered, styles.notice]} accessibilityLabel="Finding another table">
+        <Stack.Screen options={{ title: liveGame.name, headerRight: rulesButton }} />
+        {findAnother.isError ? (
+          <>
+            <Text style={styles.noticeText}>That game ended, and no other table could be found just now.</Text>
+            <ActionButton label="Find another" disabled={findAnother.isPending} onPress={() => searchAgain()} />
+          </>
+        ) : (
+          <Text style={styles.noticeText} accessibilityRole="text">
+            That game ended - finding you another table…
+          </Text>
+        )}
+        <Pressable style={styles.lobbyLink} onPress={() => router.dismissTo('/')} accessibilityRole="button">
+          <Text style={styles.smallButtonText}>Back to lobby</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  if (role === 'replaced') {
+    return (
+      <View style={[styles.centered, styles.notice]} accessibilityLabel="Your seat was taken">
+        <Stack.Screen options={{ title: liveGame.name, headerRight: rulesButton }} />
+        <Text style={styles.noticeText}>A bot took your seat after you were away for a hand.</Text>
+        <Pressable style={styles.lobbyLink} onPress={() => router.dismissTo('/')} accessibilityRole="button">
+          <Text style={styles.smallButtonText}>Back to lobby</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  // Someone who isn't seated - typically arriving from an invite link - picks a seat, or learns
+  // the match is full.
+  if (role === 'stranger') {
     const seats = [0, 1, 2, 3].map((position) => {
       const player = liveMatch.players.find((p) => p.position === position);
       return player ? (nameOf(player.playerId) ?? '') : null;
@@ -301,7 +433,7 @@ export default function MatchScreen() {
     });
     return (
       <>
-        <Stack.Screen options={{ title: liveGame.name }} />
+        <Stack.Screen options={{ title: liveGame.name, headerRight: rulesButton }} />
         <JoinMatchPanel
           seats={seats}
           loading={loading}
@@ -316,10 +448,13 @@ export default function MatchScreen() {
   // Everything below reads the match as it will be once a play in flight lands.
   const match = inFlight ? projectPlay(liveMatch, myPlayerId, inFlight) : liveMatch;
   const game = match.currentGame;
-  const view = describeMatch(match, myPlayerId);
+  // The table is laid out around whoever it's seen from: this player, or for a claimant watching,
+  // the first seat.
+  const viewerId = watchFrom ?? myPlayerId;
+  const view = describeMatch(match, viewerId);
   const { myTeam, opponentTeam } = view;
   const scores = matchScores(match);
-  const canPlay = view.isMyTurnToPlay && connected && playing == null;
+  const canPlay = !watching && view.isMyTurnToPlay && connected && playing == null;
   const bidSent = sentIn.bid === game.id;
   const trumpSent = sentIn.trump === game.id;
   const iAmReady = view.iAmReady || sentIn.ready === game.id;
@@ -338,14 +473,19 @@ export default function MatchScreen() {
   }
   // For sentences: only rendered once names are ready (see the status and contract lines).
   const nameFor = (playerId: string | null) => (playerId == null ? '' : (nameOf(playerId) ?? ''));
-  const status = matchStatus(match, view, nameFor);
+  // One line saying what the table is waiting on - for a watcher, never "Your play".
+  const status = matchStatus(
+    match,
+    watching ? { ...view, isSittingOut: false, me: { ...view.me, isActive: false } } : view,
+    nameFor,
+  );
 
   // The trick on the table: the one just completed while it's held, else the one in progress.
   const trick = heldTrick ?? game.currentTrick;
   const trickIndex = heldTrick ? game.tricks.length - 1 : game.tricks.length;
   const leader = view.isPlayingPhase ? trickLeaderId(match.players, game, trickIndex) : null;
   const order = trickPlayOrder(match.players, game, leader);
-  const slotSeats = order.map((pid) => (pid == null ? null : seatFor(match.players, myPlayerId, pid)));
+  const slotSeats = order.map((pid) => (pid == null ? null : seatFor(match.players, viewerId, pid)));
   const winningSlot = trick.playerId == null ? null : order.indexOf(trick.playerId);
   // A held trick sweeps off toward whoever won it.
   const sweepTo = sweeping && winningSlot != null && winningSlot >= 0 ? slotSeats[winningSlot] : null;
@@ -361,7 +501,7 @@ export default function MatchScreen() {
     target: view.bidderTeam === team ? view.target : null,
   });
 
-  const myPosition = match.players.find((p) => p.playerId === myPlayerId)!.position;
+  const myPosition = match.players.find((p) => p.playerId === viewerId)!.position;
   const showReady = view.isHandOver && !view.isMatchOver;
   function seatInfo(playerId: string): SeatInfo {
     const player = match!.players.find((p) => p.playerId === playerId)!;
@@ -379,11 +519,14 @@ export default function MatchScreen() {
       trump: game!.trump,
       ready: showReady ? player.ready : null,
       dominoCount: playerId === myPlayerId || !hand ? null : handSize(hand),
+      away: isOnAutopilot(match!, playerId),
+      clock: clock?.playerIds.includes(playerId) ? formatClock(clock.remainingMs) : null,
+      paused: clock?.paused === true && clock.playerIds.includes(playerId),
     };
   }
   const seats: Record<Seat, SeatInfo | null> = { bottom: null, left: null, top: null, right: null };
-  for (const p of match.players) seats[seatFor(match.players, myPlayerId, p.playerId)!] = seatInfo(p.playerId);
-  const emptySeatCount = openSeats(match.players, myPlayerId).length;
+  for (const p of match.players) seats[seatFor(match.players, viewerId, p.playerId)!] = seatInfo(p.playerId);
+  const emptySeatCount = openSeats(match.players, viewerId).length;
   // The last human out deletes the match, so for them leaving is cancelling it.
   const onlyHumanSeated = match.players.every((p) => p.playerId === myPlayerId || isBot(p.playerId));
   function confirmLeave() {
@@ -403,7 +546,26 @@ export default function MatchScreen() {
       ],
     );
   }
+  // A player can leave a game under way: in Live Play a bot takes their seat; a bots match ends.
+  const canLeaveGame = (mode === 'live' || mode === 'bots') && hasBeenDealt(match) && !view.isMatchOver && !watching;
+  // A game with nobody else present is dropped when I leave it.
+  const lastPresent = match.players.every((p) => p.playerId === myPlayerId || !isPresent(match, p.playerId));
+  function confirmLeaveGame() {
+    Alert.alert('Leave this game?', lastPresent ? 'Nobody else is playing, so it ends.' : 'A bot takes your seat.', [
+      { text: 'Stay', style: 'cancel' },
+      {
+        text: 'Leave',
+        style: 'destructive',
+        onPress: () => {
+          leavingRef.current = true;
+          leave.mutate();
+        },
+      },
+    ]);
+  }
 
+  const total = marksToWin(match);
+  const ruleLabels = houseRuleLabels(match.rules);
   const handWinnerIsUs = view.handWinner === myTeam;
   const contractBid =
     game.bid != null && game.bid !== Bid.Pass && game.biddingPlayerId != null
@@ -421,7 +583,27 @@ export default function MatchScreen() {
       scrollEnabled={!drag.dragging}
       onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
     >
-      <Stack.Screen options={{ title: game.name }} />
+      <Stack.Screen
+        options={{
+          title: game.name,
+          // Leaving sits in the header's menu, well away from the hand.
+          // A Custom Match's house rules get a button beside it.
+          headerRight: () => (
+            <View style={styles.headerRight}>
+              {ruleLabels.length > 0 && <HouseRulesButton onPress={() => setRulesOpen(true)} />}
+              {canLeaveGame ? (
+                <MatchMenu
+                  onHowToPlay={() => router.push('/how-to-play')}
+                  onLeave={confirmLeaveGame}
+                  leaveDisabled={leave.isPending}
+                />
+              ) : (
+                rulesButton()
+              )}
+            </View>
+          ),
+        }}
+      />
       {/* The play area fills the screen, less a peek at the trick history below, whatever the
           phase - so the hand sits in the same place from the deal to the last trick, and the
           table opening up as play starts only takes up the room between them. */}
@@ -439,7 +621,7 @@ export default function MatchScreen() {
         {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
 
         <View style={styles.scoreboard} accessibilityLabel="Scores">
-          <Score label="Us" marks={scores[myTeam] ?? 0} color={colors.us} />
+          <Score label="Us" total={total} marks={scores[myTeam] ?? 0} color={colors.us} />
           <View style={styles.contract}>
             {contractBid && (names.ready ? <Text style={styles.contractText}>{contractBid}</Text> : <NameSkeleton width={120} />)}
             {trumpLine && game.trump != null && (
@@ -463,8 +645,25 @@ export default function MatchScreen() {
               </View>
             )}
           </View>
-          <Score label="Them" marks={scores[opponentTeam] ?? 0} color={colors.them} />
+          <Score label="Them" total={total} marks={scores[opponentTeam] ?? 0} color={colors.them} />
         </View>
+        {match.currentGame.redealt && view.isBiddingPhase && (
+          <Text style={styles.redeal} accessibilityLiveRegion="polite">Everyone passed, so the hands were dealt again.</Text>
+        )}
+
+        {meOnAutopilot && !watching && (
+          <View style={styles.autopilotBar}>
+            <Text style={styles.autopilotText}>Your turn ran out, so a bot is playing for you.</Text>
+            <Pressable
+              style={[styles.smallButton, resume.isPending && styles.buttonDisabled]}
+              disabled={resume.isPending}
+              onPress={() => resume.mutate()}
+              accessibilityRole="button"
+            >
+              <Text style={styles.smallButtonText}>Resume</Text>
+            </Pressable>
+          </View>
+        )}
 
         <Table
           seats={seats}
@@ -479,46 +678,90 @@ export default function MatchScreen() {
           center={
             view.isTableReady ? undefined : (
               <View style={styles.waiting}>
-                <Text style={styles.waitingText}>
-                  {match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}
-                </Text>
-                {emptySeatCount > 0 && (
-                  <Pressable
-                    style={styles.smallButton}
-                    onPress={() => shareInvite(match.id).catch(toastError)}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.smallButtonText}>Invite friends</Text>
-                  </Pressable>
-                )}
-                {config.data?.bots && emptySeatCount > 0 && (
-                  <Pressable
-                    style={styles.smallButton}
-                    disabled={!connected || addBots.isPending}
-                    onPress={() => addBots.mutate()}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.smallButtonText}>Fill with bots</Text>
-                  </Pressable>
-                )}
-                {!hasBeenDealt(match) && (
-                  <Pressable
-                    style={[styles.smallButton, styles.dangerButton, leave.isPending && styles.buttonDisabled]}
-                    disabled={leave.isPending}
-                    onPress={confirmLeave}
-                    accessibilityRole="button"
-                  >
-                    <Text style={[styles.smallButtonText, styles.dangerButtonText]}>
-                      {onlyHumanSeated ? 'Cancel match' : 'Leave table'}
+                {/* Kept short: it has only the middle of the table, between the open seats. */}
+                {search?.mode === 'live' && (
+                  <>
+                    <Text style={styles.searchText} numberOfLines={1} adjustsFontSizeToFit accessibilityRole="text">
+                      Finding players… {formatClock(search.elapsedMs)}
                     </Text>
-                  </Pressable>
+                    <Text style={styles.searchDetail}>
+                      {online !== null && `${online} online · `}Bots take the empty seats at{' '}
+                      {formatClock(LIVE_FILL_MS)}. Players can still join after you start.
+                    </Text>
+                  </>
                 )}
+                {search?.mode === 'daily' && (
+                  <Text style={styles.searchText}>Looking for players - we'll notify you when the table fills.</Text>
+                )}
+                {/* A Live search leaves the count to the status line under the table. */}
+                {mode !== 'live' && (
+                  <Text style={styles.waitingText}>
+                    {match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}
+                  </Text>
+                )}
+                <View style={styles.waitingButtons}>
+                  {search?.mode === 'live' && config.data?.bots && (
+                    <Pressable
+                      style={styles.smallButton}
+                      disabled={!connected || addBots.isPending}
+                      onPress={() => addBots.mutate()}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.smallButtonText}>Start with bots</Text>
+                    </Pressable>
+                  )}
+                  {mode === 'custom' && emptySeatCount > 0 && (
+                    <Pressable
+                      style={styles.smallButton}
+                      onPress={() => shareInvite(match.id).catch(toastError)}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.smallButtonText}>Share link</Text>
+                    </Pressable>
+                  )}
+                  {mode === 'custom' && emptySeatCount > 0 && (
+                    <Pressable style={styles.smallButton} onPress={() => setInviting(true)} accessibilityRole="button">
+                      <Text style={styles.smallButtonText}>Invite players</Text>
+                    </Pressable>
+                  )}
+                  {mode === 'custom' && config.data?.bots && emptySeatCount > 0 && (
+                    <Pressable
+                      style={styles.smallButton}
+                      disabled={!connected || addBots.isPending}
+                      onPress={() => addBots.mutate()}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.smallButtonText}>Fill with bots</Text>
+                    </Pressable>
+                  )}
+                  {!hasBeenDealt(match) && (
+                    <Pressable
+                      style={[styles.smallButton, styles.dangerButton, leave.isPending && styles.buttonDisabled]}
+                      disabled={leave.isPending}
+                      onPress={
+                        mode === 'live'
+                          ? () => {
+                              leavingRef.current = true;
+                              leave.mutate();
+                            }
+                          : confirmLeave
+                      }
+                      accessibilityRole="button"
+                    >
+                      <Text style={[styles.smallButtonText, styles.dangerButtonText]}>
+                        {mode === 'live' ? 'Cancel' : onlyHumanSeated ? 'Cancel match' : 'Leave table'}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
               </View>
             )
           }
         />
 
-        {tableCompact && !tableFolded ? null : showHandOver ? (
+        {/* A watcher gets none of the hand-over panel (its us/them would read as the first seat's),
+            the bids or the trumps - just the status line. */}
+        {tableCompact && !tableFolded ? null : showHandOver && !watching ? (
           // Takes the status line's place, so it fits above the hand without moving it.
           <Fade key="handOver">
             {view.isMatchOver ? (
@@ -550,6 +793,7 @@ export default function MatchScreen() {
                         ? 'Ready up for the next hand'
                         : 'Play it out, or ready up'}
                   </Text>
+                  {nextHand !== null && <Text style={styles.handOverDetail}>Next hand in {formatClock(nextHand)}</Text>}
                 </View>
                 <ActionButton
                   label={iAmReady ? 'Ready' : 'Ready up'}
@@ -559,13 +803,13 @@ export default function MatchScreen() {
               </View>
             )}
           </Fade>
-        ) : view.canBid ? (
+        ) : view.canBid && !watching ? (
           // Fades out as soon as a bid is picked (and back, should it be turned away), rather than
           // dimming until the server answers and then vanishing.
           <Fade key="bid" visible={!bidSent}>
             <BiddingPanel game={game} myPlayerId={myPlayerId} onBid={(b) => bid.mutate(b)} disabled={!connected} />
           </Fade>
-        ) : view.canSelectTrump ? (
+        ) : view.canSelectTrump && !watching ? (
           <Fade key="trump" visible={!trumpSent}>
             <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected} />
           </Fade>
@@ -579,7 +823,7 @@ export default function MatchScreen() {
                   {names.ready ? status : null}
                 </Text>
                 {!names.ready && <NameSkeleton width={160} />}
-                {poke.target != null && (
+                {poke.target != null && !watching && (
                   <Pressable
                     style={[styles.smallButton, poke.pending && styles.buttonDisabled]}
                     disabled={poke.pending}
@@ -599,18 +843,35 @@ export default function MatchScreen() {
             so nothing else moves. */}
         <View style={styles.spacer} />
 
-        <Hand
-          // My live hand, with any domino in flight held back in place (see `playingId`).
-          dominoes={myLiveHand}
-          playingId={inFlight?.id ?? null}
-          canPlay={canPlay}
-          isValidPlay={(domino) => isValidPlay(match, view, domino)}
-          // Rejects when the play is refused, so a domino dropped on the table returns to the hand.
-          onPlay={playDomino}
-          highlightPlayable={highlightPlayable}
-          dropZone={tableRef}
-          onDragChange={setDrag}
-        />
+        {watching ? (
+          <View style={styles.autopilotBar}>
+            <Text style={styles.autopilotText}>Joining a game in progress. You'll take a seat when this hand ends.</Text>
+            <Pressable
+              style={[styles.smallButton, leave.isPending && styles.buttonDisabled]}
+              disabled={leave.isPending}
+              onPress={() => {
+                leavingRef.current = true;
+                leave.mutate();
+              }}
+              accessibilityRole="button"
+            >
+              <Text style={styles.smallButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Hand
+            // My live hand, with any domino in flight held back in place (see `playingId`).
+            dominoes={myLiveHand}
+            playingId={inFlight?.id ?? null}
+            canPlay={canPlay}
+            isValidPlay={(domino) => isValidPlay(match, view, domino)}
+            // Rejects when the play is refused, so a domino dropped on the table returns to the hand.
+            onPlay={playDomino}
+            highlightPlayable={highlightPlayable}
+            dropZone={tableRef}
+            onDragChange={setDrag}
+          />
+        )}
         {/* Laid out whenever there's a hand, and only shown on the player's turn, so it coming and
             going doesn't move anything. */}
         {!handEmpty && (
@@ -635,7 +896,14 @@ export default function MatchScreen() {
           />
         </Fade>
       )}
+      <HouseRulesModal rules={match.rules} visible={rulesOpen} onClose={() => setRulesOpen(false)} />
       <DoublesRuleModal trump={doublesOpen ? game.trump : null} onClose={() => setDoublesOpen(false)} />
+      <InviteSheet
+        visible={inviting}
+        matchId={match.id}
+        seatedIds={match.players.map((p) => p.playerId)}
+        onClose={() => setInviting(false)}
+      />
       {view.isMatchOver && (
         <MatchSummary
           visible={summaryOpen}
@@ -667,14 +935,14 @@ function seatedView(match: MatchState | null, myPlayerId: string | undefined): M
   return describeMatch(match, myPlayerId);
 }
 
-// A team's marks as a tally of MARKS_TO_WIN notches, like the web scoreboard - no number, to save
+// A team's marks as a tally of `total` notches, like the web scoreboard - no number, to save
 // room on a phone.
-function Score({ label, marks, color }: { label: string; marks: number; color: string }) {
+function Score({ label, marks, total, color }: { label: string; marks: number; total: number; color: string }) {
   return (
-    <View style={styles.score} accessibilityLabel={`${label}: ${marks} of ${MARKS_TO_WIN} marks`}>
+    <View style={styles.score} accessibilityLabel={`${label}: ${marks} of ${total} marks`}>
       <Text style={[styles.scoreLabel, { color }]}>{label}</Text>
       <View style={styles.tally}>
-        {Array.from({ length: MARKS_TO_WIN }, (_, i) => (
+        {Array.from({ length: total }, (_, i) => (
           <View key={i} style={[styles.notch, i < marks && { backgroundColor: color, borderColor: color }]} />
         ))}
       </View>
@@ -719,7 +987,10 @@ const styles = StyleSheet.create({
   },
   score: { alignItems: 'center', gap: 5 },
   scoreLabel: { fontFamily: fonts.uiBold, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
-  tally: { flexDirection: 'row', gap: 3 },
+  // Seven notches wide (9 + 3 gap each), then wraps, so 21 marks stay inside the score column.
+  tally: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, maxWidth: 7 * 9 + 6 * 3 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  redeal: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13, textAlign: 'center' },
   notch: { width: 9, height: 18, borderRadius: 2, borderWidth: 1.5, borderColor: colors.inkMuted },
   contract: { flex: 1, alignItems: 'center', gap: 2 },
   trumpRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -728,10 +999,30 @@ const styles = StyleSheet.create({
   doublesLink: { textDecorationLine: 'underline' },
   waiting: { alignItems: 'center', gap: 10, padding: 8 },
   waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
+  searchText: { color: colors.brass, fontFamily: fonts.uiBold, fontSize: 15, textAlign: 'center' },
+  searchDetail: { color: colors.bone, fontFamily: fonts.ui, fontSize: 13, textAlign: 'center' },
+  // Side by side, wrapping only when they don't fit.
+  waitingButtons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  autopilotBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(201, 164, 92, 0.15)',
+  },
+  autopilotText: { flex: 1, color: colors.bone, fontFamily: fonts.ui, fontSize: 14 },
   smallButton: { borderWidth: 1, borderColor: colors.brass, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   smallButtonText: { color: colors.brass, fontFamily: fonts.uiBold },
   dangerButton: { borderColor: colors.danger },
   dangerButtonText: { color: colors.danger },
+  // Under the hand: out of the way of play.
+  // The bumped and replaced screens: a line of explanation, then the way on.
+  notice: { gap: 16 },
+  noticeText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
+  lobbyLink: { padding: 8 },
   matchOver: {
     alignItems: 'center',
     gap: 8,

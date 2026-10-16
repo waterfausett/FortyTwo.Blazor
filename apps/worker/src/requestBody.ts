@@ -2,9 +2,9 @@
 // of the types they're declared with. Everything here throws `BadRequestError`, which index.ts's
 // `onError` turns into a 400 in the same { title, detail } shape as a rule violation.
 import type { Context } from 'hono';
-import { Bid, Suit, Teams, createDomino, type Domino } from '@fortytwo/rules';
+import { BOT_MARK, Bid, Suit, Teams, ValidationError, assertValidHouseRules, createDomino, type Domino, type HouseRules } from '@fortytwo/rules';
 import { MAX_USER_IDS } from './auth0Management';
-import type { ProfilePatch } from '@fortytwo/api-types';
+import type { PeopleView, ProfilePatch } from '@fortytwo/api-types';
 
 export class BadRequestError extends Error {
   readonly title = 'Invalid request';
@@ -32,6 +32,34 @@ export async function readBody(c: Context): Promise<Body> {
     throw new BadRequestError('The request body must be a JSON object.');
   }
   return body as Body;
+}
+
+// A body that may be left out altogether: no body is an empty object. Anything sent must still be
+// a JSON object. (POST /api/matches: installed mobile builds send no body.)
+export async function readOptionalBody(c: Context): Promise<Body> {
+  const text = await c.req.text();
+  if (text.trim() === '') return {};
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new BadRequestError('The request body must be JSON.');
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    throw new BadRequestError('The request body must be a JSON object.');
+  }
+  return body as Body;
+}
+
+// A custom table's house rules, or undefined when none were sent (the defaults).
+export function houseRules(body: Body): HouseRules | undefined {
+  if (body.rules === undefined) return undefined;
+  try {
+    return assertValidHouseRules(body.rules);
+  } catch (error) {
+    if (error instanceof ValidationError) throw new BadRequestError(error.detail ?? error.title);
+    throw error;
+  }
 }
 
 // A numeric enum's values, leaving out the reverse-mapped names TypeScript also puts on it.
@@ -72,6 +100,19 @@ export function ready(body: Body): boolean {
   return body.ready;
 }
 
+// Which matchmaking queue: Live or Async. (Custom tables come from POST /api/matches.)
+export function mode(body: Body): 'live' | 'daily' {
+  if (body.mode !== 'live' && body.mode !== 'daily') throw new BadRequestError('`mode` must be "live" or "daily".');
+  return body.mode;
+}
+
+// Only ever false: a player takes their seat back from the bot. A bot takes it over on its own,
+// when a Live turn runs out.
+export function autopilotOff(body: Body): false {
+  if (body.autopilot !== false) throw new BadRequestError('`autopilot` can only be set to false.');
+  return false;
+}
+
 // Rebuilt from its two halves, so a client-supplied `id` never reaches the engine.
 export function domino(body: Body): Domino {
   const value = body.domino as { top?: unknown; bottom?: unknown } | null;
@@ -83,7 +124,7 @@ export function domino(body: Body): Domino {
 }
 
 // Auth0 ids are `connection|id` (e.g. `auth0|64f...`, `google-oauth2|1234`, `samlp|acme|a@b.com`);
-// bots are `bot-N`. Anything with quotes, brackets or whitespace isn't an id.
+// bots are `bot-N` or `<matchId>_bot-N`. Anything with quotes, brackets or whitespace isn't an id.
 const USER_ID = /^[A-Za-z0-9|._:@+=/-]{1,256}$/;
 
 // The body of a user search: a JSON array of up to MAX_USER_IDS user ids, de-duplicated.
@@ -110,6 +151,7 @@ export function profilePatch(body: Body): ProfilePatch {
   if (body.picture !== undefined) patch.picture = picture(body.picture);
   if (body.highlightPlayable !== undefined) patch.highlightPlayable = setting(body, 'highlightPlayable');
   if (body.pushNotifications !== undefined) patch.pushNotifications = setting(body, 'pushNotifications');
+  if (body.seenHowToPlay !== undefined) patch.seenHowToPlay = setting(body, 'seenHowToPlay');
   return patch;
 }
 
@@ -120,13 +162,17 @@ function setting(body: Body, field: string): boolean {
   return value;
 }
 
-// Trimmed, 1 to MAX_DISPLAY_NAME_LENGTH characters, and no control characters.
+// Trimmed, 1 to MAX_DISPLAY_NAME_LENGTH characters, no control characters, and not the bot mark -
+// that is how the table tells a bot from a person.
 function displayName(value: unknown): string {
   const name = typeof value === 'string' ? value.trim() : '';
   if (name === '' || [...name].length > MAX_DISPLAY_NAME_LENGTH || /\p{Cc}/u.test(name)) {
     throw new BadRequestError(
       `\`displayName\` must be 1 to ${MAX_DISPLAY_NAME_LENGTH} characters, with no control characters.`
     );
+  }
+  if (name.includes(BOT_MARK)) {
+    throw new BadRequestError(`\`displayName\` can't contain ${BOT_MARK}; that marks the bots.`);
   }
   return name;
 }
@@ -147,4 +193,36 @@ function picture(value: unknown): string {
     throw new BadRequestError(`\`picture\` must be an https: URL of at most ${MAX_PICTURE_URL_LENGTH} characters.`);
   }
   return url;
+}
+
+// A user id from a route parameter (Hono has already URL-decoded it).
+export function userIdParam(value: string | undefined): string {
+  if (value === undefined || !USER_ID.test(value)) throw new BadRequestError('That is not a user id.');
+  return value;
+}
+
+// A People search: trimmed, SEARCH_MIN to SEARCH_MAX characters.
+export function peopleView(value: string | undefined): PeopleView | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'friends' || value === 'recent') return value;
+  throw new BadRequestError('show must be friends or recent.');
+}
+
+export function searchQuery(value: string | undefined, min: number, max: number): string {
+  const q = (value ?? '').trim();
+  if ([...q].length < min || [...q].length > max) {
+    throw new BadRequestError(`Search with ${min} to ${max} characters.`);
+  }
+  return q;
+}
+
+// POST /api/matches/:id/invites: `{ userIds }`, 1 to `max` user ids, de-duplicated.
+export function invitees(body: Body, max: number): string[] {
+  const ids = body.userIds;
+  if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string' && USER_ID.test(id))) {
+    throw new BadRequestError('`userIds` must be a list of user ids.');
+  }
+  const unique = [...new Set(ids as string[])];
+  if (unique.length > max) throw new BadRequestError(`Invite at most ${max} players at a time.`);
+  return unique;
 }

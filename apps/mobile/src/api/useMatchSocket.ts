@@ -14,7 +14,7 @@ import { connectDevMatchSocket } from '@/dev/devMatches';
 
 // A dropped network kills sockets: when it returns, reconnect now rather than sitting out the
 // backoff.
-function subscribeNetworkWake(wake: () => void): () => void {
+export function subscribeNetworkWake(wake: () => void): () => void {
   return NetInfo.addEventListener((state) => {
     if (state.isConnected) wake();
   });
@@ -23,7 +23,7 @@ function subscribeNetworkWake(wake: () => void): () => void {
 // Whether the app is in the foreground. In the background the match's socket is closed - the OS
 // would suspend it anyway - so the Worker knows the player isn't watching and sends them push
 // notifications instead (worker: MatchDO's publish). Coming back opens a fresh one.
-function useAppInForeground(): boolean {
+export function useAppInForeground(): boolean {
   const [foreground, setForeground] = useState(AppState.currentState !== 'background');
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => setForeground(state !== 'background'));

@@ -2,7 +2,7 @@
   "name": "@fortytwo/mobile",
   "private": true,
   "version": "0.0.0",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -13,6 +13,7 @@
   "dependencies": {
     "@expo-google-fonts/barlow": "^0.4.1",
     "@expo-google-fonts/zilla-slab": "^0.4.1",
+    "@expo/vector-icons": "^15.0.2",
     "@fortytwo/api-types": "*",
     "@fortytwo/client": "*",
     "@fortytwo/rules": "*",
@@ -26,6 +27,7 @@
     "expo-router": "~57.0.24",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
+    "expo-task-manager": "~57.0.21",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-auth0": "^5.11.1",

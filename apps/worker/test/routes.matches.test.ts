@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { env, runInDurableObject, SELF } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
-import { Teams, type Positions, type MatchState } from '@fortytwo/rules';
+import { Teams, botDisplayName, isBot, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { app, type Env } from '../src/index';
 import { upsertMatchSummary } from '../src/lobby';
@@ -75,6 +75,7 @@ beforeEach(async () => {
     testEnv.DB.prepare('DELETE FROM match_players'),
     testEnv.DB.prepare('DELETE FROM matches'),
     testEnv.DB.prepare('DELETE FROM users'),
+    testEnv.DB.prepare('DELETE FROM played_with'),
   ]);
 });
 
@@ -276,6 +277,13 @@ describe('match routes', () => {
     expect(afterJoins.match_players - beforeLastJoin.match_players).toBe(7);
 
     for (const token of [p1, p2, p3, p4]) await send(token, 'PATCH', '/players', { ready: true });
+    // The game started, so each of them has played with the other three (people/playedWith.ts).
+    await vi.waitFor(async () => {
+      const { n } = (await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM played_with WHERE user_id = ?')
+        .bind('p1')
+        .first<{ n: number }>())!;
+      expect(n).toBe(3);
+    });
     await send(p1, 'POST', '/games/current/bids', { bid: 30 });
     for (const token of [p2, p3, p4]) await send(token, 'POST', '/games/current/bids', { bid: 0 });
     const afterTrump = await send(p1, 'PATCH', '/games/current', { suit: 6 });
@@ -633,6 +641,57 @@ describe('match routes', () => {
     });
   });
 
+  describe('POST /api/matches house rules', () => {
+    it('creates on the default rules with no body at all, as installed mobile builds send', async () => {
+      const p1 = await signToken('p1');
+      const res = await api('/api/matches', p1, { method: 'POST' });
+      expect(res.status).toBe(201);
+      expect(((await res.json()) as MatchState).rules).toBeUndefined();
+    });
+
+    it('creates with the rules sent, filling in defaults', async () => {
+      const p1 = await signToken('p1');
+      const res = await api('/api/matches', p1, { method: 'POST', body: JSON.stringify({ rules: { low: 'forcedOnly', marksToWin: 5 } }) });
+      expect(res.status).toBe(201);
+      expect(((await res.json()) as MatchState).rules).toEqual({ low: 'forcedOnly', plunge: true, allPass: 'forceLast', marksToWin: 5 });
+    });
+
+    it.each([
+      [{ rules: { marksToWin: 30 } }],
+      [{ rules: { low: 'forcedOnly', allPass: 'redeal' } }],
+      [{ rules: 'yes' }],
+    ])('refuses bad rules with a 400: %j', async (body) => {
+      const p1 = await signToken('p1');
+      const res = await api('/api/matches', p1, { method: 'POST', body: JSON.stringify(body) });
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { title: string }).title).toBe('Invalid request');
+    });
+
+    it('lists the rules on the lobby row, and nothing for a default table', async () => {
+      const p1 = await signToken('p1');
+      const ruled = (await (await api('/api/matches', p1, { method: 'POST', body: JSON.stringify({ rules: { plunge: false } }) })).json()) as MatchState;
+      const plain = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as MatchState;
+
+      const list = (await (await api('/api/matches?filter=Active', p1)).json()) as { matches: { id: string; rules?: unknown }[] };
+      expect(list.matches.find((m) => m.id === ruled.id)?.rules).toEqual({ low: 'on', plunge: false, allPass: 'forceLast', marksToWin: 7 });
+      expect(list.matches.find((m) => m.id === plain.id)).not.toHaveProperty('rules');
+    });
+
+    it('still lists a row whose rules column holds invalid JSON, without rules on it', async () => {
+      const p1 = await signToken('p1');
+      await upsertMatchSummary(testEnv.DB, { id: 'corrupt-rules', status: 'active', playerCount: 1, updatedOn: '2026-09-01T00:00:00.000Z', rules: '{not json' });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await api('/api/matches?filter=Joinable', p1);
+
+      expect(res.status).toBe(200);
+      const list = (await res.json()) as { matches: { id: string }[] };
+      expect(list.matches.find((m) => m.id === 'corrupt-rules')).not.toHaveProperty('rules');
+      expect(logged).toHaveBeenCalled();
+      logged.mockRestore();
+    });
+  });
+
   describe('bots', () => {
     // SELF always runs with the pool's global bindings (BOTS_ENABLED: 'false'), so these call
     // the Hono app directly to switch the flag on for one request at a time.
@@ -653,12 +712,12 @@ describe('match routes', () => {
     it('tells the client whether bots are available', async () => {
       const p1 = await signToken('p1');
 
-      expect(await (await apiWithBots('/api/config', p1)).json()).toEqual({ bots: true });
-      expect(await (await apiWithBots('/api/config', p1, {}, 'false')).json()).toEqual({ bots: false });
+      expect(await (await apiWithBots('/api/config', p1)).json()).toEqual({ bots: true, presence: false });
+      expect(await (await apiWithBots('/api/config', p1, {}, 'false')).json()).toEqual({ bots: false, presence: false });
       // Unset means on: BOTS_ENABLED is a kill switch.
       const { BOTS_ENABLED: _pinned, ...unset } = testEnv;
       const res = await app.request('/api/config', { headers: { Authorization: `Bearer ${p1}` } }, unset);
-      expect(await res.json()).toEqual({ bots: true });
+      expect(await res.json()).toEqual({ bots: true, presence: false });
     });
 
     it('seats a bot at a picked seat, then fills the rest and syncs the lobby', async () => {
@@ -671,7 +730,7 @@ describe('match routes', () => {
       });
       expect(one.status).toBe(200);
       const afterOne = (await one.json()) as { players: { playerId: string; position: number }[] };
-      expect(afterOne.players.find((p) => p.playerId === 'bot-1')?.position).toBe(2);
+      expect(afterOne.players.find((p) => p.playerId === `${created.id}_bot-1`)?.position).toBe(2);
 
       const fill = await apiWithBots(`/api/matches/${created.id}/bots`, p1, { method: 'POST', body: '{}' });
       expect(fill.status).toBe(200);
@@ -683,7 +742,7 @@ describe('match routes', () => {
       expect(row?.player_count).toBe(4);
     });
 
-    it('names a seated bot "Bot N" in the lobby list', async () => {
+    it("names a seated bot by the match's own cast in the lobby list", async () => {
       const p1 = await signToken('p1');
       const p2 = await signToken('p2');
       const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
@@ -697,8 +756,9 @@ describe('match routes', () => {
       expect(res.status).toBe(200);
       const rows = (await res.json()) as { matches: { id: string; teams: string[][]; seats: (string | null)[] }[] };
       const row = rows.matches.find((m) => m.id === created.id);
-      expect(row?.seats[2]).toBe('Bot 1');
-      expect(row?.teams.flat()).toContain('Bot 1');
+      const botName = botDisplayName(`${created.id}_bot-1`);
+      expect(row?.seats[2]).toBe(botName);
+      expect(row?.teams.flat()).toContain(botName);
     });
 
     it('404s when bots are turned off', async () => {
@@ -721,6 +781,40 @@ describe('match routes', () => {
 
       expect(res.status).toBe(400);
       expect(((await res.json()) as { title: string }).title).toBe('Invalid request');
+    });
+
+    it('starts a dealt match against three bots, the caller in seat 0', async () => {
+      const p1 = await signToken('p1');
+
+      const res = await apiWithBots('/api/matches/bots', p1, { method: 'POST' });
+
+      expect(res.status).toBe(201);
+      const match = (await res.json()) as MatchState;
+      expect(match.mode).toBe('bots');
+      expect(match.players.find((p) => p.playerId === 'p1')?.position).toBe(0);
+      expect(match.players.filter((p) => isBot(p.playerId)).map((p) => p.position).sort()).toEqual([1, 2, 3]);
+      expect(match.currentGame.hands.find((h) => h.playerId === 'p1')?.dominoes).toHaveLength(7);
+      const row = await testEnv.DB.prepare('SELECT player_count, mode FROM matches WHERE id = ?')
+        .bind(match.id)
+        .first<{ player_count: number; mode: string }>();
+      expect(row).toEqual({ player_count: 4, mode: 'bots' });
+    });
+
+    it('404s a bots match when bots are turned off', async () => {
+      const p1 = await signToken('p1');
+      const res = await apiWithBots('/api/matches/bots', p1, { method: 'POST' }, 'false');
+      expect(res.status).toBe(404);
+    });
+
+    it('deletes a bots match, and its lobby row, when the player leaves mid-game', async () => {
+      const p1 = await signToken('p1');
+      const match = (await (await apiWithBots('/api/matches/bots', p1, { method: 'POST' })).json()) as MatchState;
+
+      const res = await apiWithBots(`/api/matches/${match.id}/players`, p1, { method: 'DELETE' });
+
+      expect(res.status).toBe(204);
+      const row = await testEnv.DB.prepare('SELECT id FROM matches WHERE id = ?').bind(match.id).first();
+      expect(row).toBeNull();
     });
 
     it("won't let someone outside the match add bots", async () => {

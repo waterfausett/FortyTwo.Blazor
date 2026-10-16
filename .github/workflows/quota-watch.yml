@@ -1,0 +1,43 @@
+name: Quota Watch
+
+# Checks the last 7 complete UTC days of Cloudflare usage against the free-plan daily limits, which
+# fail rather than bill and send no early warning. Opens (or comments on) an issue when a quota's
+# peak day passes 30%, and fails the run at 80%. See .github/scripts/quota-watch.mjs.
+#
+# Needs the CLOUDFLARE_ANALYTICS_TOKEN secret: an API token with only Account > Account Analytics >
+# Read, not the deploy token. Without it the job says how to add it and passes.
+#
+# Runs just after the free limits reset at 00:00 UTC, so yesterday is a complete day. To dry-run
+# the issue flow, start it by hand from the Actions tab with a lower threshold.
+on:
+  schedule:
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+    inputs:
+      threshold_pct:
+        description: Alert threshold, % of a daily limit (default 30; lower it to dry-run the issue flow)
+        required: false
+        default: '30'
+
+concurrency:
+  group: quota-watch
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test .github/scripts/quota-watch.test.mjs
+      - run: node .github/scripts/quota-watch.mjs
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ANALYTICS_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
+          QUOTA_WATCH_THRESHOLD_PCT: ${{ inputs.threshold_pct }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

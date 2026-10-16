@@ -1,9 +1,15 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
-import { Bid, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { HOW_TO_PLAY, PRESELECT_AUTO_PLAY_DELAY_MS } from '@fortytwo/client';
+import { Bid, DEFAULT_HOUSE_RULES, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
 import { BiddingPanel } from '../BiddingPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
+import { HelpButton } from '../HelpButton';
+import { HowToPlayCard } from '../HowToPlayCard';
+import { HowToPlayContent } from '../HowToPlayContent';
 import { JoinMatchPanel } from '../JoinMatchPanel';
+import { NewMatchSheet, SLOW_MS } from '../NewMatchSheet';
 import { SeatPicker } from '../SeatPicker';
 import { PENDING_SPINNER_DELAY_MS, Table, type SeatInfo } from '../Table';
 import { TrickHistory } from '../TrickHistory';
@@ -103,6 +109,120 @@ describe('Hand', () => {
     await fireEvent(screen.getByLabelText('6-6'), 'longPress');
     expect(onDragChange).toHaveBeenCalledWith({ dragging: true, overDropZone: false });
   });
+
+  describe('double-tap to pre-select', () => {
+    const preselected = (label: string) => screen.getByLabelText(label).props.accessibilityState.selected;
+    const doubleTap = async (label: string) => {
+      await fireEvent.press(screen.getByLabelText(label));
+      await fireEvent.press(screen.getByLabelText(label));
+    };
+    const hand = (props: Partial<Parameters<typeof Hand>[0]> = {}) => (
+      <Hand dominoes={dominoes} canPlay={false} isValidPlay={() => true} onPlay={jest.fn()} {...props} />
+    );
+
+    afterEach(() => jest.useRealTimers());
+
+    it('pre-selects a legal domino on a double-tap before the turn, without playing it', async () => {
+      const onPlay = jest.fn();
+      await render(hand({ onPlay }));
+
+      await doubleTap('6-6');
+      expect(preselected('6-6')).toBe(true);
+      expect(onPlay).not.toHaveBeenCalled();
+    });
+
+    it("doesn't pre-select on a single tap, or on two taps far apart", async () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      await render(hand());
+
+      await fireEvent.press(screen.getByLabelText('6-6'));
+      expect(preselected('6-6')).toBe(false);
+      now.mockReturnValue(2000);
+      await fireEvent.press(screen.getByLabelText('6-6'));
+      expect(preselected('6-6')).toBe(false);
+      now.mockRestore();
+    });
+
+    it('ignores a domino that is not a legal play', async () => {
+      await render(hand({ isValidPlay: (d) => d.top === 6 }));
+
+      await doubleTap('1-2');
+      expect(preselected('1-2')).toBe(false);
+    });
+
+    it('clears the pick when the same domino is double-tapped again', async () => {
+      await render(hand());
+
+      await doubleTap('6-6');
+      await doubleTap('6-6');
+      expect(preselected('6-6')).toBe(false);
+    });
+
+    it('moves the pick to another double-tapped domino', async () => {
+      await render(hand());
+
+      await doubleTap('6-6');
+      await doubleTap('1-2');
+      expect(preselected('6-6')).toBe(false);
+      expect(preselected('1-2')).toBe(true);
+    });
+
+    it('keeps the pick across a broadcast that leaves the hand the same', async () => {
+      const { rerender } = await render(hand());
+      await doubleTap('6-6');
+
+      await rerender(hand({ dominoes: dominoes.map((d) => ({ ...d })) }));
+      expect(preselected('6-6')).toBe(true);
+    });
+
+    it('clears the pick when the hand changes', async () => {
+      const three = [...dominoes, createDomino(3, 4)];
+      const { rerender } = await render(hand({ dominoes: three }));
+      await doubleTap('6-6');
+
+      await rerender(hand({ dominoes: three.slice(1) }));
+      await rerender(hand({ dominoes: three }));
+      expect(preselected('6-6')).toBe(false);
+    });
+
+    it("plays the pick a beat after the player's turn comes", async () => {
+      jest.useFakeTimers();
+      const onPlay = jest.fn();
+      const { rerender } = await render(hand({ onPlay }));
+      await doubleTap('6-6');
+
+      await rerender(hand({ onPlay, canPlay: true }));
+      expect(onPlay).not.toHaveBeenCalled();
+      expect(preselected('6-6')).toBe(true);
+
+      await act(() => jest.advanceTimersByTime(PRESELECT_AUTO_PLAY_DELAY_MS));
+      expect(onPlay).toHaveBeenCalledTimes(1);
+      expect(onPlay).toHaveBeenCalledWith(dominoes[0]);
+      expect(preselected('6-6')).toBe(false);
+    });
+
+    it('lets a domino played by hand in that beat override the pick', async () => {
+      jest.useFakeTimers();
+      const onPlay = jest.fn();
+      const { rerender } = await render(hand({ onPlay }));
+      await doubleTap('6-6');
+
+      await rerender(hand({ onPlay, canPlay: true }));
+      await fireEvent.press(screen.getByLabelText('1-2'));
+      await act(() => jest.advanceTimersByTime(PRESELECT_AUTO_PLAY_DELAY_MS));
+      expect(onPlay).toHaveBeenCalledTimes(1);
+      expect(onPlay).toHaveBeenCalledWith(dominoes[1]);
+    });
+
+    it("plays on the first tap on the player's turn, rather than pre-selecting", async () => {
+      const onPlay = jest.fn();
+      await render(hand({ onPlay, canPlay: true }));
+
+      await doubleTap('6-6');
+      expect(preselected('6-6')).toBe(false);
+      expect(onPlay).toHaveBeenCalledWith(dominoes[0]);
+    });
+  });
 });
 
 describe('SeatPicker', () => {
@@ -143,6 +263,8 @@ describe('Table', () => {
     trump: null,
     ready: null,
     dominoCount,
+    away: false,
+    clock: null,
     ...overrides,
   });
 
@@ -167,6 +289,57 @@ describe('Table', () => {
     expect(screen.getByLabelText('6 dominoes')).toBeTruthy();
     expect(screen.getByLabelText('Bo, to act')).toBeTruthy();
     expect(screen.getByText('Open seat')).toBeTruthy();
+  });
+});
+
+describe('Table seats on a Live clock', () => {
+  it("shows a seat's Live clock and marks a player who's away", async () => {
+    const seat = (name: string, overrides: Partial<SeatInfo> = {}): SeatInfo => ({
+      name,
+      side: 'them',
+      isActive: false,
+      isDealer: false,
+      bid: null,
+      isHighBidder: false,
+      trump: null,
+      ready: null,
+      dominoCount: null,
+      away: false,
+      clock: null,
+      ...overrides,
+    });
+    await render(
+      <Table
+        seats={{ bottom: seat('Me', { side: 'us', clock: '0:42' }), left: seat('Eli', { away: true }), top: null, right: null }}
+        trick={null}
+        slotSeats={[null, null, null, null]}
+        winningSlot={null}
+      />,
+    );
+    expect(screen.getByText('0:42')).toBeTruthy();
+    expect(screen.getByText('Away')).toBeTruthy();
+  });
+
+  it('marks a paused seat as waiting', async () => {
+    const seat: SeatInfo = {
+      name: 'Eli',
+      side: 'them',
+      isActive: true,
+      isDealer: false,
+      bid: null,
+      isHighBidder: false,
+      trump: null,
+      ready: null,
+      dominoCount: 3,
+      away: false,
+      clock: '0:00',
+      paused: true,
+    };
+    await render(
+      <Table seats={{ bottom: null, left: seat, top: null, right: null }} trick={null} slotSeats={[null, null, null, null]} winningSlot={null} />,
+    );
+    expect(screen.getByText('0:00')).toBeTruthy();
+    expect(screen.getByText('Waiting…')).toBeTruthy();
   });
 });
 
@@ -279,5 +452,150 @@ describe('Table', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
+const inApp = (ui: React.ReactElement) => <SafeAreaProvider initialMetrics={metrics}>{ui}</SafeAreaProvider>;
+
+describe('NewMatchSheet', () => {
+  it('offers Live Play, Async and Custom Match, and reports the choice', async () => {
+    const onChoose = jest.fn();
+    await render(inApp(<NewMatchSheet visible liveEnabled online={5} pending={null} error={null} onChoose={onChoose} onClose={jest.fn()} />));
+    await fireEvent.press(screen.getByRole('button', { name: /live play/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /async/i }));
+    expect(onChoose.mock.calls).toEqual([['live'], ['daily']]);
+    expect(screen.getByText('5 online')).toBeTruthy();
+    expect(screen.getByText(/kicked if away for a full hand/)).toBeTruthy();
+  });
+
+  it('asks for house rules before creating a Custom Match', async () => {
+    const onChoose = jest.fn();
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={onChoose} onClose={jest.fn()} />));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    expect(onChoose).not.toHaveBeenCalled();
+    expect(screen.getByText('House rules')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Off' }));
+    await fireEvent.press(screen.getByRole('button', { name: /more marks/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /create table/i }));
+    expect(onChoose).toHaveBeenLastCalledWith('challenge', { ...DEFAULT_HOUSE_RULES, low: 'off', marksToWin: 8 });
+  });
+
+  it('disables Low forced bid only while Reshuffle is picked, and says why', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    await fireEvent.press(screen.getByRole('radio', { name: /reshuffle/i }));
+    const forced = screen.getByRole('radio', { name: /forced bid only/i });
+    expect(forced.props.accessibilityState).toMatchObject({ disabled: true });
+    expect(forced.props.accessibilityHint).toMatch(/forced bidding is disabled/i);
+  });
+
+  it('goes back from the house rules to the choices', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    await fireEvent.press(screen.getByRole('button', { name: /back/i }));
+    expect(screen.getByRole('button', { name: /async/i })).toBeTruthy();
+  });
+
+  it('shows the choices on default rules again after closing and reopening', async () => {
+    const sheet = (visible: boolean) =>
+      inApp(<NewMatchSheet visible={visible} liveEnabled online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />);
+    const { rerender } = await render(sheet(true));
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Off' }));
+    await rerender(sheet(false));
+    await rerender(sheet(true));
+    expect(screen.getByRole('button', { name: /async/i })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: /custom match/i }));
+    expect(screen.getByRole('radio', { name: 'On' }).props.accessibilityState).toMatchObject({ selected: true });
+  });
+
+  it('labels the matchmade options apart from playing with friends', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.getByRole('header', { name: /find opponents/i })).toBeTruthy();
+    expect(screen.getByRole('header', { name: /play with friends/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /live play.*60-second turns/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /async.*take turns whenever/i })).toBeTruthy();
+  });
+
+  it('leaves Live Play out when bots are off', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled={false} online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.queryByRole('button', { name: /^live play/i })).toBeNull();
+  });
+
+  it('offers Play vs bots under Practice', async () => {
+    const onChoose = jest.fn();
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error={null} onChoose={onChoose} onClose={jest.fn()} />));
+    expect(screen.getByRole('header', { name: /practice/i })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: /play vs bots.*jump straight in against three bots/i }));
+    expect(onChoose).toHaveBeenCalledWith('bots');
+  });
+
+  it('says Play vs bots is setting up the table while it works', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending="bots" error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.getByRole('button', { name: /play vs bots.*setting up the table/i })).toBeDisabled();
+  });
+
+  it('leaves Play vs bots out when bots are off', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled={false} online={null} pending={null} error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.queryByRole('button', { name: /play vs bots/i })).toBeNull();
+    expect(screen.queryByRole('header', { name: /practice/i })).toBeNull();
+  });
+
+  it('shows which choice is working, and says so when it takes a while', async () => {
+    jest.useFakeTimers();
+    try {
+      await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending="daily" error={null} onChoose={jest.fn()} onClose={jest.fn()} />));
+      expect(screen.getByRole('button', { name: /async.*finding a seat/i })).toBeTruthy();
+      // The others still read as themselves, just disabled.
+      expect(screen.getByRole('button', { name: /custom match.*send the invite link/i })).toBeDisabled();
+
+      await act(() => jest.advanceTimersByTime(SLOW_MS));
+      expect(screen.getByRole('button', { name: /async.*still working/i })).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('stays open while a choice is working', async () => {
+    const onClose = jest.fn();
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending="challenge" error={null} onChoose={jest.fn()} onClose={onClose} />));
+    await fireEvent.press(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('shows why the last choice failed', async () => {
+    await render(inApp(<NewMatchSheet visible liveEnabled online={null} pending={null} error="Request timed out" onChoose={jest.fn()} onClose={jest.fn()} />));
+    expect(screen.getByRole('alert')).toHaveTextContent('Request timed out');
+  });
+});
+
+describe('HowToPlayContent', () => {
+  it('shows every section, and reads out each domino example with its caption', async () => {
+    await render(<HowToPlayContent />);
+    for (const section of HOW_TO_PLAY) expect(screen.getByRole('header', { name: section.title })).toBeTruthy();
+    expect(screen.getByLabelText('10 points each: 5-5 and 6-4. 5 points each: 5-0, 4-1 and 3-2. 5-5, 6-4, 5-0, 4-1, 3-2')).toBeTruthy();
+  });
+});
+
+describe('HowToPlayCard', () => {
+  it('opens the rules, or dismisses itself', async () => {
+    const onOpen = jest.fn();
+    const onDismiss = jest.fn();
+    await render(<HowToPlayCard onOpen={onOpen} onDismiss={onDismiss} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'New to 42? Learn how to play' }));
+    expect(onOpen).toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(onDismiss).toHaveBeenCalled();
+  });
+});
+
+describe('HelpButton', () => {
+  it('is a button named How to play', async () => {
+    const onPress = jest.fn();
+    await render(<HelpButton onPress={onPress} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'How to play' }));
+    expect(onPress).toHaveBeenCalled();
   });
 });

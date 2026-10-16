@@ -24,6 +24,15 @@ export { Bid, bidToPrettyString, pointsToMakeBid } from './bid';
 export { Teams, teamForPosition } from './teams';
 export { Positions, nextPosition } from './positions';
 export { ValidationError } from './errors';
+export type { HouseRules, LowRule, AllPassRule } from './houseRules';
+export {
+  DEFAULT_HOUSE_RULES,
+  MIN_MARKS_TO_WIN,
+  MAX_MARKS_TO_WIN,
+  houseRules,
+  isDefaultHouseRules,
+  assertValidHouseRules,
+} from './houseRules';
 export type { MatchLike } from './validation';
 export {
   assertActive,
@@ -39,6 +48,7 @@ export {
   assertIsNotMatchPlayer,
   availableBids,
   availableTrumps,
+  lowAllowedIfWon,
   assertValidTrump,
 } from './validation';
 export type { MatchPlayerState, MatchState, LoggedInPlayer } from './matchEngine';
@@ -58,6 +68,34 @@ export {
   removePlayer,
   hasBeenDealt,
   hasHumanPlayers,
+  needsRedeal,
+  redeal,
+  WINNING_SCORE,
 } from './matchEngine';
-export { BOT_IDS, botDisplayName, isBot } from './botIds';
+export type { MatchMode, TableWait, LiveDeadline } from './live';
+export {
+  LIVE_FILL_MS,
+  LIVE_TURN_MS,
+  LIVE_ABANDON_MS,
+  TAKEOVER_MAX_MARKS,
+  TABLE_PAUSED,
+  matchMode,
+  isOnAutopilot,
+  isBotControlled,
+  isPresent,
+  tableWait,
+  liveDeadline,
+  markAutoBid,
+  setAutopilot,
+  resumeControl,
+  replaceWithBot,
+  claimSeat,
+  releaseClaim,
+  isAwayAllHand,
+  seatChangesAtBreak,
+  letClaimsGo,
+} from './live';
+export { BOT_MARK, botDisplayName, isBot, mintBotId, withoutBotMark } from './botIds';
 export { matchViewFor, handSize } from './view';
+export type { PlayerMatchStats, TrumpCounts, TrumpKey } from './stats';
+export { matchStatsFor, MIN_HANDS_FOR_RESULT, NO_TRUMPS, TRUMP_KEYS, trumpKeyOf } from './stats';

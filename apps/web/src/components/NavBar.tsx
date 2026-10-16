@@ -1,12 +1,14 @@
-// The top-level nav bar (Lobby + Profile links), reachable from every page. Styled as the hall's
-// dark rail, with a 4|2 bone tile as the brand mark (NavBar.css).
+// The top-level nav bar (Lobby, How to play and Profile links), reachable from every page. Styled as the hall's
+// dark rail, with a 4|2 bone tile as the brand mark (NavBar.css). A match page has its own "?" by the
+// scoreboard that opens the rules over the table, so How to play is left off there.
 import type { JSX } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useMatch } from 'react-router-dom';
 import { Suit } from '@fortytwo/rules';
 import { PipFace } from './PipFace';
 import './NavBar.css';
 
 export function NavBar(): JSX.Element {
+  const onMatch = useMatch('/match/:matchId') != null;
   return (
     <nav className="app-navbar" aria-label="Main navigation">
       <Link to="/" className="app-brand" aria-label="Forty-Two home">
@@ -20,6 +22,7 @@ export function NavBar(): JSX.Element {
         <NavLink to="/" end>
           Lobby
         </NavLink>
+        {!onMatch && <NavLink to="/how-to-play">How to play</NavLink>}
         <NavLink to="/profile">Profile</NavLink>
       </div>
     </nav>

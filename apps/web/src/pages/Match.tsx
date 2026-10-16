@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { Domino as DominoType, Trick } from '@fortytwo/rules';
+import type { Domino as DominoType, MatchState, Trick } from '@fortytwo/rules';
 import {
   Bid,
   Suit,
@@ -36,11 +36,21 @@ import {
   rematchAgreed,
   hasBeenDealt,
   isBot,
+  isOnAutopilot,
+  isPresent,
+  matchMode,
+  LIVE_FILL_MS,
 } from '@fortytwo/rules';
+import { formatClock, nextHandClock, searchState, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
+import { useOnline } from '../api/presence';
+import { useNow } from '../match/useNow';
 import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
+import { HouseRulesDialog } from '../components/HouseRulesDialog';
+import { HowToPlayDialog } from '../components/HowToPlayDialog';
+import { InviteDialog } from '../people/InviteDialog';
 import { MatchSummary } from '../components/MatchSummary';
 import { NameSkeleton } from '../components/NameSkeleton';
 import { Hand } from '../components/Hand';
@@ -55,9 +65,10 @@ import { toastError, toastInfo } from '../ui/toast';
 import type { TableCall } from '../match/TurnAlerts';
 import { TurnAlerts } from '../match/TurnAlerts';
 import {
-  MARKS_TO_WIN,
   assertPlayable,
   describeMatch,
+  houseRuleLabels,
+  marksToWin,
   isHighBidder as holdsHighBid,
   isTrickStarted,
   isValidPlay as isLegalPlay,
@@ -75,8 +86,10 @@ import {
 } from '@fortytwo/client';
 import type { Point } from '../match/sweep';
 import { pileLandingPoint, readSweepMode, seatPoint, sweepDurationMs } from '../match/sweep';
+import { shareInvite } from '../match/invite';
 import { usePoke } from '../match/usePoke';
 import { usePlayerNames } from '../match/usePlayerNames';
+import { useHowToPlay } from '../match/useHowToPlay';
 import '../styles/match.css';
 
 // How long a just-completed trick stays put in the center of the board (as if still "in
@@ -86,11 +99,11 @@ const TRICK_HOLD_MS = 1500;
 // The tail end of that hold is the sweep (match/sweep.ts's `sweepDurationMs`), during which the
 // trick leaves for the winning side rather than just blinking out.
 
-// MARKS_TO_WIN (@fortytwo/client) marks win the match - drawn as a tally.
-function MarkTally({ marks }: { marks: number }): JSX.Element {
+// `total` marks win the match (marksToWin: 7 unless the house rules say otherwise) - drawn as a tally.
+function MarkTally({ marks, total }: { marks: number; total: number }): JSX.Element {
   return (
     <span className="mark-tally" aria-hidden="true">
-      {Array.from({ length: MARKS_TO_WIN }, (_, i) => (
+      {Array.from({ length: total }, (_, i) => (
         <span key={i} className={i < marks ? 'mark mark-won' : 'mark'} />
       ))}
     </span>
@@ -146,6 +159,14 @@ export function Match(): JSX.Element {
   // (re)connecting).
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
+  // How this player stands at the table. In a Live Play game under way, a newcomer waits
+  // for a bot's seat (claiming) and watches meanwhile; one whose wait came to nothing is bumped
+  // and looks again; one away a whole hand was replaced by a bot.
+  const role = liveMatch && myPlayerId ? viewerRole(liveMatch, myPlayerId) : null;
+  // A claimant watches from the first seat's side; everything that acts is switched off for them.
+  const watching = role === 'claiming';
+  const watchFrom = watching ? watchAnchor(liveMatch!) : null;
+
   // Display names for everyone seated (match/usePlayerNames.ts). Until a name loads it reads null
   // here and the page shows a placeholder; one that can't be found reads "Player N". Never the id.
   const names = usePlayerNames(liveMatch?.players ?? [], myPlayerId, (ids) => client.searchUsers(ids));
@@ -198,6 +219,11 @@ export function Match(): JSX.Element {
   // The summary only opens when asked for, from the rail's button: the end of the match plays out
   // on the table like any other hand.
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // The rules, over the table, from the scoreboard's "?". Opening them counts as having seen them.
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [houseRulesOpen, setHouseRulesOpen] = useState(false);
+  const howToPlay = useHowToPlay(client);
   const navigate = useNavigate();
   // The player's own settings - here, whether to outline their playable dominoes. Shared with the
   // profile page's query, so a change saved there shows up here.
@@ -212,6 +238,26 @@ export function Match(): JSX.Element {
     mutationFn: (position?: number) => client.addBots(matchId!, position),
     onError: toastError,
   });
+
+  // Live search count-up, turn clocks and the next hand countdown: derived from the match, ticking
+  // only while one is shown. A paused clock sits at 0:00 until the table moves on, so it doesn't tick.
+  const search = liveMatch ? searchState(liveMatch, serverNow()) : null;
+  const clockNow = liveMatch ? turnClock(liveMatch, serverNow()) : null;
+  const nextHandNow = liveMatch ? nextHandClock(liveMatch, serverNow()) : null;
+  const clockRunning =
+    liveMatch != null && (search?.mode === 'live' || (clockNow !== null && !clockNow.paused) || nextHandNow !== null);
+  const now = useNow(clockRunning);
+  const liveSearch = liveMatch ? searchState(liveMatch, now) : null;
+  // Stopped, `now` is as old as the last tick, so a stopped clock reads the time afresh.
+  const clock = liveMatch ? (clockRunning ? turnClock(liveMatch, now) : clockNow) : null;
+  const nextHand = liveMatch ? (clockRunning ? nextHandClock(liveMatch, now) : nextHandNow) : null;
+  const mode = liveMatch ? matchMode(liveMatch) : 'custom';
+  const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
+  const resumeMutation = useMutation({
+    mutationFn: () => client.resume(matchId!),
+    onError: toastError,
+  });
+  const online = useOnline();
 
   // Set (by the button, before the request goes out) while this player's own leave is in flight:
   // if it deletes the match, their socket gets the same "deleted" close as everyone else's, and
@@ -231,13 +277,53 @@ export function Match(): JSX.Element {
 
   // The match was deleted (its last human left, or it expired) - there's nothing left to show.
   // Re-checked when this player's own leave fails, since by then the match may be gone anyway.
+  // A bumped player is already on their way to another table (below), so isn't told either: a
+  // dropped match's last broadcast, which bumps them, arrives before the socket closes.
   const leaveFailed = leaveMutation.isError;
+  const bumped = role === 'bumped';
   useEffect(() => {
-    if (!deleted || leavingRef.current) return;
+    if (!deleted || leavingRef.current || bumped) return;
     toastInfo('This match was deleted');
     void queryClient.invalidateQueries({ queryKey: ['matches'] });
     navigate('/', { replace: true });
-  }, [deleted, leaveFailed, navigate, queryClient]);
+  }, [deleted, leaveFailed, bumped, navigate, queryClient]);
+
+  // Bumped - the game they were waiting on ended first - this player looks for another Over the
+  // table game straight away, once, and goes to it. If that fails they can try again.
+  const findAnotherMutation = useMutation({
+    mutationFn: () => client.play('live'),
+    onSuccess: (found) => navigate(`/match/${found.id}`, { replace: true }),
+  });
+  const { mutate: findAnother } = findAnotherMutation;
+  const searchedAgainRef = useRef(false);
+  useEffect(() => {
+    if (!bumped || searchedAgainRef.current) return;
+    searchedAgainRef.current = true;
+    findAnother();
+  }, [bumped, findAnother]);
+
+  // "Sam took Bot 2's seat", for each seat that changes hands, once the newcomer's name is in;
+  // a player who has just been seated is told they're in instead.
+  const previousMatchRef = useRef<MatchState | null>(null);
+  const pendingSeatChangesRef = useRef<{ from: string; to: string }[]>([]);
+  useEffect(() => {
+    if (!liveMatch) return;
+    const previous = previousMatchRef.current;
+    previousMatchRef.current = liveMatch;
+    if (previous && previous.id === liveMatch.id) {
+      for (const change of seatChanges(previous, liveMatch)) {
+        if (change.to === myPlayerId) toastInfo("You're in", 'You took a seat - your first hand is dealt.');
+        // The one leaving has a page of their own to see.
+        else if (change.from !== myPlayerId) pendingSeatChangesRef.current.push(change);
+      }
+    }
+    if (!names.ready) return;
+    for (const change of pendingSeatChangesRef.current.splice(0)) {
+      const to = nameText(names.nameFor(change.to)) ?? 'A player';
+      const from = nameText(names.nameFor(change.from)) ?? 'a player';
+      toastInfo(`${to} took ${from}'s seat`);
+    }
+  }, [liveMatch, myPlayerId, names]);
 
   // Trick-hold state: `revealedTrickCount` is how many of `game.tricks` have finished their hold
   // (see TRICK_HOLD_MS above) and are allowed to appear in the side piles/point totals. Any trick
@@ -371,14 +457,48 @@ export function Match(): JSX.Element {
     return <div className="spinner" role="status" aria-label="Loading match" />;
   }
 
+  // Having just left, the table's broadcast without this player usually arrives before the
+  // leave's own reply navigates away - that's not a seat picker (or a "replaced" note) to show them.
+  if (role !== 'seated' && (leaveMutation.isPending || leaveMutation.isSuccess)) {
+    return <div className="spinner" role="status" aria-label="Leaving match" />;
+  }
+
+  if (role === 'bumped') {
+    return (
+      <section className="match-join mat-panel" aria-label="Finding another table">
+        {findAnotherMutation.isError ? (
+          <>
+            <p className="match-join-note">That game ended, and no other table could be found just now.</p>
+            <button type="button" className="action-button" onClick={() => findAnother()}>
+              Find another
+            </button>
+          </>
+        ) : (
+          <p className="match-join-note" role="status">
+            That game ended - finding you another table…
+          </p>
+        )}
+        <Link to="/" className="match-join-back">
+          Back to lobby
+        </Link>
+      </section>
+    );
+  }
+
+  if (role === 'replaced') {
+    return (
+      <section className="match-join mat-panel" aria-label="Your seat was taken">
+        <p className="match-join-note">A bot took your seat after you were away for a hand.</p>
+        <Link to="/" className="match-join-back">
+          Back to lobby
+        </Link>
+      </section>
+    );
+  }
+
   // Someone who isn't seated - typically arriving from an invite link - picks a seat, or learns
   // the match is full.
-  if (!liveMatch.players.some((p) => p.playerId === myPlayerId)) {
-    // Having just left, the table's broadcast without this player usually arrives before the
-    // leave's own reply navigates away - that's not a seat picker to show them.
-    if (leaveMutation.isPending || leaveMutation.isSuccess) {
-      return <div className="spinner" role="status" aria-label="Leaving match" />;
-    }
+  if (role === 'stranger') {
     const seats = [0, 1, 2, 3].map((position) => {
       const player = liveMatch.players.find((p) => p.position === position);
       return player ? (nameOf(player.playerId) ?? '') : null;
@@ -414,7 +534,11 @@ export function Match(): JSX.Element {
   const game = match.currentGame;
   // The phase of the hand, what I can do, and how the hand and match stand: @fortytwo/client's
   // matchView.ts, shared with the mobile app.
-  const view = describeMatch(match, myPlayerId);
+  // The table is laid out around whoever it's seen from: this player, or for a claimant watching,
+  // the first seat.
+  const viewerId = watchFrom ?? myPlayerId;
+  const view = describeMatch(match, viewerId);
+  const ruleLabels = houseRuleLabels(match.rules);
   const {
     me,
     opponentTeam,
@@ -431,9 +555,11 @@ export function Match(): JSX.Element {
     iVotedRematch,
   } = view;
   const scores = matchScores(match);
-  const canPlay = view.isMyTurnToPlay && connected && playing == null;
+  const canPlay = !watching && view.isMyTurnToPlay && connected && playing == null;
   // Leaving deletes the match when nobody else human is seated, so the button says so.
   const onlyHumanSeated = match.players.every((p) => p.playerId === myPlayerId || isBot(p.playerId));
+  // In Live Play, a game with nobody else present is dropped when I leave it.
+  const lastPresent = match.players.every((p) => p.playerId === myPlayerId || !isPresent(match, p.playerId));
 
   // "Revealed" tricks are the ones the hold delay has let move to the side piles - `game.tricks`
   // itself always reflects the true, immediate server state (used above for e.g. `isHandOver`,
@@ -455,7 +581,7 @@ export function Match(): JSX.Element {
   const displayedTrickIndex = heldTrick ? game.tricks.length - 1 : game.tricks.length;
   const trickLeader = isPlayingPhase ? trickLeaderId(match.players, game, displayedTrickIndex) : null;
   const trickOrder = trickPlayOrder(match.players, game, trickLeader);
-  const trickSlotSeats = trickOrder.map((id) => (id == null ? null : seatFor(match.players, myPlayerId, id)));
+  const trickSlotSeats = trickOrder.map((id) => (id == null ? null : seatFor(match.players, viewerId, id)));
   const winningSlot = displayedTrick.playerId == null ? null : trickOrder.indexOf(displayedTrick.playerId);
   const sweepTo = heldTrick && isSweeping ? (heldTrick.team === me.team ? 'us' : 'them') : null;
   const winnerSeat = winningSlot == null ? null : (trickSlotSeats[winningSlot] ?? null);
@@ -491,17 +617,30 @@ export function Match(): JSX.Element {
       isHighBidder,
       trump: game.trump,
       ready: showHandOver && !isMatchOver ? (player?.ready ?? false) : null,
+      away: isOnAutopilot(match!, playerId),
+      clock: clock?.playerIds.includes(playerId) ? formatClock(clock.remainingMs) : null,
+      paused: clock?.paused === true && clock.playerIds.includes(playerId),
     };
   }
 
-  const myPosition = match.players.find((p) => p.playerId === myPlayerId)!.position;
-  const seatedOthers = match.players
-    .filter((p) => p.playerId !== myPlayerId)
-    .map((p) => ({ player: p, seat: seatFor(match.players, myPlayerId, p.playerId)! }));
-  const emptySeats = openSeats(match.players, myPlayerId);
+  // How many dominoes a player at the table still holds, face down.
+  function dominoCountOf(playerId: string): number {
+    const hand = game.hands.find((h) => h.playerId === playerId);
+    return hand ? handSize(hand) : 0;
+  }
 
-  // One line on the rail saying what the table is waiting on.
-  const status = matchStatus(match, view, nameFor);
+  const myPosition = match.players.find((p) => p.playerId === viewerId)!.position;
+  const seatedOthers = match.players
+    .filter((p) => p.playerId !== viewerId)
+    .map((p) => ({ player: p, seat: seatFor(match.players, viewerId, p.playerId)! }));
+  const emptySeats = openSeats(match.players, viewerId);
+
+  // One line on the rail saying what the table is waiting on - for a watcher, never "Your play".
+  const status = matchStatus(
+    match,
+    watching ? { ...view, isSittingOut: false, me: { ...view.me, isActive: false } } : view,
+    nameFor
+  );
 
   // What the table is waiting on me for, for TurnAlerts (match/TurnAlerts.tsx) to pass on when I've
   // looked away - in the push notices' words (apps/worker/src/push/notices.ts). Once the hand is
@@ -556,7 +695,7 @@ export function Match(): JSX.Element {
 
   return (
     <div ref={matchRootRef} className="match">
-      <TurnAlerts call={tableCall()} tag={match.id} />
+      {!watching && <TurnAlerts call={tableCall()} tag={match.id} />}
       {reconnecting && (
         <p className="match-reconnecting" role="status" aria-label="Reconnecting">
           Reconnecting…
@@ -566,7 +705,7 @@ export function Match(): JSX.Element {
         <div className="score score-us">
           <span className="score-label">Us</span>
           <span className="score-value">{scores[me.team] ?? 0}</span>
-          <MarkTally marks={scores[me.team] ?? 0} />
+          <MarkTally marks={scores[me.team] ?? 0} total={marksToWin(match)} />
         </div>
 
         <div className="contract">
@@ -590,16 +729,75 @@ export function Match(): JSX.Element {
               )}
             </span>
           )}
+          {/* A Custom Match's house rules get a button beside the "?". */}
+          {ruleLabels.length > 0 && (
+            <button
+              type="button"
+              className="contract-rules"
+              aria-label="House rules"
+              onClick={() => setHouseRulesOpen(true)}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor">
+                <path d="M3 5h8v2H3zm0 6h8v2H3zm0 6h8v2H3zm10-1.4 1.4-1.4 1.6 1.6 3.6-3.6 1.4 1.4-5 5zM13.4 5.4 15 7l1.6-1.6L18 6.8 16.4 8.4 18 10l-1.4 1.4L15 9.8l-1.6 1.6L12 10l1.6-1.6L12 6.8z" />
+              </svg>
+            </button>
+          )}
+          <button
+            type="button"
+            className="contract-rules"
+            aria-label="How to play"
+            onClick={() => {
+              setRulesOpen(true);
+              howToPlay.markSeen();
+            }}
+          >
+            ?
+          </button>
+          {/* A player can leave a game under way: in Live Play a bot takes their seat; a bots match
+              ends. Up here by the rules, well away from the hand. */}
+          {(mode === 'live' || mode === 'bots') && hasBeenDealt(match) && !isMatchOver && !watching && (
+            <button
+              type="button"
+              className="contract-leave"
+              aria-label="Leave game"
+              disabled={leaveMutation.isPending}
+              onClick={() => {
+                const outcome = lastPresent ? 'Nobody else is playing, so it ends.' : 'A bot takes your seat.';
+                if (window.confirm(`Leave this game? ${outcome}`)) {
+                  leavingRef.current = true;
+                  leaveMutation.mutate();
+                }
+              }}
+            >
+              Leave
+            </button>
+          )}
         </div>
 
         <div className="score score-them">
           <span className="score-label">Them</span>
           <span className="score-value">{scores[opponentTeam] ?? 0}</span>
-          <MarkTally marks={scores[opponentTeam] ?? 0} />
+          <MarkTally marks={scores[opponentTeam] ?? 0} total={marksToWin(match)} />
         </div>
       </header>
+      {match.currentGame.redealt && isBiddingPhase && (
+        <p className="redeal-line" role="status">Everyone passed, so the hands were dealt again.</p>
+      )}
 
       <div className="game-wrapper">
+        {meOnAutopilot && !watching && (
+          <div className="autopilot-bar" role="status">
+            <span>Your turn ran out, so a bot is playing for you.</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-warning"
+              disabled={resumeMutation.isPending}
+              onClick={() => resumeMutation.mutate()}
+            >
+              Resume
+            </button>
+          </div>
+        )}
         {/* One drag context around the table and the hand: a tile is dragged out of the hand and
             played by dropping it on the table. */}
         <PlayDndContext>
@@ -613,23 +811,20 @@ export function Match(): JSX.Element {
             />
 
             <PlayDropZone live={canPlay} className="table" aria-label="Table">
-              {seatedOthers.map(({ player, seat }) => {
-                const hand = game.hands.find((h) => h.playerId === player.playerId);
-                return (
-                  <Seat
-                    key={player.playerId}
-                    seat={seat}
-                    dominoCount={hand ? handSize(hand) : 0}
-                    {...seatPropsFor(player.playerId)}
-                  />
-                );
-              })}
+              {seatedOthers.map(({ player, seat }) => (
+                <Seat
+                  key={player.playerId}
+                  seat={seat}
+                  dominoCount={dominoCountOf(player.playerId)}
+                  {...seatPropsFor(player.playerId)}
+                />
+              ))}
 
               {emptySeats.map(({ position, seat }) => (
                 <div key={position} className={`seat seat-${seat} seat-open`} data-testid="open-seat">
                   <div className="seat-plate">
                     <span className="seat-name">Open seat</span>
-                    {botsEnabled && (
+                    {mode === 'custom' && botsEnabled && (
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-secondary seat-add-bot"
@@ -646,8 +841,44 @@ export function Match(): JSX.Element {
               <div className="table-center">
                 {!isTableReady ? (
                   <div className="table-waiting">
+                    {liveSearch?.mode === 'live' && (
+                      <>
+                        <p className="table-search" role="status">
+                          Finding players… {formatClock(liveSearch.elapsedMs)}
+                        </p>
+                        {online !== null && <p className="table-presence">{online} online</p>}
+                        <p className="table-presence">
+                          Bots take the empty seats at {formatClock(LIVE_FILL_MS)}. Players can still join after you start.
+                        </p>
+                        {botsEnabled && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary"
+                            disabled={!connected || addBotsMutation.isPending}
+                            onClick={() => addBotsMutation.mutate(undefined)}
+                          >
+                            Start now with bots
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {liveSearch?.mode === 'daily' && (
+                      <p className="table-search" role="status">
+                        Looking for players - we'll notify you when the table fills.
+                      </p>
+                    )}
                     <p>{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
-                    {botsEnabled && emptySeats.length > 0 && (
+                    {mode === 'custom' && emptySeats.length > 0 && (
+                      <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => void shareInvite(match.id)}>
+                        Share link
+                      </button>
+                    )}
+                    {mode === 'custom' && emptySeats.length > 0 && (
+                      <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setInviting(true)}>
+                        Invite players
+                      </button>
+                    )}
+                    {mode === 'custom' && botsEnabled && emptySeats.length > 0 && (
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-secondary"
@@ -663,13 +894,13 @@ export function Match(): JSX.Element {
                         className="btn btn-sm btn-outline-danger"
                         disabled={leaveMutation.isPending}
                         onClick={() => {
-                          if (window.confirm(onlyHumanSeated ? 'Cancel this match? It will be deleted.' : 'Leave this table?')) {
+                          if (mode === 'live' || window.confirm(onlyHumanSeated ? 'Cancel this match? It will be deleted.' : 'Leave this table?')) {
                             leavingRef.current = true;
                             leaveMutation.mutate();
                           }
                         }}
                       >
-                        {onlyHumanSeated ? 'Cancel match' : 'Leave table'}
+                        {mode === 'live' ? 'Cancel search' : onlyHumanSeated ? 'Cancel match' : 'Leave table'}
                       </button>
                     )}
                   </div>
@@ -687,7 +918,12 @@ export function Match(): JSX.Element {
                 )}
               </div>
 
-              <Seat seat="bottom" dominoCount={null} {...seatPropsFor(myPlayerId)} />
+              <Seat
+                seat="bottom"
+                // A watcher sees the first seat's hand face down, like the others'.
+                dominoCount={watching ? dominoCountOf(viewerId) : null}
+                {...seatPropsFor(viewerId)}
+              />
             </PlayDropZone>
 
             <TrickHistory
@@ -699,8 +935,8 @@ export function Match(): JSX.Element {
             />
           </div>
 
-          <div className={`player${me.isActive && !isHandPlayedOut && isTableReady ? ' active' : ''}`}>
-            {showHandOver && (
+          <div className={`player${!watching && me.isActive && !isHandPlayedOut && isTableReady ? ' active' : ''}`}>
+            {showHandOver && !watching && (
               <section className="hand-result" aria-label="Hand over">
                 <p className="hand-result-title">
                   {isMatchOver
@@ -744,6 +980,7 @@ export function Match(): JSX.Element {
                           ? 'Ready up for the next hand'
                           : 'Play it out, or ready up for the next hand'}
                     </p>
+                    {nextHand !== null && <p className="hand-result-note">Next hand in {formatClock(nextHand)}</p>}
                     <button
                       type="button"
                       className="action-button"
@@ -758,13 +995,13 @@ export function Match(): JSX.Element {
             )}
 
             {/* The bid/trump pickers carry their own prompt, so the status line steps aside. */}
-            {!canBid && !canSelectTrump && status != null && (
+            {(watching || (!canBid && !canSelectTrump)) && status != null && (
               <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
                 {names.ready ? status : <NameSkeleton width="12em" />}
               </p>
             )}
 
-            {poke.target != null && (
+            {poke.target != null && !watching && (
               <button
                 type="button"
                 className="btn btn-sm btn-outline-secondary rail-poke"
@@ -775,7 +1012,7 @@ export function Match(): JSX.Element {
               </button>
             )}
 
-            {canBid && (
+            {canBid && !watching && (
               <BiddingPanel
                 game={game}
                 myPlayerId={myPlayerId}
@@ -784,7 +1021,7 @@ export function Match(): JSX.Element {
               />
             )}
 
-            {canSelectTrump && (
+            {canSelectTrump && !watching && (
               <TrumpPicker
                 game={game}
                 onSelect={(suit) => setTrumpMutation.mutate(suit)}
@@ -792,16 +1029,34 @@ export function Match(): JSX.Element {
               />
             )}
 
-            <Hand
-              // My hand as the server last sent it, with a domino in flight hidden but keeping its
-              // place, in case the play is turned away.
-              dominoes={myLiveHand}
-              playingId={inFlight?.id ?? null}
-              selectable={canPlay}
-              onPlay={playDomino}
-              isValidPlay={isValidPlay}
-              highlightPlayable={highlightPlayable}
-            />
+            {watching ? (
+              <div className="claim-bar" role="status">
+                <span>Joining a game in progress. You'll take a seat when this hand ends.</span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  disabled={leaveMutation.isPending}
+                  onClick={() => {
+                    leavingRef.current = true;
+                    leaveMutation.mutate();
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <Hand
+                // My hand as the server last sent it, with a domino in flight hidden but keeping its
+                // place, in case the play is turned away.
+                dominoes={myLiveHand}
+                playingId={inFlight?.id ?? null}
+                selectable={canPlay}
+                onPlay={playDomino}
+                isValidPlay={isValidPlay}
+                highlightPlayable={highlightPlayable}
+              />
+            )}
+
           </div>
         </PlayDndContext>
       </div>
@@ -817,6 +1072,15 @@ export function Match(): JSX.Element {
           onClose={() => setSummaryOpen(false)}
         />
       )}
+      <HouseRulesDialog rules={match.rules} open={houseRulesOpen} onClose={() => setHouseRulesOpen(false)} />
+      <HowToPlayDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      <InviteDialog
+        open={inviting}
+        matchId={match.id}
+        seatedIds={match.players.map((p) => p.playerId)}
+        client={client}
+        onClose={() => setInviting(false)}
+      />
     </div>
   );
 }

@@ -1,28 +1,60 @@
 // Push notifications: the Worker sends one when it's the player's turn, a hand they're in ends, or
 // a game of theirs starts - unless they have that match open (worker: push/notices.ts). This
-// registers the device for them and opens the match when one is tapped.
+// registers the device for them and opens the match when one is tapped. A hand over carries a
+// Ready up button and a match over a Rematch button, which open the match and do the same.
 //
 // A device is registered only once the player has given the OS permission and has notifications
 // on in their profile (on unless turned off). Permission is asked for when they first sit at a
 // match, not at launch, so the prompt comes when its point is clear.
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 import type { Api } from '@/api/useApi';
 
 // Must match the channel the Worker sends to (push/send.ts's ANDROID_CHANNEL_ID).
 export const CHANNEL_ID = 'game';
 
+// The background task that draws the notices with buttons on Android (drawNotice.ts).
+export const DRAW_NOTICE_TASK = 'draw-notice';
+
 // A notification for some other match than the one on screen still shows while the app is open;
-// the Worker sends none for a match that's open.
+// the Worker sends none for a match that's open. It plays its sound too, as it would with the app
+// closed: Android shows no banner for a silent notification, putting it straight in the shade.
+//
+// One about the match on screen doesn't show: the Worker counts a player as watching only once
+// their socket is open, and there's a moment without one whenever the app comes back to a match -
+// as when a notification's button opens it, and the change it makes deals the next hand. The OS
+// only asks while the app is open, so a match left on screen in the background still notifies.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const show = notificationRoute(notification) !== routeOnScreen;
+    return { shouldPlaySound: show, shouldSetBadge: false, shouldShowBanner: show, shouldShowList: show };
+  },
 });
+
+// Kept up to date by usePushNotifications.
+let routeOnScreen: string | null = null;
+export function noteRouteOnScreen(route: string): void {
+  routeOnScreen = route;
+}
+
+// The buttons on the Worker's hand over and match over notices (push/send.ts's CATEGORIES, by the
+// same ids). Each opens the app, which then does what the match screen's button does: opening it
+// lets the player see it happen, and a request sent from the background could go unanswered.
+const READY_ACTION = 'ready';
+const REMATCH_ACTION = 'rematch';
+export async function registerCategories(): Promise<void> {
+  await Notifications.setNotificationCategoryAsync('handOver', [
+    { identifier: READY_ACTION, buttonTitle: 'Ready up', options: { opensAppToForeground: true } },
+  ]);
+  await Notifications.setNotificationCategoryAsync('matchOver', [
+    { identifier: REMATCH_ACTION, buttonTitle: 'Rematch', options: { opensAppToForeground: true } },
+  ]);
+}
+// Registered on launch, before any notification can arrive. A notice that comes before they are
+// (or on a device where this failed) shows without its button, and a tap still opens the match.
+void registerCategories().catch(() => {});
 
 // Android sends notifications through a channel, which must exist before a token is asked for
 // (and before Android 13+ will show the permission prompt).
@@ -77,12 +109,20 @@ function platform(): 'android' | 'ios' {
   return Platform.OS === 'ios' ? 'ios' : 'android';
 }
 
+// Whether this app draws the notices with buttons itself (drawNotice.ts) - on Android, once its task
+// is registered. It may not be yet on the first launch after an update, in which case Android draws
+// them, without buttons, until the next launch registers the device again.
+async function drawsOwnNotices(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  return TaskManager.isTaskRegisteredAsync(DRAW_NOTICE_TASK).catch(() => false);
+}
+
 // Registers this device for the signed-in player, if notifications are allowed. Returns whether
 // it's registered.
 export async function registerDevice(api: Api, { ask }: { ask: boolean }): Promise<boolean> {
   const token = await devicePushToken({ ask });
   if (token == null) return false;
-  await api.registerPushToken(token, platform());
+  await api.registerPushToken(token, platform(), await drawsOwnNotices());
   return true;
 }
 
@@ -118,4 +158,16 @@ export function isNewTap(response: Notifications.NotificationResponse): boolean 
 export function notificationRoute(notification: Notifications.Notification): string | null {
   const url = notification.request.content.data?.url;
   return typeof url === 'string' && url.startsWith('/') ? url : null;
+}
+
+// Does what a notice's button asks, for the match the notice is about: readies up, or asks for a
+// rematch. Returns whether there was anything to do - not for a plain tap. The match screen, which
+// the button also opens, shows how it went.
+export async function takeNotificationAction(api: Api, response: Notifications.NotificationResponse): Promise<boolean> {
+  const matchId = notificationRoute(response.notification)?.match(/^\/match\/([^/?#]+)$/)?.[1];
+  if (matchId == null) return false;
+  if (response.actionIdentifier === READY_ACTION) await api.readyUp(matchId, true);
+  else if (response.actionIdentifier === REMATCH_ACTION) await api.rematch(matchId);
+  else return false;
+  return true;
 }

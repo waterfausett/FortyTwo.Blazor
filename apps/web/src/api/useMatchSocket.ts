@@ -7,7 +7,7 @@ import type { MatchState } from '@fortytwo/rules';
 
 // Mobile browsers kill sockets in background tabs, and a dropped network kills them anywhere. When
 // the tab comes back or the network returns, reconnect now rather than sitting out the backoff.
-function subscribeBrowserWake(wake: () => void): () => void {
+export function subscribeBrowserWake(wake: () => void): () => void {
   function onVisibilityChange() {
     if (document.visibilityState === 'visible') wake();
   }

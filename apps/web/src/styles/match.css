@@ -113,10 +113,21 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Marks toward the 7 needed to win, drawn as the edges of standing dominoes. */
+/* Marks toward the match's marks to win, drawn as the edges of standing dominoes. Capped at the
+   width of 7 notches (6px each, 3px gaps) so a longer tally wraps onto further rows. */
 .mark-tally {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 3px;
+  max-width: calc(7 * 6px + 6 * 3px);
+}
+
+.house-rules-line,
+.redeal-line {
+  margin: 0.25rem 0;
+  text-align: center;
+  font: 0.8rem var(--font-ui);
+  color: var(--ink-muted);
 }
 
 .mark {
@@ -154,6 +165,49 @@
 
 .contract-label {
   color: var(--ink-muted);
+}
+
+/* The "?" opening the rules over the table (HowToPlayDialog). */
+.contract-rules {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1.5px solid var(--brass);
+  border-radius: 50%;
+  background: none;
+  color: var(--bone);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.contract-rules:hover {
+  background: rgba(201, 164, 92, 0.18);
+}
+
+/* Leave game, beside the rules: up in the scoreboard, away from the hand. */
+.contract-leave {
+  flex: none;
+  height: 1.6rem;
+  padding: 0 0.65rem;
+  border: 1.5px solid var(--danger);
+  border-radius: 0.8rem;
+  background: none;
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.contract-leave:hover:not(:disabled) {
+  background: rgba(224, 122, 95, 0.15);
+}
+
+.contract-leave:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .contract-value {
@@ -354,6 +408,45 @@
   margin: 0;
 }
 
+.table-search {
+  color: var(--brass);
+  font: 600 0.95rem var(--font-ui);
+}
+
+.table-presence {
+  color: var(--ink-muted);
+  font: 0.85rem var(--font-ui);
+}
+
+.seat-away {
+  color: var(--ink-muted);
+}
+
+.seat-clock {
+  font-variant-numeric: tabular-nums;
+  color: var(--brass);
+}
+
+/* A clock run out, with the table waiting on its player. */
+.seat-clock-paused {
+  color: var(--danger);
+}
+
+/* Shown to a player whose Live turn ran out while a bot plays for them, and to a newcomer
+   watching a game under way until they take a seat. */
+.autopilot-bar,
+.claim-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  background: rgba(201, 164, 92, 0.15);
+  color: var(--bone);
+}
+
 /* A seat nobody has taken yet: a dashed, dimmed plate in the seat's usual spot. */
 .seat-open .seat-plate {
   background: transparent;
@@ -427,24 +520,23 @@
   transition: box-shadow 200ms ease;
 }
 
+/* Whoever is to act: a steady ring and a glow in their team's colour, the glow slowly swelling and
+   fading, as on mobile. */
 .seat.active .seat-plate {
   background: rgba(58, 42, 22, 0.85);
   box-shadow:
     inset 3px 0 0 var(--team),
-    0 0 0 2px var(--brass),
-    /*0 0 26px rgba(201, 164, 92, 0.7);*/
-    0 0 26px var(--team);
+    0 0 0 2px var(--team),
+    0 0 16px 2px var(--team);
   animation: seat-breathe 2.4s ease-in-out infinite;
 }
-
 
 @keyframes seat-breathe {
   50% {
     box-shadow:
       inset 3px 0 0 var(--team),
-      /*0 0 0 2px var(--brass),*/
       0 0 0 2px var(--team),
-      0 0 12px rgba(201, 164, 92, 0.35);
+      0 0 16px 2px color-mix(in srgb, var(--team) 30%, transparent);
   }
 }
 
@@ -1165,11 +1257,13 @@
 /* ---------- Match over: the summary dialog ---------- */
 
 /* Dims everything behind the dialog so the table reads as finished; closing the dialog uncovers
-   it. Fixed rather than absolute: .match isn't a positioning context. */
+   it. Fixed rather than absolute: .match isn't a positioning context. The z-index clears the
+   table's own layers - dominoes sit at 400 (domino.css), the trick tags at 500/501 - which would
+   otherwise paint over the dialog. */
 .match-summary-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 600;
   display: flex;
   align-items: center;
   justify-content: center;

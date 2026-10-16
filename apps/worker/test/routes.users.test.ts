@@ -7,6 +7,8 @@ import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { toPublicUser, toUserResponse } from '../src/routes/users';
 import type { Auth0User } from '../src/auth0Management';
 import { saveUsers } from '../src/users/publicUsers';
+import type { PlayerStats } from '@fortytwo/api-types';
+import { botDisplayName } from '@fortytwo/rules';
 
 // Must match the AUTH0_DOMAIN/AUTH0_AUDIENCE test-pool bindings in vitest.config.ts, as in
 // routes.matches.test.ts.
@@ -150,7 +152,7 @@ describe('user routes', () => {
         body: JSON.stringify(['auth0|p2', 'bot-1', 'auth0|p2']),
       });
       expect(seen.query).toBe('user_id:("auth0|p2")');
-      expect(await res.json()).toEqual([{ user_id: 'bot-1', displayName: 'Bot 1' }]);
+      expect(await res.json()).toEqual([{ user_id: 'bot-1', displayName: botDisplayName('bot-1') }]);
     });
 
     it('answers from D1 for players it has seen, without asking Auth0', async () => {
@@ -267,6 +269,16 @@ describe('user routes', () => {
       expect(seen.body).toEqual({ user_metadata: { highlightPlayable: true } });
     });
 
+    it('stores the seen-how-to-play setting', async () => {
+      const seen = mockUserPatch();
+      const res = await api('/api/users', 'auth0|p1', {
+        method: 'PATCH',
+        body: JSON.stringify({ seenHowToPlay: true }),
+      });
+      expect(res.status).toBe(200);
+      expect(seen.body).toEqual({ user_metadata: { seenHowToPlay: true } });
+    });
+
     it('stores the push notifications setting', async () => {
       const seen = mockUserPatch();
       const res = await api('/api/users', 'auth0|p1', {
@@ -294,8 +306,10 @@ describe('user routes', () => {
       ['a picture that is not a URL', { picture: 'me.png' }],
       ['an over-long picture URL', { picture: `https://example.com/${'x'.repeat(2048)}` }],
       ['an array body', ['displayName']],
+      ['a display name with the bot mark', { displayName: 'Ada 🤖' }],
       ['a non-boolean highlight setting', { highlightPlayable: 'yes' }],
       ['a non-boolean push notifications setting', { pushNotifications: 1 }],
+      ['a non-boolean seen-how-to-play setting', { seenHowToPlay: 'yes' }],
     ])('rejects %s with a 400', async (_, body) => {
       const res = await api('/api/users', 'auth0|p1', { method: 'PATCH', body: JSON.stringify(body) });
       expect(res.status).toBe(400);
@@ -326,6 +340,20 @@ describe('push tokens', () => {
     expect(await tokensOf('auth0|p2')).toEqual([{ token, platform: 'android' }]);
   });
 
+  it('notes a device whose app draws its own notices, and one that stops', async () => {
+    const put = (body: object) =>
+      api('/api/users/push-tokens', 'auth0|p5', { method: 'PUT', body: JSON.stringify({ token, platform: 'android', ...body }) });
+    const drawsOwn = async () =>
+      (await env.DB.prepare('SELECT draws_own FROM push_tokens WHERE token = ?1').bind(token).first<{ draws_own: number }>())
+        ?.draws_own;
+
+    expect((await put({ drawsOwn: true })).status).toBe(204);
+    expect(await drawsOwn()).toBe(1);
+    // An older version of the app, installed over it, doesn't say.
+    expect((await put({})).status).toBe(204);
+    expect(await drawsOwn()).toBe(0);
+  });
+
   it("removes the caller's own device only", async () => {
     await api('/api/users/push-tokens', 'auth0|p3', { method: 'PUT', body: JSON.stringify({ token, platform: 'ios' }) });
 
@@ -340,6 +368,7 @@ describe('push tokens', () => {
   it.each([
     ['a token that is not an Expo push token', { token: 'abc', platform: 'android' }],
     ['an unknown platform', { token, platform: 'web' }],
+    ['a drawsOwn that is not true or false', { token, platform: 'android', drawsOwn: 'yes' }],
   ])('rejects %s with a 400', async (_, body) => {
     const res = await api('/api/users/push-tokens', 'auth0|p1', { method: 'PUT', body: JSON.stringify(body) });
     expect(res.status).toBe(400);
@@ -379,6 +408,17 @@ describe('toUserResponse', () => {
     });
   });
 
+  describe('seenHowToPlay', () => {
+    it('is false until the player has seen the rules', () => {
+      expect(toUserResponse({ user_id: 'u1' }).seenHowToPlay).toBe(false);
+      expect(toUserResponse({ user_id: 'u1', user_metadata: { seenHowToPlay: true } }).seenHowToPlay).toBe(true);
+    });
+
+    it('is not shown to other players', () => {
+      expect(toPublicUser({ user_id: 'u1', user_metadata: { seenHowToPlay: true } })).not.toHaveProperty('seenHowToPlay');
+    });
+  });
+
   describe('highlightPlayable', () => {
     it('is off unless the player turned it on', () => {
       expect(toUserResponse({ user_id: 'u1' }).highlightPlayable).toBe(false);
@@ -400,6 +440,11 @@ describe('toUserResponse', () => {
   });
 
   describe('displayName', () => {
+    it('never carries the bot mark, whatever the account says', () => {
+      expect(toUserResponse({ user_id: 'u1', nickname: 'Ada 🤖' }).displayName).toBe('Ada');
+      expect(toUserResponse({ user_id: 'u1', name: '🤖' }).displayName).toBe('Player');
+    });
+
     it('prefers user_metadata.displayName over everything else', () => {
       const u: Auth0User = {
         user_id: 'u1',
@@ -430,5 +475,36 @@ describe('toUserResponse', () => {
       const u: Auth0User = { user_id: 'u1' };
       expect(toUserResponse(u).displayName).toBe('Unknown User (u1)');
     });
+  });
+});
+
+describe('GET /api/users/stats', () => {
+  beforeEach(async () => {
+    await env.DB.prepare('DELETE FROM player_match_stats').run();
+  });
+
+  it("returns the caller's own stats and nobody else's", async () => {
+    await env.DB.batch(
+      ['caller', 'other'].map((player, i) =>
+        env.DB.prepare(
+          `INSERT INTO player_match_stats (match_id, player_id, partner_id, with_bots, won, marks_won, bids_won,
+             bids_made, points_bid_total, points_bid_count, marks_bids, completed_on, trump_low, trump_follow_me,
+             trump_blanks, trump_aces, trump_deuces, trump_threes, trump_fours, trump_fives, trump_sixes)
+           VALUES (?, ?, 'p', 0, ?, 7, 2, 1, 64, 2, 0, '2026-10-01T00:00:00.000Z', 0, 0, 0, 0, 0, 0, 0, 0, 2)`
+        ).bind(`m${i}`, player, i === 0 ? 1 : 0)
+      )
+    );
+
+    const res = await api('/api/users/stats', 'caller');
+
+    expect(res.status).toBe(200);
+    const body = await res.json<PlayerStats>();
+    expect(body.all).toMatchObject({ played: 1, won: 1, lost: 0, marksWon: 7, bidsWon: 2, bidsMade: 1, bidsSet: 1, averagePointsBid: 32, favoriteTrump: { trump: 'sixes', times: 2 } });
+    expect(body.withBots.played).toBe(0);
+  });
+
+  it('needs a signed-in caller', async () => {
+    const res = await SELF.fetch('https://example.com/api/users/stats');
+    expect(res.status).toBe(401);
   });
 });

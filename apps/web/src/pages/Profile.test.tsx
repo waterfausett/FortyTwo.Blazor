@@ -20,6 +20,8 @@ vi.mock('../api/client', () => ({
   apiClient: () => ({
     getProfile: getProfileMock,
     patchProfile: patchProfileMock,
+    // The Stats card loads on its own; these tests leave it loading.
+    getStats: vi.fn(() => new Promise(() => {})),
   }),
 }));
 
@@ -34,6 +36,7 @@ const PROFILE_FIXTURE: UserProfile = {
   picture: 'https://example.com/old-picture.png',
   highlightPlayable: false,
   pushNotifications: true,
+  seenHowToPlay: true,
   user_metadata: { displayName: 'Old Name', theme: 'Light', picture: 'https://example.com/old-picture.png' },
 };
 

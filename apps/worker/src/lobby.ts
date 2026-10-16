@@ -3,12 +3,16 @@
 // match state; this index is synced from it after each change - by routes/matches.ts, or by
 // MatchDO itself for the changes no route makes (bot moves, a rematch). Every sync runs through
 // `bestEffort`: by then the match is already saved, so a D1 failure must not fail the change.
-import { teamForPosition, type MatchPlayerState, type MatchState, type Teams } from '@fortytwo/rules';
-import type { MatchSummary } from '@fortytwo/api-types';
+import { isDefaultHouseRules, matchMode, teamForPosition, type MatchPlayerState, type MatchState, type Teams } from '@fortytwo/rules';
+import type { MatchMode, MatchSummary } from '@fortytwo/api-types';
 
-// One row of the `matches` table. GET /api/matches adds each match's teams and seats to make the
-// full MatchSummary.
-export type MatchIndexRow = Omit<MatchSummary, 'teams' | 'seats'>;
+// One row of the `matches` table. GET /api/matches adds each match's teams, seats and (for
+// Active) turn to make the full MatchSummary, and reads a null mode as 'custom'.
+export type MatchIndexRow = Omit<MatchSummary, 'teams' | 'seats' | 'turn' | 'mode' | 'rules'> & {
+  mode?: MatchMode | null;
+  // HouseRules as JSON; null or absent for default rules.
+  rules?: string | null;
+};
 
 // Lobby lists come one page at a time, newest first. A page ends at its last row's
 // (updatedOn, id); the next page starts strictly after it.
@@ -44,6 +48,8 @@ export async function syncLobbyIndex(db: D1Database, match: MatchState): Promise
     status: matchStatus(match),
     playerCount: match.players.length,
     updatedOn: match.updatedOn,
+    mode: matchMode(match),
+    rules: rulesColumn(match),
   });
   await syncMatchPlayers(db, match.id, match.players);
 }
@@ -64,8 +70,8 @@ export async function refreshMatchSummary(db: D1Database, match: MatchState): Pr
   const refreshBefore = new Date(Date.parse(match.updatedOn) - SUMMARY_REFRESH_MS).toISOString();
   const [restored] = await db.batch([
     db
-      .prepare('INSERT OR IGNORE INTO matches (id, status, player_count, updated_on) VALUES (?, ?, ?, ?)')
-      .bind(match.id, status, match.players.length, match.updatedOn),
+      .prepare('INSERT OR IGNORE INTO matches (id, status, player_count, updated_on, mode, rules) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(match.id, status, match.players.length, match.updatedOn, matchMode(match), rulesColumn(match)),
     db
       .prepare(
         `UPDATE matches SET status = ?2, player_count = ?3, updated_on = ?4
@@ -79,6 +85,11 @@ export async function refreshMatchSummary(db: D1Database, match: MatchState): Pr
   if (restored.meta.changes > 0) await syncMatchPlayers(db, match.id, match.players);
 }
 
+// The `rules` column for a match: its house rules as JSON, or null on the default rules.
+function rulesColumn(match: MatchState): string | null {
+  return isDefaultHouseRules(match.rules) ? null : JSON.stringify(match.rules);
+}
+
 function matchStatus(match: MatchState): MatchIndexRow['status'] {
   return match.winningTeam ? 'completed' : 'active';
 }
@@ -86,16 +97,19 @@ function matchStatus(match: MatchState): MatchIndexRow['status'] {
 export async function upsertMatchSummary(db: D1Database, summary: MatchIndexRow): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO matches (id, status, player_count, updated_on) VALUES (?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET status = excluded.status, player_count = excluded.player_count, updated_on = excluded.updated_on`
+      `INSERT INTO matches (id, status, player_count, updated_on, mode, rules) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET status = excluded.status, player_count = excluded.player_count,
+         updated_on = excluded.updated_on, mode = COALESCE(excluded.mode, matches.mode),
+         rules = COALESCE(excluded.rules, matches.rules)`
     )
-    .bind(summary.id, summary.status, summary.playerCount, summary.updatedOn)
+    .bind(summary.id, summary.status, summary.playerCount, summary.updatedOn, summary.mode ?? null, summary.rules ?? null)
     .run();
 }
 
-// Drops a deleted match from the lobby: its seats first, then the match row they reference.
+// Drops a deleted match from the lobby: its invites and seats first, then the match row.
 export async function deleteFromLobbyIndex(db: D1Database, matchId: string): Promise<void> {
   await db.batch([
+    db.prepare('DELETE FROM invites WHERE match_id = ?').bind(matchId),
     db.prepare('DELETE FROM match_players WHERE match_id = ?').bind(matchId),
     db.prepare('DELETE FROM matches WHERE id = ?').bind(matchId),
   ]);
@@ -114,7 +128,7 @@ export async function syncMatchPlayers(
   matchId: string,
   players: Pick<MatchPlayerState, 'playerId' | 'position'>[]
 ): Promise<void> {
-  const statements = [
+  const statements: D1PreparedStatement[] = [
     db.prepare('DELETE FROM match_players WHERE match_id = ?').bind(matchId),
     ...players.map(({ playerId, position }) =>
       db
@@ -122,6 +136,14 @@ export async function syncMatchPlayers(
         .bind(matchId, playerId, teamForPosition(position), position)
     ),
   ];
+  // Invites end once the invitee is seated, or for everyone once the table is full (people/invites.ts).
+  statements.push(
+    players.length >= 4
+      ? db.prepare('DELETE FROM invites WHERE match_id = ?').bind(matchId)
+      : db
+          .prepare('DELETE FROM invites WHERE match_id = ?1 AND to_id IN (SELECT player_id FROM match_players WHERE match_id = ?1)')
+          .bind(matchId)
+  );
   await db.batch(statements);
 }
 
@@ -173,9 +195,11 @@ async function listForPlayer(
 ): Promise<LobbyPage> {
   const { results } = await db
     .prepare(
-      `SELECT m.id, m.status, m.player_count AS playerCount, m.updated_on AS updatedOn
+      `SELECT m.id, m.status, m.player_count AS playerCount, m.updated_on AS updatedOn, m.mode, m.rules
        FROM matches m JOIN match_players mp ON mp.match_id = m.id
        WHERE mp.player_id = ?1 AND m.status = ?2
+       -- A Live table still looking for players is a search, shown on its match page, not a game.
+       AND NOT (?2 = 'active' AND COALESCE(m.mode, 'custom') = 'live' AND m.player_count < 4)
        AND (?3 IS NULL OR (m.updated_on, m.id) < (?3, ?4))
        ORDER BY m.updated_on DESC, m.id DESC LIMIT ?5`
     )
@@ -192,11 +216,13 @@ export function listCompleted(db: D1Database, userId: string, cursor: LobbyCurso
   return listForPlayer(db, userId, 'completed', cursor);
 }
 
+// Open custom tables. Current clients no longer list these; installed mobile builds
+// from before matchmaking still do.
 export async function listJoinable(db: D1Database, userId: string, cursor: LobbyCursor | null = null): Promise<LobbyPage> {
   const { results } = await db
     .prepare(
-      `SELECT id, status, player_count AS playerCount, updated_on AS updatedOn
-       FROM matches WHERE status = 'active' AND player_count < 4
+      `SELECT id, status, player_count AS playerCount, updated_on AS updatedOn, mode, rules
+       FROM matches WHERE status = 'active' AND player_count < 4 AND COALESCE(mode, 'custom') = 'custom'
        AND id NOT IN (SELECT match_id FROM match_players WHERE player_id = ?1)
        AND (?2 IS NULL OR (updated_on, id) < (?2, ?3))
        ORDER BY updated_on DESC, id DESC LIMIT ?4`
@@ -204,4 +230,19 @@ export async function listJoinable(db: D1Database, userId: string, cursor: Lobby
     .bind(userId, cursor?.updatedOn ?? null, cursor?.id ?? null, LOBBY_PAGE_SIZE + 1)
     .all<MatchIndexRow>();
   return toPage(results);
+}
+
+// The unfinished Live match a player is in, searching or under way, if any: a player plays one
+// Live game at a time (routes/matchmaking.ts). Read from the index, which can lag a sync behind;
+// the Matchmaker separately won't start a second search for someone already waiting at one.
+export async function findActiveLiveMatch(db: D1Database, userId: string): Promise<string | null> {
+  const row = await db
+    .prepare(
+      `SELECT m.id FROM matches m JOIN match_players mp ON mp.match_id = m.id
+       WHERE mp.player_id = ?1 AND m.status = 'active' AND m.mode = 'live'
+       ORDER BY m.updated_on DESC LIMIT 1`
+    )
+    .bind(userId)
+    .first<{ id: string }>();
+  return row?.id ?? null;
 }

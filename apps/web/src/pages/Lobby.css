@@ -7,6 +7,7 @@
   max-width: 44rem;
   margin: 0 auto;
   padding: 2rem 16px 3rem;
+  position: relative;
 }
 
 .lobby-header {
@@ -243,4 +244,15 @@
 .lobby-load-more {
   display: block;
   margin: 0.75rem auto 0;
+}
+
+/* A row waiting on the player: a brass tag, like the nav's current-page underline. */
+.lobby-badge {
+  flex: none;
+  align-self: center;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--brass);
+  color: var(--walnut-deep);
+  font: 700 0.75rem var(--font-ui);
 }

@@ -83,8 +83,8 @@ async function turnOf(stub: Stub): Promise<{ target: string; poker: string }> {
 // Resolves with the messages the next request to Expo carries. It polls rather than resolving from
 // the reply: the reply runs inside the Durable Object's request, and a test resumed from there can't
 // use its own stub any more.
-function expectPush(): Promise<{ to: string; title: string; priority: string; data: { url: string } }[]> {
-  let messages: { to: string; title: string; priority: string; data: { url: string } }[] | undefined;
+function expectPush(): Promise<{ to: string; body: string; priority: string; data: { url: string } }[]> {
+  let messages: { to: string; body: string; priority: string; data: { url: string } }[] | undefined;
   fetchMock
     .get('https://exp.host')
     .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
@@ -112,7 +112,7 @@ describe('MatchDO poke', () => {
     const sent = expectPush();
     expect(await stub.poke(poker)).toEqual({ ok: true, value: { delivered: 'push' } });
     expect(await sent).toMatchObject([
-      { to: `ExponentPushToken[${target}]`, title: "You've been poked", priority: 'high', data: { url: '/match/poke-push' } },
+      { to: `ExponentPushToken[${target}]`, body: expect.stringMatching(/^You've been poked · /), priority: 'high', data: { url: '/match/poke-push' } },
     ]);
 
     // Once per turn in total, not once per poker.

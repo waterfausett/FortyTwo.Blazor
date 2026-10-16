@@ -21,7 +21,8 @@ Give the first bundle about 30 seconds, then take a screenshot.
 - **Sign-in is bypassed** by default (`src/dev/devBypass.ts`, `EXPO_PUBLIC_DEV_BYPASS=1`): the
   app acts signed in and the API answers from canned data. The lobby and the profile work, and
   so do the canned matches in `src/dev/devMatches.ts`: `open match/dev-bidding`, `dev-trump`,
-  `dev-playing` or `dev-hand-over`. Your moves there go through the real rules, but nobody else
+  `dev-playing` or `dev-hand-over`, or one still waiting for players: `dev-live-search`,
+  `dev-async-waiting` or `dev-custom-waiting`. Your moves there go through the real rules, but nobody else
   moves; opening the match again starts it over. Any other match fails with "Not in the dev
   bypass". To show other data, edit the canned data in `devBypass.ts`; Metro reloads it.
 - **Timing races:** `devTiming` in `devMatches.ts` sets when a move's reply and its broadcast

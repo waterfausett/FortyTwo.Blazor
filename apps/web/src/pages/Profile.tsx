@@ -5,7 +5,8 @@
 // (styles/hall.css).
 //
 // Below it, the Turn alerts card (components/TurnAlertSettings.tsx) - kept per browser and saved
-// as it changes, not with this form.
+// as it changes, not with this form. Above it, the Stats card (components/PlayerStats.tsx) - the
+// player's own record, loaded on its own.
 //
 // A save confirms with a brief inline "Saved" message near the button, and an error shows as an
 // inline banner.
@@ -14,6 +15,7 @@ import type { FormEvent, JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useGetToken } from '../auth/useGetToken';
 import { apiClient } from '../api/client';
+import { PlayerStats } from '../components/PlayerStats';
 import { TurnAlertSettings } from '../components/TurnAlertSettings';
 import './Profile.css';
 
@@ -155,6 +157,8 @@ export function Profile(): JSX.Element {
           )}
         </div>
       </form>
+
+      <PlayerStats />
 
       <TurnAlertSettings />
     </div>
