@@ -43,7 +43,7 @@ beforeEach(async () => {
 describe('0012 played_with backfill', () => {
   it('pairs every two humans at a full table, both ways, counting games and keeping the latest date', async () => {
     await seat('m1', '2026-10-01T00:00:00.000Z', ['ann', 'bo', 'cy', 'bot-1']);
-    await seat('m2', '2026-10-05T00:00:00.000Z', ['ann', 'bo', 'bot-2', 'bot-3']);
+    await seat('m2', '2026-10-05T00:00:00.000Z', ['ann', 'bo', 'm2_bot-2', 'm2_bot-3']);
     // Never filled, so nobody played.
     await seat('m3', '2026-10-06T00:00:00.000Z', ['ann', 'di']);
 

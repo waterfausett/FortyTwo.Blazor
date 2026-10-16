@@ -36,5 +36,8 @@ SELECT a.player_id, b.player_id, MAX(m.updated_on), COUNT(*)
 FROM match_players a
 JOIN match_players b ON b.match_id = a.match_id AND b.player_id <> a.player_id
 JOIN matches m ON m.id = a.match_id
-WHERE m.player_count = 4 AND a.player_id NOT LIKE 'bot-%' AND b.player_id NOT LIKE 'bot-%'
+-- Bots are `bot-N`, or `<matchId>_bot-N` since #158.
+WHERE m.player_count = 4
+  AND a.player_id NOT LIKE 'bot-%' AND a.player_id NOT LIKE '%!_bot-%' ESCAPE '!'
+  AND b.player_id NOT LIKE 'bot-%' AND b.player_id NOT LIKE '%!_bot-%' ESCAPE '!'
 GROUP BY a.player_id, b.player_id;
