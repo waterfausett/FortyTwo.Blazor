@@ -13,8 +13,9 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteD
 import { useGetToken } from '../auth/useGetToken';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import type { HouseRules } from '@fortytwo/rules';
 import type { JSX } from 'react';
-import { MODE_LABELS, rowStatus, uniqueMatches, yourTurnFirst } from '@fortytwo/client';
+import { rowLabel, rowStatus, uniqueMatches, yourTurnFirst } from '@fortytwo/client';
 import { apiClient, type MatchPage, type MatchSummary } from '../api/client';
 import { useOnline } from '../api/presence';
 import { AppAnnouncement } from '../components/AppAnnouncement';
@@ -103,8 +104,8 @@ export function Lobby(): JSX.Element {
   // Live and Async seat the player through matchmaking; Custom Match starts a custom table; Play
   // vs bots starts a game against three bots.
   const startMatch = useMutation({
-    mutationFn: (choice: NewMatchChoice) =>
-      choice === 'challenge' ? client.createMatch() : choice === 'bots' ? client.playBots() : client.play(choice),
+    mutationFn: ({ choice, rules }: { choice: NewMatchChoice; rules?: HouseRules }) =>
+      choice === 'challenge' ? client.createMatch(rules) : choice === 'bots' ? client.playBots() : client.play(choice),
     onSuccess: (match) => {
       setChoosing(false);
       queryClient.invalidateQueries({ queryKey: ['matches'] });
@@ -143,9 +144,9 @@ export function Lobby(): JSX.Element {
         open={choosing}
         liveEnabled={config.data?.bots ?? false}
         online={online}
-        pending={startMatch.isPending ? startMatch.variables : null}
+        pending={startMatch.isPending ? startMatch.variables.choice : null}
         error={startMatch.error ? errorMessage(startMatch.error) : null}
-        onChoose={(c) => startMatch.mutate(c)}
+        onChoose={(choice, rules) => startMatch.mutate({ choice, rules })}
         onClose={() => setChoosing(false)}
       />
 
@@ -198,7 +199,7 @@ export function Lobby(): JSX.Element {
                     <span className="lobby-match-text">
                       <span className="lobby-match-players">{formatMatchup(match)}</span>
                       <span className="lobby-match-meta">
-                        {status.yours ? MODE_LABELS[match.mode] : `${MODE_LABELS[match.mode]} · ${status.text}`} · {formatUpdated(match.updatedOn)}
+                        {status.yours ? rowLabel(match) : `${rowLabel(match)} · ${status.text}`} · {formatUpdated(match.updatedOn)}
                       </span>
                     </span>
                   </Link>

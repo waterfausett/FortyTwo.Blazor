@@ -254,3 +254,31 @@ describe('Match screen, Live Play', () => {
     expect(toastInfo).not.toHaveBeenCalledWith(expect.stringMatching(/took .*'s seat/));
   });
 });
+
+describe('Match screen, house rules', () => {
+  const rules = { low: 'off', plunge: true, allPass: 'forceLast', marksToWin: 5 } as const;
+
+  it('opens the house rules from the header and scores out of marks to win', async () => {
+    socket(dealtLiveWithBots({ mode: 'custom', rules }));
+    await renderScreen();
+    expect(screen.queryByText('House rules')).toBeNull();
+    fireEvent.press(await screen.findByLabelText('House rules'));
+    expect(await screen.findByLabelText('Low: Not allowed, house rule')).toBeTruthy();
+    expect(screen.getByLabelText('Marks to win: 5, house rule')).toBeTruthy();
+    expect(screen.getByLabelText('Plunge: Allowed')).toBeTruthy();
+    expect(screen.getByLabelText('Us: 0 of 5 marks')).toBeTruthy();
+  });
+
+  it('has no house rules button at a standard table', async () => {
+    socket(dealtLiveWithBots({ mode: 'custom' }));
+    await renderScreen();
+    expect(screen.queryByLabelText('House rules')).toBeNull();
+  });
+
+  it('says the hands were redealt while bidding a redealt hand', async () => {
+    const match = dealtLiveWithBots({ mode: 'custom', rules: { ...rules, allPass: 'redeal' } });
+    socket({ ...match, currentGame: { ...match.currentGame, redealt: true } });
+    await renderScreen();
+    expect(await screen.findByText('Everyone passed, so the hands were dealt again.')).toBeTruthy();
+  });
+});

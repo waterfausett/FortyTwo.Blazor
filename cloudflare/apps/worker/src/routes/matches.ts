@@ -23,7 +23,7 @@ import { readBody } from '../requestBody';
 import { Teams, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import { turnSummaries, turnWaitsFor } from '../lobbyTurns';
 import { decodeCursor, encodeCursor } from '../cursor';
-import type { MatchPage, MatchSummary } from '@fortytwo/api-types';
+import type { HouseRules, MatchPage, MatchSummary } from '@fortytwo/api-types';
 
 type AppContext = Context<AppEnv>;
 const matches = new Hono<AppEnv>();
@@ -53,8 +53,9 @@ async function replyWithMatch(
 }
 
 matches.post('/', async (c) => {
+  const rules = field.houseRules(await field.readOptionalBody(c));
   const matchId = crypto.randomUUID();
-  const match = await matchStub(c.env, matchId).create(c.get('user').sub, matchId);
+  const match = await matchStub(c.env, matchId).create(c.get('user').sub, matchId, 'custom', rules);
   await bestEffort(matchId, () => syncLobbyIndex(c.env.DB, match));
   return c.json(matchViewFor(match, c.get('user').sub), 201);
 });
@@ -90,9 +91,11 @@ matches.get('/', async (c) => {
       const player = seated.find((p) => p.position === position);
       return player ? nameOf(player.playerId) : null;
     });
+    const { rules, ...rest } = row;
     return {
-      ...row,
+      ...rest,
       mode: row.mode ?? 'custom',
+      ...(rules ? parsedRules(row.id, rules) : {}),
       teams: [namesOn(Teams.TeamA), namesOn(Teams.TeamB)],
       seats,
       ...(turns ? { turn: turns.get(row.id) ?? null } : {}),
@@ -100,6 +103,17 @@ matches.get('/', async (c) => {
   });
   return c.json({ matches: summaries, nextCursor: next && encodeCursor(next) } satisfies MatchPage);
 });
+
+// The `rules` field for a lobby row. One corrupt column value leaves the rules off that row
+// rather than failing the whole page.
+function parsedRules(matchId: string, json: string): { rules?: HouseRules } {
+  try {
+    return { rules: JSON.parse(json) as HouseRules };
+  } catch (error) {
+    console.error('LOBBY RULES PARSE FAILED', matchId, error);
+    return {};
+  }
+}
 
 // Maps player ids to display names for the lobby list (users/publicUsers.ts: D1 first, Auth0 for
 // players it hasn't seen, bots by number). Anyone it can't name keeps their id, even when Auth0

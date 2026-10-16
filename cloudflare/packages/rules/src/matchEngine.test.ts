@@ -15,6 +15,8 @@ import {
   removePlayer,
   hasBeenDealt,
   hasHumanPlayers,
+  needsRedeal,
+  redeal,
   MatchState,
 } from './matchEngine';
 import { ValidationError } from './errors';
@@ -629,6 +631,42 @@ describe('playDomino', () => {
     expect(match.winningTeam).toBe(Teams.TeamA);
     expect(matchScores(match)[Teams.TeamA]).toBe(7);
   });
+
+  describe('marks to win', () => {
+    // The fixture of the existing "keeps accepting plays after the match is won" test: TeamA's
+    // deciding trick (31 points on a 30 bid) is already down but the hand isn't filed yet, so p1's
+    // next play files it and checks for a match winner. `readyToPlay` is that file's helper.
+    const decidingTrick: Trick = {
+      playerId: 'p1',
+      team: Teams.TeamA,
+      suit: Suit.Fives,
+      dominoes: [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)],
+    };
+
+    function withEarlierWins(marksToWin: number, earlier: number): MatchState {
+      const match = readyToPlay({ tricks: [decidingTrick] });
+      const rules = { low: 'on', plunge: true, allPass: 'forceLast', marksToWin } as const;
+      const earlierWins = Array.from({ length: earlier }, (_, i) => ({ ...match.currentGame, id: `won-${i}` }));
+      return { ...match, rules, games: { [Teams.TeamA]: earlierWins } };
+    }
+
+    it('wins the match at the house marksToWin instead of 7', () => {
+      const match = playDomino(withEarlierWins(3, 2), 'p1', createDomino(6, 6));
+      expect(matchScores(match)[Teams.TeamA]).toBe(3);
+      expect(match.winningTeam).toBe(Teams.TeamA);
+    });
+
+    it('does not end the match at 7 when marksToWin is higher', () => {
+      const match = playDomino(withEarlierWins(9, 6), 'p1', createDomino(6, 6));
+      expect(matchScores(match)[Teams.TeamA]).toBe(7);
+      expect(match.winningTeam).toBeNull();
+    });
+
+    it('still ends at 7 for a match stored without rules', () => {
+      const { rules: _, ...plain } = withEarlierWins(9, 6);
+      expect(playDomino(plain, 'p1', createDomino(6, 6)).winningTeam).toBe(Teams.TeamA);
+    });
+  });
 });
 
 describe('matchScores', () => {
@@ -869,5 +907,133 @@ describe('leaving a match', () => {
     it('refuses on a finished match', () => {
       expect(() => removePlayer({ ...threeSeated(), winningTeam: Teams.TeamA }, 'p2')).toThrow(ValidationError);
     });
+  });
+});
+
+describe('house rules on a match', () => {
+  const rules = { low: 'off', plunge: false, allPass: 'forceLast', marksToWin: 5 } as const;
+
+  it('stores the rules on the match and its first hand', () => {
+    const match = createMatch('p1', 'custom', rules);
+    expect(match.rules).toEqual(rules);
+    expect(match.currentGame.rules).toEqual(rules);
+  });
+
+  it('stores nothing when no rules are given, so stored matches look as they did', () => {
+    const match = createMatch('p1');
+    expect(match).not.toHaveProperty('rules');
+    expect(match.currentGame).not.toHaveProperty('rules');
+  });
+
+  it('keeps the rules on the first deal', () => {
+    let match = createMatch('p1', 'custom', rules);
+    match = addPlayer(match, 'p2', Teams.TeamA);
+    match = addPlayer(match, 'p3', Teams.TeamB);
+    match = addPlayer(match, 'p4', Teams.TeamB, fullDeck());
+    expect(match.currentGame.rules).toEqual(rules);
+  });
+
+  it('copies the rules onto the next hand', () => {
+    // TeamA (p1/p3) bid 30 and took a 31-point trick: a decided hand, all ready but p4.
+    const decided = baseMatch({
+      rules,
+      currentGame: baseGame({
+        rules,
+        bid: Bid.Thirty,
+        biddingPlayerId: 'p1',
+        trump: Suit.Sixes,
+        hands: baseGame().hands.map((h) => (h.playerId === 'p1' ? { ...h, bid: Bid.Thirty } : { ...h, bid: Bid.Pass })),
+        tricks: [{
+          playerId: 'p1',
+          team: Teams.TeamA,
+          suit: Suit.Fives,
+          dominoes: [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)],
+        }],
+      }),
+      players: fourPlayers().map((p) => ({ ...p, ready: p.playerId !== 'p4' })),
+    });
+    const next = patchPlayerReady(decided, 'p4', true, fullDeck());
+    expect(next.currentGame.id).not.toBe('g1');
+    expect(next.currentGame.rules).toEqual(rules);
+  });
+
+  it('keeps the rules on a rematch', () => {
+    const previous = baseMatch({ rules, winningTeam: Teams.TeamA });
+    const rematch = createRematch('m2', previous, fullDeck());
+    expect(rematch.rules).toEqual(rules);
+    expect(rematch.currentGame.rules).toEqual(rules);
+  });
+});
+
+describe('placeBid: forced bids', () => {
+  it('flags a bid made after the other three passed', () => {
+    let match = baseMatch();
+    for (const id of ['p1', 'p2', 'p3']) match = placeBid(match, id, Bid.Pass);
+    match = placeBid(match, 'p4', Bid.FortyTwo);
+    expect(match.currentGame.forcedBid).toBe(true);
+  });
+
+  it("doesn't flag an opener's bid that the other three passed", () => {
+    let match = placeBid(baseMatch(), 'p1', Bid.FortyTwo);
+    for (const id of ['p2', 'p3', 'p4']) match = placeBid(match, id, Bid.Pass);
+    expect(match.currentGame).not.toHaveProperty('forcedBid');
+  });
+});
+
+describe('redeal on all pass', () => {
+  const rules = { low: 'on', plunge: true, allPass: 'redeal', marksToWin: 7 } as const;
+
+  // p1..p4 seated First..Fourth, so bidding runs p1, p2, p3, p4. p2 opens to show the opener is kept.
+  function dealt(): MatchState {
+    return baseMatch({
+      rules,
+      currentGame: baseGame({
+        rules,
+        firstActionBy: 'p2',
+        currentPlayerId: 'p2',
+        hands: baseGame().hands.map((h, i) => ({ ...h, dominoes: fullDeck().slice(i * 7, i * 7 + 7) })),
+      }),
+    });
+  }
+
+  function allPass(match: MatchState): MatchState {
+    for (const id of ['p2', 'p3', 'p4', 'p1']) match = placeBid(match, id, Bid.Pass);
+    return match;
+  }
+
+  it('leaves a hand where all four passed waiting for a redeal, with nobody to act', () => {
+    const match = allPass(dealt());
+    expect(needsRedeal(match)).toBe(true);
+    expect(match.currentGame.currentPlayerId).toBeNull();
+    expect(() => setTrump(match, 'p1', Suit.Sixes)).toThrow(ValidationError);
+    expect(() => playDomino(match, 'p2', fullDeck()[7])).toThrow(ValidationError);
+  });
+
+  it('is not due while anyone has bid or is still to bid', () => {
+    expect(needsRedeal(dealt())).toBe(false);
+    expect(needsRedeal(placeBid(dealt(), 'p2', Bid.Pass))).toBe(false);
+  });
+
+  it('deals new hands opened by the same player, keeping the rules and scoring nothing', () => {
+    const before = allPass(dealt());
+    const reversed = [...fullDeck()].reverse();
+    const after = redeal(before, reversed);
+
+    expect(after.currentGame.firstActionBy).toBe('p2');
+    expect(after.currentGame.currentPlayerId).toBe('p2');
+    expect(after.currentGame.hands.every((h) => h.bid === null)).toBe(true);
+    expect(after.currentGame.hands.find((h) => h.playerId === 'p1')!.dominoes).toEqual(reversed.slice(0, 7));
+    expect(after.currentGame.bid).toBeNull();
+    expect(after.currentGame.biddingPlayerId).toBeNull();
+    expect(after.currentGame.redealt).toBe(true);
+    expect(after.currentGame.rules).toEqual(rules);
+    expect(after.currentGame.name).toBe(before.currentGame.name);
+    expect(after.currentGame.id).not.toBe(before.currentGame.id);
+    expect(after.games).toEqual({});
+    expect(needsRedeal(after)).toBe(false);
+  });
+
+  it('refuses to redeal a hand that is not due one', () => {
+    expect(() => redeal(dealt(), fullDeck())).toThrow();
   });
 });

@@ -633,6 +633,57 @@ describe('match routes', () => {
     });
   });
 
+  describe('POST /api/matches house rules', () => {
+    it('creates on the default rules with no body at all, as installed mobile builds send', async () => {
+      const p1 = await signToken('p1');
+      const res = await api('/api/matches', p1, { method: 'POST' });
+      expect(res.status).toBe(201);
+      expect(((await res.json()) as MatchState).rules).toBeUndefined();
+    });
+
+    it('creates with the rules sent, filling in defaults', async () => {
+      const p1 = await signToken('p1');
+      const res = await api('/api/matches', p1, { method: 'POST', body: JSON.stringify({ rules: { low: 'forcedOnly', marksToWin: 5 } }) });
+      expect(res.status).toBe(201);
+      expect(((await res.json()) as MatchState).rules).toEqual({ low: 'forcedOnly', plunge: true, allPass: 'forceLast', marksToWin: 5 });
+    });
+
+    it.each([
+      [{ rules: { marksToWin: 30 } }],
+      [{ rules: { low: 'forcedOnly', allPass: 'redeal' } }],
+      [{ rules: 'yes' }],
+    ])('refuses bad rules with a 400: %j', async (body) => {
+      const p1 = await signToken('p1');
+      const res = await api('/api/matches', p1, { method: 'POST', body: JSON.stringify(body) });
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { title: string }).title).toBe('Invalid request');
+    });
+
+    it('lists the rules on the lobby row, and nothing for a default table', async () => {
+      const p1 = await signToken('p1');
+      const ruled = (await (await api('/api/matches', p1, { method: 'POST', body: JSON.stringify({ rules: { plunge: false } }) })).json()) as MatchState;
+      const plain = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as MatchState;
+
+      const list = (await (await api('/api/matches?filter=Active', p1)).json()) as { matches: { id: string; rules?: unknown }[] };
+      expect(list.matches.find((m) => m.id === ruled.id)?.rules).toEqual({ low: 'on', plunge: false, allPass: 'forceLast', marksToWin: 7 });
+      expect(list.matches.find((m) => m.id === plain.id)).not.toHaveProperty('rules');
+    });
+
+    it('still lists a row whose rules column holds invalid JSON, without rules on it', async () => {
+      const p1 = await signToken('p1');
+      await upsertMatchSummary(testEnv.DB, { id: 'corrupt-rules', status: 'active', playerCount: 1, updatedOn: '2026-09-01T00:00:00.000Z', rules: '{not json' });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await api('/api/matches?filter=Joinable', p1);
+
+      expect(res.status).toBe(200);
+      const list = (await res.json()) as { matches: { id: string }[] };
+      expect(list.matches.find((m) => m.id === 'corrupt-rules')).not.toHaveProperty('rules');
+      expect(logged).toHaveBeenCalled();
+      logged.mockRestore();
+    });
+  });
+
   describe('bots', () => {
     // SELF always runs with the pool's global bindings (BOTS_ENABLED: 'false'), so these call
     // the Hono app directly to switch the flag on for one request at a time.

@@ -8,7 +8,7 @@
 //
 // Response shapes come from @fortytwo/api-types, shared with the Worker, and MatchState from
 // @fortytwo/rules.
-import type { MatchState } from '@fortytwo/rules';
+import type { HouseRules, MatchState } from '@fortytwo/rules';
 import type {
   ApiErrorBody,
   ClientConfig,
@@ -109,7 +109,9 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
     requestFrom<T>(getToken, origin, path, init, parseJson);
 
   return {
-    createMatch: (): Promise<MatchState> => request<MatchState>('/api/matches', { method: 'POST' }),
+    // A custom table, on the given house rules or the defaults.
+    createMatch: (rules?: HouseRules): Promise<MatchState> =>
+      request<MatchState>('/api/matches', { method: 'POST', ...(rules ? { body: JSON.stringify({ rules }) } : {}) }),
 
     // Live or Async play: seats the caller at an open table of that mode, or starts one.
     play: (mode: 'live' | 'daily'): Promise<MatchState> =>

@@ -24,6 +24,15 @@ export { Bid, bidToPrettyString, pointsToMakeBid } from './bid';
 export { Teams, teamForPosition } from './teams';
 export { Positions, nextPosition } from './positions';
 export { ValidationError } from './errors';
+export type { HouseRules, LowRule, AllPassRule } from './houseRules';
+export {
+  DEFAULT_HOUSE_RULES,
+  MIN_MARKS_TO_WIN,
+  MAX_MARKS_TO_WIN,
+  houseRules,
+  isDefaultHouseRules,
+  assertValidHouseRules,
+} from './houseRules';
 export type { MatchLike } from './validation';
 export {
   assertActive,
@@ -39,6 +48,7 @@ export {
   assertIsNotMatchPlayer,
   availableBids,
   availableTrumps,
+  lowAllowedIfWon,
   assertValidTrump,
 } from './validation';
 export type { MatchPlayerState, MatchState, LoggedInPlayer } from './matchEngine';
@@ -58,6 +68,8 @@ export {
   removePlayer,
   hasBeenDealt,
   hasHumanPlayers,
+  needsRedeal,
+  redeal,
   WINNING_SCORE,
 } from './matchEngine';
 export type { MatchMode, TableWait, LiveDeadline } from './live';

@@ -365,4 +365,23 @@ describe('modes', () => {
     const row = await testEnv.DB.prepare('SELECT mode FROM matches WHERE id = ?').bind('m').first<{ mode: string }>();
     expect(row?.mode).toBe('daily');
   });
+
+  describe('house rules', () => {
+    it("stores a custom table's rules as JSON and lists them", async () => {
+      await upsertMatchSummary(testEnv.DB, {
+        id: 'm-rules', status: 'active', playerCount: 1, updatedOn: '2026-10-14T01:00:00Z', mode: 'custom',
+        rules: JSON.stringify({ low: 'off', plunge: true, allPass: 'forceLast', marksToWin: 5 }),
+      });
+      await syncMatchPlayers(testEnv.DB, 'm-rules', seat('p1'));
+      const [row] = (await listActive(testEnv.DB, 'p1')).rows;
+      expect(JSON.parse(row.rules!)).toEqual({ low: 'off', plunge: true, allPass: 'forceLast', marksToWin: 5 });
+    });
+
+    it('keeps the rules when a later sync sends none', async () => {
+      await upsertMatchSummary(testEnv.DB, { id: 'm-keep', status: 'active', playerCount: 1, updatedOn: '2026-10-14T01:00:00Z', rules: '{"marksToWin":5}' });
+      await upsertMatchSummary(testEnv.DB, { id: 'm-keep', status: 'active', playerCount: 2, updatedOn: '2026-10-14T02:00:00Z' });
+      const stored = await testEnv.DB.prepare('SELECT rules FROM matches WHERE id = ?').bind('m-keep').first<{ rules: string }>();
+      expect(stored?.rules).toBe('{"marksToWin":5}');
+    });
+  });
 });

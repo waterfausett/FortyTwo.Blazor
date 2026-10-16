@@ -2,7 +2,8 @@
 // network's best Q. Stateless: trump is recomputed from the table (it's always the trump that
 // justified the winning bid), so nothing has to survive between Durable Object alarms.
 import {
-  Bid, Suit, availableBids, availableTrumps, gameWinningTeam, isOfSuit, type Domino, type Game, type MatchState,
+  Bid, Suit, availableBids, availableTrumps, gameWinningTeam, isOfSuit, lowAllowedIfWon, type Domino, type Game,
+  type MatchState,
 } from '@fortytwo/rules';
 import { bidTable, chooseBid, optionsFromTable } from './bidding';
 import { toIndex } from './dominoes';
@@ -48,7 +49,7 @@ export function createBot(w: BotWeights): Bot {
         partnerHolds: game.biddingPlayerId !== null && seatOf(match, game.biddingPlayerId) === (seat + 2) % 4,
         lastToBid: game.hands.every((h) => h.playerId === playerId || h.bid !== null),
       };
-      return chooseBid(optionsFromTable(table(game, playerId), legal), ctx, cfg).bid as Bid;
+      return chooseBid(optionsFromTable(table(game, playerId), legal, lowAllowedIfWon(game, playerId)), ctx, cfg).bid as Bid;
     },
 
     decideTrump(match, playerId) {

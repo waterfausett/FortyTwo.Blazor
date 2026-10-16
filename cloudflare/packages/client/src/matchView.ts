@@ -21,8 +21,6 @@ import {
 } from '@fortytwo/rules';
 import { dealerId, isTrickStarted } from './table';
 
-// A match is won at 7 marks (matchEngine.ts's WINNING_SCORE).
-export const MARKS_TO_WIN = 7;
 // Every hand runs exactly 7 tricks, Low included (the bidder's partner just never plays theirs).
 export const TRICKS_PER_HAND = 7;
 // Every hand is dealt exactly 7 dominoes (matchEngine.ts's dealHands: 28 dominoes / 4 players).

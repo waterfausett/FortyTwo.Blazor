@@ -2,7 +2,7 @@
 // of the types they're declared with. Everything here throws `BadRequestError`, which index.ts's
 // `onError` turns into a 400 in the same { title, detail } shape as a rule violation.
 import type { Context } from 'hono';
-import { BOT_MARK, Bid, Suit, Teams, createDomino, type Domino } from '@fortytwo/rules';
+import { BOT_MARK, Bid, Suit, Teams, ValidationError, assertValidHouseRules, createDomino, type Domino, type HouseRules } from '@fortytwo/rules';
 import { MAX_USER_IDS } from './auth0Management';
 import type { ProfilePatch } from '@fortytwo/api-types';
 
@@ -32,6 +32,34 @@ export async function readBody(c: Context): Promise<Body> {
     throw new BadRequestError('The request body must be a JSON object.');
   }
   return body as Body;
+}
+
+// A body that may be left out altogether: no body is an empty object. Anything sent must still be
+// a JSON object. (POST /api/matches: installed mobile builds send no body.)
+export async function readOptionalBody(c: Context): Promise<Body> {
+  const text = await c.req.text();
+  if (text.trim() === '') return {};
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new BadRequestError('The request body must be JSON.');
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    throw new BadRequestError('The request body must be a JSON object.');
+  }
+  return body as Body;
+}
+
+// A custom table's house rules, or undefined when none were sent (the defaults).
+export function houseRules(body: Body): HouseRules | undefined {
+  if (body.rules === undefined) return undefined;
+  try {
+    return assertValidHouseRules(body.rules);
+  } catch (error) {
+    if (error instanceof ValidationError) throw new BadRequestError(error.detail ?? error.title);
+    throw error;
+  }
 }
 
 // A numeric enum's values, leaving out the reverse-mapped names TypeScript also puts on it.

@@ -12,28 +12,29 @@ import {
   isOnAutopilot,
   markAutoBid,
   isOfSuit,
+  availableBids,
   MatchState,
   Suit,
   gameWinningTeam,
   isBot,
   mintBotId,
   patchPlayerReady,
-  placeBid,
   playDomino,
   setTrump,
   shuffledDominoOrder,
 } from '@fortytwo/rules';
+import { bidAndMaybeRedeal } from './redeal';
 import type { Bot } from '@fortytwo/bot';
 
 // Defined in the rules package so the web client can tell bots apart too; re-exported here for
 // the Worker code that already imports them from this file.
 export { isBot, mintBotId };
 
-// The forced-bid rule (validation.ts's assertValidBid) only ever applies to whichever hand acts
-// last in a bidding round where the other three all passed - so "forced" needs no positional
-// bookkeeping here, just a count of passes among the OTHER hands already recorded.
+// Passes unless Pass isn't a legal bid: the forced-bid rule (validation.ts's availableBids) only
+// takes Pass away from the last hand to act after three passes - and not at all under the redeal
+// house rule, where that fourth pass redeals.
 export function decideBid(game: Game, hand: Hand): Bid {
-  const forced = game.hands.filter((h) => h.playerId !== hand.playerId && h.bid === Bid.Pass).length === 3;
+  const forced = !availableBids(game, hand.playerId).includes(Bid.Pass);
   return forced ? Bid.Thirty : Bid.Pass;
 }
 
@@ -122,7 +123,7 @@ function simple(match: MatchState, action: BotAction): MatchState {
     case 'ready':
       return patchPlayerReady(match, action.playerId, true, shuffledDominoOrder());
     case 'bid':
-      return placeBid(match, action.playerId, decideBid(match.currentGame, hand));
+      return bidAndMaybeRedeal(match, action.playerId, decideBid(match.currentGame, hand));
     case 'setTrump':
       return setTrump(match, action.playerId, decideTrump(hand));
     case 'play':
@@ -135,7 +136,7 @@ function ml(match: MatchState, action: BotAction, bot: Bot): MatchState {
     case 'ready':
       return simple(match, action);
     case 'bid':
-      return placeBid(match, action.playerId, bot.decideBid(match, action.playerId));
+      return bidAndMaybeRedeal(match, action.playerId, bot.decideBid(match, action.playerId));
     case 'setTrump':
       return setTrump(match, action.playerId, bot.decideTrump(match, action.playerId));
     case 'play':
