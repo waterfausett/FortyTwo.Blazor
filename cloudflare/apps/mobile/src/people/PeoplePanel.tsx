@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   views: { flexDirection: 'row', gap: 8 },
-  view: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: colors.walnutDeep },
+  view: { borderRadius: 999, borderWidth: 1, borderColor: 'transparent', paddingHorizontal: 14, paddingVertical: 6, backgroundColor: colors.walnutDeep },
   viewOn: { borderWidth: 1, borderColor: colors.brass },
   viewText: { color: colors.inkMuted, fontFamily: fonts.uiBold, fontSize: 14 },
   viewTextOn: { color: colors.bone },
