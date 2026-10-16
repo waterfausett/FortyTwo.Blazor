@@ -69,6 +69,61 @@ describe('PeoplePanel', () => {
   });
 });
 
+describe('PeoplePanel with views', () => {
+  // Like the worker, return only the part of the list asked for.
+  beforeEach(() => {
+    mockApi.getPeople.mockImplementation((async (show?: 'friends' | 'recent') =>
+      [ann, bo].filter((p) => (show === 'friends' ? p.isFriend : show === 'recent' ? !p.isFriend : true))) as never);
+  });
+  afterEach(() => {
+    mockApi.getPeople.mockImplementation((async () => [ann, bo]) as never);
+  });
+
+  it('starts on Friends and asks the worker for only friends', async () => {
+    await show(<PeoplePanel views emptyText="Nobody yet" />);
+    expect(await screen.findByText('Ann')).toBeTruthy();
+    expect(screen.queryByText('Bo')).toBeNull();
+    expect(mockApi.getPeople).toHaveBeenCalledWith('friends');
+    expect(screen.getByLabelText('Friends').props.accessibilityState).toMatchObject({ selected: true });
+  });
+
+  it('switches to Recent players, which asks for only recent players', async () => {
+    await show(<PeoplePanel views emptyText="Nobody yet" />);
+    await screen.findByText('Ann');
+    await fireEvent.press(screen.getByLabelText('Recent players'));
+    expect(await screen.findByText('Bo')).toBeTruthy();
+    expect(screen.queryByText('Ann')).toBeNull();
+    expect(mockApi.getPeople).toHaveBeenCalledWith('recent');
+  });
+
+  it('says how to get a friend when there are none', async () => {
+    mockApi.getPeople.mockImplementation((async () => []) as never);
+    await show(<PeoplePanel views emptyText="Nobody yet" />);
+    expect(await screen.findByText('No friends yet. Star someone from Recent players to add them.')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Recent players'));
+    expect(await screen.findByText('Nobody yet')).toBeTruthy();
+  });
+
+  it('searches everyone, hiding the toggle until the search is cleared', async () => {
+    await show(<PeoplePanel views emptyText="Nobody yet" />);
+    await screen.findByText('Ann');
+    await fireEvent.changeText(screen.getByLabelText('Find a player'), 'bo');
+    expect(await screen.findByText('Bo')).toBeTruthy();
+    expect(screen.queryByLabelText('Friends')).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Find a player'), '');
+    expect(await screen.findByLabelText('Friends')).toBeTruthy();
+    expect(await screen.findByText('Ann')).toBeTruthy();
+  });
+
+  it('shows everyone, with no toggle, without views', async () => {
+    await show(<PeoplePanel emptyText="Nobody yet" />);
+    expect(await screen.findByText('Ann')).toBeTruthy();
+    expect(screen.getByText('Bo')).toBeTruthy();
+    expect(screen.queryByLabelText('Friends')).toBeNull();
+    expect(mockApi.getPeople).toHaveBeenCalledWith(undefined);
+  });
+});
+
 describe('InvitesCard', () => {
   it('joins and dismisses', async () => {
     await show(<InvitesCard />);

@@ -83,11 +83,13 @@ const handled: Partial<Api> = {
   play: () => answer({ id: 'dev-new' } as MatchState),
   playBots: () => answer({ id: 'dev-new' } as MatchState),
   joinMatch: (id) => answer({ id } as MatchState),
-  getPeople: () =>
-    answer<Person[]>([
-      { user_id: 'gj', displayName: 'Grandma Jo', isFriend: true, lastPlayedOn: new Date(Date.now() - 2 * 86_400_000).toISOString(), games: 9 },
-      { user_id: 'sam', displayName: 'Sam', isFriend: false, lastPlayedOn: new Date(Date.now() - 3 * 3_600_000).toISOString(), games: 1 },
-    ]),
+  getPeople: (show) =>
+    answer<Person[]>(
+      [
+        { user_id: 'gj', displayName: 'Grandma Jo', isFriend: true, lastPlayedOn: new Date(Date.now() - 2 * 86_400_000).toISOString(), games: 9 },
+        { user_id: 'sam', displayName: 'Sam', isFriend: false, lastPlayedOn: new Date(Date.now() - 3 * 3_600_000).toISOString(), games: 1 },
+      ].filter((p) => (show === 'friends' ? p.isFriend : show === 'recent' ? !p.isFriend : true))
+    ),
   searchPeople: () => answer<Person[]>([]),
   addFriend: () => answer(undefined),
   removeFriend: () => answer(undefined),

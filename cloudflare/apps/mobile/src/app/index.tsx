@@ -149,7 +149,7 @@ export default function Lobby() {
             />
           }
         >
-          <PeoplePanel emptyText="Play a game and the people you play with show up here." />
+          <PeoplePanel views emptyText="Play a game and the people you play with show up here." />
         </ScrollView>
       ) : matches.isPending ? (
         <ActivityIndicator size="large" color={colors.brass} style={styles.loading} />
