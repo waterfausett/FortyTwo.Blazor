@@ -17,6 +17,7 @@ import type { JSX } from 'react';
 import { MODE_LABELS, rowStatus, uniqueMatches, yourTurnFirst } from '@fortytwo/client';
 import { apiClient, type MatchPage, type MatchSummary } from '../api/client';
 import { useOnline } from '../api/presence';
+import { AppAnnouncement } from '../components/AppAnnouncement';
 import { NewMatchDialog, type NewMatchChoice } from '../components/NewMatchDialog';
 import { SEAT_SIDES } from '../components/SeatPicker';
 import { useHowToPlay } from '../match/useHowToPlay';
@@ -129,6 +130,7 @@ export function Lobby(): JSX.Element {
           New match
         </button>
       </header>
+      <AppAnnouncement />
       {howToPlay.offer && (
         <aside className="how-to-play-card" aria-label="New to Forty-Two">
           <Link to="/how-to-play">New to 42? Learn how to play</Link>
