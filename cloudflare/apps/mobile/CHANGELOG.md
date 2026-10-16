@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.4.0...mobile-v0.5.0) (2026-10-16)
+
+
+### Features
+
+* house rules for custom matches ([#161](https://github.com/waterfausett/FortyTwo.Blazor/issues/161)) ([59ce957](https://github.com/waterfausett/FortyTwo.Blazor/commit/59ce95738c0bcbdbf20fedcd4bd88ab1d56fd5f4))
+* **mobile:** pre-play by double-tapping a domino ([#155](https://github.com/waterfausett/FortyTwo.Blazor/issues/155)) ([fdf6b95](https://github.com/waterfausett/FortyTwo.Blazor/commit/fdf6b9504d9b7c1ee60fa179b86d4a1f840b80f3)), closes [#105](https://github.com/waterfausett/FortyTwo.Blazor/issues/105)
+* recent players, friends and table invites ([#160](https://github.com/waterfausett/FortyTwo.Blazor/issues/160)) ([99b8971](https://github.com/waterfausett/FortyTwo.Blazor/commit/99b8971c2f4467273a47f1fd0e27b6048c0926eb))
+
+
+### Bug Fixes
+
+* move Leave game away from the hand ([#150](https://github.com/waterfausett/FortyTwo.Blazor/issues/150)) ([4601e33](https://github.com/waterfausett/FortyTwo.Blazor/commit/4601e3373dd00c8800b4d8afef890aa3749cf233))
+
 ## [0.4.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.3.0...mobile-v0.4.0) (2026-10-14)
 
 
