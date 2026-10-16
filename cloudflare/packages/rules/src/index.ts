@@ -83,7 +83,7 @@ export {
   seatChangesAtBreak,
   letClaimsGo,
 } from './live';
-export { BOT_IDS, botDisplayName, isBot } from './botIds';
+export { BOT_MARK, botDisplayName, isBot, mintBotId, withoutBotMark } from './botIds';
 export { matchViewFor, handSize } from './view';
 export type { PlayerMatchStats, TrumpCounts, TrumpKey } from './stats';
 export { matchStatsFor, MIN_HANDS_FOR_RESULT, NO_TRUMPS, TRUMP_KEYS, trumpKeyOf } from './stats';

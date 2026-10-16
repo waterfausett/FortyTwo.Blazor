@@ -15,8 +15,8 @@ import {
   MatchState,
   Suit,
   gameWinningTeam,
-  BOT_IDS,
   isBot,
+  mintBotId,
   patchPlayerReady,
   placeBid,
   playDomino,
@@ -27,7 +27,7 @@ import type { Bot } from '@fortytwo/bot';
 
 // Defined in the rules package so the web client can tell bots apart too; re-exported here for
 // the Worker code that already imports them from this file.
-export { BOT_IDS, isBot };
+export { isBot, mintBotId };
 
 // The forced-bid rule (validation.ts's assertValidBid) only ever applies to whichever hand acts
 // last in a bidding round where the other three all passed - so "forced" needs no positional
