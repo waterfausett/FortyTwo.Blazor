@@ -59,7 +59,7 @@ describe('seat takeover', () => {
     const left = await stub.leave('p2');
     expect(left.ok && !left.value.deleted).toBe(true);
     const match = await stored(stub);
-    expect(match.players.find((p) => p.position === 1)!.playerId).toMatch(/^bot-/);
+    expect(match.players.find((p) => p.position === 1)!.playerId).toMatch(/_bot-\d$/);
     expect(match.replaced).toEqual(['p2']);
   });
 
@@ -224,7 +224,7 @@ describe('the hand break in MatchDO', () => {
 
     expect((await stub.readyUp('p1', true, deck())).ok).toBe(true);
     const match = await stored(stub);
-    expect(match.players.find((p) => p.position === 1)!.playerId).toMatch(/^bot-/);
+    expect(match.players.find((p) => p.position === 1)!.playerId).toMatch(/_bot-\d$/);
     expect(match.replaced).toEqual(['p2']);
     expect(await lobbySeats('break-away')).toEqual(seatsOf(match));
     expect(await eventually(async () => (await openLive()).includes('break-away'))).toBe(true);
