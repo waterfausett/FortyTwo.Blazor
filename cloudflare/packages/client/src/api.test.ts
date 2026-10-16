@@ -51,6 +51,8 @@ describe('people and invites', () => {
     const api = createApiClient(async () => 'token', 'https://w');
 
     await api.getPeople();
+    await api.getPeople('friends');
+    await api.getPeople('recent');
     await api.searchPeople('An n');
     await api.addFriend('auth0|a/b');
     await api.removeFriend('auth0|a');
@@ -61,6 +63,8 @@ describe('people and invites', () => {
     const calls = fetchMock.mock.calls.map(([url, init]) => `${(init as RequestInit).method ?? 'GET'} ${url as string}`);
     expect(calls).toEqual([
       'GET https://w/api/people',
+      'GET https://w/api/people?show=friends',
+      'GET https://w/api/people?show=recent',
       'GET https://w/api/people/search?q=An%20n',
       'PUT https://w/api/people/friends/auth0%7Ca%2Fb',
       'DELETE https://w/api/people/friends/auth0%7Ca',
@@ -68,6 +72,6 @@ describe('people and invites', () => {
       'GET https://w/api/invites',
       'DELETE https://w/api/invites/m1',
     ]);
-    expect(JSON.parse((fetchMock.mock.calls[4][1] as RequestInit).body as string)).toEqual({ userIds: ['auth0|a'] });
+    expect(JSON.parse((fetchMock.mock.calls[6][1] as RequestInit).body as string)).toEqual({ userIds: ['auth0|a'] });
   });
 });

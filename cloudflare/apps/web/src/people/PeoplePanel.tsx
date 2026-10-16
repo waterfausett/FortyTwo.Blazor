@@ -1,25 +1,36 @@
 // A search box over the People list (usePeople), each person with a star to add or remove them as
 // a friend, and an optional action - the Match page's Invite. Used by the Lobby's People tab and
-// the Invite players dialog.
+// the Invite players dialog. With `views` (the Lobby), a Friends / Recent players toggle shows
+// one list at a time, friends first; without it, everyone is listed together.
 import { useState, type JSX, type ReactNode } from 'react';
 import { personDetail } from '@fortytwo/client';
-import type { Person } from '../api/client';
+import type { PeopleView, Person } from '../api/client';
 import { usePeople, type PeopleClient } from './usePeople';
 import './People.css';
+
+const VIEWS: { view: PeopleView; label: string }[] = [
+  { view: 'friends', label: 'Friends' },
+  { view: 'recent', label: 'Recent players' },
+];
+const NO_FRIENDS = 'No friends yet. Star someone from Recent players to add them.';
 
 export function PeoplePanel({
   client,
   hiddenIds = [],
   action,
   emptyText,
+  views = false,
 }: {
   client: PeopleClient;
   hiddenIds?: string[];
   action?: (person: Person) => ReactNode;
   emptyText: string;
+  views?: boolean;
 }): JSX.Element {
   const [query, setQuery] = useState('');
-  const { list, loading, error, searching, toggleFriend } = usePeople(client, query);
+  const [view, setView] = useState<PeopleView>('friends');
+  const { list, loading, error, searching, toggleFriend } = usePeople(client, query, views ? view : undefined);
+  const empty = views && view === 'friends' ? NO_FRIENDS : emptyText;
   const shown = (list ?? []).filter((p) => !hiddenIds.includes(p.user_id));
 
   return (
@@ -33,6 +44,21 @@ export function PeoplePanel({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
+      {views && !searching && (
+        <div className="people-views" role="group" aria-label="Show">
+          {VIEWS.map(({ view: v, label }) => (
+            <button
+              key={v}
+              type="button"
+              className={`people-view${view === v ? ' is-active' : ''}`}
+              aria-pressed={view === v}
+              onClick={() => setView(v)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {loading && <p className="people-note">Loading…</p>}
       {error != null && (
         <p role="alert" className="page-error">
@@ -40,7 +66,7 @@ export function PeoplePanel({
         </p>
       )}
       {!loading && error == null && shown.length === 0 && (
-        <p className="people-note">{searching ? 'No players by that name.' : emptyText}</p>
+        <p className="people-note">{searching ? 'No players by that name.' : empty}</p>
       )}
       {shown.length > 0 && (
         <ul className="people-list">

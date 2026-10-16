@@ -1,14 +1,14 @@
 // Hono routes for the People list (people/people.ts): friends and recent players, a name search,
-// and starring a friend.
+// and starring a friend. GET / takes ?show=friends|recent for just one of the two.
 import { Hono } from 'hono';
 import { isBot } from '@fortytwo/rules';
 import type { AppEnv } from '../index';
-import { BadRequestError, searchQuery, userIdParam } from '../requestBody';
+import { BadRequestError, peopleView, searchQuery, userIdParam } from '../requestBody';
 import { SEARCH_MAX, SEARCH_MIN, addFriend, isKnownUser, listPeople, removeFriend, searchPeople } from '../people/people';
 
 const people = new Hono<AppEnv>();
 
-people.get('/', async (c) => c.json(await listPeople(c.env, c.get('user').sub)));
+people.get('/', async (c) => c.json(await listPeople(c.env, c.get('user').sub, peopleView(c.req.query('show')))));
 
 people.get('/search', async (c) => {
   const q = searchQuery(c.req.query('q'), SEARCH_MIN, SEARCH_MAX);

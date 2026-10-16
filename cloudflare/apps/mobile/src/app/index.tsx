@@ -154,6 +154,7 @@ export default function Lobby() {
           }
         >
           <PeoplePanel
+            views
             emptyText="Play a game and the people you play with show up here."
             action={(person) => (
               <Pressable

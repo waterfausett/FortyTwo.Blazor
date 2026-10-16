@@ -1,7 +1,7 @@
 // The People list (GET /api/people) and its search: friends the caller has starred (friends,
 // one-way - the other person isn't told), then people they've played with (played_with, written
 // by MatchDO), named from the users table as the rest of the app does (users/publicUsers.ts).
-import type { Person, PublicUser } from '@fortytwo/api-types';
+import type { PeopleView, Person, PublicUser } from '@fortytwo/api-types';
 import type { Env } from '../index';
 import { publicUsers } from '../users/publicUsers';
 
@@ -22,22 +22,22 @@ function toPerson(user: PublicUser, row: Row): Person {
   return { ...user, isFriend: row.is_friend === 1, lastPlayedOn: row.last_played_on, games: row.games ?? 0 };
 }
 
-// Anyone the users table and Auth0 can't name is left out rather than failing the list.
-export async function listPeople(env: Env, userId: string): Promise<Person[]> {
-  const [friends, recent] = await env.DB.batch<Row>([
-    env.DB.prepare(
-      `SELECT f.friend_id AS id, 1 AS is_friend, pw.last_played_on, pw.games
-       FROM friends f LEFT JOIN played_with pw ON pw.user_id = f.user_id AND pw.other_id = f.friend_id
-       WHERE f.user_id = ?1 ORDER BY f.created_on DESC LIMIT ${FRIENDS_LIMIT}`
-    ).bind(userId),
-    env.DB.prepare(
-      `SELECT pw.other_id AS id, 0 AS is_friend, pw.last_played_on, pw.games
-       FROM played_with pw
-       WHERE pw.user_id = ?1 AND NOT EXISTS (SELECT 1 FROM friends f WHERE f.user_id = ?1 AND f.friend_id = pw.other_id)
-       ORDER BY pw.last_played_on DESC LIMIT ${RECENT_LIMIT}`
-    ).bind(userId),
-  ]);
-  const rows = [...friends.results, ...recent.results];
+// Anyone the users table and Auth0 can't name is left out rather than failing the list. `show`
+// limits it to friends or recent players; without it, friends then recent players.
+export async function listPeople(env: Env, userId: string, show?: PeopleView): Promise<Person[]> {
+  const friendsQuery = env.DB.prepare(
+    `SELECT f.friend_id AS id, 1 AS is_friend, pw.last_played_on, pw.games
+     FROM friends f LEFT JOIN played_with pw ON pw.user_id = f.user_id AND pw.other_id = f.friend_id
+     WHERE f.user_id = ?1 ORDER BY f.created_on DESC LIMIT ${FRIENDS_LIMIT}`
+  ).bind(userId);
+  const recentQuery = env.DB.prepare(
+    `SELECT pw.other_id AS id, 0 AS is_friend, pw.last_played_on, pw.games
+     FROM played_with pw
+     WHERE pw.user_id = ?1 AND NOT EXISTS (SELECT 1 FROM friends f WHERE f.user_id = ?1 AND f.friend_id = pw.other_id)
+     ORDER BY pw.last_played_on DESC LIMIT ${RECENT_LIMIT}`
+  ).bind(userId);
+  const queries = show === 'friends' ? [friendsQuery] : show === 'recent' ? [recentQuery] : [friendsQuery, recentQuery];
+  const rows = (await env.DB.batch<Row>(queries)).flatMap((r) => r.results);
   if (rows.length === 0) return [];
   const { users } = await publicUsers(env, rows.map((r) => r.id));
   const byId = new Map(users.map((u) => [u.user_id, u]));
