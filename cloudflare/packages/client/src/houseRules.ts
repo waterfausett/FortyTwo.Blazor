@@ -20,6 +20,28 @@ export function houseRuleLabels(rules: Partial<HouseRules> | undefined): string[
   return labels;
 }
 
+const LOW_VALUE = { on: 'Allowed whenever you bid', forcedOnly: 'Only for a forced bid', off: 'Not allowed' } as const;
+const ALL_PASS_VALUE = { forceLast: 'The last player must bid', redeal: 'The hands are dealt again' } as const;
+
+export interface HouseRuleRow {
+  label: string;
+  value: string;
+  // Differs from a standard table, so the rules dialogs highlight it.
+  custom: boolean;
+}
+
+// Every setting in words, for the rules dialog on both apps.
+export function houseRuleRows(rules: Partial<HouseRules> | undefined): HouseRuleRow[] {
+  const r = houseRules({ rules });
+  const d = DEFAULT_HOUSE_RULES;
+  return [
+    { label: 'Plunge', value: r.plunge ? 'Allowed' : 'Not allowed', custom: r.plunge !== d.plunge },
+    { label: 'Low', value: LOW_VALUE[r.low], custom: r.low !== d.low },
+    { label: 'When everyone passes', value: ALL_PASS_VALUE[r.allPass], custom: r.allPass !== d.allPass },
+    { label: 'Marks to win', value: String(r.marksToWin), custom: r.marksToWin !== d.marksToWin },
+  ];
+}
+
 // The create form's change to one setting. Nobody is forced under redeal, so Low-only-when-forced
 // becomes plain Low; marks to win stays in range.
 export function setHouseRule(rules: HouseRules, patch: Partial<HouseRules>): HouseRules {

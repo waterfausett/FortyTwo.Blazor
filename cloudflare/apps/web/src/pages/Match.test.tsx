@@ -2304,10 +2304,14 @@ describe('Match', () => {
   describe('house rules', () => {
     const rules = { low: 'off', plunge: true, allPass: 'forceLast', marksToWin: 5 } as const;
 
-    it('shows the house rules under the score, and a tally as long as marks to win', () => {
+    it('opens the house rules from a button, and shows a tally as long as marks to win', () => {
       useMatchSocketMock.mockReturnValue({ match: baseMatch({ rules }), connected: true });
       const { container } = renderMatch();
-      expect(screen.getByText('House rules: No Low · To 5 marks')).toBeTruthy();
+      expect(screen.queryByRole('dialog', { name: 'House rules' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'House rules' }));
+      const dialog = screen.getByRole('dialog', { name: 'House rules' });
+      expect(within(dialog).getByText('Not allowed')).toBeTruthy();
+      expect(within(dialog).getByText('5')).toBeTruthy();
       expect(container.querySelectorAll('.score-us .mark')).toHaveLength(5);
     });
 

@@ -70,6 +70,7 @@ import { Hand, type DragState } from '@/components/Hand';
 import { HelpButton } from '@/components/HelpButton';
 import { JoinMatchPanel } from '@/components/JoinMatchPanel';
 import { MatchMenu } from '@/components/MatchMenu';
+import { HouseRulesButton, HouseRulesModal } from '@/components/HouseRulesModal';
 import { MatchSummary } from '@/components/MatchSummary';
 import { NameSkeleton } from '@/components/NameSkeleton';
 import { PipFace } from '@/components/PipFace';
@@ -334,6 +335,7 @@ export default function MatchScreen() {
   // the match plays out on the table like any other hand.
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [doublesOpen, setDoublesOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // Dragging a domino to the table: the table is the drop zone, the screen holds still while a
   // domino is held, and the table lights up while one is over it.
@@ -573,15 +575,21 @@ export default function MatchScreen() {
         options={{
           title: game.name,
           // Leaving sits in the header's menu, well away from the hand.
-          headerRight: canLeaveGame
-            ? () => (
+          // A Custom Match's house rules get a button beside it.
+          headerRight: () => (
+            <View style={styles.headerRight}>
+              {ruleLabels.length > 0 && <HouseRulesButton onPress={() => setRulesOpen(true)} />}
+              {canLeaveGame ? (
                 <MatchMenu
                   onHowToPlay={() => router.push('/how-to-play')}
                   onLeave={confirmLeaveGame}
                   leaveDisabled={leave.isPending}
                 />
-              )
-            : rulesButton,
+              ) : (
+                rulesButton()
+              )}
+            </View>
+          ),
         }}
       />
       {/* The play area fills the screen, less a peek at the trick history below, whatever the
@@ -627,7 +635,6 @@ export default function MatchScreen() {
           </View>
           <Score label="Them" total={total} marks={scores[opponentTeam] ?? 0} color={colors.them} />
         </View>
-        {ruleLabels.length > 0 && <Text style={styles.houseRules}>House rules: {ruleLabels.join(' · ')}</Text>}
         {match.currentGame.redealt && view.isBiddingPhase && (
           <Text style={styles.redeal} accessibilityLiveRegion="polite">Everyone passed, so the hands were dealt again.</Text>
         )}
@@ -872,6 +879,7 @@ export default function MatchScreen() {
           />
         </Fade>
       )}
+      <HouseRulesModal rules={match.rules} visible={rulesOpen} onClose={() => setRulesOpen(false)} />
       <DoublesRuleModal trump={doublesOpen ? game.trump : null} onClose={() => setDoublesOpen(false)} />
       {view.isMatchOver && (
         <MatchSummary
@@ -958,7 +966,7 @@ const styles = StyleSheet.create({
   scoreLabel: { fontFamily: fonts.uiBold, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' },
   // Seven notches wide (9 + 3 gap each), then wraps, so 21 marks stay inside the score column.
   tally: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, maxWidth: 7 * 9 + 6 * 3 },
-  houseRules: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13, textAlign: 'center' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   redeal: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13, textAlign: 'center' },
   notch: { width: 9, height: 18, borderRadius: 2, borderWidth: 1.5, borderColor: colors.inkMuted },
   contract: { flex: 1, alignItems: 'center', gap: 2 },

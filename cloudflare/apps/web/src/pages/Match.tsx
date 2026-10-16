@@ -48,6 +48,7 @@ import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
+import { HouseRulesDialog } from '../components/HouseRulesDialog';
 import { HowToPlayDialog } from '../components/HowToPlayDialog';
 import { MatchSummary } from '../components/MatchSummary';
 import { NameSkeleton } from '../components/NameSkeleton';
@@ -219,6 +220,7 @@ export function Match(): JSX.Element {
   const [summaryOpen, setSummaryOpen] = useState(false);
   // The rules, over the table, from the scoreboard's "?". Opening them counts as having seen them.
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [houseRulesOpen, setHouseRulesOpen] = useState(false);
   const howToPlay = useHowToPlay(client);
   const navigate = useNavigate();
   // The player's own settings - here, whether to outline their playable dominoes. Shared with the
@@ -725,6 +727,19 @@ export function Match(): JSX.Element {
               )}
             </span>
           )}
+          {/* A Custom Match's house rules get a button beside the "?". */}
+          {ruleLabels.length > 0 && (
+            <button
+              type="button"
+              className="contract-rules"
+              aria-label="House rules"
+              onClick={() => setHouseRulesOpen(true)}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor">
+                <path d="M3 5h8v2H3zm0 6h8v2H3zm0 6h8v2H3zm10-1.4 1.4-1.4 1.6 1.6 3.6-3.6 1.4 1.4-5 5zM13.4 5.4 15 7l1.6-1.6L18 6.8 16.4 8.4 18 10l-1.4 1.4L15 9.8l-1.6 1.6L12 10l1.6-1.6L12 6.8z" />
+              </svg>
+            </button>
+          )}
           <button
             type="button"
             className="contract-rules"
@@ -763,9 +778,6 @@ export function Match(): JSX.Element {
           <MarkTally marks={scores[opponentTeam] ?? 0} total={marksToWin(match)} />
         </div>
       </header>
-      {ruleLabels.length > 0 && (
-        <p className="house-rules-line">House rules: {ruleLabels.join(' · ')}</p>
-      )}
       {match.currentGame.redealt && isBiddingPhase && (
         <p className="redeal-line" role="status">Everyone passed, so the hands were dealt again.</p>
       )}
@@ -1053,6 +1065,7 @@ export function Match(): JSX.Element {
           onClose={() => setSummaryOpen(false)}
         />
       )}
+      <HouseRulesDialog rules={match.rules} open={houseRulesOpen} onClose={() => setHouseRulesOpen(false)} />
       <HowToPlayDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </div>
   );
