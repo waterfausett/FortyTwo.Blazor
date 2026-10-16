@@ -10,9 +10,15 @@
 // rest are faded and can't be played; with it off (the default) every domino looks the same, and
 // the server turns away an illegal play.
 //
+// Before their turn, a player can double-tap a domino to pre-select it, as on the web (a double-click
+// there): it's ringed, and played a beat after their turn comes (PRESELECT_AUTO_PLAY_DELAY_MS).
+// Only a legal play can be picked, and only one at a time - double-tap it again to drop it, or
+// another to switch. Any play, and any change to the hand, clears it.
+//
 // Dragging uses React Native's own PanResponder and Animated, so it needs no native library.
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Animated, Easing, PanResponder, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { PRESELECT_AUTO_PLAY_DELAY_MS } from '@fortytwo/client';
 import type { Domino as DominoType } from '@fortytwo/rules';
 import { Domino } from './Domino';
 import { colors } from './theme';
@@ -26,6 +32,8 @@ export const HOLD_TO_DRAG_MS = 250;
 // Dealing: each domino rises into place, one after another.
 const DEAL_MS = 280;
 const DEAL_STAGGER_MS = 45;
+// Two taps on the same domino at most this far apart make a double-tap.
+export const DOUBLE_TAP_MS = 300;
 
 export interface Rect {
   x: number;
@@ -112,9 +120,12 @@ export function Hand({
   const signature = dominoes.map((d) => d.id).join(',');
   const [order, setOrder] = useState(() => dominoes.map((d) => d.id));
   const [syncedSignature, setSyncedSignature] = useState(signature);
+  // The domino picked to be played as soon as it's this player's turn.
+  const [preselectedId, setPreselectedId] = useState<string | null>(null);
   if (signature !== syncedSignature) {
     setSyncedSignature(signature);
     setOrder(reconcileOrder(order, dominoes));
+    setPreselectedId(null);
   }
   const byId = new Map(dominoes.map((d) => [d.id, d]));
   const ordered = order
@@ -127,6 +138,35 @@ export function Hand({
   const tileViews = useRef(new Map<string, View>());
   const tileRects = useRef(new Map<string, Rect>());
   const zone = useRef<Rect | null>(null);
+
+  // The latest of these, for the auto-play timer, which should only restart when the turn or the
+  // pick changes - the screen passes a fresh array and `onPlay` on every render.
+  const latest = useRef({ dominoes, onPlay });
+  latest.current = { dominoes, onPlay };
+
+  // Plays the pre-selected domino a beat after the turn comes. A play made in that beat clears
+  // the pick (and takes the turn), which cancels this.
+  useEffect(() => {
+    if (!canPlay || preselectedId == null) return;
+    const timer = setTimeout(() => {
+      const domino = latest.current.dominoes.find((d) => d.id === preselectedId);
+      setPreselectedId(null);
+      // Refused plays report their own errors.
+      if (domino) Promise.resolve(latest.current.onPlay(domino)).catch(() => {});
+    }, PRESELECT_AUTO_PLAY_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [canPlay, preselectedId]);
+
+  // Every play made by hand - a tap or a drop - goes through here, so it overrides a pick.
+  function playNow(domino: DominoType): unknown {
+    setPreselectedId(null);
+    return onPlay(domino);
+  }
+
+  function preselect(domino: DominoType) {
+    if (canPlay) return;
+    setPreselectedId((current) => (current === domino.id ? null : isValidPlay(domino) ? domino.id : current));
+  }
 
   function canPlayDomino(domino: DominoType): boolean {
     return canPlay && (!highlightPlayable || isValidPlay(domino));
@@ -158,7 +198,7 @@ export function Hand({
   async function drop(domino: DominoType, x: number, y: number): Promise<DropOutcome> {
     if (overZone(domino, x, y)) {
       try {
-        await onPlay(domino);
+        await playNow(domino);
         return 'stay';
       } catch {
         return 'spring';
@@ -190,9 +230,12 @@ export function Hand({
             playable={canPlay && legal}
             dimmed={highlightPlayable && canPlay && !legal}
             highlighted={highlightPlayable && canPlay && legal}
+            preselected={preselectedId === domino.id}
             draggable={dropZone != null}
             // A tap's play reports its own errors; nothing here needs the outcome.
-            onPlay={() => Promise.resolve(onPlay(domino)).catch(() => {})}
+            onPlay={() => Promise.resolve(playNow(domino)).catch(() => {})}
+            // Off turn only: on the player's turn the first tap has already played it.
+            onDoubleTap={canPlay ? undefined : () => preselect(domino)}
             onPickUp={pickUp}
             isTarget={targetId === domino.id}
             isOverZone={(x, y) => overZone(domino, x, y)}
@@ -218,8 +261,10 @@ function HandTile({
   playable,
   dimmed,
   highlighted,
+  preselected,
   draggable,
   onPlay,
+  onDoubleTap,
   onPickUp,
   isOverZone,
   onHover,
@@ -233,8 +278,10 @@ function HandTile({
   playable: boolean;
   dimmed: boolean;
   highlighted: boolean;
+  preselected: boolean;
   draggable: boolean;
   onPlay: () => unknown;
+  onDoubleTap?: () => void;
   onPickUp: () => void;
   isTarget: boolean;
   isOverZone: (x: number, y: number) => boolean;
@@ -321,6 +368,18 @@ function HandTile({
     []
   );
 
+  // When the last tap landed, to tell a double-tap from two taps.
+  const lastTap = useRef(0);
+  function tap() {
+    const now = Date.now();
+    if (now - lastTap.current <= DOUBLE_TAP_MS) {
+      lastTap.current = 0;
+      onDoubleTap?.();
+    } else {
+      lastTap.current = now;
+    }
+  }
+
   function pickUp() {
     armed.current = true;
     setLifted(true);
@@ -350,7 +409,7 @@ function HandTile({
         style={{ transform: [...offset.getTranslateTransform(), { scale: lifted ? 1.08 : 1 }] }}
       >
         <Pressable
-          onPress={playable ? onPlay : undefined}
+          onPress={playable ? onPlay : onDoubleTap ? tap : undefined}
           onLongPress={draggable ? pickUp : undefined}
           delayLongPress={HOLD_TO_DRAG_MS}
           // Held and let go without moving: put it back. (When a drag takes over the touch, this
@@ -364,10 +423,18 @@ function HandTile({
             }, 0)
           }
           accessibilityRole="button"
-          accessibilityState={{ disabled: !playable }}
+          accessibilityState={{ disabled: !playable, selected: preselected }}
           accessibilityLabel={`${domino.top}-${domino.bottom}`}
           accessibilityHint={
-            draggable ? (playable ? 'Tap to play, or hold and drag it to the table' : 'Hold and drag to move it') : undefined
+            playable
+              ? draggable
+                ? 'Tap to play, or hold and drag it to the table'
+                : undefined
+              : onDoubleTap
+                ? `Double-tap to play it when your turn comes${draggable ? ', or hold and drag to move it' : ''}`
+                : draggable
+                  ? 'Hold and drag to move it'
+                  : undefined
           }
           hitSlop={4}
         >
@@ -378,6 +445,7 @@ function HandTile({
             direction="horizontal"
             dimmed={dimmed}
             highlighted={highlighted}
+            preselected={preselected}
             accessible={false}
           />
         </Pressable>
