@@ -30,7 +30,7 @@ type Segment = Filter | 'People';
 const SEGMENTS: { segment: Segment; label: string }[] = [
   { segment: 'Active', label: 'Active' },
   { segment: 'Completed', label: 'History' },
-  { segment: 'People', label: 'People' },
+  { segment: 'People', label: 'Friends' },
 ];
 const EMPTY: Record<Filter, { title: string; detail: string }> = {
   Active: { title: 'No games yet', detail: 'Start a new match: play Live now, take Async turns, or set up a Custom Match.' },

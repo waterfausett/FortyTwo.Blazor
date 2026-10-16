@@ -35,7 +35,7 @@ type LobbyTab = MatchFilter | 'People';
 const TABS: { tab: LobbyTab; label: string }[] = [
   { tab: 'Active', label: 'Active' },
   { tab: 'Completed', label: 'Game History' },
-  { tab: 'People', label: 'People' },
+  { tab: 'People', label: 'Friends' },
 ];
 
 const EMPTY_LABELS: Record<MatchFilter, string> = {

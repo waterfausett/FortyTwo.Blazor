@@ -143,7 +143,7 @@ describe('Lobby', () => {
   it('shows the People tab without fetching matches for it', async () => {
     getPeopleMock.mockResolvedValue([{ user_id: 'bo', displayName: 'Bo', isFriend: false, lastPlayedOn: '2026-01-01T00:00:00.000Z', games: 1 }]);
     renderLobby();
-    fireEvent.click(await screen.findByRole('tab', { name: 'People' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Friends' }));
     expect(await screen.findByText('Bo')).toBeTruthy();
     expect(listMatchesMock).not.toHaveBeenCalledWith('People', expect.anything());
   });
@@ -155,7 +155,7 @@ describe('Lobby', () => {
       nextCursor: null,
     });
     renderLobby();
-    fireEvent.click(await screen.findByRole('tab', { name: 'People' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Friends' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Invite Bo to a table' }));
     expect(await screen.findByRole('heading', { name: 'Invite Bo' })).toBeTruthy();
     fireEvent.click(await screen.findByRole('button', { name: 'Invite Bo to Me vs Ann' }));
@@ -164,7 +164,7 @@ describe('Lobby', () => {
 
   it('opens People on friends only', async () => {
     renderLobby();
-    fireEvent.click(await screen.findByRole('tab', { name: 'People' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Friends' }));
     expect(await screen.findByRole('button', { name: 'Recent players' })).toBeTruthy();
     expect(getPeopleMock).toHaveBeenCalledWith('friends');
   });
