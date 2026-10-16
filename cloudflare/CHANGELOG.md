@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.3.2...worker-v1.4.0) (2026-10-16)
+
+
+### Features
+
+* house rules for custom matches ([#161](https://github.com/waterfausett/FortyTwo.Blazor/issues/161)) ([59ce957](https://github.com/waterfausett/FortyTwo.Blazor/commit/59ce95738c0bcbdbf20fedcd4bd88ab1d56fd5f4))
+* **mobile:** pre-play by double-tapping a domino ([#155](https://github.com/waterfausett/FortyTwo.Blazor/issues/155)) ([fdf6b95](https://github.com/waterfausett/FortyTwo.Blazor/commit/fdf6b9504d9b7c1ee60fa179b86d4a1f840b80f3)), closes [#105](https://github.com/waterfausett/FortyTwo.Blazor/issues/105)
+* recent players, friends and table invites ([#160](https://github.com/waterfausett/FortyTwo.Blazor/issues/160)) ([99b8971](https://github.com/waterfausett/FortyTwo.Blazor/commit/99b8971c2f4467273a47f1fd0e27b6048c0926eb))
+* **web:** announce the mobile apps in the lobby ([#157](https://github.com/waterfausett/FortyTwo.Blazor/issues/157)) ([c75ae57](https://github.com/waterfausett/FortyTwo.Blazor/commit/c75ae579796ae3f977c6084e149f0b2dc2b63010))
+* **worker:** give the bots names ([#158](https://github.com/waterfausett/FortyTwo.Blazor/issues/158)) ([d6dde7b](https://github.com/waterfausett/FortyTwo.Blazor/commit/d6dde7bc443611e507d9ff79ba52703ec48b225c))
+
 ## [1.3.2](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.3.1...worker-v1.3.2) (2026-10-14)
 
 
