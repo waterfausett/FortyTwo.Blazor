@@ -25,6 +25,12 @@
   color: var(--bone);
 }
 
+.search-lobby-heading-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .search-lobby-online {
   display: inline-flex;
   align-items: center;

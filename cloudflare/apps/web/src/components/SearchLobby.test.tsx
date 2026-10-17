@@ -111,6 +111,16 @@ describe('SearchLobby', () => {
     expect(status.textContent).toBe('Grandma Jo joined, 2 of 4');
   });
 
+  it("waits for a newcomer's name before announcing them", () => {
+    const loading = (id: string) => (id === 'me' ? 'Me' : null);
+    const view = render(<SearchLobby {...props({ roster: roster(['me', null], [null, null]) })} />);
+    const status = screen.getByRole('status');
+    view.rerender(<SearchLobby {...props({ roster: roster(['me', null], ['jo', null]), nameOf: loading })} />);
+    expect(status.textContent).toBe('');
+    view.rerender(<SearchLobby {...props({ roster: roster(['me', null], ['jo', null]) })} />);
+    expect(status.textContent).toBe('Grandma Jo joined, 2 of 4');
+  });
+
   describe('the card', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());

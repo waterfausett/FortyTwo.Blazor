@@ -2,7 +2,7 @@
 // again when that wait comes to nothing, a seat taken by a bot, Leave game, and who took a seat.
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Alert, type AlertButton } from 'react-native';
+import { AccessibilityInfo, Alert, type AlertButton } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Bid, Positions, Suit, Teams, createDomino, createMatch, type MatchState } from '@fortytwo/rules';
 import type { PlayerStats, StatsSummary } from '@fortytwo/api-types';
@@ -307,6 +307,13 @@ describe('Match screen, house rules', () => {
 });
 
 describe('Live search lobby', () => {
+  // With reduce motion on, the lobby starts no looping animations to outlive each test.
+  let reduceMotion: jest.SpyInstance;
+  beforeEach(() => {
+    reduceMotion = jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+  });
+  afterEach(() => reduceMotion.mockRestore());
+
   // p1 alone at a Live table, 23 seconds into the search.
   function searching(overrides: Partial<MatchState> = {}): MatchState {
     return { ...createMatch('p1', 'live'), id: 'match-1', searchStartedOn: new Date(Date.now() - 23_000).toISOString(), ...overrides };

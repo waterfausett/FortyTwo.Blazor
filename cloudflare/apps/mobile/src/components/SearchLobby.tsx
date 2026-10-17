@@ -41,6 +41,8 @@ export function SearchLobby({
   const ids = rosterIds(roster);
   const previous = useRef(ids);
   useEffect(() => {
+    // A newcomer's name is looked up after they sit down: wait for it, so they're announced by name.
+    if (ids.some((id) => id !== null && nameOf(id) === null)) return;
     const message = joinAnnouncement(previous.current, ids, nameOf);
     previous.current = ids;
     if (message) AccessibilityInfo.announceForAccessibility(message);

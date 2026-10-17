@@ -2133,6 +2133,13 @@ describe('Match', () => {
       await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
     });
 
+    it('opens How to play from the lobby', async () => {
+      useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: 'How to play' }));
+      expect(screen.getByRole('dialog', { name: 'How to play' })).toBeTruthy();
+    });
+
     it('shows tips only when the stats fail', async () => {
       getStatsMock.mockRejectedValue(new Error('nope'));
       useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });

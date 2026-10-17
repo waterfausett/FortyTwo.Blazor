@@ -28,6 +28,7 @@ export function SearchLobby({
   startDisabled,
   onCancel,
   cancelDisabled,
+  onHowToPlay,
 }: {
   roster: LobbyRoster;
   viewerId: string;
@@ -42,11 +43,15 @@ export function SearchLobby({
   startDisabled: boolean;
   onCancel: () => void;
   cancelDisabled: boolean;
+  // The scoreboard's "?" is gone with the table, so the lobby offers the rules itself.
+  onHowToPlay?: () => void;
 }): JSX.Element {
   const ids = rosterIds(roster);
   const previous = useRef(ids);
   const [announcement, setAnnouncement] = useState('');
   useEffect(() => {
+    // A newcomer's name is looked up after they sit down: wait for it, so they're announced by name.
+    if (ids.some((id) => id !== null && nameOf(id) === null)) return;
     const message = joinAnnouncement(previous.current, ids, nameOf);
     previous.current = ids;
     if (message) setAnnouncement(message);
@@ -66,7 +71,14 @@ export function SearchLobby({
     <section className="search-lobby" aria-labelledby="search-lobby-title">
       <div className="search-lobby-heading">
         <h2 id="search-lobby-title">Finding players</h2>
-        {online !== null && <span className="search-lobby-online">{online} online</span>}
+        <span className="search-lobby-heading-end">
+          {online !== null && <span className="search-lobby-online">{online} online</span>}
+          {onHowToPlay && (
+            <button type="button" className="contract-rules" aria-label="How to play" onClick={onHowToPlay}>
+              ?
+            </button>
+          )}
+        </span>
       </div>
 
       {full ? (

@@ -727,7 +727,12 @@ export function Match(): JSX.Element {
             leaveMutation.mutate();
           }}
           cancelDisabled={!searchingNow || leaveMutation.isPending}
+          onHowToPlay={() => {
+            setRulesOpen(true);
+            howToPlay.markSeen();
+          }}
         />
+        <HowToPlayDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
       </div>
     );
   }

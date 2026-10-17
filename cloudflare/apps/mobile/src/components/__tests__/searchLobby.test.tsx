@@ -105,6 +105,16 @@ describe('SearchLobby', () => {
     expect(announce).toHaveBeenCalledTimes(1);
   });
 
+  it("waits for a newcomer's name before announcing them", async () => {
+    const announce = track(jest.spyOn(AccessibilityInfo, 'announceForAccessibility')).mockImplementation(() => {});
+    const loading = (id: string) => (id === 'me' ? 'Me' : null);
+    const view = await render(<SearchLobby {...props({ roster: roster(['me', null], [null, null]) })} />);
+    await view.rerender(<SearchLobby {...props({ roster: roster(['me', null], ['jo', null]), nameOf: loading })} />);
+    expect(announce).not.toHaveBeenCalled();
+    await view.rerender(<SearchLobby {...props({ roster: roster(['me', null], ['jo', null]) })} />);
+    expect(announce).toHaveBeenCalledWith('Grandma Jo joined, 2 of 4');
+  });
+
   describe('the card', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
