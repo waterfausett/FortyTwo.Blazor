@@ -12,6 +12,7 @@ import type { HouseRules, MatchState } from '@fortytwo/rules';
 import type {
   ApiErrorBody,
   ClientConfig,
+  HintResponse,
   Invite,
   InviteResult,
   MatchPage,
@@ -25,7 +26,7 @@ import type {
   UserProfile,
 } from '@fortytwo/api-types';
 
-export type { Invite, InviteResult, MatchPage, MatchSummary, PeopleView, Person, PlayerStats, PokeResult, PublicUser, UserProfile };
+export type { HintResponse, Invite, InviteResult, MatchPage, MatchSummary, PeopleView, Person, PlayerStats, PokeResult, PublicUser, UserProfile };
 
 // Keeps the Worker's title and detail apart so a toast can show them as heading and body;
 // `message` still joins them for callers that just print it.
@@ -177,6 +178,10 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
     // Nudges the player whose turn it is, once it has waited long enough (poke.ts). Resolves with
     // how it reached them - `'none'` when it couldn't, which leaves the turn's poke unused.
     poke: (id: string): Promise<PokeResult> => request<PokeResult>(`/api/matches/${id}/poke`, { method: 'POST' }),
+
+    // What the ML bot would do in my seat, in a practice match: { status: 'warming' } while the
+    // Worker's model loads (ask again - fetchHint does), 'unavailable' if it can't, or the hint.
+    getHint: (id: string): Promise<HintResponse> => request<HintResponse>(`/api/matches/${id}/games/current/hint`),
 
     // Seats a bot at `position`, or at every open seat when no position is given (the Worker
     // answers 404 when its BOTS_ENABLED is 'false').
