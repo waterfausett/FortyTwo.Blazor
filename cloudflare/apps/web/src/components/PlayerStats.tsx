@@ -4,15 +4,12 @@
 // @fortytwo/client's statSections, shared with the mobile app.
 import { useState } from 'react';
 import type { JSX } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import type { StatsFilter } from '@fortytwo/api-types';
 import { bestPartnerRecord, favoriteTrumpRecord, statSections, STATS_FILTERS, trumpLabel } from '@fortytwo/client';
-import { useGetToken } from '../auth/useGetToken';
-import { apiClient } from '../api/client';
+import { useStats } from '../api/useStats';
 
 export function PlayerStats(): JSX.Element {
-  const client = apiClient(useGetToken());
-  const stats = useQuery({ queryKey: ['stats'], queryFn: () => client.getStats() });
+  const stats = useStats();
   const [filter, setFilter] = useState<StatsFilter>('all');
 
   const summary = stats.data?.[filter];

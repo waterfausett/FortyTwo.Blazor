@@ -41,8 +41,11 @@ import {
   matchMode,
   LIVE_FILL_MS,
 } from '@fortytwo/rules';
-import { formatClock, nextHandClock, searchState, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
+import { formatClock, lobbyCards, lobbyRoster, nextHandClock, searchState, shuffledTips, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
 import { useOnline } from '../api/presence';
+import { useStats } from '../api/useStats';
+import { SearchLobby } from '../components/SearchLobby';
+import { useLobbyHold } from '../match/useLobbyHold';
 import { useNow } from '../match/useNow';
 import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
@@ -252,6 +255,11 @@ export function Match(): JSX.Element {
   const clock = liveMatch ? (clockRunning ? turnClock(liveMatch, now) : clockNow) : null;
   const nextHand = liveMatch ? (clockRunning ? nextHandClock(liveMatch, now) : nextHandNow) : null;
   const mode = liveMatch ? matchMode(liveMatch) : 'custom';
+  // A Live search shows the lobby in place of the table, held up a moment once the table fills.
+  const lobby = useLobbyHold(liveSearch?.mode === 'live', (liveMatch?.players.length ?? 0) >= 4);
+  const stats = useStats({ enabled: lobby });
+  // Shuffled once per visit, so the card's order holds steady through the search.
+  const [tips] = useState(() => shuffledTips());
   const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   const resumeMutation = useMutation({
     mutationFn: () => client.resume(matchId!),
@@ -693,6 +701,44 @@ export function Match(): JSX.Element {
     playMutation.mutate(domino);
   }
 
+  // The lobby keeps the page's first children - the turn alerts above all - where the table's
+  // page has them, so they stay mounted when the table replaces it: the first turn, which can
+  // come as the table fills, alerts like any other.
+  if (lobby) {
+    const searchingNow = liveSearch?.mode === 'live';
+    return (
+      <div ref={matchRootRef} className="match">
+        {!watching && <TurnAlerts call={tableCall()} tag={match.id} />}
+        {reconnecting && (
+          <p className="match-reconnecting" role="status" aria-label="Reconnecting">
+            Reconnecting…
+          </p>
+        )}
+        <SearchLobby
+          roster={lobbyRoster(liveMatch.players, myPlayerId)}
+          viewerId={myPlayerId}
+          nameOf={nameOf}
+          online={online}
+          elapsedMs={botsEnabled ? (searchingNow ? liveSearch.elapsedMs : LIVE_FILL_MS) : null}
+          full={!searchingNow}
+          cards={lobbyCards(stats.data?.all, tips)}
+          onStartWithBots={botsEnabled ? () => addBotsMutation.mutate(undefined) : null}
+          startDisabled={!searchingNow || !connected || addBotsMutation.isPending}
+          onCancel={() => {
+            leavingRef.current = true;
+            leaveMutation.mutate();
+          }}
+          cancelDisabled={!searchingNow || leaveMutation.isPending}
+          onHowToPlay={() => {
+            setRulesOpen(true);
+            howToPlay.markSeen();
+          }}
+        />
+        <HowToPlayDialog open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      </div>
+    );
+  }
+
   return (
     <div ref={matchRootRef} className="match">
       {!watching && <TurnAlerts call={tableCall()} tag={match.id} />}
@@ -841,27 +887,7 @@ export function Match(): JSX.Element {
               <div className="table-center">
                 {!isTableReady ? (
                   <div className="table-waiting">
-                    {liveSearch?.mode === 'live' && (
-                      <>
-                        <p className="table-search" role="status">
-                          Finding players… {formatClock(liveSearch.elapsedMs)}
-                        </p>
-                        {online !== null && <p className="table-presence">{online} online</p>}
-                        <p className="table-presence">
-                          Bots take the empty seats at {formatClock(LIVE_FILL_MS)}. Players can still join after you start.
-                        </p>
-                        {botsEnabled && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-secondary"
-                            disabled={!connected || addBotsMutation.isPending}
-                            onClick={() => addBotsMutation.mutate(undefined)}
-                          >
-                            Start now with bots
-                          </button>
-                        )}
-                      </>
-                    )}
+                    {/* A Live search shows the lobby instead of the table. */}
                     {liveSearch?.mode === 'daily' && (
                       <p className="table-search" role="status">
                         Looking for players - we'll notify you when the table fills.

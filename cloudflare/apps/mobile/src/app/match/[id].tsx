@@ -12,6 +12,9 @@ import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   houseRuleLabels,
+  lobbyCards,
+  lobbyRoster,
+  shuffledTips,
   marksToWin,
   assertPlayable,
   describeMatch,
@@ -60,6 +63,7 @@ import {
 } from '@fortytwo/rules';
 import { useOnline } from '@/api/presence';
 import { useApi } from '@/api/useApi';
+import { useStats } from '@/api/useStats';
 import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
@@ -75,6 +79,7 @@ import { HouseRulesButton, HouseRulesModal } from '@/components/HouseRulesModal'
 import { MatchSummary } from '@/components/MatchSummary';
 import { NameSkeleton } from '@/components/NameSkeleton';
 import { PipFace } from '@/components/PipFace';
+import { SearchLobby } from '@/components/SearchLobby';
 import { toastError, toastInfo } from '@/components/toast';
 import { Table, TABLE_RESIZE_MS, type SeatInfo } from '@/components/Table';
 import { TrickHistory } from '@/components/TrickHistory';
@@ -86,6 +91,7 @@ import { shareInvite } from '@/linking/invite';
 import { askOnceForPush } from '@/notifications/push';
 import { useNow } from '@/match/useNow';
 import { useLatch } from '@/match/useLatch';
+import { useLobbyHold } from '@/match/useLobbyHold';
 import { usePlayerNames } from '@/match/usePlayerNames';
 import { usePoke } from '@/match/usePoke';
 import { useSettled } from '@/match/useSettled';
@@ -182,6 +188,11 @@ export default function MatchScreen() {
   const clock = liveMatch ? (ticking ? turnClock(liveMatch, now) : clockNow) : null;
   const nextHand = liveMatch ? (ticking ? nextHandClock(liveMatch, now) : nextHandNow) : null;
   const mode = liveMatch ? matchMode(liveMatch) : 'custom';
+  // A Live search shows the lobby in place of the table, held up a moment once the table fills.
+  const lobby = useLobbyHold(search?.mode === 'live', (liveMatch?.players.length ?? 0) >= 4);
+  const stats = useStats({ enabled: lobby });
+  // Shuffled once per visit, so the card's order holds steady through the search.
+  const [tips] = useState(() => shuffledTips());
   const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
   // then seats the player here; the lobby's lists change too.
@@ -445,6 +456,32 @@ export default function MatchScreen() {
     );
   }
 
+  if (lobby) {
+    const searching = search?.mode === 'live';
+    return (
+      <ScrollView style={styles.screen} contentContainerStyle={[styles.container, styles.lobby, { paddingBottom: 32 + bottomInset }]}>
+        <Stack.Screen options={{ title: liveGame.name, headerRight: rulesButton }} />
+        {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
+        <SearchLobby
+          roster={lobbyRoster(liveMatch.players, myPlayerId)}
+          viewerId={myPlayerId}
+          nameOf={nameOf}
+          online={online}
+          elapsedMs={config.data?.bots ? (searching ? search.elapsedMs : LIVE_FILL_MS) : null}
+          full={!searching}
+          cards={lobbyCards(stats.data?.all, tips)}
+          onStartWithBots={config.data?.bots ? () => addBots.mutate() : null}
+          startDisabled={!searching || !connected || addBots.isPending}
+          onCancel={() => {
+            leavingRef.current = true;
+            leave.mutate();
+          }}
+          cancelDisabled={!searching || leave.isPending}
+        />
+      </ScrollView>
+    );
+  }
+
   // Everything below reads the match as it will be once a play in flight lands.
   const match = inFlight ? projectPlay(liveMatch, myPlayerId, inFlight) : liveMatch;
   const game = match.currentGame;
@@ -678,18 +715,8 @@ export default function MatchScreen() {
           center={
             view.isTableReady ? undefined : (
               <View style={styles.waiting}>
-                {/* Kept short: it has only the middle of the table, between the open seats. */}
-                {search?.mode === 'live' && (
-                  <>
-                    <Text style={styles.searchText} numberOfLines={1} adjustsFontSizeToFit accessibilityRole="text">
-                      Finding players… {formatClock(search.elapsedMs)}
-                    </Text>
-                    <Text style={styles.searchDetail}>
-                      {online !== null && `${online} online · `}Bots take the empty seats at{' '}
-                      {formatClock(LIVE_FILL_MS)}. Players can still join after you start.
-                    </Text>
-                  </>
-                )}
+                {/* Kept short: it has only the middle of the table, between the open seats. A Live
+                    search shows the lobby instead of the table. */}
                 {search?.mode === 'daily' && (
                   <Text style={styles.searchText}>Looking for players - we'll notify you when the table fills.</Text>
                 )}
@@ -700,16 +727,6 @@ export default function MatchScreen() {
                   </Text>
                 )}
                 <View style={styles.waitingButtons}>
-                  {search?.mode === 'live' && config.data?.bots && (
-                    <Pressable
-                      style={styles.smallButton}
-                      disabled={!connected || addBots.isPending}
-                      onPress={() => addBots.mutate()}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.smallButtonText}>Start with bots</Text>
-                    </Pressable>
-                  )}
                   {mode === 'custom' && emptySeatCount > 0 && (
                     <Pressable
                       style={styles.smallButton}
@@ -972,6 +989,7 @@ const HISTORY_PEEK = 40;
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.walnut },
   container: { padding: CONTAINER_PADDING, gap: CONTAINER_GAP },
+  lobby: { flexGrow: 1 },
   // Fills its minimum height through the spacer above the hand.
   playArea: { gap: CONTAINER_GAP },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.walnut },
@@ -1000,7 +1018,6 @@ const styles = StyleSheet.create({
   waiting: { alignItems: 'center', gap: 10, padding: 8 },
   waitingText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   searchText: { color: colors.brass, fontFamily: fonts.uiBold, fontSize: 15, textAlign: 'center' },
-  searchDetail: { color: colors.bone, fontFamily: fonts.ui, fontSize: 13, textAlign: 'center' },
   // Side by side, wrapping only when they don't fit.
   waitingButtons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   autopilotBar: {
