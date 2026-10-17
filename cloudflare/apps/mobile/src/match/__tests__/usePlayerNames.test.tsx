@@ -15,7 +15,12 @@ function setup() {
 
 describe('usePlayerNames', () => {
   it('looks up only a newcomer, keeping the names already shown', async () => {
-    const search = jest.fn(async (ids: string[]) => echo(ids));
+    // The newcomer's lookup is held open, so `ready` is false for as long as the assertion needs.
+    let releaseNewcomer = () => {};
+    const search = jest.fn(async (ids: string[]) => {
+      if (ids.includes('p3')) await new Promise<void>((resolve) => { releaseNewcomer = resolve; });
+      return echo(ids);
+    });
     const { wrapper } = setup();
     const { result, rerender } = await renderHook(
       ({ ids }: { ids: string[] }) => usePlayerNames(seated(...ids), 'p1', search),
@@ -28,6 +33,7 @@ describe('usePlayerNames', () => {
     expect(result.current.nameFor('p2')).toEqual({ status: 'loaded', name: 'name-p2' });
     expect(result.current.ready).toBe(false);
 
+    releaseNewcomer();
     await waitFor(() => expect(result.current.nameFor('p3')).toEqual({ status: 'loaded', name: 'name-p3' }));
     expect(search).toHaveBeenLastCalledWith(['p3']);
   });
