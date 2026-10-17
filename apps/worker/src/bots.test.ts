@@ -313,3 +313,44 @@ describe('findNextBotAction with autopilot', () => {
     expect(findNextBotAction(match)).toBeNull();
   });
 });
+
+describe('findNextBotAction with a parked bot', () => {
+  const decided = (botDominoes: ReturnType<typeof createDomino>[], currentPlayerId: string | null) =>
+    baseMatch({
+      currentGame: baseGame({
+        currentPlayerId,
+        biddingPlayerId: 'p1',
+        bid: Bid.Thirty,
+        trump: Suit.Low,
+        hands: [emptyHand('p1', [], Bid.Thirty), { ...emptyHand('bot-1', botDominoes, Bid.Pass), team: Teams.TeamB }],
+        tricks: [{ playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [] }],
+      }),
+      players: [
+        { playerId: 'p1', position: 0, ready: true },
+        { playerId: 'bot-1', position: 1, ready: false },
+      ],
+      parked: ['bot-1'],
+    });
+
+  it('plays its turns mid-hand', () => {
+    const match = baseMatch({
+      currentGame: baseGame({
+        currentPlayerId: 'bot-1',
+        biddingPlayerId: 'bot-1',
+        bid: Bid.Thirty,
+        trump: Suit.Sixes,
+        hands: [emptyHand('p1', [], Bid.Pass), emptyHand('bot-1', [createDomino(1, 1)], Bid.Thirty)],
+      }),
+      parked: ['bot-1'],
+    });
+    expect(findNextBotAction(match)).toEqual({ kind: 'play', playerId: 'bot-1' });
+  });
+
+  it('plays out its leftover dominoes once the hand is decided', () => {
+    expect(findNextBotAction(decided([createDomino(3, 4)], 'bot-1'))).toEqual({ kind: 'play', playerId: 'bot-1' });
+  });
+
+  it('never readies, even when it holds nothing and the others are ready', () => {
+    expect(findNextBotAction(decided([], 'bot-1'))).toBeNull();
+  });
+});

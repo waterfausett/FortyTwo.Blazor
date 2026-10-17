@@ -36,6 +36,7 @@ import {
   rematchAgreed,
   hasBeenDealt,
   isBot,
+  seatedPlayers,
   isOnAutopilot,
   isPresent,
   matchMode,
@@ -508,12 +509,12 @@ export function Match(): JSX.Element {
   // the match is full.
   if (role === 'stranger') {
     const seats = [0, 1, 2, 3].map((position) => {
-      const player = liveMatch.players.find((p) => p.position === position);
+      const player = seatedPlayers(liveMatch).find((p) => p.position === position);
       return player ? (nameOf(player.playerId) ?? '') : null;
     });
     // Per seat, so a name that has loaded shows while another is still on its way.
     const loading = [0, 1, 2, 3].map((position) => {
-      const player = liveMatch.players.find((p) => p.position === position);
+      const player = seatedPlayers(liveMatch).find((p) => p.position === position);
       return player != null && names.nameFor(player.playerId).status === 'loading';
     });
     const open = seats.some((name) => name == null);
@@ -638,10 +639,11 @@ export function Match(): JSX.Element {
   }
 
   const myPosition = match.players.find((p) => p.playerId === viewerId)!.position;
-  const seatedOthers = match.players
+  // A parked bot whose seat has opened is drawn as an open seat, not a player.
+  const seatedOthers = seatedPlayers(match)
     .filter((p) => p.playerId !== viewerId)
     .map((p) => ({ player: p, seat: seatFor(match.players, viewerId, p.playerId)! }));
-  const emptySeats = openSeats(match.players, viewerId);
+  const emptySeats = openSeats(match, viewerId);
 
   // One line on the rail saying what the table is waiting on - for a watcher, never "Your play".
   const status = matchStatus(
@@ -800,15 +802,23 @@ export function Match(): JSX.Element {
             ?
           </button>
           {/* A player can leave a game under way: in Live Play a bot takes their seat; a bots match
-              ends. Up here by the rules, well away from the hand. */}
-          {(mode === 'live' || mode === 'bots') && hasBeenDealt(match) && !isMatchOver && !watching && (
+              ends; in a Custom game a bot finishes the hand and then the seat opens. Up here by the
+              rules, well away from the hand. */}
+          {(mode === 'live' || mode === 'bots' || mode === 'custom') && hasBeenDealt(match) && !isMatchOver && !watching && (
             <button
               type="button"
               className="contract-leave"
               aria-label="Leave game"
               disabled={leaveMutation.isPending}
               onClick={() => {
-                const outcome = lastPresent ? 'Nobody else is playing, so it ends.' : 'A bot takes your seat.';
+                const outcome =
+                  mode === 'custom'
+                    ? onlyHumanSeated
+                      ? 'Nobody else is at the table, so it ends.'
+                      : 'A bot finishes this hand for you, then your seat opens for someone new.'
+                    : lastPresent
+                      ? 'Nobody else is playing, so it ends.'
+                      : 'A bot takes your seat.';
                 if (window.confirm(`Leave this game? ${outcome}`)) {
                   leavingRef.current = true;
                   leaveMutation.mutate();
@@ -885,7 +895,9 @@ export function Match(): JSX.Element {
               ))}
 
               <div className="table-center">
-                {!isTableReady ? (
+                {/* At an open-seat break the waiting panel gives way to a trick still on the table - being
+                    played out, or just completed and held before its sweep. */}
+                {!isTableReady || (view.openSeatCount > 0 && showHandOver && !isTrickStarted(displayedTrick)) ? (
                   <div className="table-waiting">
                     {/* A Live search shows the lobby instead of the table. */}
                     {liveSearch?.mode === 'daily' && (
@@ -893,7 +905,7 @@ export function Match(): JSX.Element {
                         Looking for players - we'll notify you when the table fills.
                       </p>
                     )}
-                    <p>{match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}</p>
+                    <p>{view.openSeatCount > 0 ? `${4 - view.openSeatCount} of 4 seated` : 'Dealing'}</p>
                     {mode === 'custom' && emptySeats.length > 0 && (
                       <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => void shareInvite(match.id)}>
                         Share link
@@ -999,6 +1011,9 @@ export function Match(): JSX.Element {
                   </>
                 ) : (
                   <>
+                    {view.openSeatCount > 0 && (
+                      <p className="hand-result-note">Waiting for a player to take the open seat</p>
+                    )}
                     <p className="hand-result-note">
                       {iAmReady
                         ? `Waiting for everyone to ready up (${readyCount} of 4)`

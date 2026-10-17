@@ -20,7 +20,7 @@ import { botsEnabled } from '../bots';
 import { publicUsers } from '../users/publicUsers';
 import * as field from '../requestBody';
 import { readBody } from '../requestBody';
-import { Teams, matchMode, matchViewFor, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
+import { Teams, matchMode, matchViewFor, seatedPlayers, shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import { turnSummaries, turnWaitsFor } from '../lobbyTurns';
 import { decodeCursor, encodeCursor } from '../cursor';
 import { createInvites, MAX_INVITES_PER_TABLE } from '../people/invites';
@@ -167,7 +167,7 @@ matches.post('/:id/invites', async (c) => {
     return c.json({ title: "Can't invite here", detail: 'Only Custom Matches take invites.' }, 409);
   }
   if (match.winningTeam !== null) return c.json({ title: 'Match over', detail: 'This match has finished.' }, 409);
-  if (match.players.length >= 4) return c.json({ title: 'Table is full', detail: 'Every seat is taken.' }, 409);
+  if (seatedPlayers(match).length >= 4) return c.json({ title: 'Table is full', detail: 'Every seat is taken.' }, 409);
   const invited = await createInvites(c.env.DB, match, userId, toIds);
   if (invited === 'tooMany') {
     return c.json({ title: 'Too many invites', detail: `A table can send at most ${MAX_INVITES_PER_TABLE} invites.` }, 409);

@@ -10,6 +10,7 @@ import { Hand } from './hand';
 import { houseRules, type HouseRules } from './houseRules';
 import { letClaimsGo, seatChangesAtBreak, type MatchMode } from './live';
 import { MatchPlayerRef, selectNextPlayer } from './match';
+import { openPositions, takeParkedSeat } from './parked';
 import { nextPosition, Positions } from './positions';
 import { Suit } from './suit';
 import { Teams, teamForPosition } from './teams';
@@ -80,6 +81,8 @@ export interface MatchState {
   hadBots?: boolean;
   // Players whose seat a bot took after they were away a whole hand, or who left.
   replaced?: string[];
+  // Bots playing out the hand for players who left a Custom match; their seats open once it is decided (parked.ts).
+  parked?: string[];
   // Claimants let go without a seat (the match ended or was dropped first); their app searches again.
   bumped?: string[];
   // The house rules a custom table was created with (houseRules.ts). Absent means the defaults.
@@ -173,6 +176,13 @@ export function addPlayer(match: MatchState, playerId: string, team: Teams, deal
 // positions and not already taken.
 export function takeSeat(match: MatchState, playerId: string, position: number, dealOrder?: Domino[]): MatchState {
   assertActive(match);
+  // An open parked seat is the one taken seat that can still be had; a parked seat whose hand isn't
+  // decided yet isn't open, and falls through to be refused as taken.
+  if (openPositions(match).includes(position) && match.players.some((p) => p.position === position)) {
+    assertIsNotMatchPlayer(match, playerId);
+    if (!dealOrder) throw new Error('Taking a parked seat needs the deal order');
+    return takeParkedSeat(match, playerId, position, dealOrder);
+  }
   assertNotFull(match);
   assertIsNotMatchPlayer(match, playerId);
   assertSeatOpen(match.players, position);
@@ -249,7 +259,8 @@ export function patchPlayerReady(
   let players = match.players.map((p) => (p.playerId === playerId ? { ...p, ready } : p));
   let currentGame = match.currentGame;
 
-  if (gameWinningTeam(match.currentGame) !== null && players.every((p) => p.ready)) {
+  // A parked seat holds the deal back, so the table can't move on until someone sits there.
+  if (gameWinningTeam(match.currentGame) !== null && players.every((p) => p.ready) && (match.parked ?? []).length === 0) {
     const lastGame = match.currentGame;
     const totalGamesPlayed = Object.values(match.games).reduce(
       (sum, games) => sum + (games?.length ?? 0),
@@ -475,7 +486,10 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
     : null;
 
   const result = { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
-  return matchWinningTeam !== null ? letClaimsGo(result) : result;
+  if (matchWinningTeam === null) return result;
+  // The match is over, so a parked seat has nothing left to wait for.
+  const { parked: _parked, ...ended } = letClaimsGo(result);
+  return ended;
 }
 
 // Asks to play the same four again. Only once the match is over, and only from someone seated;
