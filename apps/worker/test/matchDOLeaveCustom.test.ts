@@ -1,13 +1,56 @@
 // Leaving a Custom match after the deal, against the real MatchDO: the leaver's seat is parked with
 // a bot that finishes the hand, then opens for a person; Fill with bots gives the open seat to the
 // bot for good. Async matches still refuse, and a table with no other person seated is dropped.
-import { describe, it, expect } from 'vitest';
-import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { env, runDurableObjectAlarm, runInDurableObject, SELF } from 'cloudflare:test';
+import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
+import { fetchMock } from './fetchMock';
 import { Bid, Suit, Teams, createDomino, openPositions, type Domino, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import { syncLobbyIndex } from '../src/lobby';
 
 const testEnv = env as unknown as Env;
+
+// Must match the AUTH0_DOMAIN/AUTH0_AUDIENCE test-pool bindings in vitest.config.ts, as in
+// routes.matches.test.ts, so the moves and seat routes can be driven through the real Worker.
+const AUTH0_DOMAIN = 'test-tenant.auth0.local';
+const AUTH0_AUDIENCE = 'https://api.test.local';
+const KEY_ID = 'leave-custom-test-key';
+
+let privateKey: KeyLike;
+
+beforeAll(async () => {
+  const { publicKey, privateKey: generatedPrivateKey } = await generateKeyPair('RS256');
+  privateKey = generatedPrivateKey;
+  const publicJwk = await exportJWK(publicKey);
+  publicJwk.kid = KEY_ID;
+  publicJwk.alg = 'RS256';
+  publicJwk.use = 'sig';
+  fetchMock.activate();
+  fetchMock.disableNetConnect();
+  fetchMock
+    .get(`https://${AUTH0_DOMAIN}`)
+    .intercept({ path: '/.well-known/jwks.json', method: 'GET' })
+    .reply(200, JSON.stringify({ keys: [publicJwk] }), { headers: { 'content-type': 'application/json' } })
+    .persist();
+});
+
+async function api(path: string, sub: string, init: RequestInit): Promise<Response> {
+  const token = await new SignJWT({})
+    .setProtectedHeader({ alg: 'RS256', kid: KEY_ID })
+    .setSubject(sub)
+    .setIssuer(`https://${AUTH0_DOMAIN}/`)
+    .setAudience(AUTH0_AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(privateKey);
+  return SELF.fetch(`https://example.com${path}`, {
+    ...init,
+    headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+  });
+}
+
+const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
 
 function stubFor(name: string) {
   return testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(name));
@@ -59,6 +102,75 @@ async function dealtCustom(name: string, mode: 'custom' | 'daily' = 'custom') {
   await syncLobbyIndex(testEnv.DB, await stored(stub));
   return stub;
 }
+
+// The deciding play of a hand, one play from the end: team B (seats 1 and 3) holds 11 points, and
+// seat 3's 6-6 trumps seat 2's 3-3, so the last player's 4-1 adds a trick worth 6 to make 17, over
+// the 12 that sets a bid of 30. `last` is the seat still to play; the others have played.
+async function oneFromDecided(stub: Stub, last: 0 | 1) {
+  await runInDurableObject(stub, async (_instance, state) => {
+    const match = (await state.storage.get<MatchState>('match'))!;
+    const at = (position: number) => match.players.find((p) => p.position === position)!.playerId;
+    const played = [createDomino(1, 0), createDomino(2, 1), createDomino(3, 3), createDomino(6, 6)];
+    await state.storage.put('match', {
+      ...match,
+      currentGame: {
+        ...match.currentGame,
+        biddingPlayerId: at(0),
+        bid: Bid.Thirty,
+        trump: Suit.Sixes,
+        currentPlayerId: at(last),
+        hands: match.currentGame.hands.map((h) => ({
+          ...h,
+          bid: h.playerId === at(0) ? Bid.Thirty : Bid.Pass,
+          dominoes: h.playerId === at(last) ? [createDomino(4, 1)] : [],
+        })),
+        tricks: [{ playerId: at(3), team: Teams.TeamB, suit: Suit.Sixes, dominoes: [createDomino(5, 5)] }],
+        currentTrick: {
+          playerId: at(3),
+          team: Teams.TeamB,
+          suit: Suit.Threes,
+          dominoes: played.map((d, position) => (position === last ? null : d)),
+        },
+      },
+    });
+  });
+}
+
+async function playerCount(name: string): Promise<number> {
+  const row = await testEnv.DB.prepare('SELECT player_count FROM matches WHERE id = ?').bind(name).first<{ player_count: number }>();
+  return row!.player_count;
+}
+
+describe('the lobby index and an open parked seat', () => {
+  it('player_count drops to 3 when a human play decides the hand, and back to 4 on sit-down', async () => {
+    const name = 'lc-lobby-human';
+    const stub = await dealtCustom(name);
+    expect((await stub.leave('p2')).ok).toBe(true);
+    await oneFromDecided(stub, 0);
+    expect(await playerCount(name)).toBe(4);
+
+    const played = await api(`/api/matches/${name}/games/current/moves`, 'p1', json({ domino: createDomino(4, 1) }));
+    expect(played.status).toBe(200);
+    expect(openPositions(await stored(stub))).toEqual([1]);
+    expect(await playerCount(name)).toBe(3);
+
+    expect((await api(`/api/matches/${name}/players`, 'p5', json({ position: 1 }))).status).toBe(200);
+    expect(await playerCount(name)).toBe(4);
+  });
+
+  it('player_count drops to 3 when a bot play decides the hand', async () => {
+    const name = 'lc-lobby-bot';
+    const stub = await dealtCustom(name);
+    expect((await stub.leave('p2')).ok).toBe(true);
+    await oneFromDecided(stub, 1);
+    await runInDurableObject(stub, async (_i, state) => void (await state.storage.setAlarm(Date.now())));
+    expect(await playerCount(name)).toBe(4);
+
+    await runDurableObjectAlarm(stub);
+    expect(openPositions(await stored(stub))).toEqual([1]);
+    expect(await playerCount(name)).toBe(3);
+  });
+});
 
 describe('leaving a Custom match after the deal', () => {
   it('parks the seat mid-hand; the bot finishes the hand and then waits unready', async () => {

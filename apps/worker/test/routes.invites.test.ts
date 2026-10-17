@@ -1,12 +1,12 @@
 // The invite routes through the real Worker: inviting from a custom table, the Lobby's list, and cleanup.
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { env, SELF } from 'cloudflare:test';
+import { env, runInDurableObject, SELF } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { saveUsers } from '../src/users/publicUsers';
 import type { Env } from '../src/index';
 import type { Invite, InviteResult } from '@fortytwo/api-types';
-import type { MatchState } from '@fortytwo/rules';
+import { Bid, Suit, Teams, createDomino, type MatchState } from '@fortytwo/rules';
 
 // Must match the AUTH0_DOMAIN/AUTH0_AUDIENCE test-pool bindings in vitest.config.ts, as in
 // routes.matches.test.ts.
@@ -144,6 +144,43 @@ describe('POST /api/matches/:id/invites', () => {
     const match = await customTable();
     expect((await api(`/api/matches/${match.id}/invites`, ME, json({ userIds: [] }))).status).toBe(400);
     expect((await api(`/api/matches/${match.id}/invites`, ME, json({}))).status).toBe(400);
+  });
+});
+
+describe('invites at an open parked seat', () => {
+  it('can be sent at the break, survive until someone sits, and list for the invitee', async () => {
+    const match = await customTable();
+    for (const [i, name] of ['ann', 'bo', 'cy'].entries()) await sit(match.id, `auth0|${name}`, i + 1);
+    // The hand is decided, so ann leaving opens her seat at once.
+    const stub = testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(match.id));
+    await runInDurableObject(stub, async (_instance, state) => {
+      const stored = (await state.storage.get<MatchState>('match'))!;
+      const counts = [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)];
+      await state.storage.put('match', {
+        ...stored,
+        currentGame: {
+          ...stored.currentGame,
+          biddingPlayerId: ME,
+          bid: Bid.Thirty,
+          trump: Suit.Sixes,
+          currentPlayerId: null,
+          tricks: [{ playerId: 'auth0|ann', team: Teams.TeamB, suit: Suit.Sixes, dominoes: counts }],
+        },
+      });
+    });
+    expect((await api(`/api/matches/${match.id}/players`, 'auth0|ann', { method: 'DELETE' })).status).toBe(200);
+
+    const res = await invite(match.id, ['auth0|eve']);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as InviteResult).invited).toEqual(['auth0|eve']);
+    expect(await myInvites('auth0|eve')).toEqual([
+      { matchId: match.id, from: { user_id: ME, displayName: 'me' }, createdOn: expect.any(String), seatsOpen: 1 },
+    ]);
+
+    await sit(match.id, 'auth0|eve', 1);
+    expect(await myInvites('auth0|eve')).toEqual([]);
+    const { n } = (await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM invites WHERE match_id = ?').bind(match.id).first<{ n: number }>())!;
+    expect(n).toBe(0);
   });
 });
 
