@@ -37,10 +37,11 @@ interface BidSuggestion { bid: Bid; trump: Suit | null; pMake: number | null }  
 interface TrumpSuggestion { trump: Suit; pMake: number }
 interface PlayRating { domino: Domino; marks: number; gap: number; rating: 'best' | 'close' | 'weaker' }
 
-createExplainer(weights: BotWeights): { explain(match: MatchState, playerId: string): Hint }
+// a new method on the existing Bot interface
+explain(match: MatchState, playerId: string): Hint
 ```
 
-**The suggestion is always the bot's own decision.** `createBot` and `createExplainer` share the code that decides. `bot.ts` is refactored so the bid, trump and play decisions each come from one function that returns the decision and the numbers behind it. `decideBid`/`decideTrump`/`decideDomino` return just the decision; `explain` returns both. A hint therefore can never disagree with what a bot in your seat would do, and the parity fixtures keep covering the decision path.
+**The suggestion is always the bot's own decision.** A new `createDecider(weights)` (`decisions.ts`) holds the bid, trump and play decisions, each returning the decision and the numbers behind it. `createBot` is rebuilt on it: `decideBid`/`decideTrump`/`decideDomino` return just the decision, and the new `Bot.explain` returns both. A hint therefore can never disagree with what a bot in your seat would do, and the parity fixtures keep covering the decision path.
 
 **Bid options.** For each legal non-pass bid, `explain` takes the best-trump option (the same per-bid best that `chooseBid` uses). It shows the suggested bid plus its neighbours in bid order, 3 rows in all: the bid below and the bid above, or the nearest two when the suggestion is at an end. When the suggestion is Pass, the rows are the 3 lowest legal bids, each with its P(make), so the player can see why the bot passed.
 
@@ -65,7 +66,7 @@ createExplainer(weights: BotWeights): { explain(match: MatchState, playerId: str
    - `null` replies `{ status: 'unavailable' }`.
 3. Otherwise, reply `{ status: 'ready', hint: explain(match, playerId) }`. A `ValidationError` from `explain` (not your turn, hand decided) is a 400.
 
-**The loader.** `mlBot.ts` caches the loaded `Bot`. It now also caches the explainer, built from the same weights, so hints and bot moves share one load and one warm-up. `getMlBot`'s one-piece-per-call behaviour is unchanged. A cold hint call does one piece and replies `warming`, as a cold alarm does today.
+**The loader.** `mlBot.ts` is unchanged: it caches the loaded `Bot`, which now has `explain`, so hints and bot moves share one load and one warm-up. `getMlBot`'s one-piece-per-call behaviour is unchanged. A cold hint call does one piece and replies `warming`, as a cold alarm does today.
 
 **Concurrency.** As with bot moves, `getMlBot` runs before the match is read, because its ASSETS fetches don't hold input gates.
 
@@ -81,7 +82,7 @@ createExplainer(weights: BotWeights): { explain(match: MatchState, playerId: str
 
 A fully cold model takes about 7 calls (1 load, 5 warm-up steps, then the answer), about 3 s. A warm one takes 1 call.
 
-**Keying a hint to its turn.** `hintTurnKey(view)` identifies the current decision: game number, bids placed, whether trump is set, and dominoes played. A hint belongs to the turn it was asked on.
+**Keying a hint to its turn.** `hintTurnKey(match)` is `game id : current player : updatedOn`, so any change to the match starts a new turn. A hint belongs to the turn it was asked on.
 
 ## 4. Web and mobile UI
 
@@ -95,7 +96,7 @@ The two apps work the same way. Each has a `useHint(matchId, view)` hook over `f
 - the client config has bots on;
 - it is your turn to bid, name trump or play;
 - the hand isn't decided;
-- (mobile) no pre-play is queued.
+- no pre-play is queued (both apps have double-click/double-tap pre-play).
 
 It sits with the bidding panel, the trump picker, or the hand:
 - web: `apps/web/src/pages/Match.tsx`, near `BiddingPanel`/`TrumpPicker`/`Hand`;
