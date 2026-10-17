@@ -9,6 +9,8 @@ import { bestPartnerRecord, favoriteTrumpRecord, statSections, trumpLabel } from
 export const LOBBY_CARD_MS = 9000;
 // How long the full lobby stays up before the table appears.
 export const LOBBY_FULL_HOLD_MS = 1200;
+// How many tips one search shows, so the card's dots stay a short row.
+export const LOBBY_TIPS = 6;
 
 // Each restates a line of How to play (or the claim bar), so none says what the rules don't do.
 export const SEARCH_TIPS: readonly string[] = [
@@ -45,14 +47,14 @@ export const SEARCH_TIPS: readonly string[] = [
   'If someone has kept an Async table waiting for 30 minutes, you can poke them.',
 ];
 
-// The tips in a fresh order, so each search doesn't open on the same few.
-export function shuffledTips(random: () => number = Math.random): string[] {
+// A fresh handful of tips in a fresh order, so each search shows different ones.
+export function shuffledTips(random: () => number = Math.random, count: number = LOBBY_TIPS): string[] {
   const tips = [...SEARCH_TIPS];
   for (let i = tips.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [tips[i], tips[j]] = [tips[j], tips[i]];
   }
-  return tips;
+  return tips.slice(0, count);
 }
 
 // How far the search is toward the bot fill, clamped for a late server or a skewed clock.

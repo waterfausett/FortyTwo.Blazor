@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StatsSummary } from '@fortytwo/api-types';
 import { LIVE_FILL_MS, createDomino, dominoValue, type MatchPlayerRef } from '@fortytwo/rules';
-import { SEARCH_TIPS, fillProgress, joinAnnouncement, lobbyCards, lobbyRoster, rosterIds, shuffledTips } from './searchLobby';
+import { LOBBY_TIPS, SEARCH_TIPS, fillProgress, joinAnnouncement, lobbyCards, lobbyRoster, rosterIds, shuffledTips } from './searchLobby';
 import { statSections } from './stats';
 
 // The dev bypass's `all` summary (apps/mobile/src/dev/devBypass.ts).
@@ -102,11 +102,17 @@ describe('joinAnnouncement', () => {
 describe('shuffledTips', () => {
   it('has every tip once, in an order that depends on the random numbers', () => {
     const always = (n: number) => () => n;
-    const low = shuffledTips(always(0));
-    const high = shuffledTips(always(0.999));
+    const low = shuffledTips(always(0), SEARCH_TIPS.length);
+    const high = shuffledTips(always(0.999), SEARCH_TIPS.length);
     expect([...low].sort()).toEqual([...SEARCH_TIPS].sort());
     expect([...high].sort()).toEqual([...SEARCH_TIPS].sort());
     expect(low).not.toEqual(high);
+  });
+  it('picks LOBBY_TIPS different tips by default', () => {
+    const tips = shuffledTips();
+    expect(tips).toHaveLength(LOBBY_TIPS);
+    expect(new Set(tips).size).toBe(LOBBY_TIPS);
+    for (const tip of tips) expect(SEARCH_TIPS).toContain(tip);
   });
   it('leaves SEARCH_TIPS as written', () => {
     const before = [...SEARCH_TIPS];
