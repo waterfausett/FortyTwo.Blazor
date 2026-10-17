@@ -1,9 +1,9 @@
-"""Replays hands recorded from the real TS engine (cloudflare/packages/rules) and asserts the Python
+"""Replays hands recorded from the real TS engine (packages/rules) and asserts the Python
 engine agrees at every decision: same seat to act, same legal actions, and the same result.
 
 Regenerate the fixture after a rules change:
-  cd cloudflare && npm run dump-traces -w @fortytwo/rules -- --count 5000 --seed 42 \
-    --out ../../../ml/tests/fixtures/ts-traces.jsonl.gz
+  cd .. && npm run dump-traces -w @fortytwo/rules -- --count 5000 --seed 42 \
+    --out ../../ml/tests/fixtures/ts-traces.jsonl.gz
 """
 import gzip
 import json

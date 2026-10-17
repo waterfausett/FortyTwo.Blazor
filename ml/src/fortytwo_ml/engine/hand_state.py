@@ -1,6 +1,6 @@
 """One hand of Forty-Two as a state machine: deal -> bid -> trump -> play -> decided.
 
-Mirrors placeBid / setTrump / playDomino and gameWinningTeam in cloudflare/packages/rules, except
+Mirrors placeBid / setTrump / playDomino and gameWinningTeam in packages/rules, except
 that a decided hand stops (TS lets players play it out; those plays never change the result)."""
 from collections.abc import Sequence
 from dataclasses import dataclass

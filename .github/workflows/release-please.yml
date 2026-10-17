@@ -4,7 +4,7 @@ name: Release Please
 # the Conventional Commit subjects merged to master since its last release. Merging a release PR
 # tags that commit (worker-v1.2.0, mobile-v0.2.0), publishes the GitHub Release, and ships it:
 # the worker deploys from here, and the mobile tag starts an EAS preview build
-# (cloudflare/apps/mobile/.eas/workflows/deploy-preview-builds.yml).
+# (apps/mobile/.eas/workflows/deploy-preview-builds.yml).
 #
 # What belongs to which release is set in release-please-config.json.
 on:
@@ -20,7 +20,7 @@ jobs:
     name: Release PRs / GitHub Releases
     runs-on: ubuntu-latest
     outputs:
-      worker: ${{ steps.release.outputs['cloudflare--release_created'] }}
+      worker: ${{ steps.release.outputs.release_created }}
     steps:
       # Acts as the release GitHub App, not the default GITHUB_TOKEN: GitHub doesn't start
       # workflows for what GITHUB_TOKEN does, so CI wouldn't run on the release PRs. With the

@@ -1,12 +1,12 @@
 ---
 name: mobile-emulator
-description: Run the Forty-Two mobile app (cloudflare/apps/mobile) in the Android emulator on Windows, sign-in bypassed, and look at or drive its screens - screenshots, taps, swipes, opening routes. Use when changing anything the mobile app shows, to see it working, or when asked to run, screenshot or test the app in the emulator.
+description: Run the Forty-Two mobile app (apps/mobile) in the Android emulator on Windows, sign-in bypassed, and look at or drive its screens - screenshots, taps, swipes, opening routes. Use when changing anything the mobile app shows, to see it working, or when asked to run, screenshot or test the app in the emulator.
 ---
 
 # Mobile app in the Android emulator
 
-`cloudflare/apps/mobile/scripts/emulator.ps1` does the setup in the right order, skipping
-whatever's already done. Run it with the PowerShell tool from `cloudflare/apps/mobile`.
+`apps/mobile/scripts/emulator.ps1` does the setup in the right order, skipping
+whatever's already done. Run it with the PowerShell tool from `apps/mobile`.
 
 ## Start
 

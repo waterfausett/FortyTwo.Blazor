@@ -5,12 +5,18 @@
   "separate-pull-requests": true,
   "always-update": true,
   "packages": {
-    "cloudflare": {
+    ".": {
       "component": "worker",
       "package-name": "worker",
-      "exclude-paths": ["cloudflare/apps/mobile"]
+      "exclude-paths": [
+        "apps/mobile",
+        "ml",
+        "docs",
+        ".github",
+        ".claude"
+      ]
     },
-    "cloudflare/apps/mobile": {
+    "apps/mobile": {
       "component": "mobile",
       "package-name": "mobile",
       "bump-minor-pre-major": true,

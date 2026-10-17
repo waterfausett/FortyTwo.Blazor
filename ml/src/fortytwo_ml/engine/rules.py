@@ -1,5 +1,5 @@
 """Suits, ranks, and follow-suit. `is_of_suit`, `get_suit` and `get_suit_value` are literal ports of
-cloudflare/packages/rules/src/domino.ts; everything else reads tables built from them once at import."""
+packages/rules/src/domino.ts; everything else reads tables built from them once at import."""
 from collections.abc import Sequence
 
 from .dominoes import N_DOMINOES, PIPS

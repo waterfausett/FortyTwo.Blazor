@@ -12,10 +12,6 @@ concurrency:
   group: mobile-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-defaults:
-  run:
-    working-directory: cloudflare
-
 jobs:
   # The workflow runs on every pull request so the required check below always reports.
   # This job skips the rest when nothing it covers changed.
@@ -44,7 +40,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: cloudflare/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm test -w @fortytwo/mobile
       - run: npm run typecheck -w @fortytwo/mobile
@@ -59,4 +55,3 @@ jobs:
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
-        working-directory: .
