@@ -133,7 +133,7 @@ describe('takeSeat at a parked seat', () => {
     const botId = open.parked![0];
     const match = takeSeat(open, 'p5', 1, deck());
     expect(match.players.find((p) => p.position === 1)).toMatchObject({ playerId: 'p5', ready: true });
-    expect(match.parked ?? []).toEqual([]);
+    expect('parked' in match).toBe(false);
     expect(JSON.stringify(match.currentGame)).not.toContain(botId);
   });
   it('deals at once when the other three are already ready, opened by the seat after the last opener', () => {
@@ -147,6 +147,16 @@ describe('takeSeat at a parked seat', () => {
   it('waits for the others otherwise', () => {
     const open = decide(parkSeat(dealt('custom'), 'p2'));
     expect(takeSeat(open, 'p5', 1, deck()).currentGame.id).toBe(open.currentGame.id);
+  });
+  it('hands the newcomer the turn and the leftover dominoes the bot held', () => {
+    const parked = parkSeat(dealt('custom'), 'p2');
+    const botId = parked.parked![0];
+    const open = decide({ ...parked, currentGame: { ...parked.currentGame, currentPlayerId: botId } });
+    const leftovers = open.currentGame.hands.find((h) => h.playerId === botId)!.dominoes;
+    expect(leftovers.length).toBeGreaterThan(0);
+    const match = takeSeat(open, 'p5', 1, deck());
+    expect(match.currentGame.currentPlayerId).toBe('p5');
+    expect(match.currentGame.hands.find((h) => h.playerId === 'p5')!.dominoes).toEqual(leftovers);
   });
   it('refuses a parked seat whose hand is not decided yet', () => {
     expect(() => takeSeat(parkSeat(dealt('custom'), 'p2'), 'p5', 1, deck())).toThrow(ValidationError);
@@ -167,6 +177,10 @@ describe('takeSeat at a parked seat', () => {
 });
 
 describe('unpark', () => {
+  it('leaves no parked key behind, even when nothing was parked', () => {
+    expect('parked' in unpark(dealt('custom'))).toBe(false);
+    expect('parked' in unpark(decide(parkSeat(dealt('custom'), 'p2')))).toBe(false);
+  });
   it('keeps the bot and lets it ready up like any bot', () => {
     const open = decide(parkSeat(dealt('custom'), 'p2'));
     const match = unpark(open);

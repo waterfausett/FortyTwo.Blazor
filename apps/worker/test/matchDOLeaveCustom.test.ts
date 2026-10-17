@@ -256,4 +256,17 @@ describe('leaving a Custom match after the deal', () => {
     for (let i = 0; i < 5 && (await stored(stub)).currentGame.id === gameId; i++) await runDurableObjectAlarm(stub);
     expect((await stored(stub)).currentGame.id).not.toBe(gameId);
   });
+
+  it('adding a bot to the open seat by position unparks it, keeping it where it is', async () => {
+    const stub = await dealtCustom('lc-fill-one');
+    await decideHand(stub, (id) => id !== 'p2');
+    expect((await stub.leave('p2')).ok).toBe(true);
+    const bot = (await stored(stub)).players.find((p) => p.position === 1)!.playerId;
+
+    expect((await stub.addBots('p1', [1])).ok).toBe(true);
+    const after = await stored(stub);
+    expect(after.players.find((p) => p.position === 1)!.playerId).toBe(bot);
+    expect(after.parked ?? []).toEqual([]);
+    expect(openPositions(after)).toEqual([]);
+  });
 });
