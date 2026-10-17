@@ -160,9 +160,6 @@ export default function MatchScreen() {
   const highlightPlayable = profile?.highlightPlayable ?? false;
   // Bots can be switched off server-side (the Worker's BOTS_ENABLED).
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
-  // A queued pre-play (Hand's double-tap) plays itself when the turn comes, so no hint then.
-  const [preselecting, setPreselecting] = useState(false);
-  const hint = useHint(liveMatch ?? null, myPlayerId, config.data?.bots ?? false, () => api.getHint(id), preselecting);
 
   // A bid, trump call or ready-up counts as made from the moment it's sent until the socket's
   // broadcast shows it. The request's own reply can arrive first, and going by that alone the bids
@@ -302,6 +299,11 @@ export default function MatchScreen() {
       toastError(error);
     },
   });
+  // No hint while a move of mine is already on its way (until the broadcast moves the turn on), nor
+  // while a pre-play is queued (Hand's double-tap), since that domino plays itself.
+  const [preselecting, setPreselecting] = useState(false);
+  const moving = preselecting || playing != null || bid.isPending || trump.isPending;
+  const hint = useHint(liveMatch ?? null, myPlayerId, config.data?.bots ?? false, () => api.getHint(id), moving);
   useEffect(() => {
     pokedRef.current = {
       nameOf: (playerId) => nameText(names.nameFor(playerId)),

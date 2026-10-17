@@ -28,6 +28,8 @@ const mockApi = {
   leaveMatch: jest.fn(),
   getStats: jest.fn(() => Promise.resolve(STATS)),
   addBots: jest.fn(() => Promise.resolve()),
+  bid: jest.fn(),
+  getHint: jest.fn(),
 };
 
 jest.mock('expo-router', () => ({
@@ -383,5 +385,31 @@ describe('Live search lobby', () => {
     expect(await screen.findByText(/we'll notify you/)).toBeTruthy();
     expect(screen.getByLabelText('Table')).toBeTruthy();
     expect(screen.queryByText('Finding players')).toBeNull();
+  });
+});
+
+describe('Match screen, hints', () => {
+  // As in the lobby tests above: the Table's turn glow asks about reduce motion, which the native
+  // module mock answers with nothing once their spy is restored.
+  let reduceMotion: jest.SpyInstance;
+  beforeEach(() => {
+    reduceMotion = jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+  });
+  afterEach(() => reduceMotion.mockRestore());
+
+  it('hides the hint while my bid is on its way to the server', async () => {
+    mockApi.getConfig.mockResolvedValue({ bots: true });
+    mockApi.bid.mockReturnValue(new Promise(() => {}));
+    try {
+      socket(dealtLiveWithBots({ mode: 'bots' }));
+      await renderScreen();
+      await screen.findByText('Hint');
+
+      await fireEvent.press(screen.getByText('30'));
+
+      await waitFor(() => expect(screen.queryByText('Hint')).toBeNull());
+    } finally {
+      mockApi.getConfig.mockResolvedValue({ bots: false });
+    }
   });
 });

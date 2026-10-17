@@ -2420,6 +2420,18 @@ describe('Match hints', () => {
       expect(screen.getByRole('button', { name: '31' }).classList.contains('bid-tile-suggested')).toBe(true);
     });
 
+    it('hides the hint while my move is on its way to the server', async () => {
+      getConfigMock.mockResolvedValue({ bots: true });
+      bidMock.mockReturnValue(new Promise(() => {}));
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'bots' }), connected: true });
+
+      renderMatch();
+      await screen.findByRole('button', { name: 'Hint' });
+      fireEvent.click(screen.getByRole('button', { name: '30' }));
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Hint' })).toBeNull());
+    });
+
     it('offers no hint outside a practice match', async () => {
       getConfigMock.mockResolvedValue({ bots: true });
       useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });

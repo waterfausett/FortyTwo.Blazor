@@ -238,9 +238,11 @@ export function Match(): JSX.Element {
   // show when the Worker says they're available.
   const configQuery = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig(), staleTime: Infinity });
   const botsEnabled = configQuery.data?.bots ?? false;
-  // A queued pre-play (Hand's double-click) plays itself when the turn comes, so no hint then.
+  // No hint while a move of mine is already on its way (until the broadcast moves the turn on), nor
+  // while a pre-play is queued (Hand's double-click), since that domino plays itself.
   const [preselecting, setPreselecting] = useState(false);
-  const hint = useHint(liveMatch ?? null, myPlayerId, botsEnabled, () => client.getHint(matchId!), preselecting);
+  const moving = preselecting || playing != null || bidMutation.isPending || setTrumpMutation.isPending;
+  const hint = useHint(liveMatch ?? null, myPlayerId, botsEnabled, () => client.getHint(matchId!), moving);
   // No position fills every open seat.
   const addBotsMutation = useMutation({
     mutationFn: (position?: number) => client.addBots(matchId!, position),
