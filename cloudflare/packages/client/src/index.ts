@@ -16,6 +16,7 @@ export * from './people';
 export * from './playerNames';
 export * from './poke';
 export * from './presenceSocket';
+export * from './searchLobby';
 export * from './serverClock';
 export * from './socket';
 export * from './stats';
