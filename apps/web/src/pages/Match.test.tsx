@@ -458,6 +458,35 @@ describe('Match', () => {
       expect(container.querySelector('.table-waiting')).toBeNull();
     });
 
+    it('keeps a just-completed trick in the middle while it is held, not the waiting panel', async () => {
+      const before = parkedBreak();
+      useMatchSocketMock.mockReturnValue({ match: before, connected: true });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      queryClient.setQueryData([PLAYER_NAMES_KEY, 'seeded'], new Map(['p1', 'p3', 'p4', 'bot-1'].map((id) => [id, id])));
+      // A fresh element on each render, so React doesn't skip the update.
+      const ui = () => (
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      const { container, rerender } = render(ui());
+      await screen.findByText('3 of 4 seated');
+
+      // The completing broadcast files the trick and empties `currentTrick` in one step.
+      const after = parkedBreak();
+      after.currentGame.tricks = [
+        ...after.currentGame.tricks,
+        { playerId: 'p3', team: Teams.TeamA, suit: Suit.Fives, dominoes: [createDomino(5, 1), createDomino(5, 2), createDomino(5, 3), createDomino(5, 4)] },
+      ];
+      useMatchSocketMock.mockReturnValue({ match: after, connected: true });
+      act(() => rerender(ui()));
+
+      expect(screen.queryByText('3 of 4 seated')).toBeNull();
+      expect(container.querySelector('.table-waiting')).toBeNull();
+    });
+
     it('offers the open parked seat at a Custom table', async () => {
       currentUserId.value = 'p5';
       useMatchSocketMock.mockReturnValue({ match: parkedBreak(), connected: true });
