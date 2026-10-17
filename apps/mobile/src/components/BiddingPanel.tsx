@@ -10,9 +10,11 @@ export interface BiddingPanelProps {
   myPlayerId: string;
   onBid: (bid: Bid) => void;
   disabled?: boolean;
+  // The bid a hint suggests, ringed in brass.
+  suggested?: Bid | null;
 }
 
-export function BiddingPanel({ game, myPlayerId, onBid, disabled = false }: BiddingPanelProps) {
+export function BiddingPanel({ game, myPlayerId, onBid, disabled = false, suggested = null }: BiddingPanelProps) {
   const bids = availableBids(game, myPlayerId);
   return (
     <View style={styles.panel} accessibilityLabel="Bidding">
@@ -21,10 +23,11 @@ export function BiddingPanel({ game, myPlayerId, onBid, disabled = false }: Bidd
         {bids.map((bid) => (
           <Pressable
             key={bid}
-            style={[styles.option, bid === Bid.Pass && styles.pass, disabled && styles.disabled]}
+            style={[styles.option, bid === Bid.Pass && styles.pass, bid === suggested && styles.suggested, disabled && styles.disabled]}
             disabled={disabled}
             onPress={() => onBid(bid)}
             accessibilityRole="button"
+            accessibilityLabel={bid === suggested ? `${bidToPrettyString(bid)}, suggested` : undefined}
           >
             <Text style={bid === Bid.Pass ? styles.passText : styles.optionText}>{bidToPrettyString(bid)}</Text>
           </Pressable>
@@ -52,6 +55,7 @@ export const pickerStyles = StyleSheet.create({
   optionText: { color: colors.ink, fontFamily: fonts.uiBold, fontSize: 16 },
   optionDetail: { color: colors.ink, fontFamily: fonts.ui, fontSize: 12, textAlign: 'center' },
   disabled: { opacity: 0.5 },
+  suggested: { borderWidth: 2, borderColor: colors.brass },
 });
 
 const styles = StyleSheet.create({

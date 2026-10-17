@@ -5,6 +5,7 @@
 //   dev-trump     you won the bid; name trump
 //   dev-playing   trump named; your lead
 //   dev-hand-over the hand is decided; ready up
+//   dev-practice-bidding / -trump / -playing   the same, in a practice match (vs bots), with hints
 //
 // Or still waiting for players, as each kind of match shows it:
 //
@@ -18,6 +19,8 @@
 import {
   Bid,
   Suit,
+  availableBids,
+  availableTrumps,
   botDisplayName,
   createDomino,
   createMatch,
@@ -32,7 +35,7 @@ import {
   type MatchState,
 } from '@fortytwo/rules';
 import type { MatchSocketOptions } from '@fortytwo/client';
-import type { PublicUser } from '@fortytwo/api-types';
+import type { Hint, HintResponse, PublicUser } from '@fortytwo/api-types';
 import type { Api } from '@/api/useApi';
 
 // The bypass's own player, as its profile has it.
@@ -90,6 +93,9 @@ const SCENARIOS: Record<string, () => MatchState> = {
     while (match.currentGame.currentPlayerId != null && match.currentGame.tricks.length < 7) match = playAny(match);
     return match;
   },
+  'dev-practice-bidding': () => ({ ...SCENARIOS['dev-bidding'](), mode: 'bots' }),
+  'dev-practice-trump': () => ({ ...SCENARIOS['dev-trump'](), mode: 'bots' }),
+  'dev-practice-playing': () => ({ ...SCENARIOS['dev-playing'](), mode: 'bots' }),
   'dev-live-search': () => takeSeat(createMatch(DEV_PLAYER_ID, 'live'), 'dev|jo', 1),
   'dev-live-filling': () => takeSeat(createMatch(DEV_PLAYER_ID, 'live'), 'dev|jo', 1),
   'dev-async-waiting': () => takeSeat(createMatch(DEV_PLAYER_ID, 'daily'), 'dev|jo', 1),
@@ -104,6 +110,8 @@ function ensureRandomUUID() {
 }
 
 const matches = new Map<string, MatchState>();
+// Practice matches that have already answered one 'warming' (see getHint).
+const warmedOnce = new Set<string>();
 const listeners = new Map<string, Set<(match: MatchState) => void>>();
 
 function current(id: string): MatchState {
@@ -154,6 +162,35 @@ export const devMatchApi: Partial<Api> = {
   // Nobody goes on autopilot in the bypass, so there's nothing to take back.
   resume: (id) => later(devTiming.replyMs, () => seen(current(id))),
   readyUp: (id, ready) => move(id, (match) => patchPlayerReady(match, DEV_PLAYER_ID, ready, deck())),
+  // A made-up hint for the current turn - the first legal moves with fixed numbers - after one
+  // 'warming' reply, so the screen shows Thinking… first. Only the screen is real here.
+  getHint: (id) => {
+    const match = current(id);
+    const game = match.currentGame;
+    if (!warmedOnce.has(id)) {
+      warmedOnce.add(id);
+      return later<HintResponse>(300, () => ({ status: 'warming' }));
+    }
+    let hint: Hint;
+    if (game.hands.some((h) => h.bid === null)) {
+      const bids = availableBids(game, DEV_PLAYER_ID).filter((b) => b !== Bid.Pass).slice(0, 3);
+      const options = bids.map((bid, i) => ({ bid, trump: Suit.Sixes, pMake: 0.8 - i * 0.12 }));
+      hint = { kind: 'bid', suggestion: options[1] ?? options[0], options };
+    } else if (game.trump === null) {
+      const options = availableTrumps(game).slice(0, 3).map((trump, i) => ({ trump, pMake: 0.75 - i * 0.1 }));
+      hint = { kind: 'trump', suggestion: options[0], options };
+    } else {
+      const hand = game.hands.find((h) => h.playerId === DEV_PLAYER_ID)!.dominoes;
+      hint = {
+        kind: 'play',
+        dominoes: hand.map((domino, i) => {
+          const gap = i === 0 ? 0 : i * 0.06;
+          return { domino, marks: 0.6 - gap, gap, rating: gap === 0 ? 'best' : gap < 0.1 ? 'close' : 'weaker' };
+        }),
+      };
+    }
+    return later<HintResponse>(300, () => ({ status: 'ready', hint }));
+  },
 };
 
 // Stands in for connectMatchSocket: connects at once, starting the match over, and passes on each

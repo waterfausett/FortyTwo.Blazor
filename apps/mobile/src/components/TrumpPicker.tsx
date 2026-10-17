@@ -13,9 +13,11 @@ export interface TrumpPickerProps {
   game: Game;
   onSelect: (suit: Suit) => void;
   disabled?: boolean;
+  // The trump a hint suggests, ringed (on the Low choice for any Low variant).
+  suggested?: Suit | null;
 }
 
-export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerProps) {
+export function TrumpPicker({ game, onSelect, disabled = false, suggested = null }: TrumpPickerProps) {
   const [choosingDoubles, setChoosingDoubles] = useState(false);
   const trumps = availableTrumps(game);
   const lowTrumps = trumps.filter(isLow);
@@ -28,10 +30,11 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
           {lowTrumps.map((suit) => (
             <Pressable
               key={suit}
-              style={[styles.option, { width: '100%' }, disabled && styles.disabled]}
+              style={[styles.option, { width: '100%' }, suit === suggested && styles.suggested, disabled && styles.disabled]}
               disabled={disabled}
               onPress={() => onSelect(suit)}
               accessibilityRole="button"
+              accessibilityLabel={suit === suggested ? `Doubles ${lowDoublesToPrettyString(suit)}, suggested` : undefined}
             >
               <Text style={styles.optionText}>Doubles {lowDoublesToPrettyString(suit)}</Text>
               <Text style={styles.optionDetail}>
@@ -56,10 +59,11 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
           .map((suit) => (
             <Pressable
               key={suit}
-              style={[styles.option, disabled && styles.disabled]}
+              style={[styles.option, suit === suggested && styles.suggested, disabled && styles.disabled]}
               disabled={disabled}
               onPress={() => onSelect(suit)}
               accessibilityRole="button"
+              accessibilityLabel={suit === suggested ? `${suitToPrettyString(suit)}, suggested` : undefined}
             >
               <View style={styles.trumpOption}>
                 <PipFace suit={suit} size={22} />
@@ -69,10 +73,11 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
           ))}
         {lowTrumps.length > 0 && (
           <Pressable
-            style={[styles.option, disabled && styles.disabled]}
+            style={[styles.option, suggested !== null && isLow(suggested) && styles.suggested, disabled && styles.disabled]}
             disabled={disabled}
             onPress={() => setChoosingDoubles(true)}
             accessibilityRole="button"
+            accessibilityLabel={suggested !== null && isLow(suggested) ? 'Low, suggested' : undefined}
           >
             <View style={styles.trumpOption}>
               <PipFace suit={Suit.Low} size={22} />

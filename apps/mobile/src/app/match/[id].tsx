@@ -20,6 +20,9 @@ import {
   describeMatch,
   isHighBidder,
   isTrickStarted,
+  suggestedBid,
+  suggestedDominoIds,
+  suggestedTrump,
   isValidPlay,
   matchStatus,
   nameText,
@@ -68,6 +71,8 @@ import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
+import { HintPanel } from '@/components/HintPanel';
+import { useHint } from '@/match/useHint';
 import { DoublesRuleModal } from '@/components/DoublesRuleModal';
 import { InviteSheet } from '@/people/InviteSheet';
 import { Fade, FADE_IN_MS } from '@/components/Fade';
@@ -155,6 +160,9 @@ export default function MatchScreen() {
   const highlightPlayable = profile?.highlightPlayable ?? false;
   // Bots can be switched off server-side (the Worker's BOTS_ENABLED).
   const config = useQuery({ queryKey: ['config'], queryFn: () => api.getConfig(), staleTime: Infinity });
+  // A queued pre-play (Hand's double-tap) plays itself when the turn comes, so no hint then.
+  const [preselecting, setPreselecting] = useState(false);
+  const hint = useHint(liveMatch ?? null, myPlayerId, config.data?.bots ?? false, () => api.getHint(id), preselecting);
 
   // A bid, trump call or ready-up counts as made from the moment it's sent until the socket's
   // broadcast shows it. The request's own reply can arrive first, and going by that alone the bids
@@ -824,11 +832,17 @@ export default function MatchScreen() {
           // Fades out as soon as a bid is picked (and back, should it be turned away), rather than
           // dimming until the server answers and then vanishing.
           <Fade key="bid" visible={!bidSent}>
-            <BiddingPanel game={game} myPlayerId={myPlayerId} onBid={(b) => bid.mutate(b)} disabled={!connected} />
+            <BiddingPanel
+              game={game}
+              myPlayerId={myPlayerId}
+              onBid={(b) => bid.mutate(b)}
+              disabled={!connected}
+              suggested={suggestedBid(hint.hint)}
+            />
           </Fade>
         ) : view.canSelectTrump && !watching ? (
           <Fade key="trump" visible={!trumpSent}>
-            <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected} />
+            <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected} suggested={suggestedTrump(hint.hint)} />
           </Fade>
         ) : (
           status != null && (
@@ -858,6 +872,8 @@ export default function MatchScreen() {
         {/* Takes up whatever room is left, keeping the hand at the bottom of the screen: when the
             choices above grow or shrink (a status line, the bids, the trumps), only this changes,
             so nothing else moves. */}
+        {!watching && <HintPanel hint={hint} />}
+
         <View style={styles.spacer} />
 
         {watching ? (
@@ -887,6 +903,8 @@ export default function MatchScreen() {
             highlightPlayable={highlightPlayable}
             dropZone={tableRef}
             onDragChange={setDrag}
+            suggestedIds={suggestedDominoIds(hint.hint)}
+            onPreselectChange={(preselected) => setPreselecting(preselected !== null)}
           />
         )}
         {/* Laid out whenever there's a hand, and only shown on the player's turn, so it coming and

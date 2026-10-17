@@ -3,7 +3,10 @@ import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { HOW_TO_PLAY, PRESELECT_AUTO_PLAY_DELAY_MS } from '@fortytwo/client';
 import { Bid, DEFAULT_HOUSE_RULES, Teams, createDomino, type Game, type Trick } from '@fortytwo/rules';
+import type { Hint } from '@fortytwo/api-types';
+import type { HintController } from '@/match/useHint';
 import { BiddingPanel } from '../BiddingPanel';
+import { HintPanel } from '../HintPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
 import { HelpButton } from '../HelpButton';
 import { HowToPlayCard } from '../HowToPlayCard';
@@ -597,5 +600,50 @@ describe('HelpButton', () => {
     await render(<HelpButton onPress={onPress} />);
     await fireEvent.press(screen.getByRole('button', { name: 'How to play' }));
     expect(onPress).toHaveBeenCalled();
+  });
+});
+
+describe('HintPanel', () => {
+  const controller = (over: Partial<HintController>): HintController => ({
+    available: true, state: { status: 'idle' }, ask: jest.fn(), hint: null, ...over,
+  });
+
+  it('shows nothing when no hint can be asked for', async () => {
+    await render(<HintPanel hint={controller({ available: false })} />);
+    expect(screen.queryByText('Hint')).toBeNull();
+  });
+
+  it('asks when Hint is pressed, then shows the hint with the suggested row marked', async () => {
+    const ask = jest.fn();
+    await render(<HintPanel hint={controller({ ask })} />);
+    await fireEvent.press(screen.getByText('Hint'));
+    expect(ask).toHaveBeenCalled();
+
+    const hint: Hint = {
+      kind: 'play',
+      dominoes: [
+        { domino: createDomino(4, 6), marks: 0.6, gap: 0, rating: 'best' },
+        { domino: createDomino(1, 3), marks: 0.2, gap: 0.4, rating: 'weaker' },
+      ],
+    };
+    await render(<HintPanel hint={controller({ state: { status: 'ready', hint }, hint })} />);
+    expect(screen.getByText('Play 6-4')).toBeTruthy();
+    expect(screen.getByText('weaker (−0.40 marks)')).toBeTruthy();
+    expect(screen.getByLabelText('6-4, best, suggested')).toBeTruthy();
+  });
+
+  it('says it is thinking, and why it failed', async () => {
+    await render(<HintPanel hint={controller({ state: { status: 'loading' } })} />);
+    expect(screen.getByText('Thinking…')).toBeTruthy();
+    await render(<HintPanel hint={controller({ state: { status: 'error', message: "Hints aren't available right now." } })} />);
+    expect(screen.getByText("Hints aren't available right now.")).toBeTruthy();
+    expect(screen.getByText('Try again')).toBeTruthy();
+  });
+});
+
+describe('suggestion marks', () => {
+  it('marks the suggested bid', async () => {
+    await render(<BiddingPanel game={biddingGame()} myPlayerId="p1" onBid={jest.fn()} suggested={31} />);
+    expect(screen.getByLabelText('31, suggested')).toBeTruthy();
   });
 });
