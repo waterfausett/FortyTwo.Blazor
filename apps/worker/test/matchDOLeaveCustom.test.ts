@@ -141,6 +141,13 @@ async function playerCount(name: string): Promise<number> {
   return row!.player_count;
 }
 
+async function lobbySeats(matchId: string): Promise<string[]> {
+  const { results } = await testEnv.DB.prepare('SELECT player_id FROM match_players WHERE match_id = ? ORDER BY position')
+    .bind(matchId)
+    .all<{ player_id: string }>();
+  return results.map((r) => r.player_id);
+}
+
 describe('the lobby index and an open parked seat', () => {
   it('player_count drops to 3 when a human play decides the hand, and back to 4 on sit-down', async () => {
     const name = 'lc-lobby-human';
@@ -153,6 +160,7 @@ describe('the lobby index and an open parked seat', () => {
     expect(played.status).toBe(200);
     expect(openPositions(await stored(stub))).toEqual([1]);
     expect(await playerCount(name)).toBe(3);
+    expect(await lobbySeats(name)).toEqual(['p1', 'p3', 'p4']);
 
     expect((await api(`/api/matches/${name}/players`, 'p5', json({ position: 1 }))).status).toBe(200);
     expect(await playerCount(name)).toBe(4);
@@ -169,6 +177,7 @@ describe('the lobby index and an open parked seat', () => {
     await runDurableObjectAlarm(stub);
     expect(openPositions(await stored(stub))).toEqual([1]);
     expect(await playerCount(name)).toBe(3);
+    expect(await lobbySeats(name)).toEqual(['p1', 'p3', 'p4']);
   });
 });
 

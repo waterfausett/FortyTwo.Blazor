@@ -66,12 +66,13 @@ export const SUMMARY_REFRESH_MS = 5 * 60 * 1000;
 // Also restores a match missing from the lobby altogether - one whose seats-changing sync failed
 // (see `bestEffort`), such as a rematch, which no later change of seats would ever re-sync. The
 // INSERT OR IGNORE writes nothing for a match that's already listed; when it does add the row,
-// the seats are written too.
+// the seats are written too. So are they when the player count changed, which a play can do by
+// deciding a hand at a table with a parked bot: its seat opens, so the bot must leave the seat list.
 export async function refreshMatchSummary(db: D1Database, match: MatchState): Promise<void> {
   const status = matchStatus(match);
   const seated = seatedPlayers(match);
   const refreshBefore = new Date(Date.parse(match.updatedOn) - SUMMARY_REFRESH_MS).toISOString();
-  const [restored] = await db.batch([
+  const [restored, changed] = await db.batch([
     db
       .prepare('INSERT OR IGNORE INTO matches (id, status, player_count, updated_on, mode, rules) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(match.id, status, seated.length, match.updatedOn, matchMode(match), rulesColumn(match)),
@@ -85,7 +86,7 @@ export async function refreshMatchSummary(db: D1Database, match: MatchState): Pr
       .prepare('UPDATE matches SET updated_on = ?2 WHERE id = ?1 AND updated_on < ?3')
       .bind(match.id, match.updatedOn, refreshBefore),
   ]);
-  if (restored.meta.changes > 0) await syncMatchPlayers(db, match.id, seated);
+  if (restored.meta.changes > 0 || changed.meta.changes > 0) await syncMatchPlayers(db, match.id, seated);
 }
 
 // The `rules` column for a match: its house rules as JSON, or null on the default rules.

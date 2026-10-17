@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { env, runInDurableObject, SELF } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
+import { syncLobbyIndex } from '../src/lobby';
 import { saveUsers } from '../src/users/publicUsers';
 import type { Env } from '../src/index';
 import type { Invite, InviteResult } from '@fortytwo/api-types';
@@ -147,6 +148,9 @@ describe('POST /api/matches/:id/invites', () => {
   });
 });
 
+const stored = (stub: ReturnType<typeof testEnv.MATCH_DO.get>) =>
+  runInDurableObject(stub, async (_instance, state) => state.storage.get<MatchState>('match'));
+
 describe('invites at an open parked seat', () => {
   it('can be sent at the break, survive until someone sits, and list for the invitee', async () => {
     const match = await customTable();
@@ -176,6 +180,10 @@ describe('invites at an open parked seat', () => {
     expect(await myInvites('auth0|eve')).toEqual([
       { matchId: match.id, from: { user_id: ME, displayName: 'me' }, createdOn: expect.any(String), seatsOpen: 1 },
     ]);
+
+    // A seat sync at the still-open table doesn't mistake it for full and wipe the invite.
+    await syncLobbyIndex(testEnv.DB, (await stored(stub))!);
+    expect(await myInvites('auth0|eve')).toHaveLength(1);
 
     await sit(match.id, 'auth0|eve', 1);
     expect(await myInvites('auth0|eve')).toEqual([]);
