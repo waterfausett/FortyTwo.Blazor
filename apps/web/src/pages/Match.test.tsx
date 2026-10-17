@@ -49,6 +49,7 @@ const {
   resumeMock,
   playMock,
   getStatsMock,
+  getHintMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -74,6 +75,7 @@ const {
     resumeMock: vi.fn(),
     playMock: vi.fn(),
     getStatsMock: vi.fn(),
+    getHintMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -99,6 +101,7 @@ vi.mock('../api/client', () => ({
     resume: resumeMock,
     play: playMock,
     getStats: getStatsMock,
+    getHint: getHintMock,
   }),
 }));
 
@@ -2399,3 +2402,29 @@ describe('Match', () => {
     });
   });
 });
+
+describe('Match hints', () => {
+    it('offers a hint on my turn in a practice match, and rings the suggested bid', async () => {
+      getConfigMock.mockResolvedValue({ bots: true });
+      getHintMock.mockResolvedValue({
+        status: 'ready',
+        hint: { kind: 'bid', suggestion: { bid: 31, trump: 6, pMake: 0.7 }, options: [{ bid: 31, trump: 6, pMake: 0.7 }] },
+      });
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'bots' }), connected: true });
+
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: 'Hint' }));
+
+      expect(await screen.findByText('Bid 31 · Sixes, 70% to make')).not.toBeNull();
+      expect(getHintMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: '31' }).classList.contains('bid-tile-suggested')).toBe(true);
+    });
+
+    it('offers no hint outside a practice match', async () => {
+      getConfigMock.mockResolvedValue({ bots: true });
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+      await waitFor(() => expect(getConfigMock).toHaveBeenCalled());
+      expect(screen.queryByRole('button', { name: 'Hint' })).toBeNull();
+    });
+  });

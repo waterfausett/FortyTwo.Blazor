@@ -11,9 +11,11 @@ export interface BiddingPanelProps {
   myPlayerId: string;
   onBid: (bid: Bid) => void;
   disabled?: boolean;
+  // The bid a hint suggests, outlined.
+  suggested?: Bid | null;
 }
 
-export function BiddingPanel({ game, myPlayerId, onBid, disabled = false }: BiddingPanelProps): JSX.Element {
+export function BiddingPanel({ game, myPlayerId, onBid, disabled = false, suggested = null }: BiddingPanelProps): JSX.Element {
   const isMyTurn = game.currentPlayerId === myPlayerId;
   const allDisabled = disabled || !isMyTurn;
   const bids = availableBids(game, myPlayerId);
@@ -26,7 +28,7 @@ export function BiddingPanel({ game, myPlayerId, onBid, disabled = false }: Bidd
           <button
             key={bid}
             type="button"
-            className={bid === Bid.Pass ? 'bid-tile bid-tile-pass' : 'bid-tile'}
+            className={`${bid === Bid.Pass ? 'bid-tile bid-tile-pass' : 'bid-tile'}${bid === suggested ? ' bid-tile-suggested' : ''}`}
             disabled={allDisabled}
             onClick={() => onBid(bid)}
           >

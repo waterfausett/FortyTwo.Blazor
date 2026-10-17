@@ -1383,3 +1383,39 @@
     display: none;
   }
 }
+
+/* Hints (practice matches): the button and card under the controls, and the suggestion ringed in
+   brass - the hall's colour for the one thing asking for attention. */
+.hint-panel {
+  margin: 0.5rem 0;
+}
+.hint-status,
+.hint-headline {
+  margin: 0.25rem 0;
+}
+.hint-headline {
+  font-weight: 600;
+}
+.hint-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.hint-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+}
+.hint-row-suggested {
+  outline: 1px solid var(--brass);
+}
+.bid-tile-suggested,
+.trump-tile-suggested {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+.hand .domino.suggested {
+  box-shadow: 0 0 0 0.25em var(--brass);
+}

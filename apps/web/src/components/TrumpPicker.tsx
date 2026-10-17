@@ -12,9 +12,11 @@ export interface TrumpPickerProps {
   game: Game;
   onSelect: (suit: Suit) => void;
   disabled?: boolean;
+  // The trump a hint suggests, outlined (on the Low tile for any Low variant).
+  suggested?: Suit | null;
 }
 
-export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerProps): JSX.Element {
+export function TrumpPicker({ game, onSelect, disabled = false, suggested = null }: TrumpPickerProps): JSX.Element {
   const [choosingDoubles, setChoosingDoubles] = useState(false);
   const trumps = availableTrumps(game);
   const lowTrumps = trumps.filter(isLow);
@@ -28,7 +30,7 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
             <button
               key={suit}
               type="button"
-              className="trump-tile trump-tile-wide"
+              className={`trump-tile trump-tile-wide${suit === suggested ? ' trump-tile-suggested' : ''}`}
               disabled={disabled}
               onClick={() => onSelect(suit)}
             >
@@ -51,13 +53,18 @@ export function TrumpPicker({ game, onSelect, disabled = false }: TrumpPickerPro
         {trumps
           .filter((suit) => !isLow(suit))
           .map((suit) => (
-            <button key={suit} type="button" className="trump-tile" disabled={disabled} onClick={() => onSelect(suit)}>
+            <button key={suit} type="button" className={`trump-tile${suit === suggested ? ' trump-tile-suggested' : ''}`} disabled={disabled} onClick={() => onSelect(suit)}>
               <PipFace suit={suit} />
               <span>{suitToPrettyString(suit)}</span>
             </button>
           ))}
         {lowTrumps.length > 0 && (
-          <button type="button" className="trump-tile" disabled={disabled} onClick={() => setChoosingDoubles(true)}>
+          <button
+            type="button"
+            className={`trump-tile${suggested !== null && isLow(suggested) ? ' trump-tile-suggested' : ''}`}
+            disabled={disabled}
+            onClick={() => setChoosingDoubles(true)}
+          >
             <PipFace suit={Suit.Low} />
             <span>Low</span>
           </button>
