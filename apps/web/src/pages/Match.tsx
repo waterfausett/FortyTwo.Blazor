@@ -641,7 +641,7 @@ export function Match(): JSX.Element {
   const seatedOthers = match.players
     .filter((p) => p.playerId !== viewerId)
     .map((p) => ({ player: p, seat: seatFor(match.players, viewerId, p.playerId)! }));
-  const emptySeats = openSeats(match.players, viewerId);
+  const emptySeats = openSeats(match, viewerId);
 
   // One line on the rail saying what the table is waiting on - for a watcher, never "Your play".
   const status = matchStatus(

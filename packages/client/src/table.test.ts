@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { Bid, createTrick, Positions, Suit, Teams, type Game, type MatchPlayerState } from '@fortytwo/rules';
+import {
+  Bid,
+  createDomino,
+  createMatch,
+  createTrick,
+  parkSeat,
+  Positions,
+  Suit,
+  takeSeat,
+  Teams,
+  type Domino,
+  type Game,
+  type MatchPlayerState,
+  type MatchState,
+} from '@fortytwo/rules';
 import { dealerId, openSeats, seatFor, trickLeaderId, trickPlayOrder, trickSeats } from './table';
 
 const PLAYERS: MatchPlayerState[] = [
@@ -25,6 +39,37 @@ function game(overrides: Partial<Game> = {}): Game {
   };
 }
 
+function deck(): Domino[] {
+  const dominoes: Domino[] = [];
+  for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dominoes.push(createDomino(i, j));
+  return dominoes;
+}
+
+// p1-p4 dealt in a Custom match, then p2 leaves: a parked bot holds position 1 while the hand is played.
+function parkedMidHand(): MatchState {
+  let match = createMatch('p1', 'custom');
+  match = takeSeat(match, 'p2', 1);
+  match = takeSeat(match, 'p3', 2);
+  match = takeSeat(match, 'p4', 3, deck());
+  return parkSeat(match, 'p2');
+}
+
+// The same match with the hand decided (a team has taken 31 points), so the parked seat is open.
+function openParkedMatch(): MatchState {
+  const match = parkedMidHand();
+  const counts = [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)];
+  return {
+    ...match,
+    currentGame: {
+      ...match.currentGame,
+      biddingPlayerId: 'p1',
+      bid: Bid.Thirty,
+      trump: Suit.Sixes,
+      tricks: [{ playerId: 'p2', team: Teams.TeamB, suit: Suit.Sixes, dominoes: counts }],
+    },
+  };
+}
+
 describe('seatFor', () => {
   it('places the next player to my left, my partner across, and the previous player to my right', () => {
     expect(seatFor(PLAYERS, 'p2', 'p2')).toBe('bottom');
@@ -41,15 +86,23 @@ describe('seatFor', () => {
 describe('openSeats', () => {
   it('lists each empty position with where it sits relative to me', () => {
     // I'm at position 1; p3 sits across from me at 3. Positions 0 and 2 are open.
-    const players = [PLAYERS[1], PLAYERS[3]];
-    expect(openSeats(players, 'p2')).toEqual([
+    const match = { ...createMatch('p1'), players: [PLAYERS[1], PLAYERS[3]] };
+    expect(openSeats(match, 'p2')).toEqual([
       { position: 0, seat: 'right' },
       { position: 2, seat: 'left' },
     ]);
   });
 
   it('is empty once the table is full', () => {
-    expect(openSeats(PLAYERS, 'p1')).toEqual([]);
+    expect(openSeats({ ...createMatch('p1'), players: PLAYERS }, 'p1')).toEqual([]);
+  });
+
+  it('lists an open parked seat', () => {
+    expect(openSeats(openParkedMatch(), 'p1')).toEqual([{ position: 1, seat: 'left' }]);
+  });
+
+  it('does not list a parked seat whose hand is still being played', () => {
+    expect(openSeats(parkedMidHand(), 'p1')).toEqual([]);
   });
 });
 

@@ -11,6 +11,7 @@ import {
   getPlayerView,
   handSize,
   isLow,
+  openPositions,
   pointsToMakeBid,
   trickValue,
   type Domino,
@@ -65,6 +66,8 @@ export interface MatchView {
   opponentTeam: Teams;
   // All four seated and a hand dealt. Until then nobody can bid or play.
   isTableReady: boolean;
+  // Seats a person could take: empty, or a parked bot's once its hand is decided (see `openSeats`).
+  openSeatCount: number;
   isBiddingPhase: boolean;
   isTrumpSelectPhase: boolean;
   isPlayingPhase: boolean;
@@ -121,6 +124,7 @@ export function describeMatch(match: MatchState, myPlayerId: string): MatchView 
     myTeam: me.team,
     opponentTeam: otherTeam(me.team),
     isTableReady,
+    openSeatCount: openPositions(match).length,
     isBiddingPhase,
     isTrumpSelectPhase,
     isPlayingPhase,

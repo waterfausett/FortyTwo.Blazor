@@ -563,7 +563,7 @@ export default function MatchScreen() {
   }
   const seats: Record<Seat, SeatInfo | null> = { bottom: null, left: null, top: null, right: null };
   for (const p of match.players) seats[seatFor(match.players, viewerId, p.playerId)!] = seatInfo(p.playerId);
-  const emptySeatCount = openSeats(match.players, viewerId).length;
+  const emptySeatCount = openSeats(match, viewerId).length;
   // The last human out deletes the match, so for them leaving is cancelling it.
   const onlyHumanSeated = match.players.every((p) => p.playerId === myPlayerId || isBot(p.playerId));
   function confirmLeave() {
