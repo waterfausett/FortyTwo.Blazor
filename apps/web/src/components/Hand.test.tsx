@@ -302,3 +302,20 @@ describe('highlightPlayable', () => {
     for (const cls of classesOf()) expect(cls).not.toMatch(/playable/);
   });
 });
+
+describe('hint suggestions', () => {
+  it('marks the suggested dominoes', () => {
+    render(<Hand dominoes={[createDomino(1, 2), createDomino(3, 4)]} selectable onPlay={() => {}} suggestedIds={['3/4']} />);
+    const tiles = screen.getAllByTestId('domino');
+    expect(tiles.map((t) => t.classList.contains('suggested'))).toEqual([false, true]);
+  });
+
+  it('reports a pre-play being queued and cleared', () => {
+    const onPreselectChange = vi.fn();
+    render(<Hand dominoes={[createDomino(1, 2)]} selectable={false} onPlay={() => {}} onPreselectChange={onPreselectChange} />);
+    fireEvent.doubleClick(screen.getAllByTestId('domino')[0]);
+    expect(onPreselectChange).toHaveBeenLastCalledWith('1/2');
+    fireEvent.doubleClick(screen.getAllByTestId('domino')[0]);
+    expect(onPreselectChange).toHaveBeenLastCalledWith(null);
+  });
+});

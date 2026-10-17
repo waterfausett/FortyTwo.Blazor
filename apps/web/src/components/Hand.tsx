@@ -50,6 +50,11 @@ export interface HandProps {
   // A domino on its way to the table: not drawn, but its place is kept, so if the play is turned
   // away it comes back where it was.
   playingId?: string | null;
+  // Dominoes a hint suggests playing, ringed.
+  suggestedIds?: string[];
+  // Told whenever a pre-play is queued (the domino's id) or cleared (null), so the screen can hide
+  // the Hint button while a domino is set to play itself.
+  onPreselectChange?: (id: string | null) => void;
 }
 
 // Keeps the drag ghost fully on screen.
@@ -71,6 +76,7 @@ function DraggableDomino({
   selectable,
   preselected,
   hint,
+  suggested,
   onClick,
   onDoubleClick,
 }: {
@@ -78,6 +84,7 @@ function DraggableDomino({
   selectable: boolean;
   preselected: boolean;
   hint?: 'playable' | 'unplayable';
+  suggested: boolean;
   onClick: () => void;
   onDoubleClick: () => void;
 }): JSX.Element {
@@ -103,6 +110,7 @@ function DraggableDomino({
         selectable={selectable}
         preselected={preselected}
         hint={hint}
+        suggested={suggested}
         onClick={selectable ? onClick : undefined}
         onDoubleClick={onDoubleClick}
       />
@@ -143,6 +151,8 @@ export function Hand({
   isValidPlay = () => true,
   highlightPlayable = false,
   playingId = null,
+  suggestedIds = [],
+  onPreselectChange,
 }: HandProps): JSX.Element {
   const [order, setOrder] = useState<DominoType[]>(dominoes);
   const [syncedSignature, setSyncedSignature] = useState<string>(() => handSignature(dominoes));
@@ -150,6 +160,11 @@ export function Hand({
   // double-clicking a tile before `selectable` is true. Only one at a time: double-clicking a
   // different tile replaces it, matching a player only ever getting to make one move per turn.
   const [preselectedId, setPreselectedId] = useState<string | null>(null);
+  const onPreselectChangeRef = useRef(onPreselectChange);
+  useEffect(() => {
+    onPreselectChangeRef.current = onPreselectChange;
+  });
+  useEffect(() => onPreselectChangeRef.current?.(preselectedId), [preselectedId]);
   // The tile being dragged (drawn as the DragOverlay ghost), and whether dropping it right now
   // would play it (it's over the table on this player's turn).
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -267,6 +282,7 @@ export function Hand({
           selectable={selectable}
           preselected={domino.id === preselectedId}
           hint={highlightPlayable && selectable ? (isValidPlay(domino) ? 'playable' : 'unplayable') : undefined}
+          suggested={suggestedIds.includes(domino.id)}
           onClick={() => playDomino(domino)}
           onDoubleClick={() => handleDoubleClick(domino)}
         />

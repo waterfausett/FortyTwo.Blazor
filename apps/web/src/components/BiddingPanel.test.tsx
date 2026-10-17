@@ -130,3 +130,11 @@ describe('BiddingPanel', () => {
     expect((screen.getByRole('button', { name: /pass/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
+
+describe('hint suggestions', () => {
+  it('outlines the suggested bid', () => {
+    render(<BiddingPanel game={baseGame()} myPlayerId="p1" onBid={() => {}} suggested={31} />);
+    expect(screen.getByRole('button', { name: '31' }).classList.contains('bid-tile-suggested')).toBe(true);
+    expect(screen.getByRole('button', { name: '30' }).classList.contains('bid-tile-suggested')).toBe(false);
+  });
+});
