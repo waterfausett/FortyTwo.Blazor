@@ -1,0 +1,297 @@
+/* The Live search lobby (SearchLobby.tsx), in the hall's palette (hall.css). Rows look like the
+   People rows (people/People.css). The pulse on empty rows and the online dot's blink are off
+   under prefers-reduced-motion. */
+
+.search-lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: 100%;
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.search-lobby-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.search-lobby-heading h2 {
+  margin: 0;
+  font: 700 1.75rem var(--font-display);
+  color: var(--bone);
+}
+
+.search-lobby-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #7cc28a;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.search-lobby-online::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #7cc28a;
+  animation: search-lobby-blink 1.4s ease-in-out infinite;
+}
+
+.search-lobby-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.search-lobby-track {
+  flex: 1;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--mat);
+  overflow: hidden;
+}
+
+.search-lobby-fill {
+  height: 100%;
+  background: var(--brass);
+  transition: width 1s linear;
+}
+
+.search-lobby-time {
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.search-lobby-full {
+  margin: 0;
+  color: var(--brass);
+  font-weight: 600;
+}
+
+.search-lobby-roster ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.search-lobby-group {
+  margin: 0 0 0.4rem;
+  font: 600 0.8rem var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.search-lobby-us {
+  color: var(--us);
+}
+
+.search-lobby-them {
+  color: var(--them);
+}
+
+.search-lobby-vs {
+  margin: 0.4rem 0;
+  text-align: center;
+  color: var(--ink-muted);
+  font: 700 0.9rem var(--font-display);
+}
+
+.search-lobby-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.9rem;
+  background: rgba(20, 13, 9, 0.55);
+  box-shadow: 0 0 0 1px rgba(242, 234, 219, 0.08);
+  color: var(--bone);
+}
+
+.search-lobby-row.is-you {
+  box-shadow:
+    inset 3px 0 0 var(--us),
+    0 0 0 1px rgba(242, 234, 219, 0.08);
+}
+
+.search-lobby-row.is-empty {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed rgba(184, 167, 138, 0.35);
+  color: var(--ink-muted);
+  animation: search-lobby-pulse 1.6s ease-in-out infinite;
+}
+
+.search-lobby-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: rgba(242, 234, 219, 0.12);
+  font: 600 1rem var(--font-ui);
+}
+
+.search-lobby-row.is-empty .search-lobby-avatar {
+  background: transparent;
+  border: 1px dashed rgba(184, 167, 138, 0.35);
+}
+
+.search-lobby-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-lobby-row.is-empty .search-lobby-name {
+  font-weight: 400;
+}
+
+.search-lobby-cards {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  border-radius: 0.9rem;
+  background: var(--mat);
+}
+
+.search-lobby-cards::-webkit-scrollbar {
+  display: none;
+}
+
+.search-lobby-card {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  min-height: 7rem;
+  padding: 0.9rem 1rem;
+}
+
+.search-lobby-card p {
+  margin: 0;
+}
+
+.search-lobby-card-label {
+  margin-bottom: 0.35rem !important;
+  color: var(--brass);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.search-lobby-tip {
+  line-height: 1.4;
+}
+
+.search-lobby-summary {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  text-align: center;
+}
+
+.search-lobby-summary div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.search-lobby-summary dd {
+  margin: 0;
+  font: 700 1.6rem var(--font-display);
+}
+
+.search-lobby-summary dt,
+.search-lobby-hint {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.search-lobby-record {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-lobby-headline {
+  font: 700 1.3rem var(--font-display);
+}
+
+.search-lobby-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.15rem;
+  margin-top: 0.4rem;
+}
+
+.search-lobby-dot {
+  appearance: none;
+  border: 0;
+  padding: 0.3rem;
+  background: none;
+  cursor: pointer;
+}
+
+.search-lobby-dot::before {
+  content: '';
+  display: block;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: #5a4130;
+}
+
+.search-lobby-dot[aria-current='true']::before {
+  background: var(--brass);
+}
+
+.search-lobby-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.search-lobby-buttons > * {
+  flex: 1;
+}
+
+@keyframes search-lobby-blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes search-lobby-pulse {
+  0%,
+  100% {
+    border-color: rgba(184, 167, 138, 0.27);
+  }
+  50% {
+    border-color: var(--brass);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-lobby-online::before,
+  .search-lobby-row.is-empty {
+    animation: none;
+  }
+
+  .search-lobby-fill {
+    transition: none;
+  }
+}
