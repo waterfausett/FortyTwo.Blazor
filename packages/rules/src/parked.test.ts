@@ -7,7 +7,8 @@ import {
   matchScores,
   type MatchState,
 } from './matchEngine';
-import { isParked, openPositions, parkSeat, seatedPlayers } from './parked';
+import { isParked, openPositions, parkSeat, seatedPlayers, unpark } from './parked';
+import { ValidationError } from './errors';
 import { isBot } from './botIds';
 import { Teams } from './teams';
 import { Bid } from './bid';
@@ -123,5 +124,54 @@ describe('winning the match', () => {
     expect(matchScores(wonMatch)[Teams.TeamA]).toBe(7);
     expect(wonMatch.winningTeam).not.toBeNull();
     expect(wonMatch.parked).toBeUndefined();
+  });
+});
+
+describe('takeSeat at a parked seat', () => {
+  it('swaps the person in, ready, and renames the bot everywhere', () => {
+    const open = decide(parkSeat(dealt('custom'), 'p2'));
+    const botId = open.parked![0];
+    const match = takeSeat(open, 'p5', 1, deck());
+    expect(match.players.find((p) => p.position === 1)).toMatchObject({ playerId: 'p5', ready: true });
+    expect(match.parked ?? []).toEqual([]);
+    expect(JSON.stringify(match.currentGame)).not.toContain(botId);
+  });
+  it('deals at once when the other three are already ready, opened by the seat after the last opener', () => {
+    let open = decide(parkSeat(dealt('custom'), 'p2'));
+    for (const id of ['p1', 'p3', 'p4']) open = patchPlayerReady(open, id, true, deck());
+    const lastOpenerPosition = open.players.find((p) => p.playerId === open.currentGame.firstActionBy)!.position;
+    const match = takeSeat(open, 'p5', 1, deck());
+    expect(match.currentGame.id).not.toBe(open.currentGame.id);
+    expect(match.players.find((p) => p.playerId === match.currentGame.firstActionBy)!.position).toBe((lastOpenerPosition + 1) % 4);
+  });
+  it('waits for the others otherwise', () => {
+    const open = decide(parkSeat(dealt('custom'), 'p2'));
+    expect(takeSeat(open, 'p5', 1, deck()).currentGame.id).toBe(open.currentGame.id);
+  });
+  it('refuses a parked seat whose hand is not decided yet', () => {
+    expect(() => takeSeat(parkSeat(dealt('custom'), 'p2'), 'p5', 1, deck())).toThrow(ValidationError);
+  });
+  it('lets the leaver sit back down', () => {
+    const match = takeSeat(decide(parkSeat(dealt('custom'), 'p2')), 'p2', 1, deck());
+    expect(match.players.find((p) => p.position === 1)).toMatchObject({ playerId: 'p2', ready: true });
+  });
+  it('needs both seats filled when two players left the same hand', () => {
+    let open = decide(parkSeat(parkSeat(dealt('custom'), 'p2'), 'p4'));
+    expect(openPositions(open)).toEqual([1, 3]);
+    open = patchPlayerReady(open, 'p1', true, deck());
+    open = patchPlayerReady(open, 'p3', true, deck());
+    const one = takeSeat(open, 'p5', 1, deck());
+    expect(one.currentGame.id).toBe(open.currentGame.id);
+    expect(takeSeat(one, 'p6', 3, deck()).currentGame.id).not.toBe(open.currentGame.id);
+  });
+});
+
+describe('unpark', () => {
+  it('keeps the bot and lets it ready up like any bot', () => {
+    const open = decide(parkSeat(dealt('custom'), 'p2'));
+    const match = unpark(open);
+    expect(match.parked ?? []).toEqual([]);
+    expect(openPositions(match)).toEqual([]);
+    expect(isBot(match.players.find((p) => p.position === 1)!.playerId)).toBe(true);
   });
 });

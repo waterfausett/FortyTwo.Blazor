@@ -10,6 +10,7 @@ import { Hand } from './hand';
 import { houseRules, type HouseRules } from './houseRules';
 import { letClaimsGo, seatChangesAtBreak, type MatchMode } from './live';
 import { MatchPlayerRef, selectNextPlayer } from './match';
+import { openPositions, takeParkedSeat } from './parked';
 import { nextPosition, Positions } from './positions';
 import { Suit } from './suit';
 import { Teams, teamForPosition } from './teams';
@@ -175,6 +176,13 @@ export function addPlayer(match: MatchState, playerId: string, team: Teams, deal
 // positions and not already taken.
 export function takeSeat(match: MatchState, playerId: string, position: number, dealOrder?: Domino[]): MatchState {
   assertActive(match);
+  // An open parked seat is the one taken seat that can still be had; a parked seat whose hand isn't
+  // decided yet isn't open, and falls through to be refused as taken.
+  if (openPositions(match).includes(position) && match.players.some((p) => p.position === position)) {
+    assertIsNotMatchPlayer(match, playerId);
+    if (!dealOrder) throw new Error('Taking a parked seat needs the deal order');
+    return takeParkedSeat(match, playerId, position, dealOrder);
+  }
   assertNotFull(match);
   assertIsNotMatchPlayer(match, playerId);
   assertSeatOpen(match.players, position);
