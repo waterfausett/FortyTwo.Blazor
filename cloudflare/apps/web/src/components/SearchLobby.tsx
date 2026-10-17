@@ -106,7 +106,7 @@ export function SearchLobby({
             Start with bots
           </button>
         )}
-        <button type="button" className="btn btn-outline-danger" disabled={cancelDisabled} onClick={onCancel}>
+        <button type="button" className="search-lobby-cancel" disabled={cancelDisabled} onClick={onCancel}>
           Cancel search
         </button>
       </div>

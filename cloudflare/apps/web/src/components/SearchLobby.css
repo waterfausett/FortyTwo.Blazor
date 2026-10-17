@@ -269,6 +269,26 @@
   flex: 1;
 }
 
+/* Outlined in the danger color, the same pill as .action-button beside it. */
+.search-lobby-cancel {
+  padding: 0.55rem 1.4rem;
+  border: 1px solid var(--danger);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--danger);
+  font: 600 1rem var(--font-ui);
+  cursor: pointer;
+}
+
+.search-lobby-cancel:hover:not(:disabled) {
+  background: rgba(224, 122, 95, 0.12);
+}
+
+.search-lobby-cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 @keyframes search-lobby-blink {
   50% {
     opacity: 0.3;
