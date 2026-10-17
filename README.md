@@ -37,6 +37,7 @@ The Worker reads its settings from `apps/worker/.dev.vars` (gitignored):
 | `AUTH0_API_CLIENT_ID`, `AUTH0_API_CLIENT_SECRET`, `AUTH0_API_AUDIENCE` | Call Auth0's Management API for profiles and display names. |
 | `ALLOWED_ORIGIN` | The web app's origin, for CORS. Defaults to `http://localhost:5173`. |
 | `BOTS_ENABLED` | Bots can fill open seats unless this is exactly `false` (a kill switch; also settable in the Cloudflare dashboard without a deploy). Turned off, it also stops the ML bot in matches that already have bots: they play on by the simple rules, so no match is left waiting on a bot. The bots are the ML bot from `ml/`, with weights in `apps/web/public/models` (Git LFS, so run `git lfs pull` after cloning), refreshed with `ml export`; they fall back to simple rules if the model can't be loaded. |
+| `PRESENCE_ENABLED` | The "N online" count is shown only when this is exactly `true`. Off by default locally (add it to `.dev.vars` to see the count); production sets it in `apps/worker/wrangler.toml`. `PRESENCE_BROADCAST_MS` (at least 10000, default 5 minutes) is how often a changed count goes out. |
 | `EXPO_ACCESS_TOKEN` | Only once "enhanced push security" is on for the Expo project: an Expo access token the Worker sends push notifications with (see [Push notifications](#push-notifications)). A secret: `npx wrangler secret put EXPO_ACCESS_TOKEN`. |
 | `ANDROID_APP_FINGERPRINTS` | The Android app's signing-certificate SHA-256 fingerprints, comma-separated, for App Links (see [Invite links](#invite-links)). Not secret. |
 

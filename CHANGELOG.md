@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.4.0...worker-v1.4.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **worker:** switch the online count on in production ([#164](https://github.com/waterfausett/FortyTwo.Blazor/issues/164)) ([8a5029b](https://github.com/waterfausett/FortyTwo.Blazor/commit/8a5029b4692f4aec583e137724613caf36caf4ad))
+
 ## [1.4.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.3.2...worker-v1.4.0) (2026-10-16)
 
 
