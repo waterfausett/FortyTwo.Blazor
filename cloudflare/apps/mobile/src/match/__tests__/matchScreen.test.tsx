@@ -4,9 +4,17 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Alert, type AlertButton } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Bid, Positions, Suit, Teams, createDomino, type MatchState } from '@fortytwo/rules';
+import { Bid, Positions, Suit, Teams, createDomino, createMatch, type MatchState } from '@fortytwo/rules';
+import type { PlayerStats, StatsSummary } from '@fortytwo/api-types';
+import { LOBBY_FULL_HOLD_MS } from '@fortytwo/client';
 import { toastInfo } from '@/components/toast';
 import MatchScreen from '../../app/match/[id]';
+
+const SUMMARY: StatsSummary = {
+  played: 23, won: 14, lost: 9, marksWon: 131, bidsWon: 41, bidsMade: 30, bidsSet: 11, averagePointsBid: 32.4,
+  marksBids: 9, favoriteTrump: { trump: 'sixes', times: 12 }, bestPartner: null,
+};
+const STATS: PlayerStats = { all: SUMMARY, humansOnly: SUMMARY, withBots: SUMMARY };
 
 const mockRouter = { replace: jest.fn(), dismissTo: jest.fn(), push: jest.fn() };
 const mockSocket = jest.fn();
@@ -18,6 +26,8 @@ const mockApi = {
   poke: jest.fn(),
   play: jest.fn(),
   leaveMatch: jest.fn(),
+  getStats: jest.fn(() => Promise.resolve(STATS)),
+  addBots: jest.fn(() => Promise.resolve()),
 };
 
 jest.mock('expo-router', () => ({
@@ -293,5 +303,78 @@ describe('Match screen, house rules', () => {
     socket({ ...match, currentGame: { ...match.currentGame, redealt: true } });
     await renderScreen();
     expect(await screen.findByText('Everyone passed, so the hands were dealt again.')).toBeTruthy();
+  });
+});
+
+describe('Live search lobby', () => {
+  // p1 alone at a Live table, 23 seconds into the search.
+  function searching(overrides: Partial<MatchState> = {}): MatchState {
+    return { ...createMatch('p1', 'live'), id: 'match-1', searchStartedOn: new Date(Date.now() - 23_000).toISOString(), ...overrides };
+  }
+
+  it('shows the lobby in place of the table', async () => {
+    mockApi.getConfig.mockResolvedValue({ bots: true });
+    socket(searching());
+    await renderScreen();
+    expect(await screen.findByText('Finding players')).toBeTruthy();
+    expect(await screen.findByText(/2:0[67] 🤖/)).toBeTruthy();
+    expect(screen.getByText('Us')).toBeTruthy();
+    expect(screen.getByText('Them')).toBeTruthy();
+    expect(screen.getByText('You')).toBeTruthy();
+    expect(screen.getByText('Partner · searching…')).toBeTruthy();
+    expect(screen.getAllByText('Searching…')).toHaveLength(2);
+    expect(screen.getByText('Start with bots')).toBeTruthy();
+    expect(screen.getByText('Cancel')).toBeTruthy();
+    expect(screen.queryByLabelText('Scores')).toBeNull();
+    expect(screen.queryByLabelText('Table')).toBeNull();
+    expect(screen.queryByText(/Waiting for players/)).toBeNull();
+    expect(screen.queryByText(/Bots take the empty seats/)).toBeNull();
+    expect((await screen.findAllByText('Your stats')).length).toBeGreaterThan(0);
+  });
+
+  it('shows tips only when the stats fail to load', async () => {
+    mockApi.getStats.mockRejectedValueOnce(new Error('nope'));
+    socket(searching());
+    await renderScreen();
+    expect(await screen.findByText('Finding players')).toBeTruthy();
+    await waitFor(() => expect(mockApi.getStats).toHaveBeenCalled());
+    expect(screen.getAllByText('Did you know').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Your stats')).toBeNull();
+  });
+
+  it('Start with bots adds bots', async () => {
+    mockApi.getConfig.mockResolvedValue({ bots: true });
+    socket(searching());
+    await renderScreen();
+    await fireEvent.press(await screen.findByText('Start with bots'));
+    await waitFor(() => expect(mockApi.addBots).toHaveBeenCalledWith('match-1'));
+  });
+
+  it('holds the full lobby, then shows the table', async () => {
+    jest.useFakeTimers();
+    try {
+      socket(searching());
+      const view = await renderScreen();
+      expect(await screen.findByText('Finding players')).toBeTruthy();
+      socket(dealtLiveWithBots());
+      await view.rerender();
+      expect(screen.getByText('Table full')).toBeTruthy();
+      await act(async () => {
+        jest.advanceTimersByTime(LOBBY_FULL_HOLD_MS);
+      });
+      expect(screen.queryByText('Finding players')).toBeNull();
+      expect(screen.getByLabelText('Scores')).toBeTruthy();
+      expect(screen.getByLabelText('1-2')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('no lobby for a Daily search', async () => {
+    socket(searching({ mode: 'daily' }));
+    await renderScreen();
+    expect(await screen.findByText(/we'll notify you/)).toBeTruthy();
+    expect(screen.getByLabelText('Table')).toBeTruthy();
+    expect(screen.queryByText('Finding players')).toBeNull();
   });
 });
