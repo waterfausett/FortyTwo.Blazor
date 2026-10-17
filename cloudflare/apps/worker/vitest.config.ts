@@ -51,6 +51,9 @@ export default defineConfig({
           // routes.matches.test.ts turns BOTS_ENABLED on per call (app.request's env argument)
           // instead.
           BOTS_ENABLED: 'false',
+          // Pinned off for the same reason: wrangler.toml turns presence on for production, and
+          // the pool loads its [vars]. Tests that need it on pass PRESENCE_ENABLED per call.
+          PRESENCE_ENABLED: 'false',
         },
       },
     }),
