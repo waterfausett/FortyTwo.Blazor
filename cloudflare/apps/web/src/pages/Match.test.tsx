@@ -2199,7 +2199,7 @@ describe('Match', () => {
       expect(await screen.findByRole('heading', { name: 'Finding players' })).toBeTruthy();
       await waitFor(() => expect(getConfigMock).toHaveBeenCalled());
       expect(screen.queryByRole('button', { name: 'Start with bots' })).toBeNull();
-      expect(screen.queryByText(/🤖/)).toBeNull();
+      expect(screen.queryByText(/\d:\d\d 🤖/)).toBeNull();
     });
 
     it('tells an Async player they will hear when the table fills', async () => {

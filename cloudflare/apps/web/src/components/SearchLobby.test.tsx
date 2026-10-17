@@ -67,13 +67,13 @@ describe('SearchLobby', () => {
   it("leaves out the online count and the bar when they're unknown or off", () => {
     render(<SearchLobby {...props({ online: null, elapsedMs: null })} />);
     expect(screen.queryByText(/online/)).toBeNull();
-    expect(screen.queryByText(/🤖/)).toBeNull();
+    expect(screen.queryByText(/\d:\d\d 🤖/)).toBeNull();
   });
 
   it('says Table full once the table is full', () => {
     render(<SearchLobby {...props({ full: true })} />);
     expect(screen.getByText('Table full')).toBeTruthy();
-    expect(screen.queryByText(/🤖/)).toBeNull();
+    expect(screen.queryByText(/\d:\d\d 🤖/)).toBeNull();
   });
 
   it('Start with bots and Cancel search call back', () => {
@@ -148,7 +148,7 @@ describe('SearchLobby', () => {
 
     it('goes to a card when its dot is pressed, and holds there', () => {
       render(<SearchLobby {...props()} />);
-      fireEvent.click(screen.getByRole('button', { name: 'Card 3 of 13' }));
+      fireEvent.click(screen.getByRole('button', { name: /^Card 3 of / }));
       expect(current()).toBe(2);
       act(() => {
         vi.advanceTimersByTime(LOBBY_CARD_MS - 1);

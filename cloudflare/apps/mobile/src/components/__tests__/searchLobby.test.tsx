@@ -61,13 +61,13 @@ describe('SearchLobby', () => {
   it("leaves out the online count and the bar when they're unknown or off", async () => {
     await render(<SearchLobby {...props({ online: null, elapsedMs: null })} />);
     expect(screen.queryByText(/online/)).toBeNull();
-    expect(screen.queryByText(/🤖/)).toBeNull();
+    expect(screen.queryByText(/\d:\d\d 🤖/)).toBeNull();
   });
 
   it('says Table full once the table is full', async () => {
     await render(<SearchLobby {...props({ full: true })} />);
     expect(screen.getByText('Table full')).toBeTruthy();
-    expect(screen.queryByText(/🤖/)).toBeNull();
+    expect(screen.queryByText(/\d:\d\d 🤖/)).toBeNull();
   });
 
   it('Start with bots and Cancel call back', async () => {
