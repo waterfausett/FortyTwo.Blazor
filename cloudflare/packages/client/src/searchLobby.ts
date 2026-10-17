@@ -9,8 +9,10 @@ import { bestPartnerRecord, favoriteTrumpRecord, statSections, trumpLabel } from
 export const LOBBY_CARD_MS = 9000;
 // How long the full lobby stays up before the table appears.
 export const LOBBY_FULL_HOLD_MS = 1200;
-// How many tips one search shows, so the card's dots stay a short row.
-export const LOBBY_TIPS = 6;
+// How many tips one search shows: enough to last until the bots fill the table without repeating.
+export const LOBBY_TIPS = Math.ceil(LIVE_FILL_MS / LOBBY_CARD_MS);
+// How many of the card's dots show at once; the row slides along with the card.
+export const LOBBY_DOTS = 7;
 
 // Each restates a line of How to play (or the claim bar), so none says what the rules don't do.
 export const SEARCH_TIPS: readonly string[] = [
@@ -55,6 +57,23 @@ export function shuffledTips(random: () => number = Math.random, count: number =
     [tips[i], tips[j]] = [tips[j], tips[i]];
   }
   return tips.slice(0, count);
+}
+
+// The dots to show under the card: a window of LOBBY_DOTS around the current card, kept inside
+// the row. An end dot with more cards past it is drawn small, and the one next to it a little
+// smaller than full, so the row reads as going on.
+export type LobbyDotSize = 'full' | 'small' | 'tiny';
+
+export function lobbyDots(count: number, current: number, shown: number = LOBBY_DOTS): { index: number; size: LobbyDotSize }[] {
+  const width = Math.min(count, shown);
+  const start = Math.min(Math.max(0, current - Math.floor(width / 2)), count - width);
+  const end = start + width;
+  return Array.from({ length: width }, (_, k) => {
+    const index = start + k;
+    const fromEdge = Math.min(start > 0 ? k : Infinity, end < count ? width - 1 - k : Infinity);
+    const size: LobbyDotSize = fromEdge === 0 ? 'tiny' : fromEdge === 1 ? 'small' : 'full';
+    return { index, size };
+  });
 }
 
 // How far the search is toward the bot fill, clamped for a late server or a skewed clock.

@@ -1,10 +1,10 @@
-// The Live search lobby's card: tips and the player's own stats, one page at a time, with dots
-// underneath. It moves on by itself every LOBBY_CARD_MS - unless reduce motion is on, a finger is
+// The Live search lobby's card: tips and the player's own stats, one page at a time, with a
+// sliding row of dots underneath (lobbyDots). It moves on by itself every LOBBY_CARD_MS - unless reduce motion is on, a finger is
 // on it, or the player swiped it lately - and the player can swipe it either way. Its paging is
 // never announced: there's no live region here.
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
-import { LOBBY_CARD_MS, type LobbyCard } from '@fortytwo/client';
+import { LOBBY_CARD_MS, lobbyDots, type LobbyCard } from '@fortytwo/client';
 import { colors, fonts } from './theme';
 
 export function LobbyCarousel({ cards }: { cards: LobbyCard[] }) {
@@ -74,10 +74,10 @@ export function LobbyCarousel({ cards }: { cards: LobbyCard[] }) {
       </ScrollView>
       {count > 1 && (
         <View style={styles.dots}>
-          {cards.map((_, i) => (
+          {lobbyDots(count, page % count).map(({ index: i, size }) => (
             <View
               key={i}
-              style={[styles.dot, i === page % count && styles.dotOn]}
+              style={[styles.dot, size !== 'full' && styles[size], i === page % count && styles.dotOn]}
               accessible
               accessibilityLabel={`Card ${i + 1} of ${count}`}
               accessibilityState={{ selected: i === page % count }}
@@ -132,7 +132,9 @@ const styles = StyleSheet.create({
   value: { color: colors.bone, fontFamily: fonts.display, fontSize: 24 },
   headline: { color: colors.bone, fontFamily: fonts.display, fontSize: 20 },
   hint: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.matLight },
+  small: { transform: [{ scale: 0.7 }] },
+  tiny: { transform: [{ scale: 0.45 }] },
   dotOn: { backgroundColor: colors.brass },
 });

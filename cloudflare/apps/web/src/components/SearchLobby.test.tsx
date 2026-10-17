@@ -125,8 +125,23 @@ describe('SearchLobby', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    const current = () =>
-      screen.getAllByRole('button', { name: /^Card \d+ of \d+$/ }).findIndex((dot) => dot.getAttribute('aria-current') === 'true');
+    const dots = () => screen.getAllByRole('button', { name: /^Card \d+ of \d+$/ });
+    // The current card's index, read from its dot's label (the row shows only some of the dots).
+    const current = () => Number(/^Card (\d+)/.exec(dots().find((dot) => dot.getAttribute('aria-current') === 'true')!.getAttribute('aria-label')!)![1]) - 1;
+
+    it('shows a short row of dots that slides along with the card', () => {
+      render(<SearchLobby {...props()} />);
+      expect(dots()).toHaveLength(7);
+      for (let i = 0; i < 5; i++) {
+        act(() => {
+          vi.advanceTimersByTime(LOBBY_CARD_MS);
+        });
+      }
+      expect(current()).toBe(5);
+      expect(dots()).toHaveLength(7);
+      expect(dots()[0].getAttribute('aria-label')).toMatch(/^Card 3 of /);
+      expect(dots()[0].dataset.size).toBe('tiny');
+    });
 
     it('moves to the next card on its own', () => {
       render(<SearchLobby {...props()} />);

@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { StatsSummary } from '@fortytwo/api-types';
 import { LIVE_FILL_MS, createDomino, dominoValue, type MatchPlayerRef } from '@fortytwo/rules';
-import { LOBBY_TIPS, SEARCH_TIPS, fillProgress, joinAnnouncement, lobbyCards, lobbyRoster, rosterIds, shuffledTips } from './searchLobby';
+import {
+  LOBBY_CARD_MS,
+  LOBBY_TIPS,
+  SEARCH_TIPS,
+  fillProgress,
+  joinAnnouncement,
+  lobbyCards,
+  lobbyDots,
+  lobbyRoster,
+  rosterIds,
+  shuffledTips,
+} from './searchLobby';
 import { statSections } from './stats';
 
 // The dev bypass's `all` summary (apps/mobile/src/dev/devBypass.ts).
@@ -113,6 +124,34 @@ describe('shuffledTips', () => {
     expect(tips).toHaveLength(LOBBY_TIPS);
     expect(new Set(tips).size).toBe(LOBBY_TIPS);
     for (const tip of tips) expect(SEARCH_TIPS).toContain(tip);
+  });
+  it('picks enough tips to last until the bots fill the table', () => {
+    expect(LOBBY_TIPS * LOBBY_CARD_MS).toBeGreaterThanOrEqual(LIVE_FILL_MS);
+    expect(SEARCH_TIPS.length).toBeGreaterThanOrEqual(LOBBY_TIPS);
+  });
+});
+
+describe('lobbyDots', () => {
+  const sizes = (count: number, current: number) => lobbyDots(count, current, 7).map((d) => d.size[0]).join('');
+  const first = (count: number, current: number) => lobbyDots(count, current, 7)[0].index;
+
+  it('shows every dot at full size when they fit', () => {
+    expect(lobbyDots(5, 3, 7)).toEqual([0, 1, 2, 3, 4].map((index) => ({ index, size: 'full' })));
+  });
+  it('slides a window of dots along with the current card, kept inside the row', () => {
+    expect(first(20, 0)).toBe(0);
+    expect(first(20, 3)).toBe(0);
+    expect(first(20, 4)).toBe(1);
+    expect(first(20, 10)).toBe(7);
+    expect(first(20, 19)).toBe(13);
+    for (const current of [0, 4, 10, 19]) {
+      expect(lobbyDots(20, current, 7).map((d) => d.index)).toContain(current);
+    }
+  });
+  it('shrinks the end dots that have more cards past them', () => {
+    expect(sizes(20, 0)).toBe('fffffst');
+    expect(sizes(20, 10)).toBe('tsfffst');
+    expect(sizes(20, 19)).toBe('tsfffff');
   });
   it('leaves SEARCH_TIPS as written', () => {
     const before = [...SEARCH_TIPS];

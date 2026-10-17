@@ -119,8 +119,25 @@ describe('SearchLobby', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
 
+    const dots = () => screen.getAllByLabelText(/^Card \d+ of \d+$/);
+    // The current card's index, read from its dot's label (the row shows only some of the dots).
     const selectedDot = () =>
-      screen.getAllByLabelText(/^Card \d+ of \d+$/).findIndex((dot) => dot.props.accessibilityState?.selected);
+      Number(/^Card (\d+)/.exec(dots().find((dot) => dot.props.accessibilityState?.selected)!.props.accessibilityLabel)![1]) - 1;
+
+    it('shows a short row of dots that slides along with the card', async () => {
+      track(jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled')).mockResolvedValue(false);
+      await render(<SearchLobby {...props()} />);
+      await act(async () => {});
+      expect(dots()).toHaveLength(7);
+      for (let i = 0; i < 5; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(LOBBY_CARD_MS);
+        });
+      }
+      expect(selectedDot()).toBe(5);
+      expect(dots()).toHaveLength(7);
+      expect(dots()[0].props.accessibilityLabel).toMatch(/^Card 3 of /);
+    });
 
     it('moves to the next card on its own', async () => {
       track(jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled')).mockResolvedValue(false);

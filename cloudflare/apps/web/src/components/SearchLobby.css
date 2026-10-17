@@ -260,10 +260,25 @@
   height: 0.4rem;
   border-radius: 50%;
   background: #5a4130;
+  transition: transform 0.2s ease;
+}
+
+.search-lobby-dot[data-size='small']::before {
+  transform: scale(0.7);
+}
+
+.search-lobby-dot[data-size='tiny']::before {
+  transform: scale(0.45);
 }
 
 .search-lobby-dot[aria-current='true']::before {
   background: var(--brass);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-lobby-dot::before {
+    transition: none;
+  }
 }
 
 .search-lobby-buttons {

@@ -9,6 +9,7 @@ import {
   fillProgress,
   formatClock,
   joinAnnouncement,
+  lobbyDots,
   rosterIds,
   type LobbyCard,
   type LobbyRoster,
@@ -160,7 +161,7 @@ function RosterRow({ playerId, you, name, emptyText }: { playerId: string | null
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
 // Tips and the player's own stats, one card at a time: a scroll-snap strip the player can swipe,
-// with a dot per card. It moves on by itself every LOBBY_CARD_MS, except under reduced motion,
+// with a sliding row of dots (lobbyDots). It moves on by itself every LOBBY_CARD_MS, except under reduced motion,
 // while the pointer is over it, or for LOBBY_CARD_MS after the player swiped or picked a dot.
 function LobbyCarousel({ cards }: { cards: LobbyCard[] }): JSX.Element {
   const strip = useRef<HTMLDivElement>(null);
@@ -210,11 +211,12 @@ function LobbyCarousel({ cards }: { cards: LobbyCard[] }): JSX.Element {
       </div>
       {count > 1 && (
         <div className="search-lobby-dots">
-          {cards.map((_, i) => (
+          {lobbyDots(count, page % count).map(({ index: i, size }) => (
             <button
               key={i}
               type="button"
               className="search-lobby-dot"
+              data-size={size}
               aria-label={`Card ${i + 1} of ${count}`}
               aria-current={i === page % count ? 'true' : undefined}
               onClick={() => {
