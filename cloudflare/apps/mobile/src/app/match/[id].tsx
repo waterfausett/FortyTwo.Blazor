@@ -58,6 +58,7 @@ import {
   type MatchState,
   Suit,
 } from '@fortytwo/rules';
+import { updateLobbyRow } from '@/api/lobbyRow';
 import { useOnline } from '@/api/presence';
 import { useApi } from '@/api/useApi';
 import { useProfile } from '@/api/useProfile';
@@ -130,6 +131,19 @@ export default function MatchScreen() {
   });
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
+  // Leaving, the lobby's row for this match takes on its turn as last seen here (api/lobbyRow.ts).
+  const queryClient = useQueryClient();
+  const lastSeenRef = useRef<MatchState | null>(null);
+  useEffect(() => {
+    lastSeenRef.current = liveMatch;
+  }, [liveMatch]);
+  useEffect(
+    () => () => {
+      if (lastSeenRef.current && myPlayerId) updateLobbyRow(queryClient, id, lastSeenRef.current, myPlayerId);
+    },
+    [queryClient, id, myPlayerId]
+  );
+
   // How this player stands at the table. In a Live Play game under way, a newcomer waits
   // for a bot's seat (claiming) and watches meanwhile; one whose wait came to nothing is bumped
   // and looks again; one away a whole hand was replaced by a bot.
@@ -185,7 +199,6 @@ export default function MatchScreen() {
   const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
   // then seats the player here; the lobby's lists change too.
-  const queryClient = useQueryClient();
 
   // Set (by the button, before the request goes out) while this player's own leave is in flight:
   // if it deletes the match, their socket gets the same "deleted" close as everyone else's, and
