@@ -80,6 +80,8 @@ export interface MatchState {
   hadBots?: boolean;
   // Players whose seat a bot took after they were away a whole hand, or who left.
   replaced?: string[];
+  // Bots playing out the hand for players who left a Custom match; their seats open once it is decided (parked.ts).
+  parked?: string[];
   // Claimants let go without a seat (the match ended or was dropped first); their app searches again.
   bumped?: string[];
   // The house rules a custom table was created with (houseRules.ts). Absent means the defaults.
@@ -249,7 +251,8 @@ export function patchPlayerReady(
   let players = match.players.map((p) => (p.playerId === playerId ? { ...p, ready } : p));
   let currentGame = match.currentGame;
 
-  if (gameWinningTeam(match.currentGame) !== null && players.every((p) => p.ready)) {
+  // A parked seat holds the deal back, so the table can't move on until someone sits there.
+  if (gameWinningTeam(match.currentGame) !== null && players.every((p) => p.ready) && (match.parked ?? []).length === 0) {
     const lastGame = match.currentGame;
     const totalGamesPlayed = Object.values(match.games).reduce(
       (sum, games) => sum + (games?.length ?? 0),
@@ -475,7 +478,10 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
     : null;
 
   const result = { ...match, currentGame, games, winningTeam: matchWinningTeam, updatedOn: now() };
-  return matchWinningTeam !== null ? letClaimsGo(result) : result;
+  if (matchWinningTeam === null) return result;
+  // The match is over, so a parked seat has nothing left to wait for.
+  const { parked: _parked, ...ended } = letClaimsGo(result);
+  return ended;
 }
 
 // Asks to play the same four again. Only once the match is over, and only from someone seated;

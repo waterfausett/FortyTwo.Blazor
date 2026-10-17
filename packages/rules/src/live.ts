@@ -117,6 +117,21 @@ export function resumeControl(match: MatchState, playerId: string): MatchState {
   return { ...cleared, updatedOn: new Date().toISOString() };
 }
 
+// A game with every id that names `fromId` renamed to `toId`: the hand, the bid, the turn and the
+// tricks played. Hands already filed in `games` are not part of it and keep the old id.
+export function renamePlayer(game: Game, fromId: string, toId: string): Game {
+  const rename = (id: string | null) => (id === fromId ? toId : id);
+  return {
+    ...game,
+    firstActionBy: rename(game.firstActionBy),
+    biddingPlayerId: rename(game.biddingPlayerId),
+    currentPlayerId: rename(game.currentPlayerId),
+    hands: game.hands.map((h) => (h.playerId === fromId ? { ...h, playerId: toId } : h)),
+    tricks: game.tricks.map((t) => ({ ...t, playerId: rename(t.playerId) })),
+    currentTrick: { ...game.currentTrick, playerId: rename(game.currentTrick.playerId) },
+  };
+}
+
 // A bot takes a player's seat for good: when they leave a Live Play game, or were away for
 // a whole hand. Mid-hand the bot picks up their hand, bid and turn, so every id in the hand that
 // names them is renamed. Hands already filed keep the player's id.
@@ -125,17 +140,7 @@ export function replaceWithBot(match: MatchState, playerId: string): MatchState 
   const botId = mintBotId(match.id, match.players.map((p) => p.playerId));
   if (botId === undefined) throw new ValidationError('No bot free to take the seat');
 
-  const rename = (id: string | null) => (id === playerId ? botId : id);
-  const game = match.currentGame;
-  const currentGame: Game = {
-    ...game,
-    firstActionBy: rename(game.firstActionBy),
-    biddingPlayerId: rename(game.biddingPlayerId),
-    currentPlayerId: rename(game.currentPlayerId),
-    hands: game.hands.map((h) => (h.playerId === playerId ? { ...h, playerId: botId } : h)),
-    tricks: game.tricks.map((t) => ({ ...t, playerId: rename(t.playerId) })),
-    currentTrick: { ...game.currentTrick, playerId: rename(game.currentTrick.playerId) },
-  };
+  const currentGame = renamePlayer(match.currentGame, playerId, botId);
   const off = setAutopilot(match, [playerId], false);
   return {
     ...off,
