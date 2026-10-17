@@ -52,6 +52,24 @@ describe('fetchHint', () => {
     await expect(fetchHint(async () => ({ status: 'unavailable' }))).rejects.toThrow(HINT_UNAVAILABLE);
   });
 
+  it('leaves no abort listener behind once a wait is over', async () => {
+    vi.useFakeTimers();
+    const abort = new AbortController();
+    const added = vi.spyOn(abort.signal, 'addEventListener');
+    const removed = vi.spyOn(abort.signal, 'removeEventListener');
+    const getHint = vi.fn<() => Promise<HintResponse>>()
+      .mockResolvedValueOnce({ status: 'warming' })
+      .mockResolvedValueOnce({ status: 'warming' })
+      .mockResolvedValueOnce(ready(bidHint));
+
+    const result = fetchHint(getHint, abort.signal);
+    await vi.advanceTimersByTimeAsync(HINT_RETRY_MS * 2);
+    await result;
+
+    expect(added).toHaveBeenCalledTimes(2);
+    expect(removed).toHaveBeenCalledTimes(2);
+  });
+
   it('stops asking once aborted', async () => {
     vi.useFakeTimers();
     const abort = new AbortController();
@@ -160,6 +178,21 @@ describe('hint text', () => {
       ['Sixes', '40%', false],
     ]);
     expect(suggestedTrump(hint)).toBe(Suit.LowDoublesLow);
+  });
+
+  it('lists at most three dominoes, best first', () => {
+    const d = (a: number, b: number) => createDomino(a, b);
+    const hint: Hint = {
+      kind: 'play',
+      dominoes: [
+        { domino: d(4, 6), marks: 0.62, gap: 0, rating: 'best' },
+        { domino: d(6, 6), marks: 0.57, gap: 0.05, rating: 'close' },
+        { domino: d(1, 3), marks: 0.22, gap: 0.4, rating: 'weaker' },
+        { domino: d(0, 2), marks: 0.12, gap: 0.5, rating: 'weaker' },
+        { domino: d(0, 5), marks: 0.02, gap: 0.6, rating: 'weaker' },
+      ],
+    };
+    expect(hintRows(hint).map((r) => r.label)).toEqual(['6-4', '6-6', '3-1']);
   });
 
   it('reads a play hint, every best domino marked', () => {

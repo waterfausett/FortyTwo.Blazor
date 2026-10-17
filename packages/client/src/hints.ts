@@ -9,6 +9,9 @@ import { describeMatch } from './matchView';
 
 // A cold Worker loads its model one piece per call (about 7 calls); spaced this far apart.
 export const HINT_RETRY_MS = 400;
+// A play hint shows this many dominoes, best first, so the card stays short enough to keep the hand
+// in view on a phone; the best are also ringed in the hand.
+export const HINT_PLAY_ROWS = 3;
 export const HINT_GIVE_UP_MS = 10_000;
 export const HINT_UNAVAILABLE = "Hints aren't available right now.";
 
@@ -27,11 +30,16 @@ export async function fetchHint(getHint: () => Promise<HintResponse>, signal?: A
     if (res.status === 'ready') return res.hint;
     if (res.status === 'unavailable' || Date.now() - started >= HINT_GIVE_UP_MS) throw new Error(HINT_UNAVAILABLE);
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(resolve, HINT_RETRY_MS);
-      signal?.addEventListener('abort', () => {
+      // Each wait listens for an abort only while it lasts, so retries don't pile listeners up.
+      const onAbort = () => {
         clearTimeout(timer);
         reject(aborted());
-      }, { once: true });
+      };
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, HINT_RETRY_MS);
+      signal?.addEventListener('abort', onAbort, { once: true });
     });
   }
 }
@@ -105,7 +113,7 @@ export function hintRows(hint: Hint): HintRow[] {
         key: String(o.trump), label: trumpLabel(o.trump), detail: percent(o.pMake), suggested: i === 0,
       }));
     case 'play':
-      return hint.dominoes.map((r) => ({
+      return hint.dominoes.slice(0, HINT_PLAY_ROWS).map((r) => ({
         key: r.domino.id,
         label: dominoLabel(r.domino),
         detail: r.rating === 'best' ? 'best' : `${r.rating} (${marks(r.gap)})`,

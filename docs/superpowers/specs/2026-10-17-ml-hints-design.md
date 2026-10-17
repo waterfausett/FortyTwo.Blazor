@@ -106,7 +106,7 @@ It sits with the bidding panel, the trump picker, or the hand:
 - **Loading:** "Thinking…".
 - **Bid:** the first line is "Bid 34 · sixes — 68% to make" (or "Pass"), then up to 3 option rows ("30 · sixes 81%"), with the suggested row marked.
 - **Trump:** "Sixes — 68% to make", then up to 3 trump rows.
-- **Play:** one row per legal domino, best first: "best", "close (−0.05 marks)", "weaker (−0.40 marks)".
+- **Play:** the top 3 legal dominoes, best first: "best", "close (−0.05 marks)", "weaker (−0.40 marks)". Three rows keep the hand in view on a phone; every best domino is also ringed in the hand. The Worker still rates every legal domino.
 - **Error:** the message on one line.
 
 **Marking the suggestion in the controls:**
