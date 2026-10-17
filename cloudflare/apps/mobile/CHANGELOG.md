@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.5.0...mobile-v0.6.0) (2026-10-17)
+
+
+### Features
+
+* show the Live search as a lobby instead of the table ([#168](https://github.com/waterfausett/FortyTwo.Blazor/issues/168)) ([c233e07](https://github.com/waterfausett/FortyTwo.Blazor/commit/c233e0717a33094d9c65c2e5fb87afcbf1efb28e))
+
+
+### Bug Fixes
+
+* **mobile:** put the dealer chip in the row under the player name ([#163](https://github.com/waterfausett/FortyTwo.Blazor/issues/163)) ([e283c76](https://github.com/waterfausett/FortyTwo.Blazor/commit/e283c767e52021740b6d555a198b71e6fc60db26))
+
 ## [0.5.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.4.0...mobile-v0.5.0) (2026-10-16)
 
 
