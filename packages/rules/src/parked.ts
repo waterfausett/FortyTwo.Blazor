@@ -46,8 +46,8 @@ export function takeParkedSeat(match: MatchState, playerId: string, position: nu
     ...match,
     players: match.players.map((p) => (p.playerId === botId ? { ...p, playerId, ready: true } : p)),
     currentGame: renamePlayer(match.currentGame, botId, playerId),
-    parked: (match.parked ?? []).filter((id) => id !== botId),
   };
+  withParked(swapped, (match.parked ?? []).filter((id) => id !== botId));
   return patchPlayerReady(swapped, playerId, true, dealOrder);
 }
 
@@ -55,5 +55,13 @@ export function takeParkedSeat(match: MatchState, playerId: string, position: nu
 // the others can ready up without waiting for a person to fill it.
 export function unpark(match: MatchState, positions: number[] = openPositions(match)): MatchState {
   const gone = match.players.filter((p) => positions.includes(p.position)).map((p) => p.playerId);
-  return { ...match, parked: (match.parked ?? []).filter((id) => !gone.includes(id)) };
+  const next: MatchState = { ...match };
+  withParked(next, (match.parked ?? []).filter((id) => !gone.includes(id)));
+  return next;
+}
+
+// Sets `parked` on a fresh match object, leaving the key out when nobody is parked.
+function withParked(match: MatchState, parked: string[]): void {
+  if (parked.length > 0) match.parked = parked;
+  else delete match.parked;
 }
