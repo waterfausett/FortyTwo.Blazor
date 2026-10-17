@@ -24,10 +24,24 @@ export const SEARCH_TIPS: readonly string[] = [
   'When playing Low, the bidder must lose every trick, and their partner sits the hand out.',
   'Can’t follow the suit led? Play anything - including a trump!',
   'A hand ends as soon as it’s decided, so you won’t always play all seven tricks.',
-  'In a Live match, start with bots and players can still join: each takes over a bot’s seat when a hand ends.',
-  'In custom matches, you can play by your own rules!',
-  'Live matches have 60-second turns - and you get kicked if you’re on auto-pilot for a whole hand!',
+  'In a Live Match, start with bots and players can still join: each takes over a bot’s seat when a hand ends.',
+  'In a Custom Matches, you can play by your own rules!',
+  'Live Matches have 60-second turns - and you get kicked if you’re on auto-pilot for a whole hand!',
   'Hop into Practice mode to test your skill against the 🤖s - take it easy, they’re still learning too!',
+  'The first team to 7 marks wins the match.',
+  'Set the bidders and your team scores the marks they bid.',
+  'Whoever names trump leads the first trick.',
+  'To bid 3 Marks, someone has to bid 84 first. Each rung after that goes up one at a time.',
+  'A Plunge is worth 4 marks, and can only be bid while the high bid is under 4 Marks.',
+  'On Follow Me there’s no trump: the highest domino of the suit led wins.',
+  'Going Low? You also choose how doubles play: top of their suit, bottom of it, or a suit of their own.','Low is lost the moment the bidder takes a trick.',
+  'Whoever wins a trick leads the next one.',
+  'Your turn ran out? A bot plays for you until you press Resume.',
+  'Leave a Live game partway through and a bot takes your seat, so your team plays on.',
+  'After a match, vote for a rematch. When all four agree, you go straight into the next one.',
+  'Star players on the Friends tab, then invite them to a Custom Match.'
+  'Async games let you take turns whenever, and we’ll notify you when the action is on you.',
+  'If someone has kept an Async table waiting for 30 minutes, you can poke them.',
 ];
 
 // The tips in a fresh order, so each search doesn't open on the same few.
