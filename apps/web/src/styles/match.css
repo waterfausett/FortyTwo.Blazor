@@ -413,11 +413,6 @@
   font: 600 0.95rem var(--font-ui);
 }
 
-.table-presence {
-  color: var(--ink-muted);
-  font: 0.85rem var(--font-ui);
-}
-
 .seat-away {
   color: var(--ink-muted);
 }

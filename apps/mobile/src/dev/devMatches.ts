@@ -8,7 +8,8 @@
 //
 // Or still waiting for players, as each kind of match shows it:
 //
-//   dev-live-search    Live Play, alone, the search clock counting up
+//   dev-live-search    Live Play's lobby, Grandma Jo seated with you, the bar filling
+//   dev-live-filling   the same, then Uncle Ray and Beth join (4 s, 8 s): Table full, then the deal
 //   dev-async-waiting  Async, two seated
 //   dev-custom-waiting Custom Match, two seated
 //
@@ -89,7 +90,8 @@ const SCENARIOS: Record<string, () => MatchState> = {
     while (match.currentGame.currentPlayerId != null && match.currentGame.tricks.length < 7) match = playAny(match);
     return match;
   },
-  'dev-live-search': () => createMatch(DEV_PLAYER_ID, 'live'),
+  'dev-live-search': () => takeSeat(createMatch(DEV_PLAYER_ID, 'live'), 'dev|jo', 1),
+  'dev-live-filling': () => takeSeat(createMatch(DEV_PLAYER_ID, 'live'), 'dev|jo', 1),
   'dev-async-waiting': () => takeSeat(createMatch(DEV_PLAYER_ID, 'daily'), 'dev|jo', 1),
   'dev-custom-waiting': () => takeSeat(createMatch(DEV_PLAYER_ID, 'custom'), 'dev|jo', 1),
 };
@@ -164,5 +166,16 @@ export function connectDevMatchSocket({ matchId, onOpen, onMatch }: MatchSocketO
   forMatch.add(onMatch);
   onOpen?.();
   onMatch(seen(current(matchId)));
-  return () => forMatch.delete(onMatch);
+  // The filling table's other players sit down, through the same broadcast as a move.
+  const arrivals =
+    matchId === 'dev-live-filling'
+      ? [
+          setTimeout(() => void move(matchId, (match) => takeSeat(match, 'dev|ray', 2)), 4000),
+          setTimeout(() => void move(matchId, (match) => takeSeat(match, 'dev|beth', 3, deck())), 8000),
+        ]
+      : [];
+  return () => {
+    arrivals.forEach(clearTimeout);
+    forMatch.delete(onMatch);
+  };
 }
