@@ -16,7 +16,9 @@ export function LobbyCarousel({ cards }: { cards: LobbyCard[] }) {
   const dragging = useRef(false);
   const swipedAt = useRef(0);
   const pageRef = useRef(0);
-  pageRef.current = page;
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
   const count = cards.length;
 
   useEffect(() => {

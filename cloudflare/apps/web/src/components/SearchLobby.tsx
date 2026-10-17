@@ -154,7 +154,9 @@ function LobbyCarousel({ cards }: { cards: LobbyCard[] }): JSX.Element {
   const strip = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   const pageRef = useRef(0);
-  pageRef.current = page;
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
   const hovered = useRef(false);
   const touchedAt = useRef(0);
   const count = cards.length;
