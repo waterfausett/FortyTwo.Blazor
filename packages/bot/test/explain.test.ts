@@ -5,7 +5,7 @@ import {
   Bid, Suit, ValidationError, createDomino, createMatch, gameWinningTeam, placeBid, setTrump, takeSeat,
   type Domino, type MatchState,
 } from '@fortytwo/rules';
-import { CLOSE_GAP, assertCanHint, createBot, explainWith, type Decider } from '../src/index';
+import { CLOSE_GAP, assertCanHint, createBot, createDecider, explainWith, type Decider } from '../src/index';
 import { fixtureHands, fixtureWeights } from './fixtures';
 import { PLAYERS, applyStep, startHand } from './replay';
 
@@ -209,5 +209,21 @@ describe('assertCanHint', () => {
     expect(gameWinningTeam(match.currentGame)).not.toBeNull();
     const turn = match.currentGame.currentPlayerId!;
     expect(() => assertCanHint(match, turn)).toThrow(/decided/i);
+  });
+});
+
+describe('the shared decisions keep the house rules', () => {
+  // Regression: the refactor into decisions.ts dropped lowAllowedIfWon, so a bot in a custom match
+  // with Low off weighed 84+ bids by Low's P(make) and could bid a hand it can't play.
+  it("never weighs a bid by a Low trump when the match's rules turn Low off", () => {
+    const rules = { low: 'off', plunge: true, allPass: 'forceLast', marksToWin: 7 } as const;
+    let m = createMatch('p1', 'custom', rules);
+    m = takeSeat(m, 'p2', 1);
+    m = takeSeat(m, 'p3', 2);
+    m = takeSeat(m, 'p4', 3, deck());
+    const turn = m.currentGame.currentPlayerId!;
+    const { options, legal } = createDecider(w).bid(m, turn);
+    expect(legal).toContain(Bid.EightyFour);
+    expect(options.some((o) => o.trump <= Suit.Low)).toBe(false);
   });
 });

@@ -2,7 +2,7 @@
 // on the decision alone, and by hints (explain.ts), which show the numbers too - so a hint can
 // never disagree with what a bot in that seat would do.
 import {
-  Bid, Suit, availableBids, availableTrumps, gameWinningTeam, type Domino, type Game, type MatchState,
+  Bid, Suit, availableBids, availableTrumps, gameWinningTeam, lowAllowedIfWon, type Domino, type Game, type MatchState,
 } from '@fortytwo/rules';
 import { bidTable, chooseBid, optionsFromTable, type BidDecision, type Option } from './bidding';
 import { toIndex } from './dominoes';
@@ -44,7 +44,8 @@ export function createDecider(w: BotWeights): Decider {
         partnerHolds: game.biddingPlayerId !== null && seatOf(match, game.biddingPlayerId) === (seat + 2) % 4,
         lastToBid: game.hands.every((h) => h.playerId === playerId || h.bid !== null),
       };
-      const options = optionsFromTable(table(game, playerId), legal);
+      // Low's options only where the house rules would let this bidder name it.
+      const options = optionsFromTable(table(game, playerId), legal, lowAllowedIfWon(game, playerId));
       return { decision: chooseBid(options, ctx, cfg), options, legal };
     },
 
