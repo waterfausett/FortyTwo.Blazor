@@ -2,31 +2,23 @@
   .phones { display:flex; gap:28px; flex-wrap:wrap; justify-content:center; }
   .phone { width:270px; height:560px; background:#3a2a20; border-radius:28px; border:6px solid #111; overflow:hidden;
     font-family: Barlow, system-ui, sans-serif; color:#f2eadb; display:flex; flex-direction:column; }
-  .top { display:flex; justify-content:space-between; padding:10px 12px 6px; font-size:11px; color:#b9a58c; }
-  .score { font-family:'Zilla Slab',serif; font-weight:700; font-size:13px; }
-  .table { margin:4px 10px; background:#241913; border-radius:14px; position:relative; height:140px; }
-  .seat { position:absolute; left:50%; transform:translateX(-50%); width:84px; padding:4px 0; text-align:center; font-size:10px;
-    border-radius:8px; border:1.5px dashed #b8a78a66; color:#b9a58c; }
-  .seat.n { top:6px } .seat.s { bottom:6px; border:1.5px solid #3db5a6; color:#f2eadb; background:#3db5a622; }
-  .seat.w, .seat.e { top:50%; transform:translateY(-50%); width:58px; left:auto; }
-  .seat.w { left:6px } .seat.e { right:6px }
-  .seat.filled { border:1.5px solid #e2a747; color:#f2eadb; background:#e2a74722; }
-  .seat.pulse { animation:pulse 1.6s infinite; }
-  @keyframes pulse { 0%,100%{ border-color:#b8a78a44 } 50%{ border-color:#c9a45c } }
-  .mat { position:absolute; left:72px; right:72px; top:30px; bottom:30px; background:#4b3627; border-radius:10px; }
-  .below { flex:1; padding:8px 12px 12px; display:flex; flex-direction:column; gap:7px; }
-  .h { font-family:'Zilla Slab',serif; font-weight:700; font-size:16px; }
+  .top { text-align:center; letter-spacing:.08em; text-transform:uppercase; font-size:10px; color:#b9a58c; padding:14px 12px 6px; }
+  .below { flex:1; padding:8px 12px 12px; display:flex; flex-direction:column; gap:8px; min-height:0; }
+  .h { font-family:'Zilla Slab',serif; font-weight:700; font-size:22px; }
   .muted { color:#b9a58c; font-size:11px; }
   .barwrap { display:flex; align-items:center; gap:6px; }
   .bar { flex:1; height:6px; background:#4b3627; border-radius:3px; overflow:hidden; }
   .bar > i { display:block; height:100%; width:38%; background:#c9a45c; }
   .barend { font-size:10px; color:#b9a58c; white-space:nowrap; }
-  .row { display:flex; align-items:center; gap:8px; font-size:12px; padding:5px 8px; border-radius:8px; background:#4b3627; }
-  .row.empty { background:transparent; border:1px dashed #b8a78a55; color:#b9a58c; }
+  .grp { font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin:4px 0 -2px; font-weight:600; }
+  .grp.us { color:#3db5a6; } .grp.them { color:#e2a747; margin-top:0; }
+  .vs { text-align:center; font-family:'Zilla Slab',serif; font-weight:700; color:#b9a58c; font-size:12px; margin:-1px 0; }
+  .row { display:flex; align-items:center; gap:8px; padding:8px 10px; font-size:13px; border-radius:8px; background:#4b3627; }
+  .row.empty { background:transparent; border:1px dashed #b8a78a55; color:#b9a58c; animation:pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{ border-color:#b8a78a44 } 50%{ border-color:#c9a45c } }
   .row.you { box-shadow: inset 3px 0 0 #3db5a6; }
-  .dot { width:20px; height:20px; border-radius:50%; background:#5a4130; display:flex; align-items:center; justify-content:center; font-size:9px; }
-  .row .t { margin-left:auto; color:#b9a58c; font-size:10px; }
-  .card { background:#4b3627; border-radius:10px; padding:10px; font-size:12px; line-height:1.35; min-height:74px; }
+  .dot { width:26px; height:26px; border-radius:50%; background:#5a4130; display:flex; align-items:center; justify-content:center; font-size:11px; flex:none; }
+  .card { background:#4b3627; border-radius:10px; padding:14px 12px; font-size:13px; line-height:1.35; min-height:96px; }
   .label2 { color:#c9a45c; font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:5px; }
   .pager { display:flex; justify-content:center; gap:5px; }
   .pager i { width:6px; height:6px; border-radius:50%; background:#5a4130; } .pager i.on { background:#c9a45c; }
@@ -42,65 +34,57 @@
   .caption h3 { margin:4px 0 } .caption p { margin:0; font-size:13px; opacity:.8 }
 </style>
 
-<h2>A + the "Did you know" card</h2>
-<p class="subtitle">Same screen, two moments: the card swipes (and drifts on its own) between tips and your stats. The bot line is gone; the bar just ends at a little bot.</p>
+<h2>The Live search lobby</h2>
+<p class="subtitle">No table during the search. The roster is grouped Us / Them by seat. The card swipes (and drifts on its own) between tips and your stats.</p>
 
 <div class="phones">
 
   <div>
     <div class="phone">
-      <div class="top"><span class="score">Us 0</span><span>Live Play</span><span class="score">Them 0</span></div>
-      <div class="table">
-        <div class="seat n pulse">Open</div>
-        <div class="seat w filled">Maria</div>
-        <div class="seat e pulse">Open</div>
-        <div class="seat s">You</div>
-        <div class="mat"></div>
-      </div>
+      <div class="top">Live Play</div>
       <div class="below">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <span class="h">Finding players</span><span class="live">14 online</span>
         </div>
         <div class="barwrap"><div class="bar"><i></i></div><span class="barend">1:33 🤖</span></div>
+        <div class="grp us">Us</div>
         <div class="row you"><span class="dot">You</span>You</div>
-        <div class="row"><span class="dot">M</span>Maria<span class="t">joined 0:41</span></div>
-        <div class="row empty"><span class="dot">?</span>Searching…</div>
+        <div class="row empty"><span class="dot">?</span>Partner · searching…</div>
+        <div class="vs">vs</div>
+        <div class="grp them">Them</div>
+        <div class="row"><span class="dot">M</span>Maria</div>
         <div class="row empty"><span class="dot">?</span>Searching…</div>
         <div class="card"><div class="label2">Did you know</div>Bid 84 and you're going for all 42 points, for two marks instead of one.</div>
         <div class="pager"><i class="on"></i><i></i><i></i><i></i><i></i></div>
         <div class="btns"><div class="btn">Start with bots</div><div class="btn ghost">Cancel</div></div>
       </div>
     </div>
-    <div class="caption"><h3>Showing a tip</h3><p>Tips come from the How to play content.</p></div>
+    <div class="caption"><h3>Showing a tip</h3><p>Maria has joined on your left, so she's one of Them.</p></div>
   </div>
 
   <div>
     <div class="phone">
-      <div class="top"><span class="score">Us 0</span><span>Live Play</span><span class="score">Them 0</span></div>
-      <div class="table">
-        <div class="seat n filled">Dev</div>
-        <div class="seat w filled">Maria</div>
-        <div class="seat e pulse">Open</div>
-        <div class="seat s">You</div>
-        <div class="mat"></div>
-      </div>
+      <div class="top">Live Play</div>
       <div class="below">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <span class="h">Finding players</span><span class="live">15 online</span>
         </div>
         <div class="barwrap"><div class="bar"><i style="width:72%"></i></div><span class="barend">0:42 🤖</span></div>
+        <div class="grp us">Us</div>
         <div class="row you"><span class="dot">You</span>You</div>
-        <div class="row"><span class="dot">M</span>Maria<span class="t">joined 0:41</span></div>
-        <div class="row"><span class="dot">D</span>Dev<span class="t">joined 1:48</span></div>
+        <div class="row"><span class="dot">D</span>Dev</div>
+        <div class="vs">vs</div>
+        <div class="grp them">Them</div>
+        <div class="row"><span class="dot">M</span>Maria</div>
         <div class="row empty"><span class="dot">?</span>Searching…</div>
         <div class="card"><div class="label2">Your stats</div>
-          <div class="stats"><div><b>23</b><span class="muted">wins</span></div><div><b>58%</b><span class="muted">bids made</span></div><div><b>142</b><span class="muted">hands</span></div></div>
+          <div class="stats"><div><b>23</b><span class="muted">Played</span></div><div><b>14</b><span class="muted">Won</span></div><div><b>73%</b><span class="muted">Made rate</span></div></div>
         </div>
-        <div class="pager"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+        <div class="pager"><i></i><i class="on"></i><i></i><i></i><i></i></div>
         <div class="btns"><div class="btn">Start with bots</div><div class="btn ghost">Cancel</div></div>
       </div>
     </div>
-    <div class="caption"><h3>Showing your stats</h3><p>A minute later: Dev has joined, the bar is nearly full.</p></div>
+    <div class="caption"><h3>Showing your stats</h3><p>A minute later: Dev has joined across from you as your partner, and the bar is nearly full.</p></div>
   </div>
 
 </div>
