@@ -41,7 +41,7 @@ import {
   matchMode,
   LIVE_FILL_MS,
 } from '@fortytwo/rules';
-import { formatClock, lobbyCards, lobbyRoster, nextHandClock, searchState, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
+import { formatClock, lobbyCards, lobbyRoster, nextHandClock, searchState, shuffledTips, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
 import { useOnline } from '../api/presence';
 import { useStats } from '../api/useStats';
 import { SearchLobby } from '../components/SearchLobby';
@@ -258,6 +258,8 @@ export function Match(): JSX.Element {
   // A Live search shows the lobby in place of the table, held up a moment once the table fills.
   const lobby = useLobbyHold(liveSearch?.mode === 'live', (liveMatch?.players.length ?? 0) >= 4);
   const stats = useStats({ enabled: lobby });
+  // Shuffled once per visit, so the card's order holds steady through the search.
+  const [tips] = useState(() => shuffledTips());
   const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   const resumeMutation = useMutation({
     mutationFn: () => client.resume(matchId!),
@@ -719,7 +721,7 @@ export function Match(): JSX.Element {
           online={online}
           elapsedMs={botsEnabled ? (searchingNow ? liveSearch.elapsedMs : LIVE_FILL_MS) : null}
           full={!searchingNow}
-          cards={lobbyCards(stats.data?.all)}
+          cards={lobbyCards(stats.data?.all, tips)}
           onStartWithBots={botsEnabled ? () => addBotsMutation.mutate(undefined) : null}
           startDisabled={!searchingNow || !connected || addBotsMutation.isPending}
           onCancel={() => {

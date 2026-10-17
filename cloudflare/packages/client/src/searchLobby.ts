@@ -17,15 +17,25 @@ export const SEARCH_TIPS: readonly string[] = [
   'A double is the highest domino of its suit: the 4-4 beats every other four.',
   'A trump belongs only to trump. With sixes trump, the 6-4 is a six, never a four.',
   'A domino that isn’t trump leads as its higher end: lead the 5-3 and fives are the suit led.',
-  'Bid 84 and your team must take all 42 points - for 2 marks instead of 1.',
+  'Bid 84 and your team must take all 42 points - for 2 marks instead of 1!',
   'A Plunge needs four or more doubles. Your partner names trump, and your team must take every trick.',
   'If the first three players pass, the last player has to bid.',
   'Once the bid is 42 or more, the bidder can call Follow Me or Low instead of naming a trump.',
-  'On Low the bidder must lose every trick, and their partner sits the hand out.',
-  'Can’t follow the suit led? Play anything - including a trump.',
+  'When playing Low, the bidder must lose every trick, and their partner sits the hand out.',
+  'Can’t follow the suit led? Play anything - including a trump!',
   'A hand ends as soon as it’s decided, so you won’t always play all seven tricks.',
-  'Start with bots and players can still join: each takes over a bot’s seat when a hand ends.',
+  'In a Live match, start with bots and players can still join: each takes over a bot’s seat when a hand ends.',
 ];
+
+// The tips in a fresh order, so each search doesn't open on the same few.
+export function shuffledTips(random: () => number = Math.random): string[] {
+  const tips = [...SEARCH_TIPS];
+  for (let i = tips.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [tips[i], tips[j]] = [tips[j], tips[i]];
+  }
+  return tips;
+}
 
 // How far the search is toward the bot fill, clamped for a late server or a skewed clock.
 export function fillProgress(elapsedMs: number): { fraction: number; remainingMs: number } {

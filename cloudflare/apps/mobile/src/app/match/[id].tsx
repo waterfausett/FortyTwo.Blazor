@@ -14,6 +14,7 @@ import {
   houseRuleLabels,
   lobbyCards,
   lobbyRoster,
+  shuffledTips,
   marksToWin,
   assertPlayable,
   describeMatch,
@@ -190,6 +191,8 @@ export default function MatchScreen() {
   // A Live search shows the lobby in place of the table, held up a moment once the table fills.
   const lobby = useLobbyHold(search?.mode === 'live', (liveMatch?.players.length ?? 0) >= 4);
   const stats = useStats({ enabled: lobby });
+  // Shuffled once per visit, so the card's order holds steady through the search.
+  const [tips] = useState(() => shuffledTips());
   const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
   // then seats the player here; the lobby's lists change too.
@@ -466,7 +469,7 @@ export default function MatchScreen() {
           online={online}
           elapsedMs={config.data?.bots ? (searching ? search.elapsedMs : LIVE_FILL_MS) : null}
           full={!searching}
-          cards={lobbyCards(stats.data?.all)}
+          cards={lobbyCards(stats.data?.all, tips)}
           onStartWithBots={config.data?.bots ? () => addBots.mutate() : null}
           startDisabled={!searching || !connected || addBots.isPending}
           onCancel={() => {

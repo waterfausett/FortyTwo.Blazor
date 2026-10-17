@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StatsSummary } from '@fortytwo/api-types';
 import { LIVE_FILL_MS, createDomino, dominoValue, type MatchPlayerRef } from '@fortytwo/rules';
-import { SEARCH_TIPS, fillProgress, joinAnnouncement, lobbyCards, lobbyRoster, rosterIds } from './searchLobby';
+import { SEARCH_TIPS, fillProgress, joinAnnouncement, lobbyCards, lobbyRoster, rosterIds, shuffledTips } from './searchLobby';
 import { statSections } from './stats';
 
 // The dev bypass's `all` summary (apps/mobile/src/dev/devBypass.ts).
@@ -96,6 +96,22 @@ describe('joinAnnouncement', () => {
   it('says nothing when someone leaves or nothing changed', () => {
     expect(joinAnnouncement(['me', 'jo', null, null], ['me', null, null, null], nameOf)).toBeNull();
     expect(joinAnnouncement(['me', 'jo', null, null], ['me', 'jo', null, null], nameOf)).toBeNull();
+  });
+});
+
+describe('shuffledTips', () => {
+  it('has every tip once, in an order that depends on the random numbers', () => {
+    const always = (n: number) => () => n;
+    const low = shuffledTips(always(0));
+    const high = shuffledTips(always(0.999));
+    expect([...low].sort()).toEqual([...SEARCH_TIPS].sort());
+    expect([...high].sort()).toEqual([...SEARCH_TIPS].sort());
+    expect(low).not.toEqual(high);
+  });
+  it('leaves SEARCH_TIPS as written', () => {
+    const before = [...SEARCH_TIPS];
+    shuffledTips(() => 0);
+    expect(SEARCH_TIPS).toEqual(before);
   });
 });
 
