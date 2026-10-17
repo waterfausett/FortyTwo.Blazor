@@ -95,13 +95,13 @@ export function SeatPlate({ info, width }: { info: SeatInfo | null; width: numbe
         {info.away && <Text style={styles.seatAway}>Away</Text>}
         {info.clock !== null && <Text style={[styles.seatClock, info.paused && styles.seatClockPaused]}>{info.clock}</Text>}
         {info.paused && <Text style={[styles.seatClock, styles.seatClockPaused]}>Waiting…</Text>}
+      </View>
+      <View style={styles.detailRow}>
         {info.isDealer && (
           <View style={styles.dealer} accessibilityLabel="Dealer">
             <Text style={styles.dealerText}>D</Text>
           </View>
         )}
-      </View>
-      <View style={styles.detailRow}>
         {info.bid != null && (
           <View
             style={[styles.bid, info.isHighBidder && { backgroundColor: team, borderColor: team }]}
