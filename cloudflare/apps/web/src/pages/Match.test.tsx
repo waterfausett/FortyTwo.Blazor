@@ -9,6 +9,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+import { useEffect } from 'react';
 import { Bid, createDomino, Positions, Suit, Teams, type Domino, type MatchState, type Trick } from '@fortytwo/rules';
 import { Match } from './Match';
 import { PLAYER_NAMES_KEY } from '../match/usePlayerNames';
@@ -47,6 +48,7 @@ const {
   pokeMock,
   resumeMock,
   playMock,
+  getStatsMock,
   currentUserId,
 } =
   vi.hoisted(() => ({
@@ -71,6 +73,7 @@ const {
     pokeMock: vi.fn(),
     resumeMock: vi.fn(),
     playMock: vi.fn(),
+    getStatsMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
     // ISN'T the one that triggers the bug).
@@ -95,6 +98,7 @@ vi.mock('../api/client', () => ({
     poke: pokeMock,
     resume: resumeMock,
     play: playMock,
+    getStats: getStatsMock,
   }),
 }));
 
@@ -2101,18 +2105,74 @@ describe('Match', () => {
       );
     }
 
-    it('shows a Live search counting up, who is online, Start now with bots and Cancel search', async () => {
+    const SUMMARY = {
+      played: 23, won: 14, lost: 9, marksWon: 131, bidsWon: 41, bidsMade: 30, bidsSet: 11, averagePointsBid: 32.4,
+      marksBids: 9, favoriteTrump: { trump: 'sixes' as const, times: 12 }, bestPartner: null,
+    };
+    beforeEach(() => {
+      getStatsMock.mockResolvedValue({ all: SUMMARY, humansOnly: SUMMARY, withBots: SUMMARY });
+    });
+
+    it('shows the Live search lobby: bar, online count, roster, Start with bots and Cancel search', async () => {
       useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
       getConfigMock.mockResolvedValue({ bots: true });
       renderMatch();
-      expect(await screen.findByText(/finding players… 0:2[34]/i)).toBeTruthy();
-      expect(await screen.findByText('4 online')).toBeTruthy();
-      expect(screen.getByText(/bots take the empty seats at 2:30\. players can still join after you start/i)).toBeTruthy();
+      expect(await screen.findByRole('heading', { name: 'Finding players' })).toBeTruthy();
+      expect(await screen.findByText(/2:0[67] 🤖/)).toBeTruthy();
+      expect(screen.getByText('4 online')).toBeTruthy();
+      expect(screen.getByText('Us')).toBeTruthy();
+      expect(screen.getByText('Them')).toBeTruthy();
+      expect(screen.getByText('You')).toBeTruthy();
+      expect(screen.queryByLabelText('Table')).toBeNull();
+      expect(screen.queryByLabelText('Scores')).toBeNull();
+      expect(screen.queryByText(/bots take the empty seats/i)).toBeNull();
       expect(screen.getByRole('button', { name: /cancel search/i })).toBeTruthy();
       expect(screen.queryByRole('button', { name: /share link/i })).toBeNull();
-      expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
-      fireEvent.click(screen.getByRole('button', { name: /start now with bots/i }));
+      expect((await screen.findAllByText('Your stats')).length).toBeGreaterThan(0);
+      fireEvent.click(screen.getByRole('button', { name: 'Start with bots' }));
       await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
+    });
+
+    it('shows tips only when the stats fail', async () => {
+      getStatsMock.mockRejectedValue(new Error('nope'));
+      useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
+      renderMatch();
+      expect(await screen.findByRole('heading', { name: 'Finding players' })).toBeTruthy();
+      await waitFor(() => expect(getStatsMock).toHaveBeenCalled());
+      expect(screen.getAllByText('Did you know').length).toBeGreaterThan(0);
+      expect(screen.queryByText('Your stats')).toBeNull();
+    });
+
+    it('holds the full lobby, then shows the table', async () => {
+      useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
+      renderMatch();
+      expect(await screen.findByRole('heading', { name: 'Finding players' })).toBeTruthy();
+      // The search clock's next tick picks up the full, dealt table.
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'live' }), connected: true });
+      expect(await screen.findByText('Table full', {}, { timeout: 2000 })).toBeTruthy();
+      await waitFor(() => expect(screen.queryByRole('heading', { name: 'Finding players' })).toBeNull(), { timeout: 3000 });
+      expect(screen.getByLabelText('Scores')).toBeTruthy();
+      expect(screen.getByLabelText('Table')).toBeTruthy();
+    });
+
+    it('keeps the turn alerts mounted from the search into the deal, so the first turn still alerts', async () => {
+      let mounts = 0;
+      turnAlertsMock.mockImplementation(() => {
+        useEffect(() => {
+          mounts++;
+        }, []);
+        return null;
+      });
+      try {
+        useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
+        renderMatch();
+        expect(await screen.findByRole('heading', { name: 'Finding players' })).toBeTruthy();
+        useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'live' }), connected: true });
+        await waitFor(() => expect(screen.getByLabelText('Table')).toBeTruthy(), { timeout: 4000 });
+        expect(mounts).toBe(1);
+      } finally {
+        turnAlertsMock.mockImplementation(() => null);
+      }
     });
 
     it('offers no bot controls at an Async table, even with bots enabled', async () => {
@@ -2125,12 +2185,14 @@ describe('Match', () => {
       expect(screen.queryByRole('button', { name: /fill with bots/i })).toBeNull();
     });
 
-    it('hides Start now with bots while bots are switched off', async () => {
+    it('hides Start with bots and the bar while bots are switched off', async () => {
       useMatchSocketMock.mockReturnValue({ match: searching('live'), connected: true });
       getConfigMock.mockResolvedValue({ bots: false });
       renderMatch();
-      expect(await screen.findByText(/finding players/i)).toBeTruthy();
-      expect(screen.queryByRole('button', { name: /start now with bots/i })).toBeNull();
+      expect(await screen.findByRole('heading', { name: 'Finding players' })).toBeTruthy();
+      await waitFor(() => expect(getConfigMock).toHaveBeenCalled());
+      expect(screen.queryByRole('button', { name: 'Start with bots' })).toBeNull();
+      expect(screen.queryByText(/🤖/)).toBeNull();
     });
 
     it('tells an Async player they will hear when the table fills', async () => {
