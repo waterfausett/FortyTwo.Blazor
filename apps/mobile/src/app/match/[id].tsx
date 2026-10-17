@@ -56,6 +56,7 @@ import {
   matchMode,
   matchScores,
   rematchAgreed,
+  seatedPlayers,
   suitToPrettyString,
   type Domino as DominoType,
   type MatchState,
@@ -434,12 +435,12 @@ export default function MatchScreen() {
   // the match is full.
   if (role === 'stranger') {
     const seats = [0, 1, 2, 3].map((position) => {
-      const player = liveMatch.players.find((p) => p.position === position);
+      const player = seatedPlayers(liveMatch).find((p) => p.position === position);
       return player ? (nameOf(player.playerId) ?? '') : null;
     });
     // Per seat, so a name that has loaded shows while another is still on its way.
     const loading = [0, 1, 2, 3].map((position) => {
-      const player = liveMatch.players.find((p) => p.position === position);
+      const player = seatedPlayers(liveMatch).find((p) => p.position === position);
       return player != null && names.nameFor(player.playerId).status === 'loading';
     });
     return (
@@ -562,7 +563,8 @@ export default function MatchScreen() {
     };
   }
   const seats: Record<Seat, SeatInfo | null> = { bottom: null, left: null, top: null, right: null };
-  for (const p of match.players) seats[seatFor(match.players, viewerId, p.playerId)!] = seatInfo(p.playerId);
+  // A parked bot whose seat has opened is drawn as an open seat, not a player.
+  for (const p of seatedPlayers(match)) seats[seatFor(match.players, viewerId, p.playerId)!] = seatInfo(p.playerId);
   const emptySeatCount = openSeats(match, viewerId).length;
   // The last human out deletes the match, so for them leaving is cancelling it.
   const onlyHumanSeated = match.players.every((p) => p.playerId === myPlayerId || isBot(p.playerId));
@@ -583,12 +585,21 @@ export default function MatchScreen() {
       ],
     );
   }
-  // A player can leave a game under way: in Live Play a bot takes their seat; a bots match ends.
-  const canLeaveGame = (mode === 'live' || mode === 'bots') && hasBeenDealt(match) && !view.isMatchOver && !watching;
+  // A player can leave a game under way: in Live Play a bot takes their seat; a bots match ends; in a
+  // Custom game a bot finishes the hand and then the seat opens.
+  const canLeaveGame = (mode === 'live' || mode === 'bots' || mode === 'custom') && hasBeenDealt(match) && !view.isMatchOver && !watching;
   // A game with nobody else present is dropped when I leave it.
   const lastPresent = match.players.every((p) => p.playerId === myPlayerId || !isPresent(match, p.playerId));
   function confirmLeaveGame() {
-    Alert.alert('Leave this game?', lastPresent ? 'Nobody else is playing, so it ends.' : 'A bot takes your seat.', [
+    const outcome =
+      mode === 'custom'
+        ? onlyHumanSeated
+          ? 'Nobody else is at the table, so it ends.'
+          : 'A bot finishes this hand for you, then your seat opens for someone new.'
+        : lastPresent
+          ? 'Nobody else is playing, so it ends.'
+          : 'A bot takes your seat.';
+    Alert.alert('Leave this game?', outcome, [
       { text: 'Stay', style: 'cancel' },
       {
         text: 'Leave',
@@ -713,7 +724,7 @@ export default function MatchScreen() {
           sweepTo={sweepTo}
           compact={tableCompact}
           center={
-            view.isTableReady ? undefined : (
+            view.isTableReady && !(view.openSeatCount > 0 && showHandOver) ? undefined : (
               <View style={styles.waiting}>
                 {/* Kept short: it has only the middle of the table, between the open seats. A Live
                     search shows the lobby instead of the table. */}
@@ -723,7 +734,7 @@ export default function MatchScreen() {
                 {/* A Live search leaves the count to the status line under the table. */}
                 {mode !== 'live' && (
                   <Text style={styles.waitingText}>
-                    {match.players.length < 4 ? `${match.players.length} of 4 seated` : 'Dealing'}
+                    {view.openSeatCount > 0 ? `${4 - view.openSeatCount} of 4 seated` : 'Dealing'}
                   </Text>
                 )}
                 <View style={styles.waitingButtons}>
@@ -803,6 +814,9 @@ export default function MatchScreen() {
               <View style={styles.handOver} accessibilityLabel="Hand over">
                 <View style={styles.handOverText}>
                   <Text style={styles.handOverTitle}>{handWinnerIsUs ? 'We took the hand' : 'They took the hand'}</Text>
+                  {view.openSeatCount > 0 && (
+                    <Text style={styles.handOverDetail}>Waiting for a player to take the open seat</Text>
+                  )}
                   <Text style={styles.handOverDetail}>
                     {iAmReady
                       ? `Waiting for everyone (${view.readyCount + (view.iAmReady ? 0 : 1)} of 4 ready)`
