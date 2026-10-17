@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.4.1...worker-v1.5.0) (2026-10-17)
+
+
+### Features
+
+* show the Live search as a lobby instead of the table ([#168](https://github.com/waterfausett/FortyTwo.Blazor/issues/168)) ([c233e07](https://github.com/waterfausett/FortyTwo.Blazor/commit/c233e0717a33094d9c65c2e5fb87afcbf1efb28e))
+
 ## [1.4.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.4.0...worker-v1.4.1) (2026-10-17)
 
 
