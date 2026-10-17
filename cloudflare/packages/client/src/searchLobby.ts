@@ -25,6 +25,9 @@ export const SEARCH_TIPS: readonly string[] = [
   'Can’t follow the suit led? Play anything - including a trump!',
   'A hand ends as soon as it’s decided, so you won’t always play all seven tricks.',
   'In a Live match, start with bots and players can still join: each takes over a bot’s seat when a hand ends.',
+  'In custom matches, you can play by your own rules!',
+  'Live matches have 60-second turns - and you get kicked if you’re on auto-pilot for a whole hand!',
+  'Hop into Practice mode to test your skill against the 🤖s - take it easy, they’re still learning too!',
 ];
 
 // The tips in a fresh order, so each search doesn't open on the same few.
