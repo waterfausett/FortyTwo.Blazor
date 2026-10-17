@@ -895,7 +895,8 @@ export function Match(): JSX.Element {
               ))}
 
               <div className="table-center">
-                {!isTableReady || (view.openSeatCount > 0 && showHandOver) ? (
+                {/* At an open-seat break the waiting panel gives way to a trick still being played out. */}
+                {!isTableReady || (view.openSeatCount > 0 && showHandOver && !isTrickStarted(game.currentTrick)) ? (
                   <div className="table-waiting">
                     {/* A Live search shows the lobby instead of the table. */}
                     {liveSearch?.mode === 'daily' && (

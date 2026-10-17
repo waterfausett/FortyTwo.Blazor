@@ -442,6 +442,32 @@ describe('Match', () => {
       expect(screen.queryByRole('button', { name: /leave table|cancel match/i })).toBeNull();
     });
 
+    it('keeps the trick in the middle while a decided hand is played out, not the waiting panel', async () => {
+      const playing = parkedBreak();
+      playing.currentGame.currentTrick = {
+        playerId: 'p1',
+        team: Teams.TeamA,
+        suit: Suit.Sixes,
+        dominoes: [createDomino(6, 5), null, null, null],
+      };
+      useMatchSocketMock.mockReturnValue({ match: playing, connected: true });
+      const { container } = renderMatch();
+      await screen.findAllByTestId('open-seat');
+      expect(screen.queryByText('3 of 4 seated')).toBeNull();
+      expect(screen.queryByRole('button', { name: /invite players/i })).toBeNull();
+      expect(container.querySelector('.table-waiting')).toBeNull();
+    });
+
+    it('offers the open parked seat at a Custom table', async () => {
+      currentUserId.value = 'p5';
+      useMatchSocketMock.mockReturnValue({ match: parkedBreak(), connected: true });
+      renderMatch();
+
+      const picker = await screen.findByRole('group', { name: /pick a seat/i });
+      expect(within(picker).getByRole('button', { name: /sit here/i })).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: /this match is full/i })).toBeNull();
+    });
+
     it('keeps the parked bot as a seat while it is still finishing the hand', async () => {
       const midHand = parkedBreak();
       midHand.currentGame = baseMatch().currentGame;

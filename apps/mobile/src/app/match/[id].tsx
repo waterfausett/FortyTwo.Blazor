@@ -724,7 +724,7 @@ export default function MatchScreen() {
           sweepTo={sweepTo}
           compact={tableCompact}
           center={
-            view.isTableReady && !(view.openSeatCount > 0 && showHandOver) ? undefined : (
+            view.isTableReady && !(view.openSeatCount > 0 && showHandOver && !isTrickStarted(game.currentTrick)) ? undefined : (
               <View style={styles.waiting}>
                 {/* Kept short: it has only the middle of the table, between the open seats. A Live
                     search shows the lobby instead of the table. */}

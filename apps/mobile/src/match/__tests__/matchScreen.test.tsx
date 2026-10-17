@@ -450,6 +450,20 @@ describe('Match screen, leaving a dealt Custom match', () => {
     expect(screen.queryByText(/Leave table|Cancel match/)).toBeNull();
   });
 
+  it('keeps the trick in the middle while a decided hand is played out, not the waiting panel', async () => {
+    const playing = parkedBreak();
+    playing.currentGame = {
+      ...playing.currentGame,
+      currentTrick: { playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [createDomino(6, 5), null, null, null] },
+    };
+    socket(playing);
+    await renderScreen();
+
+    expect(await screen.findByLabelText('Table')).toBeTruthy();
+    expect(screen.queryByText('3 of 4 seated')).toBeNull();
+    expect(screen.queryByText('Invite players')).toBeNull();
+  });
+
   it('keeps the parked bot as a seat while it is still finishing the hand', async () => {
     const midHand = parkedBreak();
     midHand.currentGame = { ...midHand.currentGame, bid: null, trump: null, biddingPlayerId: null, tricks: [] };
