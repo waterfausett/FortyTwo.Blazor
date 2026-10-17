@@ -2415,9 +2415,26 @@ describe('Match hints', () => {
       renderMatch();
       fireEvent.click(await screen.findByRole('button', { name: 'Hint' }));
 
-      expect(await screen.findByText('Bid 31 · Sixes, 70% to make')).not.toBeNull();
+      expect(await screen.findByText('Bid 31 · Sixes')).not.toBeNull();
       expect(getHintMock).toHaveBeenCalledTimes(1);
       expect(screen.getByRole('button', { name: '31' }).classList.contains('bid-tile-suggested')).toBe(true);
+      // No chances or alternatives unless the Worker turns hint details on.
+      expect(screen.queryByText('Bid 31 · Sixes, 70% to make')).toBeNull();
+    });
+
+    it('shows the chances to make and the alternatives with hint details on', async () => {
+      getConfigMock.mockResolvedValue({ bots: true, hintDetails: true });
+      getHintMock.mockResolvedValue({
+        status: 'ready',
+        hint: { kind: 'bid', suggestion: { bid: 31, trump: 6, pMake: 0.7 }, options: [{ bid: 31, trump: 6, pMake: 0.7 }] },
+      });
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'bots' }), connected: true });
+
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: 'Hint' }));
+
+      expect(await screen.findByText('Bid 31 · Sixes, 70% to make')).not.toBeNull();
+      expect(screen.getByRole('region', { name: 'Hint details' })).not.toBeNull();
     });
 
     it('hides the hint while my move is on its way to the server', async () => {

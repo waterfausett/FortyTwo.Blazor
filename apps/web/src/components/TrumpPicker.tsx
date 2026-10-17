@@ -1,7 +1,7 @@
 // The bidder's trump picker: every trump `availableTrumps` allows, with the three Low variants
 // folded into a single "Low" tile. Picking Low opens a second step asking how doubles behave for
 // the hand (high, low, or a suit of their own), since that's part of calling Low.
-import type { JSX } from 'react';
+import type { JSX, ReactNode } from 'react';
 import { useState } from 'react';
 import type { Game } from '@fortytwo/rules';
 import { LOW_TRUMPS, Suit, availableTrumps, isLow, lowDoublesToPrettyString, suitToPrettyString } from '@fortytwo/rules';
@@ -14,9 +14,11 @@ export interface TrumpPickerProps {
   disabled?: boolean;
   // The trump a hint suggests, outlined (on the Low tile for any Low variant).
   suggested?: Suit | null;
+  // Shown beside the prompt: the Hint button, or its answer.
+  hint?: ReactNode;
 }
 
-export function TrumpPicker({ game, onSelect, disabled = false, suggested = null }: TrumpPickerProps): JSX.Element {
+export function TrumpPicker({ game, onSelect, disabled = false, suggested = null, hint = null }: TrumpPickerProps): JSX.Element {
   const [choosingDoubles, setChoosingDoubles] = useState(false);
   const trumps = availableTrumps(game);
   const lowTrumps = trumps.filter(isLow);
@@ -24,7 +26,10 @@ export function TrumpPicker({ game, onSelect, disabled = false, suggested = null
   if (choosingDoubles) {
     return (
       <section className="trump-select-section" aria-label="Select trump">
-        <p className="action-prompt">Low: how do doubles play?</p>
+        <div className="action-prompt-row">
+          <p className="action-prompt">Low: how do doubles play?</p>
+          {hint}
+        </div>
         <div className="trump-options">
           {lowTrumps.map((suit) => (
             <button
@@ -48,7 +53,10 @@ export function TrumpPicker({ game, onSelect, disabled = false, suggested = null
 
   return (
     <section className="trump-select-section" aria-label="Select trump">
-      <p className="action-prompt">Select a trump</p>
+      <div className="action-prompt-row">
+        <p className="action-prompt">Select a trump</p>
+        {hint}
+      </div>
       <div className="trump-options">
         {trumps
           .filter((suit) => !isLow(suit))

@@ -79,20 +79,22 @@ function bidLabel(s: BidSuggestion): string {
 // High end first, as a domino is usually read: 6-4.
 const dominoLabel = (d: HintDomino) => `${Math.max(d.top, d.bottom)}-${Math.min(d.top, d.bottom)}`;
 
-export function hintHeadline(hint: Hint): string {
+// The suggestion alone, shown beside the bid or trump prompt: "Bid 34 · Sixes", "Pass", "Sixes".
+export function hintSuggestion(hint: Hint): string {
   switch (hint.kind) {
-    case 'bid': {
-      const s = hint.suggestion;
-      if (s.bid === Bid.Pass) return 'Pass';
-      return s.pMake === null ? `Bid ${bidLabel(s)}` : `Bid ${bidLabel(s)}, ${percent(s.pMake)} to make`;
-    }
-    case 'trump': {
-      const s = hint.suggestion;
-      return s.pMake === null ? trumpLabel(s.trump) : `${trumpLabel(s.trump)}, ${percent(s.pMake)} to make`;
-    }
+    case 'bid':
+      return hint.suggestion.bid === Bid.Pass ? 'Pass' : `Bid ${bidLabel(hint.suggestion)}`;
+    case 'trump':
+      return trumpLabel(hint.suggestion.trump);
     case 'play':
       return `Play ${dominoLabel(hint.dominoes[0].domino)}`;
   }
+}
+
+// The suggestion with its chance to make, heading the details card (ClientConfig.hintDetails).
+export function hintHeadline(hint: Hint): string {
+  const pMake = hint.kind === 'play' || (hint.kind === 'bid' && hint.suggestion.bid === Bid.Pass) ? null : hint.suggestion.pMake;
+  return pMake === null ? hintSuggestion(hint) : `${hintSuggestion(hint)}, ${percent(pMake)} to make`;
 }
 
 export interface HintRow {

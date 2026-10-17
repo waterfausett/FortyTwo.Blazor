@@ -98,16 +98,16 @@ The two apps work the same way. Each has a `useHint(matchId, view)` hook over `f
 - the hand isn't decided;
 - no pre-play is queued (both apps have double-click/double-tap pre-play).
 
-It sits with the bidding panel, the trump picker, or the hand:
-- web: `apps/web/src/pages/Match.tsx`, near `BiddingPanel`/`TrumpPicker`/`Hand`;
-- mobile: `apps/mobile/src/app/match/[id].tsx`, at the same three spots.
-
-**The hint card** (a new `HintCard` component in each app):
+It sits beside the prompt: "Select a bid", "Select a trump" (and Low's doubles step), or the "Your turn" status line when it's time to play (`HintButton`, passed into `BiddingPanel`/`TrumpPicker` as a `hint` slot). In the same spot it then shows:
 - **Loading:** "Thinking…".
-- **Bid:** the first line is "Bid 34 · sixes — 68% to make" (or "Pass"), then up to 3 option rows ("30 · sixes 81%"), with the suggested row marked.
-- **Trump:** "Sixes — 68% to make", then up to 3 trump rows.
-- **Play:** the top 3 legal dominoes, best first: "best", "close (−0.05 marks)", "weaker (−0.40 marks)". Three rows keep the hand in view on a phone; every best domino is also ringed in the hand. The Worker still rates every legal domino.
-- **Error:** the message on one line.
+- **Bid or trump:** the suggestion alone: "Bid 34 · Sixes", "Pass", "Low (doubles low)".
+- **Play:** nothing; the ringed domino in the hand is the hint.
+- **Error:** the message, with Try again.
+
+**The details card** (`HintDetails`) shows only when the Worker's `HINT_DETAILS` is exactly `'true'` (`ClientConfig.hintDetails`, off by default):
+- **Bid:** "Bid 34 · Sixes, 68% to make", then the option rows ("30 · Sixes 81%"), with the suggested row marked.
+- **Trump:** "Sixes, 68% to make", then the trump rows.
+- **Play:** the top 3 legal dominoes, best first: "best", "close (−0.05 marks)", "weaker (−0.40 marks)". The Worker still rates every legal domino.
 
 **Marking the suggestion in the controls:**
 - **Bid or trump:** the suggested button in `BiddingPanel`/`TrumpPicker` gets an outline, through a new optional `suggested` prop.

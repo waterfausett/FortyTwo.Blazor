@@ -71,7 +71,7 @@ import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
-import { HintPanel } from '@/components/HintPanel';
+import { HintButton, HintDetails } from '@/components/HintPanel';
 import { useHint } from '@/match/useHint';
 import { DoublesRuleModal } from '@/components/DoublesRuleModal';
 import { InviteSheet } from '@/people/InviteSheet';
@@ -840,11 +840,18 @@ export default function MatchScreen() {
               onBid={(b) => bid.mutate(b)}
               disabled={!connected}
               suggested={suggestedBid(hint.hint)}
+              hint={<HintButton hint={hint} />}
             />
           </Fade>
         ) : view.canSelectTrump && !watching ? (
           <Fade key="trump" visible={!trumpSent}>
-            <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected} suggested={suggestedTrump(hint.hint)} />
+            <TrumpPicker
+              game={game}
+              onSelect={(s) => trump.mutate(s)}
+              disabled={!connected}
+              suggested={suggestedTrump(hint.hint)}
+              hint={<HintButton hint={hint} />}
+            />
           </Fade>
         ) : (
           status != null && (
@@ -852,9 +859,13 @@ export default function MatchScreen() {
             // status doesn't flicker.
             <Fade key={view.isPlayingPhase ? 'play' : 'wait'}>
               <View style={styles.statusLine}>
-                <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
-                  {names.ready ? status : null}
-                </Text>
+                <View style={styles.statusRow}>
+                  <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
+                    {names.ready ? status : null}
+                  </Text>
+                  {/* My turn to play: the Hint button rides along with "Your turn". */}
+                  {!watching && <HintButton hint={hint} />}
+                </View>
                 {!names.ready && <NameSkeleton width={160} />}
                 {poke.target != null && !watching && (
                   <Pressable
@@ -871,11 +882,11 @@ export default function MatchScreen() {
           )
         )}
 
+        {!watching && <HintDetails hint={hint} show={config.data?.hintDetails ?? false} />}
+
         {/* Takes up whatever room is left, keeping the hand at the bottom of the screen: when the
             choices above grow or shrink (a status line, the bids, the trumps), only this changes,
             so nothing else moves. */}
-        {!watching && <HintPanel hint={hint} />}
-
         <View style={styles.spacer} />
 
         {watching ? (
@@ -1085,6 +1096,7 @@ const styles = StyleSheet.create({
   handOverTitle: { color: colors.bone, fontFamily: fonts.display, fontSize: 20 },
   handOverDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
   statusLine: { alignItems: 'center', gap: 8 },
+  statusRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 10, rowGap: 6 },
   status: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   muted: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center' },
   spacer: { flexGrow: 1 },

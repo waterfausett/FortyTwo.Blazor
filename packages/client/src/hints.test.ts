@@ -4,7 +4,7 @@ import {
 } from '@fortytwo/rules';
 import type { Hint, HintResponse } from '@fortytwo/api-types';
 import {
-  HINT_GIVE_UP_MS, HINT_RETRY_MS, HINT_UNAVAILABLE, canAskForHint, fetchHint, hintHeadline, hintRows, hintTurnKey,
+  HINT_GIVE_UP_MS, HINT_RETRY_MS, HINT_UNAVAILABLE, canAskForHint, fetchHint, hintHeadline, hintRows, hintSuggestion, hintTurnKey,
   isAbort, suggestedBid, suggestedDominoIds, suggestedTrump,
 } from './hints';
 
@@ -149,6 +149,7 @@ describe('hintTurnKey', () => {
 
 describe('hint text', () => {
   it('reads a bid hint', () => {
+    expect(hintSuggestion(bidHint)).toBe('Bid 34 · Sixes');
     expect(hintHeadline(bidHint)).toBe('Bid 34 · Sixes, 68% to make');
     expect(hintRows(bidHint)).toEqual([
       { key: '33', label: '33 · Sixes', detail: '75%', suggested: false },
@@ -172,6 +173,7 @@ describe('hint text', () => {
       suggestion: { trump: Suit.LowDoublesLow, pMake: 0.71 },
       options: [{ trump: Suit.LowDoublesLow, pMake: 0.71 }, { trump: Suit.Sixes, pMake: 0.4 }],
     };
+    expect(hintSuggestion(hint)).toBe('Low (doubles low)');
     expect(hintHeadline(hint)).toBe('Low (doubles low), 71% to make');
     expect(hintRows(hint).map((r) => [r.label, r.detail, r.suggested])).toEqual([
       ['Low (doubles low)', '71%', true],

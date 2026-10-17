@@ -1,6 +1,6 @@
 // The bidder's trump picker: every trump `availableTrumps` allows, with the three Low variants
 // folded into one "Low" choice that then asks how doubles behave for the hand.
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LOW_TRUMPS, Suit, availableTrumps, isLow, lowDoublesToPrettyString, suitToPrettyString, type Game } from '@fortytwo/rules';
 import { StyleSheet } from 'react-native';
@@ -15,9 +15,11 @@ export interface TrumpPickerProps {
   disabled?: boolean;
   // The trump a hint suggests, ringed (on the Low choice for any Low variant).
   suggested?: Suit | null;
+  // Shown beside the prompt: the Hint button, or its answer.
+  hint?: ReactNode;
 }
 
-export function TrumpPicker({ game, onSelect, disabled = false, suggested = null }: TrumpPickerProps) {
+export function TrumpPicker({ game, onSelect, disabled = false, suggested = null, hint = null }: TrumpPickerProps) {
   const [choosingDoubles, setChoosingDoubles] = useState(false);
   const trumps = availableTrumps(game);
   const lowTrumps = trumps.filter(isLow);
@@ -25,7 +27,10 @@ export function TrumpPicker({ game, onSelect, disabled = false, suggested = null
   if (choosingDoubles) {
     return (
       <View style={styles.panel} accessibilityLabel="Select trump">
-        <Text style={styles.prompt}>Low: how do doubles play?</Text>
+        <View style={styles.promptRow}>
+          <Text style={styles.prompt}>Low: how do doubles play?</Text>
+          {hint}
+        </View>
         <View style={styles.options}>
           {lowTrumps.map((suit) => (
             <Pressable
@@ -52,7 +57,10 @@ export function TrumpPicker({ game, onSelect, disabled = false, suggested = null
 
   return (
     <View style={styles.panel} accessibilityLabel="Select trump">
-      <Text style={styles.prompt}>Select a trump</Text>
+      <View style={styles.promptRow}>
+        <Text style={styles.prompt}>Select a trump</Text>
+        {hint}
+      </View>
       <View style={styles.options}>
         {trumps
           .filter((suit) => !isLow(suit))

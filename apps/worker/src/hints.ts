@@ -15,3 +15,8 @@ export function assertHintable(match: MatchState, playerId: string, enabled: boo
   if (!enabled) throw new ValidationError('Hints are off', 'Hints are turned off right now.');
   assertCanHint(match, playerId);
 }
+
+// Whether hints show their details (index.ts's HINT_DETAILS). Off by default.
+export function hintDetailsEnabled(env: { HINT_DETAILS?: string }): boolean {
+  return env.HINT_DETAILS === 'true';
+}

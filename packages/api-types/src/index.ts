@@ -70,6 +70,9 @@ export interface ClientConfig {
   bots: boolean;
   // Whether to open the presence socket and show the online count.
   presence: boolean;
+  // Whether a hint's card shows its chances to make and the close alternatives, not just the
+  // suggestion.
+  hintDetails: boolean;
 }
 
 // A user as Auth0's Management API returns it.

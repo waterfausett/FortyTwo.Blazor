@@ -1384,12 +1384,49 @@
   }
 }
 
-/* Hints (practice matches): the button and card under the controls, and the suggestion ringed in
-   brass - the hall's colour for the one thing asking for attention. */
+/* Hints (practice matches): the button beside the prompt, the details card under the controls,
+   and the suggestion ringed in brass - the hall's colour for the one thing asking for attention. */
+.action-prompt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: 0.75rem;
+}
+.hint-slot {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 1.9rem;
+  padding: 0 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1;
+  vertical-align: middle;
+}
+.hint-button {
+  border-color: var(--ink-muted);
+  background: transparent;
+  color: var(--bone);
+  cursor: pointer;
+}
+.hint-status .hint-button {
+  height: 100%;
+}
+.hint-status {
+  padding: 0;
+  color: var(--bone);
+}
+.hint-suggestion {
+  font-weight: 600;
+  color: var(--brass);
+}
 .hint-panel {
   margin: 0.5rem 0;
 }
-.hint-status,
 .hint-headline {
   margin: 0.25rem 0;
 }

@@ -6,7 +6,7 @@ import { Bid, DEFAULT_HOUSE_RULES, Teams, createDomino, type Game, type Trick } 
 import type { Hint } from '@fortytwo/api-types';
 import type { HintController } from '@/match/useHint';
 import { BiddingPanel } from '../BiddingPanel';
-import { HintPanel } from '../HintPanel';
+import { HintButton, HintDetails } from '../HintPanel';
 import { Hand, isInside, moveBefore, reconcileOrder } from '../Hand';
 import { HelpButton } from '../HelpButton';
 import { HowToPlayCard } from '../HowToPlayCard';
@@ -603,41 +603,63 @@ describe('HelpButton', () => {
   });
 });
 
-describe('HintPanel', () => {
+describe('HintButton and HintDetails', () => {
   const controller = (over: Partial<HintController>): HintController => ({
     available: true, state: { status: 'idle' }, ask: jest.fn(), hint: null, ...over,
   });
+  const bidHint: Hint = {
+    kind: 'bid',
+    suggestion: { bid: 31, trump: 6, pMake: 0.7 },
+    options: [{ bid: 30, trump: 6, pMake: 0.8 }, { bid: 31, trump: 6, pMake: 0.7 }],
+  };
+  const playHint: Hint = {
+    kind: 'play',
+    dominoes: [
+      { domino: createDomino(4, 6), marks: 0.6, gap: 0, rating: 'best' },
+      { domino: createDomino(1, 3), marks: 0.2, gap: 0.4, rating: 'weaker' },
+    ],
+  };
+  const ready = (hint: Hint) => controller({ state: { status: 'ready', hint }, hint });
 
   it('shows nothing when no hint can be asked for', async () => {
-    await render(<HintPanel hint={controller({ available: false })} />);
+    await render(<HintButton hint={controller({ available: false })} />);
     expect(screen.queryByText('Hint')).toBeNull();
   });
 
-  it('asks when Hint is pressed, then shows the hint with the suggested row marked', async () => {
+  it('asks when Hint is pressed, then names a bid suggestion without its chances', async () => {
     const ask = jest.fn();
-    await render(<HintPanel hint={controller({ ask })} />);
+    await render(<HintButton hint={controller({ ask })} />);
     await fireEvent.press(screen.getByText('Hint'));
     expect(ask).toHaveBeenCalled();
 
-    const hint: Hint = {
-      kind: 'play',
-      dominoes: [
-        { domino: createDomino(4, 6), marks: 0.6, gap: 0, rating: 'best' },
-        { domino: createDomino(1, 3), marks: 0.2, gap: 0.4, rating: 'weaker' },
-      ],
-    };
-    await render(<HintPanel hint={controller({ state: { status: 'ready', hint }, hint })} />);
-    expect(screen.getByText('Play 6-4')).toBeTruthy();
-    expect(screen.getByText('weaker (−0.40 marks)')).toBeTruthy();
-    expect(screen.getByLabelText('6-4, best, suggested')).toBeTruthy();
+    await render(<HintButton hint={ready(bidHint)} />);
+    expect(screen.getByText('Bid 31 · Sixes')).toBeTruthy();
+  });
+
+  it('leaves a play hint to the ringed domino', async () => {
+    await render(<HintButton hint={ready(playHint)} />);
+    expect(screen.queryByText('Play 6-4')).toBeNull();
   });
 
   it('says it is thinking, and why it failed', async () => {
-    await render(<HintPanel hint={controller({ state: { status: 'loading' } })} />);
+    await render(<HintButton hint={controller({ state: { status: 'loading' } })} />);
     expect(screen.getByText('Thinking…')).toBeTruthy();
-    await render(<HintPanel hint={controller({ state: { status: 'error', message: "Hints aren't available right now." } })} />);
+    await render(<HintButton hint={controller({ state: { status: 'error', message: "Hints aren't available right now." } })} />);
     expect(screen.getByText("Hints aren't available right now.")).toBeTruthy();
     expect(screen.getByText('Try again')).toBeTruthy();
+  });
+
+  it('shows the details card only with hint details on', async () => {
+    await render(<HintDetails hint={ready(bidHint)} show={false} />);
+    expect(screen.queryByText('Bid 31 · Sixes, 70% to make')).toBeNull();
+
+    await render(<HintDetails hint={ready(bidHint)} show />);
+    expect(screen.getByText('Bid 31 · Sixes, 70% to make')).toBeTruthy();
+    expect(screen.getByLabelText('31 · Sixes, 70%, suggested')).toBeTruthy();
+
+    await render(<HintDetails hint={ready(playHint)} show />);
+    expect(screen.getByText('weaker (−0.40 marks)')).toBeTruthy();
+    expect(screen.getByLabelText('6-4, best, suggested')).toBeTruthy();
   });
 });
 
