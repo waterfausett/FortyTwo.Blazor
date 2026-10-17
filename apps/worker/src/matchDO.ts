@@ -49,7 +49,8 @@ import { pushNotices, type Notice } from './push/notices';
 import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
 import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
-import type { PokeResult } from '@fortytwo/api-types';
+import type { HintResponse, PokeResult } from '@fortytwo/api-types';
+import { assertHintable } from './hints';
 import { bidAndMaybeRedeal } from './redeal';
 import { mintBotId, applyBotAction, botDelayMs, botsEnabled, findNextBotAction } from './bots';
 import { WARMING, getMlBot } from './mlBot';
@@ -347,6 +348,23 @@ export class MatchDO extends DurableObject<Env> {
       await this.ctx.storage.put('pokedTurn', turn);
       this.ctx.waitUntil(sendNotices(this.env, [pokeNotice(match, target)]));
       return { delivered: 'push' };
+    });
+  }
+
+  // What the ML bot would do in `playerId`'s seat, for a hint in a practice match (hints.ts).
+  // Read-only: nothing is saved or broadcast. A fresh isolate's model loads one piece per call
+  // (mlBot.ts), like a cold alarm, so until it's ready the reply says 'warming' and the client
+  // asks again.
+  hint(playerId: string): Promise<MatchResult<HintResponse>> {
+    return this.read(async (match): Promise<HintResponse> => {
+      assertHintable(match, playerId, botsEnabled(this.env));
+      const ml = await getMlBot(this.env);
+      if (ml === WARMING) return { status: 'warming' };
+      if (ml === null) return { status: 'unavailable' };
+      // getMlBot's asset fetches let other calls in, so the turn may have moved: hint the match as
+      // it is now (explain refuses one that's no longer the asker's turn).
+      const now = (await this.load()) ?? match;
+      return { status: 'ready', hint: ml.explain(now, playerId) };
     });
   }
 

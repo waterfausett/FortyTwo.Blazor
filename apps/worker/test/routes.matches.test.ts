@@ -709,6 +709,16 @@ describe('match routes', () => {
       );
     }
 
+    it('refuses a hint outside a practice match, in the error shape the client shows', async () => {
+      const p1 = await signToken('p1');
+      const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await apiWithBots(`/api/matches/${created.id}/games/current/hint`, p1);
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ title: 'Practice matches only' });
+    });
+
     it('tells the client whether bots are available', async () => {
       const p1 = await signToken('p1');
 
