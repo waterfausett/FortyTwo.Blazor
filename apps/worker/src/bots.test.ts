@@ -241,21 +241,21 @@ describe('applyBotAction with an ML bot', () => {
     const match = botToBid();
     const action = findNextBotAction(match)!;
     expect(action).toEqual({ kind: 'bid', playerId: 'bot-1' });
-    const bot: Bot = { decideBid: () => Bid.ThirtyFive, decideTrump: unused, decideDomino: unused };
+    const bot: Bot = { decideBid: () => Bid.ThirtyFive, decideTrump: unused, decideDomino: unused, explain: unused };
     expect(bidOf(applyBotAction(match, action, bot), 'bot-1')).toBe(Bid.ThirtyFive);
   });
 
   it('falls back when the ML decision is illegal', () => {
     const match = botToBid();
     const action = findNextBotAction(match)!;
-    const bot: Bot = { decideBid: () => 999 as Bid, decideTrump: unused, decideDomino: unused };
+    const bot: Bot = { decideBid: () => 999 as Bid, decideTrump: unused, decideDomino: unused, explain: unused };
     expect(bidOf(applyBotAction(match, action, bot), 'bot-1')).toBe(Bid.Pass); // the simple bot passes
   });
 
   it('falls back when the ML bot throws', () => {
     const match = botToBid();
     const action = findNextBotAction(match)!;
-    const bot: Bot = { decideBid: unused, decideTrump: unused, decideDomino: unused };
+    const bot: Bot = { decideBid: unused, decideTrump: unused, decideDomino: unused, explain: unused };
     expect(bidOf(applyBotAction(match, action, bot), 'bot-1')).toBe(Bid.Pass);
   });
 
