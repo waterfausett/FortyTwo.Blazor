@@ -36,6 +36,14 @@ export const LIMITS = [
   { key: 'd1RowsRead', name: 'D1 rows read', limit: 5_000_000 },
 ];
 
+// Durable Object namespace ids, by class, as GET /accounts/:id/workers/durable_objects/namespaces
+// lists them. The analytics token can't read that endpoint, so they're kept here; an id stays the
+// same while its class is deployed. One not listed shows as its id.
+const DO_NAMESPACES = {
+  '720a5ab32ddd4f76af01d6d5363ae6f4': 'MatchDO',
+  '5174536da6c046808990b2f59b08f0a5': 'Matchmaker',
+};
+
 const isoDate = (d) => d.toISOString().slice(0, 10);
 
 // The last 7 complete UTC days: yesterday and the six before it.
@@ -125,6 +133,24 @@ export function analyze(days, { thresholdPct = DEFAULT_ALERT_PCT, limits = LIMIT
   return { findings, alerts, cpu, status };
 }
 
+// DO requests per namespace: each one's peak day and its total over the window, busiest first. The
+// account-wide limit covers them all; this shows which class the requests come from.
+export function doRequestsByNamespace(rows, names = DO_NAMESPACES) {
+  const byName = {};
+  for (const { date, namespaceId, requests } of rows) {
+    const name = names[namespaceId] ?? namespaceId;
+    const days = (byName[name] ??= {});
+    days[date] = (days[date] ?? 0) + requests;
+  }
+  return Object.entries(byName)
+    .map(([name, days]) => {
+      const [peakDate, peak] = Object.entries(days).reduce((best, day) => (day[1] > best[1] ? day : best));
+      const total = Object.values(days).reduce((sum, n) => sum + n, 0);
+      return { name, peak, peakDate, total };
+    })
+    .sort((a, b) => b.peak - a.peak);
+}
+
 export const ISSUE_PREFIX = 'Cloudflare quota watch: ';
 
 export function issueTitle({ name, pct }) {
@@ -133,7 +159,7 @@ export function issueTitle({ name, pct }) {
 
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
 
-export function summaryMarkdown(result, { from, to }) {
+export function summaryMarkdown(result, { from, to }, byNamespace = []) {
   const lines = [
     '## Cloudflare quota watch',
     '',
@@ -147,6 +173,10 @@ export function summaryMarkdown(result, { from, to }) {
     lines.push(
       `| ${f.name} | ${f.peakDate ?? '-'} | ${fmt(f.peak)} | ${fmt(f.limit)} | ${f.pct.toFixed(1)}% | ${icon[f.level]} |`,
     );
+  }
+  if (byNamespace.length > 0) {
+    lines.push('', 'DO requests by namespace:', '', '| Namespace | Peak day | Peak | 7-day total |', '|---|---|---:|---:|');
+    for (const n of byNamespace) lines.push(`| ${n.name} | ${n.peakDate} | ${fmt(n.peak)} | ${fmt(n.total)} |`);
   }
   const { cpu } = result;
   lines.push(
@@ -213,18 +243,36 @@ const DATASETS = [
   },
 ];
 
-async function fetchDays(token, accountTag, { from, to }) {
+async function fetchRows(token, accountTag, { from, to }, name, fields) {
+  const query = `query($accountTag: string!, $from: Date!, $to: Date!) {
+    viewer { accounts(filter: { accountTag: $accountTag }) {
+      ${name}(limit: 100, filter: { date_geq: $from, date_leq: $to }) { ${fields} }
+    } }
+  }`;
+  const data = await graphql(token, query, { accountTag, from, to });
+  return data.viewer.accounts[0]?.[name] ?? [];
+}
+
+async function fetchDays(token, accountTag, window) {
   const datasets = {};
   for (const ds of DATASETS) {
-    const query = `query($accountTag: string!, $from: Date!, $to: Date!) {
-      viewer { accounts(filter: { accountTag: $accountTag }) {
-        ${ds.name}(limit: 100, filter: { date_geq: $from, date_leq: $to }) { ${ds.fields} }
-      } }
-    }`;
-    const data = await graphql(token, query, { accountTag, from, to });
-    datasets[ds.into] = (data.viewer.accounts[0]?.[ds.name] ?? []).map(ds.toRow);
+    datasets[ds.into] = (await fetchRows(token, accountTag, window, ds.name, ds.fields)).map(ds.toRow);
   }
   return mergeDays(datasets);
+}
+
+// Its own small query, like the datasets above. 7 days x a couple of namespaces is well under 100 rows.
+async function fetchDoRequestsByNamespace(token, accountTag, window) {
+  const rows = await fetchRows(
+    token,
+    accountTag,
+    window,
+    'durableObjectsInvocationsAdaptiveGroups',
+    'dimensions { date namespaceId } sum { requests }',
+  );
+  return doRequestsByNamespace(
+    rows.map((r) => ({ date: r.dimensions.date, namespaceId: r.dimensions.namespaceId, requests: r.sum.requests })),
+  );
 }
 
 async function gh(...args) {
@@ -284,8 +332,9 @@ async function main() {
   const window = windowDates();
   const days = await fetchDays(token, accountTag, window);
   const result = analyze(days, { thresholdPct });
+  const byNamespace = await fetchDoRequestsByNamespace(token, accountTag, window);
 
-  writeSummary(summaryMarkdown(result, window));
+  writeSummary(summaryMarkdown(result, window, byNamespace));
   if (result.alerts.length > 0 && !process.env.QUOTA_WATCH_NO_ISSUES) {
     await report(result.alerts, window);
   }

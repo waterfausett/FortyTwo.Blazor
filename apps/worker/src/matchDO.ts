@@ -54,6 +54,7 @@ import { bidAndMaybeRedeal } from './redeal';
 import { mintBotId, applyBotAction, botDelayMs, botsEnabled, findNextBotAction } from './bots';
 import { WARMING, getMlBot } from './mlBot';
 import { recordPlayedWith, startedPlayers } from './people/playedWith';
+import { indexed, listingOf, sameListing, type Listing, type QueueMode } from './seatIndex';
 
 // While the ML bot loads and warms up in a fresh isolate, each piece gets its own alarm, this far
 // apart (see alarm()).
@@ -77,31 +78,82 @@ export type MatchResult<T> =
   | { ok: true; value: T }
   | { ok: false; status: 400 | 404; error: { title: string; detail?: string } };
 
-// Just enough of a match for the Matchmaker to place someone at it: who sits where, whether it's
-// been dealt, whether it's won. Far smaller over RPC than the match, which carries every hand.
-export interface Seating {
-  players: { playerId: string; position: number }[];
-  dealt: boolean;
-  won: boolean;
+// What the Matchmaker's own calls hand back: the call's result, and the table's listing after it
+// (seatIndex.ts) - refused or not, so a refusal corrects the Matchmaker's index too. Null when
+// there's no match here.
+export interface Placement {
+  result: MatchResult<MatchState>;
+  listing: Listing | null;
 }
 
 export class MatchDO extends DurableObject<Env> {
+  // The stored 'listing', once read: only this DO writes it, so it's read once per instance rather
+  // than on every save. Undefined until then; null when there's none.
+  private listing: Listing | null | undefined;
+
   private async load(): Promise<MatchState | null> {
     return (await this.ctx.storage.get<MatchState>('match')) ?? null;
   }
 
-  private async save(match: MatchState): Promise<void> {
-    await this.ctx.storage.put('match', match);
+  private async storedListing(): Promise<Listing | null> {
+    if (this.listing === undefined) this.listing = (await this.ctx.storage.get<Listing>('listing')) ?? null;
+    return this.listing;
+  }
+
+  // Saves the match, and with it the table's listing for the Matchmaker's seat index when that
+  // changed: who sits where, the claims, the deal, whether it's won or takes claims - a few times a
+  // game, not every move. A change the Matchmaker didn't make itself (`report`) is reported to it
+  // while its index holds the table, or should; the Matchmaker's own calls get the listing back instead
+  // (Placement). Fire and forget: a lost report is found out when a search next tries the table.
+  private async save(match: MatchState, report = true): Promise<void> {
+    const view = listingOf(match);
+    const previous = view === null ? null : await this.storedListing();
+    if (view === null || sameListing(view, previous ?? undefined)) {
+      await this.ctx.storage.put('match', match);
+      return;
+    }
+    const listing: Listing = { ...view, seq: (previous?.seq ?? 0) + 1 };
+    await this.ctx.storage.put({ match, listing });
+    this.listing = listing;
+    const mode = matchMode(match) as QueueMode;
+    if (report && (indexed(mode, listing) || (previous !== null && indexed(mode, previous)))) this.report(match, listing);
+  }
+
+  private report(match: MatchState, listing: Listing | null): void {
+    const matchmaker = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
+    const mode = matchMode(match) as QueueMode;
+    this.ctx.waitUntil(
+      matchmaker.report(match.id, mode, listing).catch((error: unknown) => console.error(`REPORT FAILED for ${match.id}`, error))
+    );
+  }
+
+  // The listing to hand the Matchmaker with a result. A table stored before listings were kept
+  // gets its first one now.
+  private async placement(result: MatchResult<MatchState>): Promise<Placement> {
+    const match = result.ok ? result.value : await this.load();
+    if (match === null) return { result, listing: null };
+    const stored = await this.storedListing();
+    if (stored !== null) return { result, listing: stored };
+    const view = listingOf(match);
+    if (view === null) return { result, listing: null };
+    const listing: Listing = { ...view, seq: 1 };
+    await this.ctx.storage.put('listing', listing);
+    this.listing = listing;
+    return { result, listing };
   }
 
   // Deletes this match for good: no bot move may fire afterwards, every client is told to stop
-  // reconnecting, and storage is wiped so a later call finds no match (404).
-  private async destroy(): Promise<void> {
+  // reconnecting, and storage is wiped so a later call finds no match (404). The Matchmaker hears
+  // of it if its index could still hold the table.
+  private async destroy(match: MatchState): Promise<void> {
+    const listing = await this.storedListing();
     await this.ctx.storage.deleteAlarm();
     for (const ws of this.ctx.getWebSockets()) {
       ws.close(MATCH_DELETED_CLOSE_CODE, 'Match deleted');
     }
     await this.ctx.storage.deleteAll();
+    this.listing = null;
+    if (listing !== null && indexed(matchMode(match) as QueueMode, listing)) this.report(match, null);
   }
 
   // Only the WebSocket upgrade still arrives as a request; everything else is an RPC method below.
@@ -114,11 +166,17 @@ export class MatchDO extends DurableObject<Env> {
   // and broadcast carries the id clients use to reach it.
   async create(firstPlayerId: string, matchId: string, mode: MatchMode = 'custom', rules?: HouseRules): Promise<MatchState> {
     const match = { ...createMatch(firstPlayerId, mode, rules), id: matchId };
-    await this.save(match);
+    // Only the Matchmaker starts Live and Async tables, and it takes the listing from createListed.
+    await this.save(match, false);
     this.publish(null, match);
     // A Live table's fill deadline starts now.
     await this.schedule(match);
     return match;
+  }
+
+  // `create`, for the Matchmaker: a Live or Async table, with its first listing.
+  async createListed(firstPlayerId: string, matchId: string, mode: QueueMode): Promise<Placement> {
+    return this.placement({ ok: true, value: await this.create(firstPlayerId, matchId, mode) });
   }
 
   // A match against three bots (the 'bots' mode): the player in seat 0 and bots in the rest, so
@@ -158,7 +216,6 @@ export class MatchDO extends DurableObject<Env> {
     await this.save(match);
     this.publish(null, match, onTheWay);
     await this.schedule(match);
-    this.offerIfBotSeated(null, match);
     await bestEffort(matchId, () => syncLobbyIndex(this.env.DB, match));
     return match;
   }
@@ -169,13 +226,9 @@ export class MatchDO extends DurableObject<Env> {
     return this.read((match) => match);
   }
 
-  // The Matchmaker's look at a table (Seating).
-  getSeating(): Promise<MatchResult<Seating>> {
-    return this.read((match) => ({
-      players: match.players.map((p) => ({ playerId: p.playerId, position: p.position })),
-      dealt: hasBeenDealt(match),
-      won: match.winningTeam !== null,
-    }));
+  // The Matchmaker's look at a table its index may be wrong about: the match, and its listing.
+  async getListing(): Promise<Placement> {
+    return this.placement(await this.getMatch());
   }
 
   getPlayerView(playerId: string): Promise<MatchResult<LoggedInPlayer>> {
@@ -192,10 +245,20 @@ export class MatchDO extends DurableObject<Env> {
     return this.update(playerId, (match) => takeSeat(match, playerId, position, dealOrder));
   }
 
-  // A newcomer asks for the next bot seat at this Live Play game (the Matchmaker calls this).
-  // They're seated at the next hand break; until then they watch.
+  // `takeSeat`, for the Matchmaker.
+  async takeSeatListed(playerId: string, position: number, dealOrder: Domino[]): Promise<Placement> {
+    return this.placement(await this.update(playerId, (match) => takeSeat(match, playerId, position, dealOrder), false));
+  }
+
+  // A newcomer asks for the next bot seat at this Live Play game. They're seated at the next hand
+  // break; until then they watch.
   claimSeat(playerId: string): Promise<MatchResult<MatchState>> {
     return this.update(playerId, (match) => claimSeat(match, playerId));
+  }
+
+  // `claimSeat`, for the Matchmaker.
+  async claimSeatListed(playerId: string): Promise<Placement> {
+    return this.placement(await this.update(playerId, (match) => claimSeat(match, playerId), false));
   }
 
   // Leaving: before the deal, takes the player back out (the last human out deletes the match -
@@ -223,12 +286,11 @@ export class MatchDO extends DurableObject<Env> {
         await this.save(next);
         this.publish(match, next);
         await this.schedule(next);
-        this.offerIfBotSeated(match, next);
         return { deleted: false, match: next };
       }
       const next = removePlayer(match, playerId);
       if (!hasHumanPlayers(next)) {
-        await this.destroy();
+        await this.destroy(match);
         return { deleted: true };
       }
       await this.save(next);
@@ -244,7 +306,7 @@ export class MatchDO extends DurableObject<Env> {
     const match = await this.load();
     if (match === null) return { outcome: 'missing' };
     if (match.winningTeam !== null || match.updatedOn >= cutoff) return { outcome: 'fresh', match };
-    await this.destroy();
+    await this.destroy(match);
     return { outcome: 'expired' };
   }
 
@@ -375,20 +437,20 @@ export class MatchDO extends DurableObject<Env> {
   // `read`, for an action that changes the match: the result is saved, broadcast, and handed to
   // the bots in case one of them moves next. `actorId` made the change, so is on the match screen
   // whether or not its socket is open yet - it isn't when a notification's button opened the app
-  // to make it - and isn't pushed about it.
+  // to make it - and isn't pushed about it. `report` is false for the Matchmaker's own calls (save).
   private update(
     actorId: string,
-    action: (match: MatchState) => MatchState | Promise<MatchState>
+    action: (match: MatchState) => MatchState | Promise<MatchState>,
+    report = true
   ): Promise<MatchResult<MatchState>> {
     return this.read(async (match) => {
       const acted = await action(match);
       // Acting is taking your seat back from the bot (live.ts).
       const next = isOnAutopilot(acted, actorId) ? setAutopilot(acted, [actorId], false) : acted;
-      await this.save(next);
+      await this.save(next, report);
       await this.recordStatsIfWon(match, next);
       this.publish(match, next, [actorId]);
       await this.schedule(next);
-      this.offerIfBotSeated(match, next);
       await this.syncIfSeatsChanged(match, next);
       return next;
     });
@@ -451,7 +513,6 @@ export class MatchDO extends DurableObject<Env> {
       await this.schedule(next);
       await this.recordStatsIfWon(match, next);
       this.publish(match, next);
-      this.offerIfBotSeated(match, next);
       await this.syncIfSeatsChanged(match, next);
       if (action.kind === 'ready' || action.kind === 'play') {
         await bestEffort(next.id, () => refreshMatchSummary(this.env.DB, next));
@@ -474,7 +535,6 @@ export class MatchDO extends DurableObject<Env> {
     await this.save(next);
     await this.schedule(next);
     this.publish(match, next);
-    this.offerIfBotSeated(match, next);
     // Filling changes who's seated, which the lobby lists; going on autopilot doesn't.
     if (deadline.kind === 'fill') await bestEffort(next.id, () => syncLobbyIndex(this.env.DB, next));
   }
@@ -484,20 +544,8 @@ export class MatchDO extends DurableObject<Env> {
   private async drop(match: MatchState): Promise<void> {
     const claims = match.claims ?? [];
     if (claims.length > 0) this.broadcast({ ...match, claims: [], bumped: [...(match.bumped ?? []), ...claims] });
-    await this.destroy();
+    await this.destroy(match);
     await bestEffort(match.id, () => deleteFromLobbyIndex(this.env.DB, match.id));
-  }
-
-  // A bot just took a seat at a Live Play game: it has a seat for a newcomer, so the
-  // Matchmaker hears about it (it may have dropped the table from its list). Fire and forget - a
-  // lost offer only means the seat isn't found.
-  private offerIfBotSeated(previous: MatchState | null, next: MatchState): void {
-    if (matchMode(next) !== 'live' || next.winningTeam !== null || !hasBeenDealt(next)) return;
-    const bots = (m: MatchState | null) => m?.players.filter((p) => isBot(p.playerId)).map((p) => p.playerId) ?? [];
-    const before = new Set(bots(previous));
-    if (!bots(next).some((id) => !before.has(id))) return;
-    const matchmaker = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
-    this.ctx.waitUntil(matchmaker.offer(next.id).catch((error: unknown) => console.error(`OFFER FAILED for ${next.id}`, error)));
   }
 
   // Who's seated changed in a game under way (a claim seated, a bot took over): the lobby lists it.

@@ -1,5 +1,7 @@
 // The Matchmaker: seats a player at the oldest open table of their mode, or starts one, and never
-// splits players who press Play together across two tables. Each test uses its own instance.
+// splits players who press Play together across two tables. Each test uses its own instance - and
+// as tables report to the 'global' one, a test's instance hears of a change it didn't make only
+// through `index` below, or by finding it out: the same as a report that was lost.
 import { describe, it, expect, vi } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { LIVE_TURN_MS, Teams, createDomino, type Domino, type MatchState } from '@fortytwo/rules';
@@ -10,6 +12,7 @@ import {
   presenceBroadcast,
   presenceBroadcastMs,
 } from '../src/matchmaker';
+import type { Entry, Listing, QueueMode } from '../src/seatIndex';
 
 const testEnv = env as unknown as Env;
 
@@ -19,6 +22,27 @@ function matchmaker(name: string) {
 function matchStub(id: string) {
   return testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(id));
 }
+// Indexes a table in mm, as the table's report would.
+async function index(mm: ReturnType<typeof matchmaker>, id: string, mode: QueueMode = 'live') {
+  const { listing } = await matchStub(id).getListing();
+  await mm.report(id, mode, listing);
+}
+async function entries(mm: ReturnType<typeof matchmaker>): Promise<Map<string, Entry>> {
+  return runInDurableObject(mm, async (_i, state) => {
+    const stored = await state.storage.list<Entry>({ prefix: 'table:' });
+    return new Map([...stored.values()].map((e) => [e.id, e]));
+  });
+}
+const listing = (over: Partial<Listing> = {}): Listing => ({
+  seq: 1,
+  seats: [{ playerId: 'x', position: 0 }],
+  claims: [],
+  dealt: false,
+  won: false,
+  takesClaims: false,
+  ...over,
+});
+
 function deck(): Domino[] {
   const dominoes: Domino[] = [];
   for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) dominoes.push(createDomino(i, j));
@@ -62,13 +86,11 @@ describe('Matchmaker', () => {
     const older = await mm.play('a', 'live');
     const newer = await mm.play('b', 'live');
     expect(newer.id).toBe(older.id);
-    // Seed a newer table for b ahead of the older one's list position: older first, b at newer.
+    // b leaves the older table, and that report never arrives; then waits at a newer one.
+    await matchStub(older.id).leave('b');
     const other = 'mm-live-prescan-other';
     await matchStub(other).create('b', other, 'live');
-    await matchStub(older.id).leave('b');
-    await runInDurableObject(mm, async (_instance, state) => {
-      await state.storage.put('open:live', [older.id, other]);
-    });
+    await index(mm, other);
 
     const again = await mm.play('b', 'live');
 
@@ -78,42 +100,39 @@ describe('Matchmaker', () => {
     });
   });
 
-  it('skips a table that throws and keeps it listed', async () => {
+  it('skips a table that throws and keeps it indexed', async () => {
     const mm = matchmaker('mm-throwing');
     const broken = 'mm-throwing-broken';
-    await runInDurableObject(mm, async (instance, state) => {
-      await state.storage.put('open:daily', [broken]);
+    await mm.report(broken, 'daily', listing());
+    await runInDurableObject(mm, async (instance) => {
       const real = (instance as any).matchStub.bind(instance);
       (instance as any).matchStub = (id: string) =>
-        id === broken
-          ? { getSeating: () => Promise.reject(new Error('unreachable')) }
-          : real(id);
+        id === broken ? { takeSeatListed: () => Promise.reject(new Error('unreachable')) } : real(id);
     });
 
     const table = await mm.play('a', 'daily');
 
     expect(table.players.map((p) => p.playerId)).toEqual(['a']);
-    await runInDurableObject(mm, async (_instance, state) => {
-      expect(await state.storage.get('open:daily')).toEqual([broken, table.id]);
-    });
+    expect([...(await entries(mm)).keys()].sort()).toEqual([broken, table.id].sort());
   });
 
-  it('lists a new table before creating it', async () => {
+  it('indexes a new table before creating it', async () => {
     const mm = matchmaker('mm-write-ahead');
-    const listedAtCreate: unknown[] = [];
+    const indexedAtCreate: unknown[] = [];
     await runInDurableObject(mm, async (instance, state) => {
       const real = (instance as any).matchStub.bind(instance);
       (instance as any).matchStub = (id: string) => ({
-        create: async (...args: unknown[]) => {
-          listedAtCreate.push(id, await state.storage.get('open:daily'));
-          return real(id).create(...args);
+        createListed: async (...args: unknown[]) => {
+          indexedAtCreate.push(id, (await state.storage.get<Entry>(`table:${id}`))?.seats);
+          return real(id).createListed(...args);
         },
       });
     });
 
     const table = await mm.play('a', 'daily');
 
-    expect(listedAtCreate).toEqual([table.id, [table.id]]);
+    expect(indexedAtCreate).toEqual([table.id, [{ playerId: 'a', position: 0 }]]);
+    expect((await entries(mm)).get(table.id)?.seq).toBe(1);
   });
 
   it('lets one player wait at several Async tables', async () => {
@@ -147,16 +166,38 @@ describe('Matchmaker', () => {
     expect(next.id).not.toBe(table.id);
   });
 
-  it('takes an offered table back onto the list, once', async () => {
-    const mm = matchmaker('mm-offer');
-    await mm.offer('t-1');
-    await mm.offer('t-1');
-    const list = await runInDurableObject(mm, (_i, state) => state.storage.get<string[]>('open:live'));
-    expect(list).toEqual(['t-1']);
+  it('takes a reported table into the index, and ignores a report older than the one it holds', async () => {
+    const mm = matchmaker('mm-report');
+    await mm.report('t-1', 'live', listing({ seq: 2 }));
+    await mm.report('t-1', 'live', listing({ seq: 1, seats: [] }));
+    const held = await entries(mm);
+    expect([...held.keys()]).toEqual(['t-1']);
+    expect(held.get('t-1')).toMatchObject({ seq: 2, seats: [{ playerId: 'x', position: 0 }] });
+  });
+
+  it('drops a reported table once it is deleted', async () => {
+    const mm = matchmaker('mm-report-deleted');
+    await mm.report('t-1', 'live', listing());
+    await mm.report('t-1', 'live', null);
+    expect((await entries(mm)).size).toBe(0);
+  });
+
+  it('indexes the tables it listed before the index, once', async () => {
+    const mm = matchmaker('mm-migrate');
+    await matchStub('mm-migrate-t').create('a', 'mm-migrate-t', 'daily');
+    await runInDurableObject(mm, async (_i, state) => {
+      await state.storage.put({ 'open:daily': ['mm-migrate-t', 'mm-migrate-gone'], 'claim:n1': 'mm-migrate-t' });
+    });
+
+    const seated = await mm.play('b', 'daily');
+
+    expect(seated.id).toBe('mm-migrate-t');
+    const keys = await runInDurableObject(mm, async (_i, state) => [...(await state.storage.list()).keys()]);
+    expect(keys).toEqual(['table:mm-migrate-t']);
   });
 });
 
-// A dealt live table with p1 and three bots, in mm's list (p1 started it, then filled with bots).
+// A dealt live table with p1 and three bots, in mm's index (p1 started it, then filled with bots).
 async function underWay(mm: ReturnType<typeof matchmaker>) {
   const started = await mm.play('p1', 'live');
   await matchStub(started.id).addBots('p1');
@@ -166,13 +207,13 @@ async function underWay(mm: ReturnType<typeof matchmaker>) {
 describe('Matchmaker and games under way', () => {
   it('prefers a table still filling over a game under way, even an older one', async () => {
     const mm = matchmaker('mm-prefer-filling');
-    // A game under way first in the list, then a table still filling - both made directly and
-    // offered, since playing would claim at the first before the second existed.
+    // A game under way first in the index, then a table still filling - both made directly and
+    // indexed, since playing would claim at the first before the second existed.
     await matchStub('g-busy').create('p1', 'g-busy', 'live');
     await matchStub('g-busy').addBots('p1');
     await matchStub('g-filling').create('a', 'g-filling', 'live');
-    await mm.offer('g-busy');
-    await mm.offer('g-filling');
+    await index(mm, 'g-busy');
+    await index(mm, 'g-filling');
 
     const seated = await mm.play('b', 'live');
     expect(seated.id).toBe('g-filling');
@@ -198,22 +239,23 @@ describe('Matchmaker and games under way', () => {
     expect(again.id).toBe(id);
   });
 
-  it('returns a human to their own game under way and keeps it listed', async () => {
+  it('returns a human to their own game under way and keeps it indexed', async () => {
     const mm = matchmaker('mm-own-game');
     const id = await underWay(mm);
     const again = await mm.play('p1', 'live');
     expect(again.id).toBe(id);
-    const list = await runInDurableObject(mm, (_i, state) => state.storage.get<string[]>('open:live'));
-    expect(list).toContain(id);
+    expect((await entries(mm)).has(id)).toBe(true);
   });
 
-  it('looks at each listed table once per Live search, and never fetches a whole match to seat', async () => {
+  it('seats a Live player with one call, however many games are under way', async () => {
     const mm = matchmaker('mm-one-look');
-    await matchStub('g1-busy').create('p1', 'g1-busy', 'live');
-    await matchStub('g1-busy').addBots('p1');
+    for (const busy of ['g1-busy', 'g2-busy']) {
+      await matchStub(busy).create('p1', busy, 'live');
+      await matchStub(busy).addBots('p1');
+      await index(mm, busy);
+    }
     await matchStub('g1-filling').create('a', 'g1-filling', 'live');
-    await mm.offer('g1-busy');
-    await mm.offer('g1-filling');
+    await index(mm, 'g1-filling');
     const calls: string[] = [];
     await runInDurableObject(mm, async (instance) => {
       const real = (instance as any).matchStub.bind(instance);
@@ -225,14 +267,16 @@ describe('Matchmaker and games under way', () => {
             calls.push(`${name} ${id}`);
             return stub[name](...args);
           };
-        return { getSeating: counted('getSeating'), getMatch: counted('getMatch'), takeSeat: counted('takeSeat') };
+        return Object.fromEntries(
+          ['getListing', 'getMatch', 'takeSeatListed', 'claimSeatListed', 'createListed'].map((name) => [name, counted(name)])
+        );
       };
     });
 
     const seated = await mm.play('b', 'live');
 
     expect(seated.id).toBe('g1-filling');
-    expect(calls).toEqual(['getSeating g1-busy', 'getSeating g1-filling', 'takeSeat g1-filling']);
+    expect(calls).toEqual(['takeSeatListed g1-filling']);
   });
 
   it('starts a new table once every bot seat is claimed', async () => {
@@ -252,39 +296,39 @@ async function changeMatch(id: string, change: (match: MatchState) => Partial<Ma
   });
 }
 
-const claimKey = (mm: ReturnType<typeof matchmaker>, playerId: string) =>
-  runInDurableObject(mm, (_i, state) => state.storage.get<string>(`claim:${playerId}`));
+// The tables mm's index has this player claiming a seat at.
+const claimedAt = async (mm: ReturnType<typeof matchmaker>, playerId: string) =>
+  [...(await entries(mm)).values()].filter((e) => e.claims.includes(playerId)).map((e) => e.id);
 
 describe('Matchmaker and stale claims', () => {
   it('forgets a claim in a game since finished and seats the player afresh', async () => {
     const mm = matchmaker('mm-stale-finished');
     const id = await underWay(mm);
     await mm.play('n1', 'live');
-    expect(await claimKey(mm, 'n1')).toBe(id);
+    expect(await claimedAt(mm, 'n1')).toEqual([id]);
     await changeMatch(id, () => ({ winningTeam: Teams.TeamA }));
 
     const fresh = await mm.play('n1', 'live');
     expect(fresh.id).not.toBe(id);
     expect(fresh.players.map((p) => p.playerId)).toEqual(['n1']);
-    expect(await claimKey(mm, 'n1')).toBeUndefined();
   });
 
   it('forgets a released claim and claims again', async () => {
     const mm = matchmaker('mm-stale-released');
     const id = await underWay(mm);
     await mm.play('n1', 'live');
-    // n1 cancelled at the table; the Matchmaker's key still names it.
+    // n1 cancelled at the table; mm's index, missing the report, still has the claim.
     const left = await matchStub(id).leave('n1');
     expect(left.ok && !left.value.deleted && left.value.match.claims).toEqual([]);
-    expect(await claimKey(mm, 'n1')).toBe(id);
+    expect(await claimedAt(mm, 'n1')).toEqual([id]);
 
     const again = await mm.play('n1', 'live');
     expect(again.id).toBe(id);
     expect(again.claims).toEqual(['n1']);
-    expect(await claimKey(mm, 'n1')).toBe(id);
+    expect(await claimedAt(mm, 'n1')).toEqual([id]);
   });
 
-  it('keeps a game paused on its last player listed when it refuses a claim', async () => {
+  it('keeps a game paused on its last player indexed when it refuses a claim', async () => {
     const mm = matchmaker('mm-paused');
     const id = await underWay(mm);
     const stub = matchStub(id);
@@ -298,8 +342,7 @@ describe('Matchmaker and stale claims', () => {
 
     const elsewhere = await mm.play('n1', 'live');
     expect(elsewhere.id).not.toBe(id);
-    const list = await runInDurableObject(mm, (_i, state) => state.storage.get<string[]>('open:live'));
-    expect(list).toContain(id);
+    expect((await entries(mm)).has(id)).toBe(true);
   });
 });
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { analyze, issueTitle, mergeDays, windowDates } from './quota-watch.mjs';
+import { analyze, doRequestsByNamespace, issueTitle, mergeDays, summaryMarkdown, windowDates } from './quota-watch.mjs';
 
 // One quiet day: every quota well under 30%.
 const quiet = {
@@ -125,4 +125,26 @@ test('issueTitle names the quota and the rounded percentage', () => {
     issueTitle({ name: 'D1 rows written', pct: 102.385 }),
     'Cloudflare quota watch: D1 rows written at 102%',
   );
+});
+
+test('doRequestsByNamespace names each class and finds its peak day', () => {
+  const rows = [
+    { date: '2026-10-11', namespaceId: '5174536da6c046808990b2f59b08f0a5', requests: 300 },
+    { date: '2026-10-12', namespaceId: '5174536da6c046808990b2f59b08f0a5', requests: 900 },
+    { date: '2026-10-12', namespaceId: '720a5ab32ddd4f76af01d6d5363ae6f4', requests: 4_000 },
+    { date: '2026-10-12', namespaceId: 'abc123', requests: 5 },
+  ];
+  assert.deepEqual(doRequestsByNamespace(rows), [
+    { name: 'MatchDO', peak: 4_000, peakDate: '2026-10-12', total: 4_000 },
+    { name: 'Matchmaker', peak: 900, peakDate: '2026-10-12', total: 1_200 },
+    { name: 'abc123', peak: 5, peakDate: '2026-10-12', total: 5 },
+  ]);
+});
+
+test('the summary lists DO requests by namespace when there are any', () => {
+  const window = { from: '2026-10-06', to: '2026-10-12' };
+  const result = analyze({ '2026-10-12': quiet });
+  const split = [{ name: 'Matchmaker', peak: 900, peakDate: '2026-10-12', total: 1_200 }];
+  assert.match(summaryMarkdown(result, window, split), /\| Matchmaker \| 2026-10-12 \| 900 \| 1,200 \|/);
+  assert.doesNotMatch(summaryMarkdown(result, window), /by namespace/);
 });
