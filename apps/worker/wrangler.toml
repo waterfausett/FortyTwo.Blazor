@@ -22,6 +22,8 @@ run_worker_first = ["/api/*", "/matches/*", "/presence/*", "/health", "/.well-kn
 # bots.ts) and invocation logs, searchable in the dashboard.
 [observability]
 enabled = true
+[observability.traces]
+enabled = true
 
 # Daily at 09:00 UTC: delete active matches idle for 14 days (src/expiry.ts).
 [triggers]
