@@ -7,6 +7,7 @@ import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test'
 import { Bid, LIVE_ABANDON_MS, LIVE_TURN_MS, Suit, Teams, createDomino, type Domino, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import { syncLobbyIndex } from '../src/lobby';
+import type { Entry } from '../src/seatIndex';
 
 const testEnv = env as unknown as Env;
 
@@ -156,8 +157,9 @@ function globalMatchmaker() {
   return testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('global'));
 }
 
-async function openLive(): Promise<string[]> {
-  return runInDurableObject(globalMatchmaker(), async (_i, state) => (await state.storage.get<string[]>('open:live')) ?? []);
+// The global Matchmaker's index entry for this table, if it holds one.
+async function indexed(id: string): Promise<Entry | undefined> {
+  return runInDurableObject(globalMatchmaker(), async (_i, state) => state.storage.get<Entry>(`table:${id}`));
 }
 
 // Polls for something a waitUntil does after the call that started it has returned.
@@ -202,17 +204,13 @@ describe('the hand break in MatchDO', () => {
     expect(await lobbySeats('break-bot')).toEqual(seatsOf(match));
   });
 
-  it('gives the seat of a player away the whole hand to a bot, and offers the game to the Matchmaker', async () => {
+  it('gives the seat of a player away the whole hand to a bot, and reports the new seats to the Matchmaker', async () => {
     const stub = stubFor('break-away');
     await stub.create('p1', 'break-away', 'live');
     await stub.takeSeat('p2', 1);
     await stub.addBots('p1');
-    // Seating the bots offered the game already; take it off the list to see the break offer it.
-    expect(await eventually(async () => (await openLive()).includes('break-away'))).toBe(true);
-    await runInDurableObject(globalMatchmaker(), async (_i, state) => {
-      const open = (await state.storage.get<string[]>('open:live')) ?? [];
-      await state.storage.put('open:live', open.filter((id) => id !== 'break-away'));
-    });
+    // Seating the bots was reported already.
+    expect(await eventually(async () => (await indexed('break-away'))?.dealt === true)).toBe(true);
 
     const dealtOn = ago(60_000);
     await decideHand(stub, (id) => id !== 'p1', {
@@ -227,6 +225,7 @@ describe('the hand break in MatchDO', () => {
     expect(match.players.find((p) => p.position === 1)!.playerId).toMatch(/_bot-\d$/);
     expect(match.replaced).toEqual(['p2']);
     expect(await lobbySeats('break-away')).toEqual(seatsOf(match));
-    expect(await eventually(async () => (await openLive()).includes('break-away'))).toBe(true);
+    const botAt1 = async () => /_bot-\d$/.test((await indexed('break-away'))?.seats[1].playerId ?? '');
+    expect(await eventually(botAt1)).toBe(true);
   });
 });
