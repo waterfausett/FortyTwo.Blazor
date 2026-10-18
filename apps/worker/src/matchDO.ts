@@ -30,7 +30,6 @@ import {
   releaseClaim,
   replaceWithBot,
   isPresent,
-  isBot,
   hasBeenDealt,
   shuffledDominoOrder,
   ValidationError,
@@ -103,8 +102,9 @@ export class MatchDO extends DurableObject<Env> {
   // Saves the match, and with it the table's listing for the Matchmaker's seat index when that
   // changed: who sits where, the claims, the deal, whether it's won or takes claims - a few times a
   // game, not every move. A change the Matchmaker didn't make itself (`report`) is reported to it
-  // while its index holds the table, or should; the Matchmaker's own calls get the listing back instead
-  // (Placement). Fire and forget: a lost report is found out when a search next tries the table.
+  // while its index holds the table, or should; the Matchmaker's own calls get the listing back
+  // instead (Placement). Fire and forget: a lost report is found out when a search next tries the
+  // table.
   private async save(match: MatchState, report = true): Promise<void> {
     const view = listingOf(match);
     const previous = view === null ? null : await this.storedListing();
