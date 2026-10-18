@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -327,7 +327,7 @@ export default function MatchScreen() {
   // only puts the new hand back at the bottom of the screen.
   const handEmpty = myLiveHand.length - (inFlight ? 1 : 0) === 0;
   const loaded = liveMatch != null;
-  const pinned = useRef(new Animated.Value(handEmpty ? 0 : 1)).current;
+  const pinned = useAnimatedValue(handEmpty ? 0 : 1);
   const pinnedOnLoad = useRef(false);
   useEffect(() => {
     if (!loaded) return;

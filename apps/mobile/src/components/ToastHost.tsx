@@ -1,8 +1,8 @@
 // Shows the toasts from ./toast: a walnut card edged in danger (errors) or brass (notices), with a
 // bar that runs down as it times out. Tap a toast, or its ×, to dismiss it early. Rendered once,
 // over everything, in the root layout; touches pass through to the screen except on a toast.
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from './theme';
 import { TOAST_DURATION_MS, dismissToast, subscribeToasts, type Toast } from './toast';
@@ -34,8 +34,8 @@ export function ToastHost() {
 }
 
 function ToastCard({ toast }: { toast: Toast }) {
-  const appear = useRef(new Animated.Value(0)).current;
-  const timeLeft = useRef(new Animated.Value(1)).current;
+  const appear = useAnimatedValue(0);
+  const timeLeft = useAnimatedValue(1);
   useEffect(() => {
     Animated.timing(appear, { toValue: 1, duration: 180, useNativeDriver: true }).start();
     // A transform, run on the native side: animating the bar's width instead would make every

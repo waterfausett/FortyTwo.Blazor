@@ -4,7 +4,7 @@
 // straight away when the network comes back.
 import { act, renderHook } from '@testing-library/react-native';
 import { AppState, type AppStateStatus } from 'react-native';
-import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
+import type { NetInfoState } from '@react-native-community/netinfo';
 import type { MatchState } from '@fortytwo/rules';
 import { useMatchSocket } from '../useMatchSocket';
 
