@@ -1,5 +1,6 @@
 // Helpers for the lobby's paged match lists (GET /api/matches returns one MatchPage at a time).
 import type { MatchMode, MatchPage, MatchSummary } from '@fortytwo/api-types';
+import { tableWait, type MatchState } from '@fortytwo/rules';
 import { houseRuleLabels } from './houseRules';
 
 // Every loaded page's rows in order, each match once: a match updated between page loads moves
@@ -39,6 +40,21 @@ export function rowStatus(match: MatchSummary): { text: string; yours: boolean }
   if (turn.yours) return { text: turn.kind === 'ready' ? 'Ready up' : 'Your turn', yours: true };
   if (turn.kind === 'ready') return { text: 'Waiting for others to ready up', yours: false };
   return { text: `${turn.waitingOn[0] ?? 'Someone'}'s turn`, yours: false };
+}
+
+// A lobby row brought up to date from the match itself - whose turn it is, or that it's over - for
+// a match the player has just left, so the list is right without fetching it again. Names come
+// from the row's own seats, so it's null when the seating has changed since the row loaded: only a
+// fetch can name a newcomer.
+export function rowFromMatch(row: MatchSummary, match: MatchState, viewerId: string): MatchSummary | null {
+  if (match.players.length !== row.playerCount || match.players.some((p) => row.seats[p.position] == null)) return null;
+  if (match.winningTeam !== null) return { ...row, status: 'completed', turn: null };
+  const nameOf = (playerId: string) => row.seats[match.players.find((p) => p.playerId === playerId)!.position]!;
+  const wait = tableWait(match);
+  return {
+    ...row,
+    turn: wait && { kind: wait.kind, yours: wait.playerIds.includes(viewerId), waitingOn: wait.playerIds.map(nameOf) },
+  };
 }
 
 // Games waiting on the viewer first, the rest in the order they came. Only sorts rows already

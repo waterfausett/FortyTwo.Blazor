@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -62,6 +62,7 @@ import {
   type MatchState,
   Suit,
 } from '@fortytwo/rules';
+import { updateLobbyRow } from '@/api/lobbyRow';
 import { useOnline } from '@/api/presence';
 import { useApi } from '@/api/useApi';
 import { useStats } from '@/api/useStats';
@@ -137,6 +138,19 @@ export default function MatchScreen() {
   });
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
+  // Leaving, the lobby's row for this match takes on its turn as last seen here (api/lobbyRow.ts).
+  const queryClient = useQueryClient();
+  const lastSeenRef = useRef<MatchState | null>(null);
+  useEffect(() => {
+    lastSeenRef.current = liveMatch;
+  }, [liveMatch]);
+  useEffect(
+    () => () => {
+      if (lastSeenRef.current && myPlayerId) updateLobbyRow(queryClient, id, lastSeenRef.current, myPlayerId);
+    },
+    [queryClient, id, myPlayerId]
+  );
+
   // How this player stands at the table. In a Live Play game under way, a newcomer waits
   // for a bot's seat (claiming) and watches meanwhile; one whose wait came to nothing is bumped
   // and looks again; one away a whole hand was replaced by a bot.
@@ -197,7 +211,6 @@ export default function MatchScreen() {
   const meOnAutopilot = liveMatch != null && myPlayerId != null && isOnAutopilot(liveMatch, myPlayerId);
   // Taking a seat from this screen - arriving from an invite link, say. The match's broadcast
   // then seats the player here; the lobby's lists change too.
-  const queryClient = useQueryClient();
 
   // Set (by the button, before the request goes out) while this player's own leave is in flight:
   // if it deletes the match, their socket gets the same "deleted" close as everyone else's, and
@@ -315,7 +328,7 @@ export default function MatchScreen() {
   // only puts the new hand back at the bottom of the screen.
   const handEmpty = myLiveHand.length - (inFlight ? 1 : 0) === 0;
   const loaded = liveMatch != null;
-  const pinned = useRef(new Animated.Value(handEmpty ? 0 : 1)).current;
+  const pinned = useAnimatedValue(handEmpty ? 0 : 1);
   const pinnedOnLoad = useRef(false);
   useEffect(() => {
     if (!loaded) return;

@@ -17,7 +17,7 @@
 //
 // Dragging uses React Native's own PanResponder and Animated, so it needs no native library.
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { Animated, Easing, PanResponder, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, PanResponder, Pressable, StyleSheet, View, useAnimatedValue, useAnimatedValueXY, useWindowDimensions } from 'react-native';
 import { PRESELECT_AUTO_PLAY_DELAY_MS } from '@fortytwo/client';
 import type { Domino as DominoType } from '@fortytwo/rules';
 import { Domino } from './Domino';
@@ -142,6 +142,7 @@ export function Hand({
   // The latest of these, for the auto-play timer, which should only restart when the turn or the
   // pick changes - the screen passes a fresh array and `onPlay` on every render.
   const latest = useRef({ dominoes, onPlay });
+  // eslint-disable-next-line react/refs -- only read by the timer, never to render
   latest.current = { dominoes, onPlay };
 
   // Plays the pre-selected domino a beat after the turn comes. A play made in that beat clears
@@ -291,9 +292,9 @@ function HandTile({
   onDragChange?: (state: DragState) => void;
   viewRef: (view: View | null) => void;
 }) {
-  const offset = useRef(new Animated.ValueXY()).current;
+  const offset = useAnimatedValueXY({ x: 0, y: 0 });
   // A tile mounts when its domino is dealt (it then stays, keyed by the domino, until played).
-  const dealt = useRef(new Animated.Value(0)).current;
+  const dealt = useAnimatedValue(0);
   useEffect(() => {
     Animated.timing(dealt, {
       toValue: 1,
@@ -303,6 +304,7 @@ function HandTile({
       useNativeDriver: true,
     }).start();
     // Only on mount: a tile moved by a reorder isn't dealt again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `dealt` is stable
   }, []);
   const [lifted, setLifted] = useState(false);
   // Gesture state lives in refs: the PanResponder is created once, and reads the latest of these.
@@ -310,6 +312,7 @@ function HandTile({
   const granted = useRef(false);
   const over = useRef(false);
   const latest = useRef({ isOverZone, onHover, onDrop, onDragChange });
+  // eslint-disable-next-line react/refs -- only read by the gesture handlers, never to render
   latest.current = { isOverZone, onHover, onDrop, onDragChange };
 
   function endDrag() {
@@ -365,6 +368,7 @@ function HandTile({
         },
       }),
     // `offset` and the refs are stable, and the handlers only read refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 

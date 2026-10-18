@@ -2,8 +2,8 @@
 // fades in place while only the sheet slides; the Modal's own "slide" would carry the scrim up with
 // it. The Modal stays mounted until the sheet is down again. Tapping the scrim, or Back, calls
 // onClose. `style` is the sheet's look (background, padding, gap); its place on screen is set here.
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Easing, Modal, Pressable, StyleSheet, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Animated, Easing, Modal, Pressable, StyleSheet, useAnimatedValue, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 
 export function BottomSheet({
   visible,
@@ -17,7 +17,7 @@ export function BottomSheet({
   children: ReactNode;
 }) {
   const { height: windowHeight } = useWindowDimensions();
-  const shown = useRef(new Animated.Value(0)).current;
+  const shown = useAnimatedValue(0);
   const [mounted, setMounted] = useState(visible);
   const [sheetHeight, setSheetHeight] = useState(windowHeight);
   useEffect(() => {

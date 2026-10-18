@@ -23,9 +23,12 @@ export function usePushNotifications(signedIn: boolean): void {
   const enabled = signedIn ? profile.data?.pushNotifications : undefined;
   // Read when a notification is tapped, without setting up the listener again on each navigation.
   const pathname = useRef('');
-  pathname.current = usePathname();
-  // And when one arrives, so one about the match on screen doesn't show (push.ts).
-  noteRouteOnScreen(pathname.current);
+  const onScreen = usePathname();
+  useEffect(() => {
+    pathname.current = onScreen;
+    // And when one arrives, so one about the match on screen doesn't show (push.ts).
+    noteRouteOnScreen(onScreen);
+  }, [onScreen]);
 
   // On each launch (and whenever the setting changes), register or unregister this device to
   // match the player's setting - without asking for permission; that waits for a match. Expo can

@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { MatchSummary } from '@fortytwo/api-types';
-import { invitableTables, MODE_LABELS, rowLabel, rowStatus, tableDetail, tableTitle, uniqueMatches, yourTurnFirst } from './lobby';
+import { createDomino, createMatch, takeSeat, Teams, type Domino, type MatchState } from '@fortytwo/rules';
+import {
+  invitableTables,
+  MODE_LABELS,
+  rowFromMatch,
+  rowLabel,
+  rowStatus,
+  tableDetail,
+  tableTitle,
+  uniqueMatches,
+  yourTurnFirst,
+} from './lobby';
 
 const row = (id: string) => ({ id }) as MatchSummary;
 
@@ -87,5 +98,37 @@ describe('rowLabel', () => {
     expect(rowLabel(summary({ mode: 'custom', rules: { low: 'forcedOnly', plunge: true, allPass: 'forceLast', marksToWin: 5 } }))).toBe(
       'Custom · Low on forced bid only · To 5 marks'
     );
+  });
+});
+
+describe('rowFromMatch', () => {
+  function dealt(): MatchState {
+    const deck: Domino[] = [];
+    for (let i = 0; i <= 6; i++) for (let j = i; j <= 6; j++) deck.push(createDomino(i, j));
+    let match = createMatch('p1');
+    match = takeSeat(match, 'p2', 1);
+    match = takeSeat(match, 'p3', 2);
+    return takeSeat(match, 'p4', 3, deck);
+  }
+  const names: Record<string, string> = { p1: 'Ann', p2: 'Bo', p3: 'Cy', p4: 'Di' };
+  const seated = summary({ seats: ['Ann', 'Bo', 'Cy', 'Di'], turn: { kind: 'turn', yours: true, waitingOn: ['Ann'] } });
+
+  it("puts the table's turn on the row, named from the row's seats", () => {
+    const match = dealt();
+    const turn = match.currentGame.currentPlayerId!;
+    const other = ['p1', 'p2', 'p3', 'p4'].find((id) => id !== turn)!;
+
+    expect(rowFromMatch(seated, match, turn)?.turn).toEqual({ kind: 'turn', yours: true, waitingOn: [names[turn]] });
+    expect(rowFromMatch(seated, match, other)?.turn).toEqual({ kind: 'turn', yours: false, waitingOn: [names[turn]] });
+  });
+
+  it('marks a won match finished', () => {
+    const row = rowFromMatch(seated, { ...dealt(), winningTeam: Teams.TeamA }, 'p1');
+    expect(row).toMatchObject({ status: 'completed', turn: null });
+  });
+
+  it('is null once someone has sat down since the row loaded', () => {
+    const row = summary({ playerCount: 3, seats: ['Ann', 'Bo', 'Cy', null] });
+    expect(rowFromMatch(row, dealt(), 'p1')).toBeNull();
   });
 });
