@@ -3,7 +3,7 @@
 // Start with bots / Cancel. When a seat fills it says so to a screen reader ("Maria joined, 2 of 4")
 // - never the timer.
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { fillProgress, formatClock, joinAnnouncement, rosterIds, type LobbyCard, type LobbyRoster } from '@fortytwo/client';
 import { LobbyCarousel } from './LobbyCarousel';
 import { NameSkeleton } from './NameSkeleton';
@@ -158,7 +158,7 @@ function Online({ count }: { count: number }) {
 
 // Fades in and out, gently, unless reduce motion is on - then it stays at full strength.
 function Pulse({ style }: { style: object }) {
-  const opacity = useRef(new Animated.Value(1)).current;
+  const opacity = useAnimatedValue(1);
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
     let cancelled = false;

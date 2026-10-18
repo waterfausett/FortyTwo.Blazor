@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useAnimatedValue,
   useWindowDimensions,
   type LayoutRectangle,
 } from 'react-native';
@@ -131,7 +132,7 @@ const PULSE_MS = 2400;
 // side, so the glow is its own layer and only its opacity changes. Held steady when the system asks
 // for reduced motion.
 function PulsingGlow({ color }: { color: string }) {
-  const pulse = useRef(new Animated.Value(1)).current;
+  const pulse = useAnimatedValue(1);
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
     let cancelled = false;
@@ -202,7 +203,7 @@ export const PENDING_SPINNER_DELAY_MS = 1500;
 // A small spinner over a tile I've played that the server hasn't taken yet, so a play that hasn't
 // gone through - the app closed straight after, say, or a weak signal - doesn't look done.
 function PendingSpinner() {
-  const opacity = useRef(new Animated.Value(0)).current;
+  const opacity = useAnimatedValue(0);
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setShown(true), PENDING_SPINNER_DELAY_MS);
@@ -244,7 +245,7 @@ function TrickTiles({
   slotCentre: Record<Seat, Point>;
   target: Point | null;
 }) {
-  const sweep = useRef(new Animated.Value(0)).current;
+  const sweep = useAnimatedValue(0);
   const sweeping = target != null;
   useEffect(() => {
     if (!sweeping) return;
@@ -350,7 +351,7 @@ export function Table({
   // each frame, which is fine for this one short, deliberate change. Opening starts gently and
   // settles slowly, so the table seems to unfold rather than snap open.
   const shownHeight = compact ? COMPACT_MAT_HEIGHT : matHeight;
-  const height = useRef(new Animated.Value(shownHeight)).current;
+  const height = useAnimatedValue(shownHeight);
   useEffect(() => {
     Animated.timing(height, {
       toValue: shownHeight,
@@ -435,6 +436,7 @@ export function Table({
               tileWidth={tileWidth}
               rowHeight={rowHeight}
               slotCentre={slotCentre}
+              // eslint-disable-next-line react/refs -- the seats are laid out by the time a trick sweeps
               target={sweepTo ? sweepTarget(sweepTo) : null}
             />
           ))}

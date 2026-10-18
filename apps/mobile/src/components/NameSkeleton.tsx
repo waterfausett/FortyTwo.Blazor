@@ -1,11 +1,11 @@
 // Stands in for a player's name while it loads (match/usePlayerNames.ts), so the raw player id
 // never shows: a soft bar the height of a line of text, gently pulsing.
-import { useEffect, useRef } from 'react';
-import { Animated, type DimensionValue } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, useAnimatedValue, type DimensionValue } from 'react-native';
 import { colors } from './theme';
 
 export function NameSkeleton({ width = 72 }: { width?: DimensionValue }) {
-  const opacity = useRef(new Animated.Value(0.15)).current;
+  const opacity = useAnimatedValue(0.15);
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([

@@ -4,8 +4,8 @@
 //
 // While fading it draws its children as one layer: otherwise Android fades each overlapping view
 // (a button's face, its edge, its label) on its own, and they smear into each other on the way.
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Easing, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Animated, Easing, useAnimatedValue, type StyleProp, type ViewStyle } from 'react-native';
 
 export const FADE_IN_MS = 260;
 export const FADE_OUT_MS = 180;
@@ -21,7 +21,7 @@ export function Fade({
   delay?: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const opacity = useRef(new Animated.Value(0)).current;
+  const opacity = useAnimatedValue(0);
   const [fading, setFading] = useState(true);
   useEffect(() => {
     setFading(true);
