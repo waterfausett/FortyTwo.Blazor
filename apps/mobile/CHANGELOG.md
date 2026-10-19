@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.5.0...mobile-v0.6.0) (2026-10-19)
+
+
+### Features
+
+* hints in practice matches ([#172](https://github.com/waterfausett/FortyTwo.Blazor/issues/172)) ([a948fef](https://github.com/waterfausett/FortyTwo.Blazor/commit/a948fef19e63fed93b0b5db164c255307868e599))
+* leave a Custom game after the deal ([#171](https://github.com/waterfausett/FortyTwo.Blazor/issues/171)) ([b17ef0e](https://github.com/waterfausett/FortyTwo.Blazor/commit/b17ef0ec6e3c2a6c51199739fc663157b6a93b1e))
+* party up with your partner after a Live game ([#124](https://github.com/waterfausett/FortyTwo.Blazor/issues/124)) ([#180](https://github.com/waterfausett/FortyTwo.Blazor/issues/180)) ([de7cf5b](https://github.com/waterfausett/FortyTwo.Blazor/commit/de7cf5b94454d0278176c79e2f862f68186b09c5))
+
+
+### Bug Fixes
+
+* **mobile:** keep the lobby's turns current after leaving a match ([#170](https://github.com/waterfausett/FortyTwo.Blazor/issues/170)) ([67bc620](https://github.com/waterfausett/FortyTwo.Blazor/commit/67bc620055c9c4f621ad603bcea1619ee5c6bfdc))
+
 ## [0.5.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.4.0...mobile-v0.5.0) (2026-10-16)
 
 
