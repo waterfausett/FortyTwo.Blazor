@@ -77,6 +77,8 @@ export interface MatchState {
   awaySince?: Record<string, string>;
   // Players waiting to take a bot's seat at the next hand break, in the order they asked.
   claims?: string[];
+  // The bot seat a claim is pinned to, by claimant: a pair taking over one team. An unpinned claim takes any.
+  claimPositions?: Record<string, number>;
   // A bot has sat at this table at some point, so its stats count as a bots game even after
   // people have taken every bot's seat.
   hadBots?: boolean;

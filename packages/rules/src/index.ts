@@ -91,6 +91,7 @@ export {
   replaceWithBot,
   renamePlayer,
   claimSeat,
+  claimTeam,
   releaseClaim,
   isAwayAllHand,
   seatChangesAtBreak,
