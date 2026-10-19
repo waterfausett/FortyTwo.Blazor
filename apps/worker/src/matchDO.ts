@@ -37,6 +37,13 @@ import {
   openPositions,
   hasBeenDealt,
   shuffledDominoOrder,
+  offerParty,
+  cancelParty,
+  partyAgreed,
+  partnerOf,
+  moveOn,
+  recordParty,
+  teamForPosition,
   ValidationError,
   type Bid,
   type Domino,
@@ -125,10 +132,9 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   private report(match: MatchState, listing: Listing | null): void {
-    const matchmaker = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
     const mode = matchMode(match) as QueueMode;
     this.ctx.waitUntil(
-      matchmaker.report(match.id, mode, listing).catch((error: unknown) => console.error(`REPORT FAILED for ${match.id}`, error))
+      this.matchmaker().report(match.id, mode, listing).catch((error: unknown) => console.error(`REPORT FAILED for ${match.id}`, error))
     );
   }
 
@@ -413,6 +419,14 @@ export class MatchDO extends DurableObject<Env> {
       if (next.rematchId !== undefined || rematchAgreed(next).length < next.players.length) return next;
 
       let rematchId = await this.ctx.storage.get<string>('pendingRematchId');
+      // Nobody may be in two Live games. Anyone who has gone on to one is moved on, and no rematch
+      // is made. The rematch a retried vote may already have made, with all four in it, isn't
+      // another game.
+      if (matchMode(next) === 'live') {
+        const humans = next.players.map((p) => p.playerId).filter((id) => !isBot(id));
+        const busy = await this.matchmaker().liveBusy(humans, rematchId);
+        if (busy.length > 0) return busy.reduce((moved, id) => moveOn(moved, id, 'busy'), next);
+      }
       if (rematchId === undefined) {
         rematchId = crypto.randomUUID();
         await this.ctx.storage.put('pendingRematchId', rematchId);
@@ -423,6 +437,39 @@ export class MatchDO extends DurableObject<Env> {
       await rematchDO.createRematch(rematchId, next, shuffledDominoOrder(), onTheWay);
       return { ...next, rematchId };
     });
+  }
+
+  // Offers to party up with the player's partner at the end of a Live game. The offer that
+  // completes the pair has the Matchmaker seat them together, and only then does the new match's
+  // id go on this one, so it never names a match that doesn't exist. If either of them is already
+  // in another Live game, they're moved on instead and nobody is seated. A Matchmaker failure
+  // throws before anything is saved, so the button stays live to try again.
+  partyUp(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, async (match) => {
+      const next = offerParty(match, playerId);
+      if (!partyAgreed(next, playerId)) return next;
+
+      const placed = await this.matchmaker().playPair(playerId, partnerOf(next, playerId)!);
+      if (placed.kind === 'busy') return placed.playerIds.reduce((moved, id) => moveOn(moved, id, 'busy'), next);
+
+      const seat = next.players.find((p) => p.playerId === playerId)!.position;
+      // No route touches the new match, so its lobby rows are written here, as for a rematch.
+      await bestEffort(placed.match.id, () => syncLobbyIndex(this.env.DB, placed.match));
+      return recordParty(next, teamForPosition(seat), placed.match.id);
+    });
+  }
+
+  cancelParty(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, (match) => cancelParty(assertLiveOver(match, playerId), playerId));
+  }
+
+  // The player went to find a game of their own (Find a game): they're done with this one.
+  moveOn(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, (match) => moveOn(assertLiveOver(match, playerId), playerId, 'left'));
+  }
+
+  private matchmaker() {
+    return this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
   }
 
   // Nudges the player whose turn it is once they've sat on it a while (poke.ts): over their socket
@@ -707,6 +754,15 @@ export class MatchDO extends DurableObject<Env> {
       ws.send(matchMessageFor(match, attachment?.playerId ?? ''));
     }
   }
+}
+
+// Party offers and moving on are only for the players of a Live match that is over; the rules'
+// own functions for them don't check, since they're also used where that's already known.
+function assertLiveOver(match: MatchState, playerId: string): MatchState {
+  if (matchMode(match) !== 'live') throw new ValidationError('Only a Live game can do this');
+  if (match.winningTeam === null) throw new ValidationError('This match is still being played');
+  assertIsMatchPlayer(match, playerId);
+  return match;
 }
 
 function matchMessageFor(match: MatchState, viewerId: string): string {

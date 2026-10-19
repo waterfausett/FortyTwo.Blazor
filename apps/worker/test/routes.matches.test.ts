@@ -7,6 +7,7 @@ import { app, type Env } from '../src/index';
 import { upsertMatchSummary } from '../src/lobby';
 import { countLobbyWrites } from './lobbyWrites';
 import { failingDb } from './failingDb';
+import { finishedMatch } from './finishedMatch';
 
 const testEnv = env as unknown as Env;
 
@@ -933,5 +934,53 @@ describe('match routes', () => {
     // Still only the caller's own hand in full.
     expect(body.currentGame.hands.find((h) => h.playerId === 'p1')!.dominoes).toHaveLength(7);
     expect(body.currentGame.hands.find((h) => h.playerId === 'p2')!.dominoes).toHaveLength(0);
+  });
+});
+
+// Party up, cancelling it, and moving on (Find a game) at the end of a Live game.
+describe('party routes', () => {
+  async function seedFinished(live: boolean): Promise<string> {
+    const matchId = crypto.randomUUID();
+    const ids = ['p1', 'p2', 'p3', 'p4'].map((p) => `${matchId}-${p}`);
+    const match: MatchState = { ...finishedMatch(matchId, ids), ...(live ? { mode: 'live' as const } : {}) };
+    await runInDurableObject(testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(matchId)), async (_i, state) => {
+      await state.storage.put('match', match);
+    });
+    return matchId;
+  }
+
+  it('offers, takes back, and moves on, each replying with the match', async () => {
+    const matchId = await seedFinished(true);
+    const p1 = await signToken(`${matchId}-p1`);
+    const p2 = await signToken(`${matchId}-p2`);
+
+    const offered = await api(`/api/matches/${matchId}/party`, p1, { method: 'POST' });
+    expect(offered.status).toBe(200);
+    expect(((await offered.json()) as MatchState).partyOffers).toEqual([`${matchId}-p1`]);
+
+    const cancelled = await api(`/api/matches/${matchId}/party`, p1, { method: 'DELETE' });
+    expect(cancelled.status).toBe(200);
+    expect(((await cancelled.json()) as MatchState).partyOffers).toEqual([]);
+
+    const moved = await api(`/api/matches/${matchId}/move-on`, p2, { method: 'POST' });
+    expect(moved.status).toBe(200);
+    const body = (await moved.json()) as MatchState;
+    expect(body.movedOn).toEqual({ [`${matchId}-p2`]: 'left' });
+    expect(body.id).toBe(matchId);
+  });
+
+  it('refuses each outside a Live match', async () => {
+    const matchId = await seedFinished(false);
+    const p1 = await signToken(`${matchId}-p1`);
+
+    for (const [path, method] of [
+      ['party', 'POST'],
+      ['party', 'DELETE'],
+      ['move-on', 'POST'],
+    ]) {
+      const res = await api(`/api/matches/${matchId}/${path}`, p1, { method });
+      expect(res.status).toBe(400);
+      await res.json();
+    }
   });
 });

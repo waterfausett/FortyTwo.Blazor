@@ -89,3 +89,22 @@ describe('people and invites', () => {
     expect(JSON.parse((fetchMock.mock.calls[6][1] as RequestInit).body as string)).toEqual({ userIds: ['auth0|a'] });
   });
 });
+
+describe('party up and moving on', () => {
+  it('sends each to its route', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const api = createApiClient(async () => 'token', 'https://w');
+
+    await api.partyUp('m1');
+    await api.cancelParty('m1');
+    await api.moveOn('m1');
+
+    const calls = fetchMock.mock.calls.map(([url, init]) => `${(init as RequestInit).method ?? 'GET'} ${url as string}`);
+    expect(calls).toEqual([
+      'POST https://w/api/matches/m1/party',
+      'DELETE https://w/api/matches/m1/party',
+      'POST https://w/api/matches/m1/move-on',
+    ]);
+  });
+});

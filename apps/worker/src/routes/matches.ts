@@ -229,6 +229,21 @@ matches.post('/:id/rematch', async (c) => {
   return replyWithMatch(c, result, { lobbySync: 'summary' });
 });
 
+// At the end of a Live game: an offer to search together with your partner (the second offer
+// seats the pair at a new match, MatchDO's `partyUp`), taking it back, and moving on to find a
+// game of your own. The new match writes its own lobby rows; this one's don't change.
+matches.post('/:id/party', async (c) => {
+  return replyWithMatch(c, await matchStub(c.env, c.req.param('id')).partyUp(c.get('user').sub));
+});
+
+matches.delete('/:id/party', async (c) => {
+  return replyWithMatch(c, await matchStub(c.env, c.req.param('id')).cancelParty(c.get('user').sub));
+});
+
+matches.post('/:id/move-on', async (c) => {
+  return replyWithMatch(c, await matchStub(c.env, c.req.param('id')).moveOn(c.get('user').sub));
+});
+
 // Pokes the player whose turn it is, once it's waited long enough (MatchDO's `poke`). The reply
 // says how it reached them - a push, a nudge in the app, or not at all.
 matches.post('/:id/poke', async (c) => {
