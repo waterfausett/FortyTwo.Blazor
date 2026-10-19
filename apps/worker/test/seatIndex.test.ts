@@ -4,7 +4,9 @@ import { Teams, createDomino, createMatch, mintBotId, takeSeat, type Domino, typ
 import {
   applyListing,
   canSeat,
+  botTeam,
   freeSeat,
+  freeTeam,
   indexed,
   listingOf,
   sameListing,
@@ -179,5 +181,35 @@ describe('searching the index', () => {
   it('picks the lowest free seat', () => {
     expect(freeSeat(index.get('l1')!)).toBe(0);
     expect(freeSeat({ ...index.get('l1')!, seats: [0, 1, 2].map((position) => ({ playerId: `p${position}`, position })) })).toBe(3);
+  });
+
+  const entry = (mode: 'live' | 'daily', over: Partial<Entry> = {}): Entry => ({
+    id: 'x',
+    mode,
+    order: 1,
+    ...listing(),
+    ...over,
+  });
+  const at = (...positions: number[]) => positions.map((position) => ({ playerId: `p${position}`, position }));
+  const botsAt = (...positions: number[]) => positions.map((position) => ({ playerId: `x_bot-${position}`, position }));
+
+  it('seats Live solos one team first, Daily in order', () => {
+    expect(freeSeat(entry('live', { seats: at(0) }))).toBe(2);
+    expect(freeSeat(entry('live', { seats: at(0, 2) }))).toBe(1);
+    expect(freeSeat(entry('daily', { seats: at(0) }))).toBe(1);
+  });
+
+  it('finds a team with both seats free', () => {
+    expect(freeTeam(entry('live', { seats: at(0) }))).toEqual([1, 3]);
+    expect(freeTeam(entry('live', { seats: at(0, 1) }))).toBeUndefined();
+    expect(freeTeam(entry('live', { seats: [], dealt: true }))).toBeUndefined();
+  });
+
+  it('finds a team of two bots to take over', () => {
+    const seats = [...at(0, 2), ...botsAt(1, 3)];
+    const live = { seats, dealt: true, takesClaims: true };
+    expect(botTeam(entry('live', live))).toEqual([1, 3]);
+    expect(botTeam(entry('live', { ...live, claims: ['n'] }))).toBeUndefined();
+    expect(botTeam(entry('live', { ...live, takesClaims: false }))).toBeUndefined();
   });
 });
