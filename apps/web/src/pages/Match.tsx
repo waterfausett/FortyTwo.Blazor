@@ -43,7 +43,7 @@ import {
   teamForPosition,
   LIVE_FILL_MS,
 } from '@fortytwo/rules';
-import { endChoices, formatClock, lobbyCards, lobbyRoster, nextHandClock, searchState, shuffledTips, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
+import { endChoices, formatClock, lobbyCards, suggestedBid, suggestedDominoIds, suggestedTrump, lobbyRoster, nextHandClock, searchState, shuffledTips, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
 import { useOnline } from '../api/presence';
 import { useStats } from '../api/useStats';
 import { SearchLobby } from '../components/SearchLobby';
@@ -53,6 +53,8 @@ import { apiClient } from '../api/client';
 import { useGetToken } from '../auth/useGetToken';
 import { useMatchSocket } from '../api/useMatchSocket';
 import { BiddingPanel } from '../components/BiddingPanel';
+import { HintButton, HintDetails } from '../components/HintPanel';
+import { useHint } from '../match/useHint';
 import { HouseRulesDialog } from '../components/HouseRulesDialog';
 import { HowToPlayDialog } from '../components/HowToPlayDialog';
 import { InviteDialog } from '../people/InviteDialog';
@@ -249,6 +251,12 @@ export function Match(): JSX.Element {
   // show when the Worker says they're available.
   const configQuery = useQuery({ queryKey: ['config'], queryFn: () => client.getConfig(), staleTime: Infinity });
   const botsEnabled = configQuery.data?.bots ?? false;
+  const hintDetails = configQuery.data?.hintDetails ?? false;
+  // No hint while a move of mine is already on its way (until the broadcast moves the turn on), nor
+  // while a pre-play is queued (Hand's double-click), since that domino plays itself.
+  const [preselecting, setPreselecting] = useState(false);
+  const moving = preselecting || playing != null || bidMutation.isPending || setTrumpMutation.isPending;
+  const hint = useHint(liveMatch ?? null, myPlayerId, configQuery.data?.hints ?? false, () => client.getHint(matchId!), moving);
   // No position fills every open seat.
   const addBotsMutation = useMutation({
     mutationFn: (position?: number) => client.addBots(matchId!, position),
@@ -1118,9 +1126,13 @@ export function Match(): JSX.Element {
 
             {/* The bid/trump pickers carry their own prompt, so the status line steps aside. */}
             {(watching || (!canBid && !canSelectTrump)) && status != null && (
-              <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
-                {names.ready ? status : <NameSkeleton width="12em" />}
-              </p>
+              <div className="action-prompt-row">
+                <p className={`rail-status${isSittingOut ? ' rail-sitting-out' : ''}`} role="status">
+                  {names.ready ? status : <NameSkeleton width="12em" />}
+                </p>
+                {/* My turn to play: the Hint button rides along with "Your turn". */}
+                {!watching && <HintButton hint={hint} />}
+              </div>
             )}
 
             {poke.target != null && !watching && (
@@ -1139,6 +1151,8 @@ export function Match(): JSX.Element {
                 game={game}
                 myPlayerId={myPlayerId}
                 onBid={(bid) => bidMutation.mutate(bid)}
+                suggested={suggestedBid(hint.hint)}
+                hint={<HintButton hint={hint} />}
                 disabled={!connected || bidMutation.isPending}
               />
             )}
@@ -1147,9 +1161,13 @@ export function Match(): JSX.Element {
               <TrumpPicker
                 game={game}
                 onSelect={(suit) => setTrumpMutation.mutate(suit)}
+                suggested={suggestedTrump(hint.hint)}
+                hint={<HintButton hint={hint} />}
                 disabled={!connected || setTrumpMutation.isPending}
               />
             )}
+
+            {!watching && <HintDetails hint={hint} show={hintDetails} />}
 
             {watching ? (
               <div className="claim-bar" role="status">
@@ -1176,6 +1194,8 @@ export function Match(): JSX.Element {
                 onPlay={playDomino}
                 isValidPlay={isValidPlay}
                 highlightPlayable={highlightPlayable}
+                suggestedIds={suggestedDominoIds(hint.hint)}
+                onPreselectChange={(id) => setPreselecting(id !== null)}
               />
             )}
 

@@ -56,6 +56,8 @@ export interface DominoProps {
   // A ring in the danger colour around the tile, like the web's: picked to be played as soon as
   // it's the player's turn.
   preselected?: boolean;
+  // A brass ring around the tile: the play a hint suggests.
+  suggested?: boolean;
   accessibilityLabel?: string;
   // False when a wrapping control already names the tile.
   accessible?: boolean;
@@ -72,6 +74,7 @@ export const Domino = memo(function Domino({
   dimmed = false,
   highlighted = false,
   preselected = false,
+  suggested = false,
   accessibilityLabel,
   accessible = true,
 }: DominoProps) {
@@ -139,6 +142,15 @@ export const Domino = memo(function Domino({
           style={[styles.outline, { borderRadius: radius }, highlighted && styles.highlighted]}
         />
       </View>
+      {suggested && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.suggested,
+            { left: -RING_GAP, top: -RING_GAP, width: faceW + RING_GAP * 2, height: faceH + RING_GAP * 2, borderRadius: radius + RING_GAP },
+          ]}
+        />
+      )}
       {preselected && (
         <View
           pointerEvents="none"
@@ -174,6 +186,7 @@ const styles = StyleSheet.create({
   outline: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderWidth: 1, borderColor: colors.boneEdge },
   highlighted: { borderWidth: 2, borderColor: colors.brass },
   preselected: { position: 'absolute', borderWidth: 3, borderColor: colors.danger },
+  suggested: { position: 'absolute', borderWidth: 3, borderColor: colors.brass },
   divider: { position: 'absolute', backgroundColor: colors.boneEdge },
   dimmed: { opacity: 0.35 },
   pressed: { transform: [{ translateY: -3 }] },

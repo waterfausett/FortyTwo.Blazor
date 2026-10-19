@@ -19,6 +19,8 @@ export interface DominoProps {
   preselected?: boolean;
   // With the "highlight playable dominoes" setting on, whether this tile may be played right now.
   hint?: 'playable' | 'unplayable';
+  // A hint's suggested play, ringed (match.css's .suggested).
+  suggested?: boolean;
   direction?: 'horizontal' | 'vertical';
 }
 
@@ -62,6 +64,7 @@ export function Domino({
   selectable = false,
   preselected = false,
   hint,
+  suggested = false,
   direction = 'horizontal',
 }: DominoProps): JSX.Element {
   const classNames = [
@@ -69,6 +72,7 @@ export function Domino({
     direction === 'horizontal' ? 'horizontal' : null,
     selectable ? 'clickable' : null,
     preselected ? 'preselected' : null,
+    suggested ? 'suggested' : null,
     hint ?? null,
   ]
     .filter((c): c is string => Boolean(c))

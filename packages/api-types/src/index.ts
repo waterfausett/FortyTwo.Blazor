@@ -70,6 +70,11 @@ export interface ClientConfig {
   bots: boolean;
   // Whether to open the presence socket and show the online count.
   presence: boolean;
+  // Whether to offer the Hint button in practice matches.
+  hints: boolean;
+  // Whether a hint's card shows its chances to make and the close alternatives, not just the
+  // suggestion.
+  hintDetails: boolean;
 }
 
 // A user as Auth0's Management API returns it.
@@ -194,3 +199,44 @@ export interface PlayerStats {
 }
 
 export type StatsFilter = keyof PlayerStats;
+
+// A hint (GET /api/matches/:id/games/current/hint, practice matches only): what the ML bot would
+// do in the caller's seat, and the numbers behind it (@fortytwo/bot's explain.ts). Bids and suits
+// are the rules engine's enum values; a domino is the rules' { id, top, bottom }.
+export interface HintDomino {
+  id: string;
+  top: number;
+  bottom: number;
+}
+
+// A bid and the trump the bot would play it in, with its chance of making it. Pass, Plunge (whose
+// trump the partner names) and a forced bid with no option have no trump; Pass and that forced bid
+// have no P(make) either.
+export interface BidSuggestion {
+  bid: number;
+  trump: number | null;
+  pMake: number | null;
+}
+
+export interface TrumpSuggestion {
+  trump: number;
+  pMake: number | null;
+}
+
+// One legal domino: the team's expected marks for the hand if it's played, how far that is below
+// the best, and the rating shown for it.
+export interface PlayRating {
+  domino: HintDomino;
+  marks: number;
+  gap: number;
+  rating: 'best' | 'close' | 'weaker';
+}
+
+export type Hint =
+  | { kind: 'bid'; suggestion: BidSuggestion; options: BidSuggestion[] }
+  | { kind: 'trump'; suggestion: TrumpSuggestion; options: TrumpSuggestion[] }
+  | { kind: 'play'; dominoes: PlayRating[] };
+
+// 'warming': the model is still loading in this isolate (one piece per call) - ask again shortly.
+// 'unavailable': the model couldn't be loaded; hints are off until it can.
+export type HintResponse = { status: 'warming' } | { status: 'unavailable' } | { status: 'ready'; hint: Hint };

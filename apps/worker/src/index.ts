@@ -11,6 +11,7 @@ import { expireIdleMatches } from './expiry';
 import { assetLinks } from './appLinks';
 import { botsEnabled } from './bots';
 import { presenceEnabled } from './matchmaker';
+import { hintDetailsEnabled, hintsEnabled } from './hints';
 import type { MatchDO } from './matchDO';
 import type { Matchmaker } from './matchmaker';
 import type { ClientConfig } from '@fortytwo/api-types';
@@ -33,6 +34,13 @@ export interface Env {
   // The online count (the Matchmaker's presence socket) is on only when this is exactly 'true':
   // off by default, unlike BOTS_ENABLED. Off, /presence/ws is a 404 and clients open no socket.
   PRESENCE_ENABLED?: string;
+  // The Hint button in practice matches is on unless this is exactly 'false' (a kill switch, like
+  // BOTS_ENABLED; hints are off with bots too). Off, the hint route refuses and clients show no
+  // button (ClientConfig.hints).
+  HINTS_ENABLED?: string;
+  // A hint shows only its suggestion unless this is exactly 'true': then it also shows the chances
+  // to make and the close alternatives (ClientConfig.hintDetails). Off by default.
+  HINT_DETAILS?: string;
   // How often, at most, the online count goes out to every presence socket, in milliseconds
   // (matchmaker.ts's presenceBroadcastMs). Unset, malformed or under its floor, the default is used.
   PRESENCE_BROADCAST_MS?: string;
@@ -116,7 +124,7 @@ app.use(
 app.use('/api/*', requireAuth());
 // Feature switches the web app needs to know about - one worker flag drives both sides.
 app.get('/api/config', (c) =>
-  c.json({ bots: botsEnabled(c.env), presence: presenceEnabled(c.env) } satisfies ClientConfig)
+  c.json({ bots: botsEnabled(c.env), presence: presenceEnabled(c.env), hints: hintsEnabled(c.env), hintDetails: hintDetailsEnabled(c.env) } satisfies ClientConfig)
 );
 app.route('/api/matches', matchesRoutes);
 app.route('/api/matchmaking', matchmakingRoutes);

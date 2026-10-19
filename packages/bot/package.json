@@ -10,6 +10,6 @@
     "typecheck": "tsc -b",
     "bench": "tsx bench/bench.ts"
   },
-  "dependencies": { "@fortytwo/rules": "*" },
+  "dependencies": { "@fortytwo/api-types": "*", "@fortytwo/rules": "*" },
   "devDependencies": { "tsx": "^4.23.15", "typescript": "^5.6.0", "vitest": "^4.1.11" }
 }

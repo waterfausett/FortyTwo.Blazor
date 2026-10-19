@@ -94,6 +94,11 @@ export interface HandProps {
   // A domino on its way to the table: not drawn, but its place is kept, so if the play is turned
   // away it comes back where it was.
   playingId?: string | null;
+  // Dominoes a hint suggests playing, ringed.
+  suggestedIds?: string[];
+  // Told whenever a pre-play is queued (the domino's id) or cleared (null), so the screen can hide
+  // the Hint button while a domino is set to play itself.
+  onPreselectChange?: (id: string | null) => void;
 }
 
 export function Hand({
@@ -106,6 +111,8 @@ export function Hand({
   onDragChange,
   availableWidth,
   playingId = null,
+  suggestedIds = [],
+  onPreselectChange,
 }: HandProps) {
   const window = useWindowDimensions();
   const width = availableWidth ?? window.width - 24;
@@ -122,6 +129,11 @@ export function Hand({
   const [syncedSignature, setSyncedSignature] = useState(signature);
   // The domino picked to be played as soon as it's this player's turn.
   const [preselectedId, setPreselectedId] = useState<string | null>(null);
+  const onPreselectChangeRef = useRef(onPreselectChange);
+  useEffect(() => {
+    onPreselectChangeRef.current = onPreselectChange;
+  });
+  useEffect(() => onPreselectChangeRef.current?.(preselectedId), [preselectedId]);
   if (signature !== syncedSignature) {
     setSyncedSignature(signature);
     setOrder(reconcileOrder(order, dominoes));
@@ -232,6 +244,7 @@ export function Hand({
             dimmed={highlightPlayable && canPlay && !legal}
             highlighted={highlightPlayable && canPlay && legal}
             preselected={preselectedId === domino.id}
+            suggested={suggestedIds.includes(domino.id)}
             draggable={dropZone != null}
             // A tap's play reports its own errors; nothing here needs the outcome.
             onPlay={() => Promise.resolve(playNow(domino)).catch(() => {})}
@@ -263,6 +276,7 @@ function HandTile({
   dimmed,
   highlighted,
   preselected,
+  suggested,
   draggable,
   onPlay,
   onDoubleTap,
@@ -280,6 +294,7 @@ function HandTile({
   dimmed: boolean;
   highlighted: boolean;
   preselected: boolean;
+  suggested: boolean;
   draggable: boolean;
   onPlay: () => unknown;
   onDoubleTap?: () => void;
@@ -450,6 +465,7 @@ function HandTile({
             dimmed={dimmed}
             highlighted={highlighted}
             preselected={preselected}
+            suggested={suggested}
             accessible={false}
           />
         </Pressable>
