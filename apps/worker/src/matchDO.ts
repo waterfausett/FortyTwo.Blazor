@@ -27,6 +27,7 @@ import {
   tableWait,
   assertIsMatchPlayer,
   claimSeat,
+  claimTeam,
   releaseClaim,
   replaceWithBot,
   isPresent,
@@ -183,6 +184,19 @@ export class MatchDO extends DurableObject<Env> {
     return this.placement({ ok: true, value: await this.create(firstPlayerId, matchId, mode) });
   }
 
+  // `createListed` for a pair who searched together: a at seat 0 and b at seat 2, so they're
+  // partners from the start. Saved once with both seated, so there's never a table holding only one
+  // of them. Neither has a socket open yet, so both are named as on their way and aren't pushed.
+  async createTeamListed(a: string, b: string, matchId: string): Promise<Placement> {
+    const first = { ...createMatch(a, 'live'), id: matchId };
+    const match = takeSeat(first, b, 2);
+    await this.save(match, false);
+    this.publish(null, match, [a, b]);
+    // The fill deadline starts now, as for any new Live table.
+    await this.schedule(match);
+    return this.placement({ ok: true, value: match });
+  }
+
   // A match against three bots (the 'bots' mode): the player in seat 0 and bots in the rest, so
   // the 4th seat deals and it's under way when it's returned. Saved once, so there's never a
   // half-built table. `schedule` starts the bots off if one of them opens. The player is on their
@@ -254,6 +268,13 @@ export class MatchDO extends DurableObject<Env> {
     return this.placement(await this.update(playerId, (match) => takeSeat(match, playerId, position, dealOrder), false));
   }
 
+  // `takeSeat` for a pair, in one update: both are seated or neither is. `dealOrder` goes with
+  // both, since only the engine knows which of them sits down fourth and deals.
+  async takeTeamListed(a: string, b: string, positions: [number, number], dealOrder: Domino[]): Promise<Placement> {
+    const seat = (match: MatchState) => takeSeat(takeSeat(match, a, positions[0], dealOrder), b, positions[1], dealOrder);
+    return this.placement(await this.update(a, seat, false, [a, b]));
+  }
+
   // A newcomer asks for the next bot seat at this Live Play game. They're seated at the next hand
   // break; until then they watch.
   claimSeat(playerId: string): Promise<MatchResult<MatchState>> {
@@ -263,6 +284,11 @@ export class MatchDO extends DurableObject<Env> {
   // `claimSeat`, for the Matchmaker.
   async claimSeatListed(playerId: string): Promise<Placement> {
     return this.placement(await this.update(playerId, (match) => claimSeat(match, playerId), false));
+  }
+
+  // `claimTeam` for the Matchmaker: both claim their pinned seats, or neither does.
+  async claimTeamListed(a: string, b: string, positions: [number, number]): Promise<Placement> {
+    return this.placement(await this.update(a, (match) => claimTeam(match, a, b, positions), false, [a, b]));
   }
 
   // Leaving: before the deal, takes the player back out (the last human out deletes the match -
@@ -459,10 +485,12 @@ export class MatchDO extends DurableObject<Env> {
   // the bots in case one of them moves next. `actorId` made the change, so is on the match screen
   // whether or not its socket is open yet - it isn't when a notification's button opened the app
   // to make it - and isn't pushed about it. `report` is false for the Matchmaker's own calls (save).
+  // `onTheWay` is everyone who is on the screen, when it's more than the actor (a pair seated together).
   private update(
     actorId: string,
     action: (match: MatchState) => MatchState | Promise<MatchState>,
-    report = true
+    report = true,
+    onTheWay: string[] = [actorId]
   ): Promise<MatchResult<MatchState>> {
     return this.read(async (match) => {
       const acted = await action(match);
@@ -470,7 +498,7 @@ export class MatchDO extends DurableObject<Env> {
       const next = isOnAutopilot(acted, actorId) ? setAutopilot(acted, [actorId], false) : acted;
       await this.save(next, report);
       await this.recordStatsIfWon(match, next);
-      this.publish(match, next, [actorId]);
+      this.publish(match, next, onTheWay);
       await this.schedule(next);
       await this.syncIfSeatsChanged(match, next);
       return next;
