@@ -137,6 +137,8 @@ describe('MatchSummary', () => {
         party: { kind: 'offer' as const, partnerOffered: false },
         rematchDisabled: false,
         iAmBusy: false,
+        showFindGame: true,
+        showRematch: true,
       },
       partnerName: 'Cal',
       busy: false,

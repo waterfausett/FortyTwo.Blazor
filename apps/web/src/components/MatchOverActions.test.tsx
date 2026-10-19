@@ -7,7 +7,16 @@ import { MatchOverActions } from './MatchOverActions';
 afterEach(cleanup);
 
 function choices(party: PartyButton): EndChoices {
-  return { live: true, partnerId: 'p3', party, rematchDisabled: false, iAmBusy: false };
+  const partied = party.kind === 'partied';
+  return {
+    live: true,
+    partnerId: 'p3',
+    party,
+    rematchDisabled: false,
+    iAmBusy: false,
+    showFindGame: !partied,
+    showRematch: !partied,
+  };
 }
 
 function renderActions(party: PartyButton, props: Partial<Parameters<typeof MatchOverActions>[0]> = {}) {
@@ -82,6 +91,15 @@ describe('MatchOverActions', () => {
   it('links to the new game once the party has one', () => {
     renderActions({ kind: 'partied', matchId: 'match-9' });
     expect(screen.getByRole('link', { name: 'Go to your new game' }).getAttribute('href')).toBe('/match/match-9');
+  });
+
+  // Find a game and Rematch could only lead back to that same new game.
+  it('offers only the new game once partied, beside the Lobby link in rows', () => {
+    renderActions({ kind: 'partied', matchId: 'match-9' });
+    expect(labels()).toEqual(['Go to your new game']);
+    cleanup();
+    renderActions({ kind: 'partied', matchId: 'match-9' }, { layout: 'rows' });
+    expect(labels()).toEqual(['Lobby', 'Go to your new game']);
   });
 
   it('calls Find a game, and disables the buttons while busy', () => {

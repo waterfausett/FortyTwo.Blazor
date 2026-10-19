@@ -30,18 +30,20 @@ export function MatchOverActions({
   onFindGame,
 }: MatchOverActionsProps): JSX.Element {
   const party = partyControl();
-  const findGame = (
+  // Once partied, these could only lead back to the new game, so it stands alone.
+  const findGame = choices.showFindGame && (
     <button type="button" className="action-button" disabled={busy} onClick={onFindGame}>
       Find a game
     </button>
   );
+  const rematchControl = choices.showRematch && rematch;
 
   if (layout === 'rows') {
     return (
       <div className="match-over-actions match-over-actions-rows">
         <div className="match-over-actions-row">
           {lobby}
-          {rematch}
+          {rematchControl}
         </div>
         <div className="match-over-actions-row">
           {findGame}
@@ -54,7 +56,7 @@ export function MatchOverActions({
     <div className="match-over-actions match-over-actions-stack">
       {party}
       {findGame}
-      {rematch}
+      {rematchControl}
     </div>
   );
 

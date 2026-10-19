@@ -4,7 +4,7 @@
 import { isBot, matchMode, partnerOf, rematchBlocked, teamForPosition, type MatchState } from '@fortytwo/rules';
 
 export type PartyButton =
-  // Not Live, not won, viewer not seated, bot partner, or viewer moved on.
+  // Not Live, not won, viewer not seated, rematch made, bot partner, or viewer moved on.
   | { kind: 'hidden' }
   // "Party up with Sam", and whether Sam has already asked.
   | { kind: 'offer'; partnerOffered: boolean }
@@ -23,6 +23,9 @@ export interface EndChoices {
   rematchDisabled: boolean;
   // I turned up in another Live game, so the client sends me back to it.
   iAmBusy: boolean;
+  // Off once my team has partied up: both could only lead back to the same new game.
+  showFindGame: boolean;
+  showRematch: boolean;
 }
 
 export function endChoices(match: MatchState, myPlayerId: string): EndChoices {
@@ -32,16 +35,22 @@ export function endChoices(match: MatchState, myPlayerId: string): EndChoices {
   const offers = match.partyOffers ?? [];
   const iOffered = offers.includes(myPlayerId);
 
+  const party = partyButton();
+  const partied = party.kind === 'partied';
+
   return {
     live,
     partnerId,
-    party: partyButton(),
+    party,
     rematchDisabled: rematchBlocked(match) || iOffered,
     iAmBusy: match.movedOn?.[myPlayerId] === 'busy',
+    showFindGame: !partied,
+    showRematch: !partied,
   };
 
   // The order matters: a finished party beats everything, then the cases with nothing to offer, then
-  // what became of the partner, and only then where my own offer stands.
+  // what became of the partner, and only then where my own offer stands. A rematch already made
+  // seats the partners together, so there's nothing left to party up for.
   function partyButton(): PartyButton {
     const partied = me && match.partyMatchIds?.[teamForPosition(me.position)];
     if (partied !== undefined) return { kind: 'partied', matchId: partied };
@@ -49,6 +58,7 @@ export function endChoices(match: MatchState, myPlayerId: string): EndChoices {
       !live ||
       match.winningTeam === null ||
       !me ||
+      match.rematchId !== undefined ||
       partnerId === null ||
       isBot(partnerId) ||
       match.movedOn?.[myPlayerId] !== undefined

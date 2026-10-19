@@ -89,6 +89,24 @@ describe('endChoices', () => {
     expect(endChoices(match, 'me').party).toEqual({ kind: 'partied', matchId: 'm2' });
   });
 
+  // Once partied, Find a game and Rematch could only lead back to the same new game.
+  it('offers only the new game once my team has partied up', () => {
+    const choices = endChoices(finished({ partyMatchIds: { [Teams.TeamA]: 'm2' } }), 'me');
+    expect(choices.showFindGame).toBe(false);
+    expect(choices.showRematch).toBe(false);
+  });
+
+  it('offers Find a game and Rematch until then', () => {
+    const choices = endChoices(finished(), 'me');
+    expect(choices.showFindGame).toBe(true);
+    expect(choices.showRematch).toBe(true);
+  });
+
+  // The rematch already seats all four together, partners included.
+  it('hides Party up once the rematch is made', () => {
+    expect(endChoices(finished({ rematchId: 'r1' }), 'me').party).toEqual({ kind: 'hidden' });
+  });
+
   it("ignores the other team's party when it is not mine", () => {
     const match = finished({ partyMatchIds: { [Teams.TeamB]: 'm2' } });
     expect(endChoices(match, 'me').party).toEqual({ kind: 'offer', partnerOffered: false });

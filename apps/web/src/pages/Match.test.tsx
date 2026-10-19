@@ -2085,6 +2085,42 @@ describe('Match', () => {
         await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/match/match-3', { replace: true }));
         expect(playMock).toHaveBeenCalledWith('live');
       });
+
+      // The player is waiting to be taken to their other game, so a failed search is said out loud.
+      it('toasts when the search for my other game fails', async () => {
+        const error = new Error('Matchmaker down');
+        playMock.mockRejectedValue(error);
+        partyUpMock.mockResolvedValue(finishedMatch({ mode: 'live' }));
+        useMatchSocketMock.mockReturnValue({ match: finishedMatch({ mode: 'live' }), connected: true });
+        const view = renderMatch();
+        fireEvent.click(within(rail()).getByRole('button', { name: 'Party up with p3' }));
+        await waitFor(() => expect(partyUpMock).toHaveBeenCalled());
+
+        useMatchSocketMock.mockReturnValue({
+          match: finishedMatch({ mode: 'live', movedOn: { p1: 'busy' } }),
+          connected: true,
+        });
+        view.rerender(
+          <QueryClientProvider client={new QueryClient()}>
+            <MemoryRouter>
+              <Match />
+            </MemoryRouter>
+          </QueryClientProvider>
+        );
+
+        await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+        expect(toastErrorMock.mock.calls[0][0]).toBe(error);
+      });
+
+      it('offers only the new game once my team has partied up', () => {
+        useMatchSocketMock.mockReturnValue({
+          match: finishedMatch({ mode: 'live', partyMatchIds: { [Teams.TeamA]: 'match-5' } }),
+          connected: true,
+        });
+        renderMatch();
+
+        expect(railLabels()).toEqual(['Match summary']);
+      });
     });
   });
 

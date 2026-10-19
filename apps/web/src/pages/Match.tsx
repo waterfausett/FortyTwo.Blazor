@@ -459,22 +459,24 @@ export function Match(): JSX.Element {
   useEffect(() => {
     if (!iAmBusy || !pressedPartyRef.current || sentBusyRef.current) return;
     sentBusyRef.current = true;
-    findAnother();
+    // Said out loud: the player is waiting to be taken somewhere, so a failure can't be silent.
+    findAnother(undefined, { onError: toastError });
   }, [iAmBusy, findAnother]);
 
   // The party's new match appears while I'm here: take me there, as for a rematch above, and for
-  // the same reasons only when it appears while the page is open.
+  // the same reasons only when it appears while the page is open. Noted once I'm seated, since
+  // before that my team's id can't be read and one already there would look new.
   const myTeamKey = liveMatch?.players.find((p) => p.playerId === myPlayerId);
   const partyMatchId = myTeamKey ? liveMatch?.partyMatchIds?.[teamForPosition(myTeamKey.position)] : undefined;
   const partyIdAtLoadRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (!liveMatch) return;
+    if (!liveMatch || !myTeamKey) return;
     if (partyIdAtLoadRef.current === undefined) {
       partyIdAtLoadRef.current = partyMatchId ?? null;
       return;
     }
     if (partyMatchId && partyMatchId !== partyIdAtLoadRef.current) navigate(`/match/${partyMatchId}`, { replace: true });
-  }, [liveMatch, partyMatchId, navigate]);
+  }, [liveMatch, myTeamKey, partyMatchId, navigate]);
 
   // A cue that the next hand is out, for anyone who readied up and looked away: bidding has
   // started without them. Only on a change of hand - never for the one the page opened on.
