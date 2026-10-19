@@ -421,13 +421,23 @@ export class MatchDO extends DurableObject<Env> {
       let next = voteRematch(match, playerId);
       if (next.rematchId !== undefined || rematchAgreed(next).length < next.players.length) return next;
 
-      let rematchId = await this.ctx.storage.get<string>('pendingRematchId');
+      const pendingRematchId = () => this.ctx.storage.get<string>('pendingRematchId');
+      let rematchId = await pendingRematchId();
       // Nobody may be in two Live games. Anyone who has gone on to one is moved on, and no rematch
       // is made. The rematch a retried vote may already have made, with all four in it, isn't
       // another game.
       if (matchMode(next) === 'live') {
         const humans = next.players.map((p) => p.playerId).filter((id) => !isBot(id));
-        const busy = await this.matchmaker().liveBusy(humans, rematchId);
+        let busy = await this.matchmaker().liveBusy(humans, rematchId);
+        // Another completing vote (a double tap, a second device) may have minted the id and made
+        // the rematch while that check ran. Its id is the one to use from here, and the rematch
+        // isn't another game, so they're asked about again without it. The id is only ever set
+        // once, so one more check is enough.
+        const minted = await pendingRematchId();
+        if (minted !== rematchId) {
+          rematchId = minted;
+          busy = await this.matchmaker().liveBusy(humans, rematchId);
+        }
         const latest = await this.reload();
         if (busy.length > 0) return busy.reduce((moved, id) => moveOn(moved, id, 'busy'), latest);
         // Someone may have moved on meanwhile, which refuses the vote, or the rematch may already

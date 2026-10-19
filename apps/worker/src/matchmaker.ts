@@ -35,7 +35,7 @@ import {
 export type { QueueMode } from './seatIndex';
 
 // Where a pair who searched together ended up: seated at one table, or not searched for because
-// these of them are already in a Live game.
+// one or both of them is already in a Live game (`playerIds` names which).
 export type PairResult = { kind: 'seated'; match: MatchState } | { kind: 'busy'; playerIds: string[] };
 
 // Whether the online count is switched on (index.ts's PRESENCE_ENABLED). Off by default.

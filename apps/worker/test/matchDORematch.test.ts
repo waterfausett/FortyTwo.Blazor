@@ -257,6 +257,60 @@ describe('MatchDO rematch', () => {
     expect(last.movedOn).toBeUndefined();
   });
 
+  // Two completing votes at once (a double tap, a second device, a retry) both wait on the
+  // Matchmaker's check. The second must reuse the rematch the first made, and not count it as
+  // another Live game.
+  it('makes one Live rematch when the completing vote arrives twice at once', async () => {
+    const players = ['double-p1', 'double-p2', 'double-p3', 'double-p4'];
+    const stub = await seed('rematch-live-double', { ...finishedMatch('rematch-live-double', players), mode: 'live' });
+    for (const id of players.slice(0, 3)) await stub.rematch(id);
+
+    const results = (await Promise.all([stub.rematch('double-p4'), stub.rematch('double-p4')])).map(valueOf);
+
+    const stored = valueOf(await stub.getMatch());
+    expect(stored.rematchId).toBeTruthy();
+    expect(results.map((r) => r.rematchId)).toEqual([stored.rematchId, stored.rematchId]);
+    expect(stored.movedOn).toBeUndefined();
+    const seatedAt = await testEnv.DB.prepare('SELECT DISTINCT match_id FROM match_players WHERE player_id = ? AND match_id != ?')
+      .bind('double-p1', 'rematch-live-double')
+      .all<{ match_id: string }>();
+    expect(seatedAt.results.map((r) => r.match_id)).toEqual([stored.rematchId]);
+  });
+
+  // The other completing vote's rematch is made, and listed with all four, while this vote's check
+  // is in flight: the check must be asked again without it, not move all four on.
+  it('does not count a rematch made during the check as another Live game', async () => {
+    const players = ['during-p1', 'during-p2', 'during-p3', 'during-p4'];
+    const finished: MatchState = { ...finishedMatch('rematch-live-during', players), mode: 'live' };
+    const stub = await seed('rematch-live-during', finished);
+    for (const id of players.slice(0, 3)) await stub.rematch(id);
+    const otherId = 'rematch-live-during-next';
+
+    const last = await runInDurableObject(stub, async (instance: MatchDO, state) => {
+      // Stubs made inside the DO, which can only do I/O through its own.
+      const own = (instance as unknown as { env: Env }).env;
+      const matchmaker = own.MATCHMAKER.get(own.MATCHMAKER.idFromName('global'));
+      const other = own.MATCH_DO.get(own.MATCH_DO.idFromName(otherId));
+      let first = true;
+      (instance as unknown as { matchmaker: () => unknown }).matchmaker = () => ({
+        liveBusy: async (ids: string[], except?: string) => {
+          if (first) {
+            first = false;
+            // What the other vote does meanwhile: mint the id, make the rematch, list it.
+            await state.storage.put('pendingRematchId', otherId);
+            await other.createRematch(otherId, finished, shuffledDominoOrder());
+            await matchmaker.report(otherId, 'live', (await other.getListing()).listing);
+          }
+          return matchmaker.liveBusy(ids, except);
+        },
+      });
+      return valueOf(await instance.rematch('during-p4'));
+    });
+
+    expect(last.rematchId).toBe(otherId);
+    expect(last.movedOn).toBeUndefined();
+  });
+
   it('still creates the rematch when the lobby index is down, and lists it when retried', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     const previous = finishedMatch('rematch-no-db-previous', ['nodb-p1', 'nodb-p2', 'nodb-p3', 'nodb-p4']);
