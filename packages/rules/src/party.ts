@@ -77,13 +77,15 @@ export function setAway(match: MatchState, playerId: string, away: boolean): Mat
   return { ...withoutIntent(match, playerId), away: [...(match.away ?? []), playerId], updatedOn: now() };
 }
 
-// A team's party has a match to search in; the offers that got it there are spent.
+// A team's party has a match to search in; the offers that got it there are spent. Any rematch
+// vote of theirs goes too, so the other team isn't shown a rematch count that can't come true.
 export function recordParty(match: MatchState, team: Teams, matchId: string): MatchState {
   const members = match.players.filter((p) => teamForPosition(p.position) === team).map((p) => p.playerId);
   return {
     ...match,
     partyMatchIds: { ...match.partyMatchIds, [team]: matchId },
     partyOffers: (match.partyOffers ?? []).filter((id) => !members.includes(id)),
+    rematchVotes: (match.rematchVotes ?? []).filter((id) => !members.includes(id)),
     updatedOn: now(),
   };
 }

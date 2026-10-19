@@ -146,6 +146,14 @@ describe('recordParty', () => {
     expect(m.partyMatchIds).toEqual({ [Teams.TeamA]: 'new' });
     expect(m.partyOffers).toEqual([]);
   });
+
+  // A partner's vote can land while the pair is being seated. Left in place, the other team would
+  // still count it towards a rematch that can no longer happen ("1 of 4").
+  it("clears the team's rematch votes, keeping the other team's", () => {
+    const both = offerParty(offerParty(wonLive(), 'p1'), 'p3');
+    const m = recordParty({ ...both, rematchVotes: ['p3', 'p2'] }, Teams.TeamA, 'new');
+    expect(m.rematchVotes).toEqual(['p2']);
+  });
 });
 
 describe('rematchBlocked', () => {
