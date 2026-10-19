@@ -7,9 +7,9 @@
 // picture (the way to their profile) in place of the navigation bar, a segmented control for the
 // lists, full-width rows, and a floating button for a new match. Each person in People has an
 // Invite that asks them to one of the player's open Custom tables (InviteToTableSheet).
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { rowLabel, rowStatus, uniqueMatches, yourTurnFirst, type MatchPage, type MatchSummary, type Person } from '@fortytwo/client';
@@ -37,6 +37,9 @@ const EMPTY: Record<Filter, { title: string; detail: string }> = {
   Active: { title: 'No games yet', detail: 'Start a new match: play Live now, take Async turns, or set up a Custom Match.' },
   Completed: { title: 'Nothing finished yet', detail: 'Finished games will show up here.' },
 };
+
+// Coming back to the lobby (from a match, say) fetches the Active list again if it's older than this.
+const REFRESH_ON_FOCUS_MS = 30_000;
 
 // Room under the list for the floating New match button.
 const FAB_CLEARANCE = 88;
@@ -70,6 +73,21 @@ export default function Lobby() {
     void matches.refetch();
     void queryClient.invalidateQueries({ queryKey: ['invites'] });
   }
+
+  // Back on the lobby with the Active list showing, a list that hasn't been fetched for a while is
+  // refreshed. Read through a ref, so only coming back runs it - not every change to the list.
+  const refreshOnFocusRef = useRef(() => {});
+  useEffect(() => {
+    refreshOnFocusRef.current = () => {
+      const stale = Date.now() - matches.dataUpdatedAt > REFRESH_ON_FOCUS_MS;
+      if (segment === 'Active' && matches.isSuccess && !matches.isFetching && stale) refresh();
+    };
+  });
+  useFocusEffect(
+    useCallback(() => {
+      refreshOnFocusRef.current();
+    }, [])
+  );
 
   // The People segment's pull-to-refresh: its own spinner, until the lists are back.
   const [peopleRefreshing, setPeopleRefreshing] = useState(false);

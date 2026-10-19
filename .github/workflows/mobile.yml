@@ -1,6 +1,6 @@
 name: Mobile
 
-# Tests and typechecks the mobile app on every pull request that can affect it, release PRs
+# Tests, typechecks and lints the mobile app on every pull request that can affect it, release PRs
 # included. Builds happen on EAS, not here: a mobile release's tag starts one.
 #
 # Which changes count as affecting it is defined in .github/path-filters.yml.
@@ -44,6 +44,7 @@ jobs:
       - run: npm ci
       - run: npm test -w @fortytwo/mobile
       - run: npm run typecheck -w @fortytwo/mobile
+      - run: npm run lint -w @fortytwo/mobile
 
   # The check the master ruleset requires. A skipped job counts as passing, so this fails only when
   # one of the jobs above failed or was cancelled.

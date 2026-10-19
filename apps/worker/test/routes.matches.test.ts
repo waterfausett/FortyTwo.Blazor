@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { env, runInDurableObject, SELF } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
-import { Teams, botDisplayName, isBot, type Positions, type MatchState } from '@fortytwo/rules';
+import { Teams, shuffledDominoOrder, botDisplayName, isBot, type Positions, type MatchState } from '@fortytwo/rules';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
 import { app, type Env } from '../src/index';
 import { upsertMatchSummary } from '../src/lobby';
@@ -523,13 +523,13 @@ describe('match routes', () => {
       await gone.arrayBuffer();
     });
 
-    it('refuses to let a player leave once the hand is dealt', async () => {
+    it('refuses to let a player leave an Async match once the hand is dealt', async () => {
       const tokens = await Promise.all(['p1', 'p2', 'p3', 'p4'].map((sub) => signToken(sub)));
-      const { id } = (await (await api('/api/matches', tokens[0], { method: 'POST' })).json()) as { id: string };
-      for (const position of [1, 2, 3]) {
-        const join = await api(`/api/matches/${id}/players`, tokens[position], { method: 'POST', body: JSON.stringify({ position }) });
-        await join.arrayBuffer();
-      }
+      // Routes only create Custom matches; the Matchmaker creates Async ones.
+      const id = 'async-leave';
+      const stub = testEnv.MATCH_DO.get(testEnv.MATCH_DO.idFromName(id));
+      await stub.create('p1', id, 'daily');
+      for (const position of [1, 2, 3]) await stub.takeSeat(`p${position + 1}`, position, shuffledDominoOrder());
 
       const res = await api(`/api/matches/${id}/players`, tokens[1], { method: 'DELETE' });
 

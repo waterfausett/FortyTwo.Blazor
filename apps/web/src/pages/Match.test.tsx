@@ -399,6 +399,135 @@ describe('Match', () => {
     });
   });
 
+  describe('leaving a dealt Custom match', () => {
+    // The hand is decided and p2 left: a bot named bot-1 finished it in their seat, parked.
+    function parkedBreak(): MatchState {
+      const match = finishedHandMatch();
+      match.players = match.players.map((p) => (p.playerId === 'p2' ? { ...p, playerId: 'bot-1', ready: false } : p));
+      match.currentGame.hands[1] = { ...match.currentGame.hands[1], playerId: 'bot-1' };
+      match.parked = ['bot-1'];
+      return match;
+    }
+
+    it('offers Leave in a dealt Custom match, with the Custom confirm', async () => {
+      leaveMatchMock.mockResolvedValue(undefined);
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: 'Leave game' }));
+      expect(confirm).toHaveBeenCalledWith(
+        'Leave this game? A bot finishes this hand for you, then your seat opens for someone new.'
+      );
+      await waitFor(() => expect(leaveMatchMock).toHaveBeenCalledWith('match-1'));
+      confirm.mockRestore();
+    });
+
+    it('says the game ends when nobody else is seated', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      const alone = baseMatch({
+        players: [PLAYERS[0], ...[1, 2, 3].map((position) => ({ playerId: `bot-${position}`, position, ready: true }))],
+      });
+      useMatchSocketMock.mockReturnValue({ match: alone, connected: true });
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: 'Leave game' }));
+      expect(confirm).toHaveBeenCalledWith('Leave this game? Nobody else is at the table, so it ends.');
+      confirm.mockRestore();
+    });
+
+    it('shows an open parked seat as empty, with Share link and Invite players, at the break', async () => {
+      useMatchSocketMock.mockReturnValue({ match: parkedBreak(), connected: true });
+      renderMatch();
+      expect(await screen.findAllByTestId('open-seat')).toHaveLength(1);
+      expect(screen.queryByText('bot-1')).toBeNull();
+      expect(screen.getByRole('button', { name: /share link/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /invite players/i })).toBeTruthy();
+      expect(screen.getByText('3 of 4 seated')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /leave table|cancel match/i })).toBeNull();
+    });
+
+    it('keeps the trick in the middle while a decided hand is played out, not the waiting panel', async () => {
+      const playing = parkedBreak();
+      playing.currentGame.currentTrick = {
+        playerId: 'p1',
+        team: Teams.TeamA,
+        suit: Suit.Sixes,
+        dominoes: [createDomino(6, 5), null, null, null],
+      };
+      useMatchSocketMock.mockReturnValue({ match: playing, connected: true });
+      const { container } = renderMatch();
+      await screen.findAllByTestId('open-seat');
+      expect(screen.queryByText('3 of 4 seated')).toBeNull();
+      expect(screen.queryByRole('button', { name: /invite players/i })).toBeNull();
+      expect(container.querySelector('.table-waiting')).toBeNull();
+    });
+
+    it('keeps a just-completed trick in the middle while it is held, not the waiting panel', async () => {
+      const before = parkedBreak();
+      useMatchSocketMock.mockReturnValue({ match: before, connected: true });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      queryClient.setQueryData([PLAYER_NAMES_KEY, 'seeded'], new Map(['p1', 'p3', 'p4', 'bot-1'].map((id) => [id, id])));
+      // A fresh element on each render, so React doesn't skip the update.
+      const ui = () => (
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      const { container, rerender } = render(ui());
+      await screen.findByText('3 of 4 seated');
+
+      // The completing broadcast files the trick and empties `currentTrick` in one step.
+      const after = parkedBreak();
+      after.currentGame.tricks = [
+        ...after.currentGame.tricks,
+        { playerId: 'p3', team: Teams.TeamA, suit: Suit.Fives, dominoes: [createDomino(5, 1), createDomino(5, 2), createDomino(5, 3), createDomino(5, 4)] },
+      ];
+      useMatchSocketMock.mockReturnValue({ match: after, connected: true });
+      act(() => rerender(ui()));
+
+      expect(screen.queryByText('3 of 4 seated')).toBeNull();
+      expect(container.querySelector('.table-waiting')).toBeNull();
+    });
+
+    it('offers the open parked seat at a Custom table', async () => {
+      currentUserId.value = 'p5';
+      useMatchSocketMock.mockReturnValue({ match: parkedBreak(), connected: true });
+      renderMatch();
+
+      const picker = await screen.findByRole('group', { name: /pick a seat/i });
+      expect(within(picker).getByRole('button', { name: /sit here/i })).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: /this match is full/i })).toBeNull();
+    });
+
+    it('keeps the parked bot as a seat while it is still finishing the hand', async () => {
+      const midHand = parkedBreak();
+      midHand.currentGame = baseMatch().currentGame;
+      midHand.currentGame.hands[1] = { ...midHand.currentGame.hands[1], playerId: 'bot-1' };
+      useMatchSocketMock.mockReturnValue({ match: midHand, connected: true });
+      renderMatch();
+      await screen.findByTestId('hand');
+      expect(screen.queryAllByTestId('open-seat')).toHaveLength(0);
+      expect(screen.getByText('bot-1')).toBeTruthy();
+    });
+
+    it('shows Fill with bots there when bots are on', async () => {
+      getConfigMock.mockResolvedValue({ bots: true });
+      addBotsMock.mockResolvedValue(parkedBreak());
+      useMatchSocketMock.mockReturnValue({ match: parkedBreak(), connected: true });
+      renderMatch();
+      fireEvent.click(await screen.findByRole('button', { name: /fill with bots/i }));
+      await waitFor(() => expect(addBotsMock).toHaveBeenCalledWith('match-1', undefined));
+    });
+
+    it('tells the seated players the next hand waits for the seat to be filled', async () => {
+      useMatchSocketMock.mockReturnValue({ match: parkedBreak(), connected: true });
+      renderMatch();
+      const result = await screen.findByRole('region', { name: 'Hand over' });
+      expect(within(result).getByText('Waiting for a player to take the open seat')).toBeTruthy();
+    });
+  });
+
   it('sends everyone back to the lobby when the match is deleted under them', async () => {
     useMatchSocketMock.mockReturnValue({ match: null, connected: false, deleted: true });
     renderMatch();
@@ -2288,21 +2417,15 @@ describe('Match', () => {
       expect(screen.getByRole('link', { name: /back to lobby/i }).getAttribute('href')).toBe('/');
     });
 
-    it('offers Leave game in a Live Play game under way, and not in a custom one', async () => {
+    it('offers Leave game in a Live Play game under way', async () => {
       leaveMatchMock.mockResolvedValue(undefined);
       const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
       useMatchSocketMock.mockReturnValue({ match: dealtLiveWithBots(), connected: true });
-      const view = renderMatch();
+      renderMatch();
       fireEvent.click(await screen.findByRole('button', { name: 'Leave game' }));
       expect(confirm).toHaveBeenCalledWith('Leave this game? A bot takes your seat.');
       await waitFor(() => expect(leaveMatchMock).toHaveBeenCalledWith('match-1'));
       confirm.mockRestore();
-      view.unmount();
-
-      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
-      renderMatch();
-      await screen.findByTestId('hand');
-      expect(screen.queryByRole('button', { name: 'Leave game' })).toBeNull();
     });
 
     it('says the game ends when you leave as the last player present', async () => {

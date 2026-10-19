@@ -189,11 +189,11 @@ describe('Match screen, Live Play', () => {
     expect(mockRouter.dismissTo).toHaveBeenCalledWith('/');
   });
 
-  it('offers Leave game in a Live Play game under way, and not in a custom one', async () => {
+  it('offers Leave game in a Live Play game under way', async () => {
     mockApi.leaveMatch.mockResolvedValue(undefined);
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     socket(dealtLiveWithBots());
-    const view = await renderScreen();
+    await renderScreen();
 
     await fireEvent.press(await screen.findByLabelText('Match menu'));
     await fireEvent.press(screen.getByText('Leave game'));
@@ -203,14 +203,6 @@ describe('Match screen, Live Play', () => {
     await act(async () => buttons[1].onPress?.());
     await waitFor(() => expect(mockApi.leaveMatch).toHaveBeenCalledWith('match-1'));
     alert.mockRestore();
-    await view.unmount();
-
-    const custom = dealtLiveWithBots({ mode: 'custom' });
-    socket(custom);
-    await renderScreen();
-    await screen.findByLabelText('1-2');
-    expect(screen.queryByLabelText('Match menu')).toBeNull();
-    expect(screen.getByLabelText('How to play')).toBeTruthy();
   });
 
   it('offers Leave game in a bots match, which ends it', async () => {
@@ -411,5 +403,128 @@ describe('Match screen, hints', () => {
     } finally {
       mockApi.getConfig.mockResolvedValue({ bots: false });
     }
+  });
+});
+
+describe('Match screen, leaving a dealt Custom match', () => {
+  // With reduce motion on, the waiting panel starts no looping animation to outlive each test.
+  let reduceMotion: jest.SpyInstance;
+  beforeEach(() => {
+    reduceMotion = jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+    mockApi.getConfig.mockResolvedValue({ bots: false });
+  });
+  afterEach(() => reduceMotion.mockRestore());
+
+  // The hand is decided and p2 left: a bot named bot-1 finished it in their seat, parked.
+  function parkedBreak(): MatchState {
+    const counts = [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)];
+    const players = [
+      PLAYERS[0],
+      { playerId: 'bot-1', position: Positions.Second, ready: false },
+      PLAYERS[2],
+      PLAYERS[3],
+    ];
+    const match = dealtLiveWithBots({ mode: 'custom', parked: ['bot-1'] }, players);
+    match.currentGame = {
+      ...match.currentGame,
+      biddingPlayerId: 'p1',
+      bid: Bid.Thirty,
+      trump: Suit.Sixes,
+      tricks: [{ playerId: 'bot-1', team: Teams.TeamB, suit: Suit.Sixes, dominoes: counts }],
+    };
+    return match;
+  }
+
+  it('offers Leave game in a dealt Custom match, with the Custom confirm', async () => {
+    mockApi.leaveMatch.mockResolvedValue(undefined);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const players = PLAYERS.map((p) => (p.playerId === 'bot-1' ? { ...p, playerId: 'p2' } : p));
+    socket(dealtLiveWithBots({ mode: 'custom' }, players));
+    await renderScreen();
+
+    await fireEvent.press(await screen.findByLabelText('Match menu'));
+    await fireEvent.press(screen.getByText('Leave game'));
+    expect(alert).toHaveBeenCalledWith(
+      'Leave this game?',
+      'A bot finishes this hand for you, then your seat opens for someone new.',
+      expect.any(Array)
+    );
+    const buttons = alert.mock.calls[0][2] as AlertButton[];
+    await act(async () => buttons[1].onPress?.());
+    await waitFor(() => expect(mockApi.leaveMatch).toHaveBeenCalledWith('match-1'));
+    alert.mockRestore();
+  });
+
+  it('says the game ends when nobody else is seated', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const alone = PLAYERS.map((p, i) => (i === 0 ? p : { ...p, playerId: `bot-${i}` }));
+    socket(dealtLiveWithBots({ mode: 'custom' }, alone));
+    await renderScreen();
+
+    await fireEvent.press(await screen.findByLabelText('Match menu'));
+    await fireEvent.press(screen.getByText('Leave game'));
+    expect(alert).toHaveBeenCalledWith('Leave this game?', 'Nobody else is at the table, so it ends.', expect.any(Array));
+    alert.mockRestore();
+  });
+
+  it('shows an open parked seat as empty, with Share link and Invite players, at the break', async () => {
+    socket(parkedBreak());
+    await renderScreen();
+
+    expect(await screen.findByText('3 of 4 seated')).toBeTruthy();
+    expect(screen.queryByText('bot-1')).toBeNull();
+    expect(screen.getByText('Share link')).toBeTruthy();
+    expect(screen.getByText('Invite players')).toBeTruthy();
+    expect(screen.queryByText(/Leave table|Cancel match/)).toBeNull();
+  });
+
+  it('keeps the trick in the middle while a decided hand is played out, not the waiting panel', async () => {
+    const playing = parkedBreak();
+    playing.currentGame = {
+      ...playing.currentGame,
+      currentTrick: { playerId: 'p1', team: Teams.TeamA, suit: Suit.Sixes, dominoes: [createDomino(6, 5), null, null, null] },
+    };
+    socket(playing);
+    await renderScreen();
+
+    expect(await screen.findByLabelText('Table')).toBeTruthy();
+    expect(screen.queryByText('3 of 4 seated')).toBeNull();
+    expect(screen.queryByText('Invite players')).toBeNull();
+  });
+
+  it('keeps the parked bot as a seat while it is still finishing the hand', async () => {
+    const midHand = parkedBreak();
+    midHand.currentGame = { ...midHand.currentGame, bid: null, trump: null, biddingPlayerId: null, tricks: [] };
+    socket(midHand);
+    await renderScreen();
+
+    await screen.findByLabelText('1-2');
+    expect(screen.queryByText('3 of 4 seated')).toBeNull();
+    expect(screen.queryByText('Share link')).toBeNull();
+  });
+
+  it('shows Fill with bots there when bots are on', async () => {
+    mockApi.getConfig.mockResolvedValue({ bots: true });
+    socket(parkedBreak());
+    await renderScreen();
+
+    await fireEvent.press(await screen.findByText('Fill with bots'));
+    await waitFor(() => expect(mockApi.addBots).toHaveBeenCalled());
+  });
+
+  it('tells the seated players the next hand waits for the seat to be filled', async () => {
+    socket(parkedBreak());
+    await renderScreen();
+
+    expect(await screen.findByText('Waiting for a player to take the open seat')).toBeTruthy();
+  });
+
+  it('offers a stranger the open parked seat', async () => {
+    mockMe.id = 'n1';
+    socket(parkedBreak());
+    await renderScreen();
+
+    expect(await screen.findByText('Pick a seat to join')).toBeTruthy();
+    expect(screen.queryByText('This match is full')).toBeNull();
   });
 });

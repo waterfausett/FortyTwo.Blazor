@@ -2,8 +2,8 @@
 // who led a given trick, and which seat played each slot of a trick. None of this is stored on
 // MatchState - it's all derived from the same rules the engine uses (matchEngine.ts/match.ts), so
 // the client can show dealer/leader markers and seat-anchored trick tiles without a wire change.
-import type { Game, MatchPlayerState, Trick } from '@fortytwo/rules';
-import { Bid, nextPosition, selectNextPlayer } from '@fortytwo/rules';
+import type { Game, MatchPlayerState, MatchState, Trick } from '@fortytwo/rules';
+import { Bid, nextPosition, openPositions, selectNextPlayer } from '@fortytwo/rules';
 
 // Where a player sits on screen, relative to the viewer. Play runs clockwise, so the next player
 // after me sits to my left, my partner sits across, and the player before me sits to my right.
@@ -18,13 +18,13 @@ export function seatFor(players: MatchPlayerState[], myPlayerId: string, playerI
   return SEATS_CLOCKWISE[(them.position - me.position + 4) % 4];
 }
 
-// The positions nobody has taken yet, with where each would sit on screen relative to me.
-export function openSeats(players: MatchPlayerState[], myPlayerId: string): { position: number; seat: Seat }[] {
-  const me = players.find((p) => p.playerId === myPlayerId);
+// The positions open to a person, with where each would sit on screen relative to me: empty ones,
+// and a parked bot's once its hand is decided (the server keeps that bot in `players`, so this can't
+// be read from `players` alone).
+export function openSeats(match: MatchState, myPlayerId: string): { position: number; seat: Seat }[] {
+  const me = match.players.find((p) => p.playerId === myPlayerId);
   if (!me) return [];
-  return [0, 1, 2, 3]
-    .filter((position) => players.every((p) => p.position !== position))
-    .map((position) => ({ position, seat: SEATS_CLOCKWISE[(position - me.position + 4) % 4] }));
+  return openPositions(match).map((position) => ({ position, seat: SEATS_CLOCKWISE[(position - me.position + 4) % 4] }));
 }
 
 // The dealer sits immediately before whoever acts first (the player to the dealer's left opens

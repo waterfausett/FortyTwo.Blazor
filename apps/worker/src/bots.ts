@@ -9,6 +9,7 @@ import {
   Game,
   Hand,
   isBotControlled,
+  isParked,
   isOnAutopilot,
   markAutoBid,
   isOfSuit,
@@ -73,12 +74,14 @@ export type BotAction =
 // this again - see matchDO.ts's alarm-per-action pacing.
 //
 // Once a hand is decided, bots ready up straight away, then keep playing their turns so a human
-// who wants to play the hand out can - until the last domino is down or everyone's ready.
+// who wants to play the hand out can - until the last domino is down or everyone's ready. A parked
+// bot (a leaver's seat in a Custom match) never readies: it waits unready for a person to take the
+// seat, or for Fill with bots to give it the seat for good.
 export function findNextBotAction(match: MatchState): BotAction | null {
   if (match.winningTeam !== null) return null;
 
   if (gameWinningTeam(match.currentGame) !== null) {
-    const waitingBot = match.players.find((p) => isBotControlled(match, p.playerId) && !p.ready);
+    const waitingBot = match.players.find((p) => isBotControlled(match, p.playerId) && !p.ready && !isParked(match, p.playerId));
     if (waitingBot) return { kind: 'ready', playerId: waitingBot.playerId };
 
     const currentPlayerId = match.currentGame.currentPlayerId;

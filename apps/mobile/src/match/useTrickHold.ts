@@ -55,6 +55,8 @@ export function useTrickHold(game: Game | null, holdMs = TRICK_HOLD_MS, sweepMs 
 
   useEffect(() => clearTimers, []);
 
+  // A new hand's first render, before the effect above catches up: nothing of the last hand's to hold.
+  // eslint-disable-next-line react/refs
   if (!game || game.id !== gameIdRef.current) return { heldTrick: null, sweeping: false };
   const heldTrick = game.tricks.length > revealedCount ? game.tricks[game.tricks.length - 1] : null;
   return { heldTrick, sweeping: heldTrick != null && sweeping };
