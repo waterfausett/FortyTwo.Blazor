@@ -107,6 +107,29 @@ export function tablesOf(entries: Map<string, Entry>, mode: QueueMode, playerId:
   );
 }
 
+// A Live solo fills one team before the other, so a partner who joins next sits across from them
+// and the team that's left is whole; Daily seats in order.
 export function freeSeat(entry: Entry): number | undefined {
-  return [0, 1, 2, 3].find((position) => entry.seats.every((s) => s.position !== position));
+  const order = entry.mode === 'live' ? [0, 2, 1, 3] : [0, 1, 2, 3];
+  return order.find((position) => entry.seats.every((s) => s.position !== position));
+}
+
+const TEAMS: [number, number][] = [
+  [0, 2],
+  [1, 3],
+];
+
+// A team with both seats empty at a table not yet dealt, the first that fits.
+export function freeTeam(entry: Entry): [number, number] | undefined {
+  if (entry.dealt) return undefined;
+  return TEAMS.find((team) => team.every((position) => entry.seats.every((s) => s.position !== position)));
+}
+
+// A team of two bots at a Live game that takes claims, with bot seats enough besides the claims
+// already waiting. Only a pre-filter: the table has the last word (claimTeam).
+export function botTeam(entry: Entry): [number, number] | undefined {
+  if (!entry.dealt || !entry.takesClaims) return undefined;
+  const bots = entry.seats.filter((s) => isBot(s.playerId));
+  if (bots.length - entry.claims.length < 2) return undefined;
+  return TEAMS.find((team) => team.every((position) => bots.some((s) => s.position === position)));
 }

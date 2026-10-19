@@ -129,6 +129,39 @@ describe('MatchSummary', () => {
     expect(screen.queryByRole('button', { name: /rematch/i })).toBeNull();
   });
 
+  it('lays a Live match out as Lobby | Rematch, then Find a game | Party up', () => {
+    const live = {
+      choices: {
+        live: true,
+        expired: false,
+        partnerId: 'p3',
+        party: { kind: 'offer' as const, partnerOffered: false },
+        rematchDisabled: false,
+        iAmBusy: false,
+        showFindGame: true,
+        showRematch: true,
+      },
+      partnerName: 'Cal',
+      busy: false,
+      pending: false,
+      onPartyUp: vi.fn(),
+      onCancelParty: vi.fn(),
+      onFindGame: vi.fn(),
+    };
+    renderSummary({ live });
+
+    const dialog = screen.getByRole('dialog');
+    const rows = Array.from(dialog.querySelectorAll('.match-over-actions-row')).map((r) =>
+      Array.from(r.children).map((c) => c.textContent)
+    );
+    expect(rows).toEqual([
+      ['Back to lobby', 'Rematch'],
+      ['Find a game', 'Party up with Cal'],
+    ]);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Party up with Cal' }));
+    expect(live.onPartyUp).toHaveBeenCalled();
+  });
+
   it('closes', () => {
     const { onClose } = renderSummary();
     fireEvent.click(screen.getByRole('button', { name: /close/i }));

@@ -158,8 +158,9 @@ export const TABLE_PAUSED = 'This game is waiting on its last player';
 
 // Asks for the next bot seat that comes up at a hand break. Only in a Live Play game under
 // way that isn't nearly over or paused, and never more claims than bot seats, so every claim is seated at
-// the next break.
-export function claimSeat(match: MatchState, playerId: string): MatchState {
+// the next break. Given a position, the claim is pinned to that bot's seat (a pair taking over
+// one team) and only that seat will do; without one it takes whichever bot seat comes first.
+export function claimSeat(match: MatchState, playerId: string, position?: number): MatchState {
   if (matchMode(match) !== 'live') throw new ValidationError('Only Live Play games take newcomers');
   if (!hasBeenDealt(match) || match.winningTeam !== null) throw new ValidationError('This game has no seat to take');
   if (Object.values(matchScores(match)).some((marks) => (marks ?? 0) >= TAKEOVER_MAX_MARKS)) {
@@ -178,12 +179,30 @@ export function claimSeat(match: MatchState, playerId: string): MatchState {
   if (claims.length >= match.players.filter((p) => isBot(p.playerId)).length) {
     throw new ValidationError('No seat free at this table');
   }
-  return { ...match, claims: [...claims, playerId] };
+  if (position === undefined) return { ...match, claims: [...claims, playerId] };
+  const seat = match.players.find((p) => p.position === position);
+  if (seat === undefined || !isBot(seat.playerId)) throw new ValidationError('That seat is not free');
+  if (Object.values(match.claimPositions ?? {}).includes(position)) throw new ValidationError('That seat is already claimed');
+  return { ...match, claims: [...claims, playerId], claimPositions: { ...match.claimPositions, [playerId]: position } };
+}
+
+// A pair claiming one team's bot seats together. Both claims go through or neither does: the
+// second claim is made on the result of the first, and a throw leaves the match as it was.
+export function claimTeam(match: MatchState, a: string, b: string, positions: [number, number]): MatchState {
+  return claimSeat(claimSeat(match, a, positions[0]), b, positions[1]);
+}
+
+// The pins left once these players are no longer waiting (let go, or seated).
+function withoutPins(pins: Record<string, number> | undefined, playerIds: string[]): Record<string, number> | undefined {
+  if (pins === undefined) return undefined;
+  return Object.fromEntries(Object.entries(pins).filter(([id]) => !playerIds.includes(id)));
 }
 
 export function releaseClaim(match: MatchState, playerId: string): MatchState {
   if (!(match.claims ?? []).includes(playerId)) return match;
-  return { ...match, claims: match.claims!.filter((id) => id !== playerId) };
+  const next = { ...match, claims: match.claims!.filter((id) => id !== playerId) };
+  const claimPositions = withoutPins(match.claimPositions, [playerId]);
+  return claimPositions === undefined ? next : { ...next, claimPositions };
 }
 
 // On autopilot since before this hand was dealt. A hand with no deal time (stored before it was
@@ -195,7 +214,8 @@ export function isAwayAllHand(match: MatchState, playerId: string): boolean {
 }
 
 // Who sits where for the next hand of a Live Play game: players away for the whole hand
-// give their seats to bots, then claims take bot seats, lowest position first. Run as the hand
+// give their seats to bots, then claims take bot seats: pinned claims their own seat, the rest
+// the remaining ones lowest position first. Run as the hand
 // break deals (patchPlayerReady). Anything else passes through untouched.
 export function seatChangesAtBreak(match: MatchState): MatchState {
   if (matchMode(match) !== 'live') return match;
@@ -204,19 +224,38 @@ export function seatChangesAtBreak(match: MatchState): MatchState {
     if (isAwayAllHand(next, p.playerId)) next = replaceWithBot(next, p.playerId);
   }
   const claims = [...(next.claims ?? [])];
-  // Bot seats in position order, each handed the next claim in the order they were made.
+  const botSeats = new Set(next.players.filter((p) => isBot(p.playerId)).map((p) => p.position));
   const taker = new Map<number, string>();
-  for (const seat of next.players.filter((p) => isBot(p.playerId)).sort((a, b) => a.position - b.position)) {
-    const claimant = claims.shift();
+  // A pinned claim goes first, so a pair keeps its team however many solo claims came earlier.
+  // A pin whose seat is no longer a bot's falls through to the unpinned claims below.
+  for (const claimant of claims) {
+    const pin = next.claimPositions?.[claimant];
+    if (pin === undefined || !botSeats.has(pin) || taker.has(pin)) continue;
+    taker.set(pin, claimant);
+  }
+  // The rest take what's left: bot seats in position order, each handed the next claim in the
+  // order they were made.
+  const waiting = claims.filter((id) => ![...taker.values()].includes(id));
+  for (const position of [...botSeats].sort((a, b) => a - b)) {
+    if (taker.has(position)) continue;
+    const claimant = waiting.shift();
     if (claimant === undefined) break;
-    taker.set(seat.position, claimant);
+    taker.set(position, claimant);
   }
   const players = next.players.map((p) => (taker.has(p.position) ? { ...p, playerId: taker.get(p.position)! } : p));
-  return { ...next, players, claims };
+  const seated = [...taker.values()];
+  const claimPositions = withoutPins(next.claimPositions, seated);
+  return {
+    ...next,
+    players,
+    claims: claims.filter((id) => !seated.includes(id)),
+    ...(claimPositions === undefined ? {} : { claimPositions }),
+  };
 }
 
 // The match ended with claims still waiting: those players are let go, and their app searches again.
 export function letClaimsGo(match: MatchState): MatchState {
   if ((match.claims ?? []).length === 0) return match;
-  return { ...match, claims: [], bumped: [...(match.bumped ?? []), ...match.claims!] };
+  const next = { ...match, claims: [], bumped: [...(match.bumped ?? []), ...match.claims!] };
+  return match.claimPositions === undefined ? next : { ...next, claimPositions: {} };
 }

@@ -656,6 +656,16 @@ describe('playDomino', () => {
       expect(match.winningTeam).toBe(Teams.TeamA);
     });
 
+    it('notes when the match was won, and keeps that time while the hand is played out', () => {
+      const unwon = withEarlierWins(9, 1);
+      expect(playDomino(unwon, 'p1', createDomino(6, 6)).wonOn).toBeUndefined();
+
+      const won = playDomino(withEarlierWins(3, 2), 'p1', createDomino(6, 6));
+      expect(won.wonOn).toBe(won.updatedOn);
+      const later = playDomino({ ...won, wonOn: '2026-01-01T00:00:00.000Z' }, 'p2', won.currentGame.hands[1].dominoes[0]);
+      expect(later.wonOn).toBe('2026-01-01T00:00:00.000Z');
+    });
+
     it('does not end the match at 7 when marksToWin is higher', () => {
       const match = playDomino(withEarlierWins(9, 6), 'p1', createDomino(6, 6));
       expect(matchScores(match)[Teams.TeamA]).toBe(7);
@@ -761,6 +771,28 @@ describe('rematch', () => {
 
     it('rejects a vote from someone not seated', () => {
       expect(() => voteRematch(finishedMatch(), 'stranger')).toThrow(ValidationError);
+    });
+  });
+
+  describe('voteRematch with party state', () => {
+    it('throws in Live once someone has moved on', () => {
+      const match = finishedMatch({ mode: 'live', movedOn: { p2: 'left' } });
+      expect(() => voteRematch(match, 'p1')).toThrow(ValidationError);
+    });
+
+    it('throws in Live once a party match exists', () => {
+      const match = finishedMatch({ mode: 'live', partyMatchIds: { [Teams.TeamA]: 'x' } });
+      expect(() => voteRematch(match, 'p2')).toThrow(ValidationError);
+    });
+
+    it("removes the voter's party offer in Live", () => {
+      const match = finishedMatch({ mode: 'live', partyOffers: ['p1', 'p3'] });
+      expect(voteRematch(match, 'p1').partyOffers).toEqual(['p3']);
+    });
+
+    it('still accepts votes in a daily match with someone moved on', () => {
+      const match = finishedMatch({ mode: 'daily', movedOn: { p2: 'left' } });
+      expect(voteRematch(match, 'p1').rematchVotes).toEqual(['p1']);
     });
   });
 

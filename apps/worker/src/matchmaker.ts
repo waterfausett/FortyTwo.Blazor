@@ -19,9 +19,24 @@ import { shuffledDominoOrder, type MatchState } from '@fortytwo/rules';
 import type { PresenceMessage } from '@fortytwo/api-types';
 import { verifyToken } from './auth/verifyJwt';
 import type { Env } from './index';
-import { applyListing, canSeat, freeSeat, searchOrder, tablesOf, type Entry, type Listing, type QueueMode } from './seatIndex';
+import {
+  applyListing,
+  botTeam,
+  canSeat,
+  freeSeat,
+  freeTeam,
+  searchOrder,
+  tablesOf,
+  type Entry,
+  type Listing,
+  type QueueMode,
+} from './seatIndex';
 
 export type { QueueMode } from './seatIndex';
+
+// Where a pair who searched together ended up: seated at one table, or not searched for because
+// one or both of them is already in a Live game (`playerIds` names which).
+export type PairResult = { kind: 'seated'; match: MatchState } | { kind: 'busy'; playerIds: string[] };
 
 // Whether the online count is switched on (index.ts's PRESENCE_ENABLED). Off by default.
 export function presenceEnabled(env: { PRESENCE_ENABLED?: string }): boolean {
@@ -83,6 +98,23 @@ export class Matchmaker extends DurableObject<Env> {
     return this.inTurn(() => this.seat(playerId, mode));
   }
 
+  // Two partners from a finished Live game, searching together: seated as a team at one table, or
+  // neither seated. Live only.
+  playPair(a: string, b: string): Promise<PairResult> {
+    return this.inTurn(() => this.seatPair(a, b));
+  }
+
+  // Which of these players sit or claim a seat at a Live table not yet won, as that table confirms
+  // - other than `except`, a rematch a retry may already have made with them seated.
+  liveBusy(playerIds: string[], except?: string): Promise<string[]> {
+    return this.inTurn(async () => {
+      const tables = await this.index();
+      const busy: string[] = [];
+      for (const playerId of playerIds) if ((await this.heldTable(tables, playerId, except)) !== null) busy.push(playerId);
+      return busy;
+    });
+  }
+
   // A table's new listing, from its MatchDO, for a change the Matchmaker didn't make (null: the
   // table was deleted). Runs in the same queue as play, so it can't be lost under a play's write.
   report(matchId: string, mode: QueueMode, listing: Listing | null): Promise<void> {
@@ -135,18 +167,8 @@ export class Matchmaker extends DurableObject<Env> {
     // A Live player has one table: one they wait at, play in, or claim a seat at takes them back.
     // Async players may wait at several.
     if (mode === 'live') {
-      for (const at of tablesOf(tables, mode, playerId)) {
-        // The index may be behind (a report that they left was lost): the table has the last word.
-        const looked = await this.matchStub(at.id).getListing().catch(() => null);
-        if (looked === null) continue;
-        await this.apply(tables, at.id, mode, looked.listing);
-        const { result } = looked;
-        const holds =
-          result.ok &&
-          result.value.winningTeam === null &&
-          ((result.value.claims ?? []).includes(playerId) || result.value.players.some((p) => p.playerId === playerId));
-        if (result.ok && holds) return result.value;
-      }
+      const held = await this.heldTable(tables, playerId);
+      if (held !== null) return held;
     }
 
     // A table still filling, oldest first.
@@ -187,6 +209,71 @@ export class Matchmaker extends DurableObject<Env> {
     await this.apply(tables, id, mode, created.listing);
     if (!created.result.ok) throw new Error(`Table ${id} was not created: ${created.result.error.title}`);
     return created.result.value;
+  }
+
+  // The Live table this player sits or claims a seat at, not yet won, other than `except`. The index
+  // may be behind (a report that they left was lost): the table has the last word.
+  private async heldTable(tables: Map<string, Entry>, playerId: string, except?: string): Promise<MatchState | null> {
+    for (const at of tablesOf(tables, 'live', playerId)) {
+      if (at.id === except) continue;
+      const looked = await this.matchStub(at.id).getListing().catch(() => null);
+      if (looked === null) continue;
+      await this.apply(tables, at.id, 'live', looked.listing);
+      const { result } = looked;
+      if (!result.ok || result.value.winningTeam !== null) continue;
+      const match = result.value;
+      if ((match.claims ?? []).includes(playerId) || match.players.some((p) => p.playerId === playerId)) return match;
+    }
+    return null;
+  }
+
+  private async seatPair(a: string, b: string): Promise<PairResult> {
+    const tables = await this.index();
+
+    // Neither may be in two Live games. Both already at one table is this same search retried.
+    const heldA = await this.heldTable(tables, a);
+    const heldB = await this.heldTable(tables, b);
+    if (heldA !== null && heldA.id === heldB?.id) return { kind: 'seated', match: heldA };
+    const busy = [heldA === null ? [] : [a], heldB === null ? [] : [b]].flat();
+    if (busy.length > 0) return { kind: 'busy', playerIds: busy };
+
+    // A table still filling with a whole team free, oldest first: they sit across from each other.
+    for (const entry of searchOrder(tables, 'live')) {
+      const team = freeTeam(entry);
+      if (team === undefined) continue;
+      const placed = await this.matchStub(entry.id).takeTeamListed(a, b, team, shuffledDominoOrder()).catch(() => null);
+      if (placed === null) continue;
+      await this.apply(tables, entry.id, 'live', placed.listing);
+      if (placed.result.ok) return { kind: 'seated', match: placed.result.value };
+    }
+
+    // Then a Live game under way where bots hold a whole team: the pair claims both seats.
+    for (const entry of searchOrder(tables, 'live')) {
+      const team = botTeam(entry);
+      if (team === undefined) continue;
+      const placed = await this.matchStub(entry.id).claimTeamListed(a, b, team).catch(() => null);
+      if (placed === null) continue;
+      await this.apply(tables, entry.id, 'live', placed.listing);
+      if (placed.result.ok) return { kind: 'seated', match: placed.result.value };
+    }
+
+    // A new table, indexed ahead with both seated, as seat() does.
+    const id = crypto.randomUUID();
+    await this.apply(tables, id, 'live', {
+      seq: 0,
+      seats: [
+        { playerId: a, position: 0 },
+        { playerId: b, position: 2 },
+      ],
+      claims: [],
+      dealt: false,
+      won: false,
+      takesClaims: false,
+    });
+    const created = await this.matchStub(id).createTeamListed(a, b, id);
+    await this.apply(tables, id, 'live', created.listing);
+    if (!created.result.ok) throw new Error(`Table ${id} was not created: ${created.result.error.title}`);
+    return { kind: 'seated', match: created.result.value };
   }
 
   private matchStub(id: string) {

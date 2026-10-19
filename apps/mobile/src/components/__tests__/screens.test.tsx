@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Bid, Suit, Teams, type Game, type MatchState } from '@fortytwo/rules';
+import { endChoices } from '@fortytwo/client';
 import { MatchSummary } from '../MatchSummary';
 import { profileErrors } from '../profileErrors';
 
@@ -94,5 +95,101 @@ describe('MatchSummary', () => {
     expect(props.onGoToRematch).toHaveBeenCalled();
     await fireEvent.press(screen.getByText('Back to lobby'));
     expect(props.onLobby).toHaveBeenCalled();
+  });
+});
+
+describe('MatchSummary at the end of a Live game', () => {
+  const players = (ids: string[]) => ids.map((playerId, position) => ({ playerId, position, ready: false }));
+  const finished = (mode: string, ids = ['p1', 'p2', 'p3', 'p4']) =>
+    ({
+      id: 'm1',
+      mode,
+      winningTeam: Teams.TeamA,
+      players: players(ids),
+      games: { [Teams.TeamA]: [], [Teams.TeamB]: [] },
+      rematchVotes: [],
+      wonOn: new Date().toISOString(),
+    }) as unknown as MatchState;
+  const names: Record<string, string> = { p1: 'You', p2: 'Bo', p3: 'Cy', p4: 'Di' };
+
+  // What the match screen passes: the Live choices only for a Live match.
+  async function show(match: MatchState) {
+    const choices = endChoices(match, 'p1', Date.now());
+    const metrics = { frame: { x: 0, y: 0, width: 390, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
+    await render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <MatchSummary
+          visible
+          match={match}
+          myTeam={Teams.TeamA}
+          nameFor={(id) => (id ? (names[id] ?? id) : '')}
+          iVoted={false}
+          rematchDisabled={false}
+          onRematch={jest.fn()}
+          onGoToRematch={jest.fn()}
+          onLobby={jest.fn()}
+          onClose={jest.fn()}
+          live={
+            choices.live
+              ? {
+                  choices,
+                  partnerName: choices.partnerId ? (names[choices.partnerId] ?? choices.partnerId) : '',
+                  busy: false,
+                  pending: false,
+                  onPartyUp: jest.fn(),
+                  onCancelParty: jest.fn(),
+                  onFindGame: jest.fn(),
+                }
+              : undefined
+          }
+        />
+      </SafeAreaProvider>
+    );
+  }
+
+  it('offers Party up with the partner, Find a game and Rematch after a won Live match', async () => {
+    await show(finished('live'));
+    expect(screen.getByText('Party up with Cy')).toBeTruthy();
+    expect(screen.getByText('Find a game')).toBeTruthy();
+    expect(screen.getByText('Rematch')).toBeTruthy();
+    expect(screen.getByText('Back to lobby')).toBeTruthy();
+  });
+
+  it('hides Party up when the partner is a bot', async () => {
+    await show(finished('live', ['p1', 'p2', 'm1_bot-1', 'p4']));
+    expect(screen.queryByText(/Party up with/)).toBeNull();
+    expect(screen.getByText('Find a game')).toBeTruthy();
+    expect(screen.getByText(/^Rematch/)).toBeTruthy();
+  });
+
+  // Find a game takes me back to the party's game while it's still going, so there's no link to it.
+  it('offers only Find a game once my team has partied up', async () => {
+    await show({ ...finished('live'), partyMatchIds: { [Teams.TeamA]: 'm2' } } as MatchState);
+    expect(screen.queryByText('Go to your new game')).toBeNull();
+    expect(screen.getByText('Find a game')).toBeTruthy();
+    expect(screen.queryByText(/^Rematch/)).toBeNull();
+    expect(screen.getByText('Back to lobby')).toBeTruthy();
+  });
+
+  it('offers only Find a game once the rematch is made', async () => {
+    await show({ ...finished('live'), rematchId: 'm3' } as MatchState);
+    expect(screen.queryByText(/Party up with/)).toBeNull();
+    expect(screen.queryByText('Go to rematch')).toBeNull();
+    expect(screen.getByText('Find a game')).toBeTruthy();
+  });
+
+  it('offers only the way back to the lobby for a Live game ended long ago', async () => {
+    await show({ ...finished('live'), wonOn: new Date(Date.now() - 60 * 60_000).toISOString() } as MatchState);
+    expect(screen.queryByText(/Party up with/)).toBeNull();
+    expect(screen.queryByText('Find a game')).toBeNull();
+    expect(screen.queryByText(/Rematch/)).toBeNull();
+    expect(screen.getByText('Back to lobby')).toBeTruthy();
+  });
+
+  it('leaves a won Daily match with only Rematch', async () => {
+    await show(finished('daily'));
+    expect(screen.queryByText(/Party up with/)).toBeNull();
+    expect(screen.queryByText('Find a game')).toBeNull();
+    expect(screen.getByText('Rematch')).toBeTruthy();
   });
 });

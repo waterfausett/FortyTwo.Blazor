@@ -5,6 +5,7 @@
 // document, localStorage) or React; each app passes in whatever differs by platform, such as the
 // API origin and what counts as a wake-up for the socket.
 export * from './api';
+export * from './endChoices';
 export * from './hints';
 export * from './houseRules';
 export * from './howToPlay';

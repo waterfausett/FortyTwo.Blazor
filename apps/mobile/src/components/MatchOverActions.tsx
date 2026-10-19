@@ -1,0 +1,118 @@
+// What a finished Live match offers next: Party up with the partner, Find a game, and Rematch (as on
+// the web, apps/web/src/components/MatchOverActions.tsx). The game screen stacks them; the summary
+// sheet lays them in two rows beside its Lobby button. Rematch and Lobby come in as nodes because
+// each screen already has its own (vote count); which of them show, and the state of the party
+// button, come from endChoices.
+import type { ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { EndChoices } from '@fortytwo/client';
+import { colors, fonts } from './theme';
+
+export interface MatchOverActionsProps {
+  choices: EndChoices;
+  partnerName: string;
+  layout: 'stack' | 'rows';
+  rematch: ReactNode;
+  lobby?: ReactNode;
+  // Offline: the choices can't be made, and look it.
+  busy: boolean;
+  // A choice is on its way: further presses are ignored until it lands, but nothing changes look,
+  // so the buttons don't flicker for the moment it takes.
+  pending: boolean;
+  onPartyUp: () => void;
+  onCancelParty: () => void;
+  onFindGame: () => void;
+  // The stack reports how tall Party up and Find a game are together, so the game screen can let
+  // them grow the panel upward without moving the hand.
+  onExtraHeight?: (height: number) => void;
+}
+
+export function MatchOverActions({
+  choices,
+  partnerName,
+  layout,
+  rematch,
+  lobby,
+  busy,
+  pending,
+  onPartyUp,
+  onCancelParty,
+  onFindGame,
+  onExtraHeight,
+}: MatchOverActionsProps) {
+  const party = partyControl();
+  const findGame = choices.showFindGame && (
+    <Pressable
+      style={[styles.button, styles.brass, busy && styles.disabled]}
+      disabled={busy || pending}
+      onPress={onFindGame}
+      accessibilityRole="button"
+    >
+      <Text style={styles.buttonText}>Find a game</Text>
+    </Pressable>
+  );
+
+  if (layout === 'rows') {
+    return (
+      <View style={styles.rows}>
+        <View style={styles.row}>
+          {lobby}
+          {choices.showRematch && rematch}
+        </View>
+        {(findGame || party) && (
+          <View style={styles.row}>
+            {findGame}
+            {party}
+          </View>
+        )}
+      </View>
+    );
+  }
+  return (
+    <View style={styles.stack}>
+      <View style={styles.stack} onLayout={(e) => onExtraHeight?.(e.nativeEvent.layout.height)}>
+        {party}
+        {choices.showRematch && findGame}
+      </View>
+      {/* Without Rematch (partied, or the rematch made), Find a game stands alone in its place. */}
+      {choices.showRematch ? rematch : findGame}
+    </View>
+  );
+
+  function partyControl(): ReactNode {
+    const button = (label: string, onPress: (() => void) | null) => (
+      <Pressable
+        style={[styles.button, styles.team, (onPress === null || busy) && styles.disabled]}
+        disabled={onPress === null || busy || pending}
+        onPress={onPress ?? undefined}
+        accessibilityRole="button"
+      >
+        <Text style={styles.buttonText}>{label}</Text>
+      </Pressable>
+    );
+    const { party } = choices;
+    switch (party.kind) {
+      case 'hidden':
+        return null;
+      case 'offer':
+        return button(party.partnerOffered ? `${partnerName} wants to party up ✓` : `Party up with ${partnerName}`, onPartyUp);
+      case 'waiting':
+        return button(`Waiting for ${partnerName}…`, onCancelParty);
+      case 'partnerLeft':
+        return button(`${partnerName} left`, null);
+      case 'partnerBusy':
+        return button(`${partnerName} is in another game`, null);
+    }
+  }
+}
+
+const styles = StyleSheet.create({
+  stack: { alignSelf: 'stretch', gap: 8 },
+  rows: { gap: 10 },
+  row: { flexDirection: 'row', gap: 10 },
+  button: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 12, borderRadius: 8 },
+  brass: { backgroundColor: colors.brass },
+  team: { backgroundColor: colors.us },
+  buttonText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 16, textAlign: 'center' },
+  disabled: { opacity: 0.5 },
+});

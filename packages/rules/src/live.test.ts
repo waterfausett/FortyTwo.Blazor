@@ -13,6 +13,7 @@ import {
   markAutoBid,
   TAKEOVER_MAX_MARKS,
   claimSeat,
+  claimTeam,
   releaseClaim,
   letClaimsGo,
   isBotControlled,
@@ -289,6 +290,62 @@ describe('claimSeat', () => {
   it('lets a claim go', () => {
     expect(releaseClaim(claimSeat(withBots(), 'n1'), 'n1').claims).toEqual([]);
   });
+
+  it('drops the pin of a claim that lets go', () => {
+    const match = claimTeam(withBots(), 'x', 'y', [1, 3]);
+    expect(releaseClaim(match, 'x').claimPositions).toEqual({ y: 3 });
+  });
+});
+
+// p4 at seat 3 against bots at 0, 1 and 2, dealt.
+function withThreeBots(): MatchState {
+  let match = createMatch('bot-1', 'live');
+  match = takeSeat(match, 'bot-2', 1);
+  match = takeSeat(match, 'bot-3', 2);
+  return takeSeat(match, 'p4', 3, deck());
+}
+
+describe('claimTeam', () => {
+  it('claims both seats, each pinned', () => {
+    const next = claimTeam(withBots(), 'x', 'y', [1, 3]);
+    expect(next.claims).toEqual(['x', 'y']);
+    expect(next.claimPositions).toEqual({ x: 1, y: 3 });
+  });
+
+  it('throws and applies nothing when a seat is a person', () => {
+    const match = withBots();
+    expect(() => claimTeam(match, 'x', 'y', [1, 2])).toThrow(ValidationError);
+    expect(match.claims).toBeUndefined();
+  });
+
+  it('throws when a seat is already pinned by another claim', () => {
+    const match = claimSeat(withBots(), 's', 1);
+    expect(() => claimTeam(match, 'x', 'y', [1, 3])).toThrow(ValidationError);
+    expect(match.claims).toEqual(['s']);
+    expect(match.claimPositions).toEqual({ s: 1 });
+  });
+
+  it('throws when both claims ask for the same seat', () => {
+    expect(() => claimTeam(withBots(), 'x', 'y', [1, 1])).toThrow(ValidationError);
+  });
+
+  it('seats the pair on their pinned seats and a solo claim on the one left', () => {
+    const match = claimTeam(claimSeat(withThreeBots(), 's'), 'x', 'y', [0, 2]);
+    const next = patchPlayerReady(atBreak(match, 'p4'), 'p4', true, deck());
+    const at = (position: number) => next.players.find((p) => p.position === position)!.playerId;
+    expect([at(0), at(1), at(2)]).toEqual(['x', 's', 'y']);
+    expect(next.claims).toEqual([]);
+    expect(next.claimPositions).toEqual({});
+  });
+
+  it('seats a claim whose pinned seat is gone on a free bot seat', () => {
+    // The bot at seat 1 is replaced by a person (p2 stands in for a claimant who was seated another way).
+    let match = claimSeat(withBots(), 'n1', 1);
+    match = { ...match, players: match.players.map((p) => (p.position === 1 ? { ...p, playerId: 'p2' } : p)) };
+    const next = patchPlayerReady(atBreak(match, 'p1'), 'p1', true, deck());
+    expect(next.players.find((p) => p.position === 3)!.playerId).toBe('n1');
+    expect(next.claimPositions).toEqual({});
+  });
 });
 
 describe('the hand break', () => {
@@ -358,6 +415,7 @@ describe('the hand break', () => {
     const next = letClaimsGo(claimSeat(withBots(), 'n1'));
     expect(next.claims).toEqual([]);
     expect(next.bumped).toEqual(['n1']);
+    expect(letClaimsGo(claimTeam(withBots(), 'x', 'y', [1, 3])).claimPositions).toEqual({});
     const quiet = withBots();
     expect(letClaimsGo(quiet)).toBe(quiet);
   });

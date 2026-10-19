@@ -205,6 +205,112 @@ describe('MatchDO rematch', () => {
     await settleBots('rematch-retry-bots');
   });
 
+  // Nobody may be in two Live games: the 'global' Matchmaker, shared by every test, is asked.
+  it('makes no Live rematch while a player is at another Live table, and moves them on', async () => {
+    const players = ['busy-p1', 'busy-p2', 'busy-p3', 'busy-p4'];
+    const stub = await seed('rematch-live-busy', { ...finishedMatch('rematch-live-busy', players), mode: 'live' });
+    const matchmaker = testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('global'));
+    await matchmaker.play('busy-p4', 'live');
+
+    for (const id of ['busy-p1', 'busy-p2', 'busy-p3']) await stub.rematch(id);
+    const last = valueOf(await stub.rematch('busy-p4'));
+
+    expect(last.rematchId).toBeUndefined();
+    expect(last.movedOn).toEqual({ 'busy-p4': 'busy' });
+    expect(valueOf(await stub.getMatch()).movedOn).toEqual({ 'busy-p4': 'busy' });
+  });
+
+  // The completing vote waits on the Matchmaker's check; someone moving on meanwhile is kept, and
+  // there's no four left for a rematch.
+  it('makes no Live rematch when someone moves on while the vote is being checked', async () => {
+    const players = ['race-p1', 'race-p2', 'race-p3', 'race-p4'];
+    const stub = await seed('rematch-live-race', { ...finishedMatch('rematch-live-race', players), mode: 'live' });
+    for (const id of players.slice(0, 3)) await stub.rematch(id);
+
+    await Promise.all([stub.rematch('race-p4'), stub.moveOn('race-p2')]);
+
+    const stored = valueOf(await stub.getMatch());
+    expect(stored.movedOn).toEqual({ 'race-p2': 'left' });
+    expect(stored.rematchId).toBeUndefined();
+  });
+
+  // A retry after the first attempt made the rematch but didn't save its id: the four now sit at
+  // that rematch, which mustn't count as another Live game.
+  it('finishes a Live rematch on a retry, though its players already sit at it', async () => {
+    const players = ['retry-p1', 'retry-p2', 'retry-p3', 'retry-p4'];
+    const finished: MatchState = { ...finishedMatch('rematch-live-retry', players), mode: 'live' };
+    const stub = await seed('rematch-live-retry', finished);
+    await runInDurableObject(stub, async (_instance, state) => {
+      await state.storage.put('pendingRematchId', 'rematch-live-retry-next');
+    });
+    await stubFor('rematch-live-retry-next').createRematch('rematch-live-retry-next', finished, shuffledDominoOrder());
+    const matchmaker = testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('global'));
+    const { listing } = await stubFor('rematch-live-retry-next').getListing();
+    await matchmaker.report('rematch-live-retry-next', 'live', listing);
+    // Without the exception, every one of them is in a Live game.
+    expect(await matchmaker.liveBusy(players)).toEqual(players);
+
+    for (const id of players.slice(0, 3)) await stub.rematch(id);
+    const last = valueOf(await stub.rematch('retry-p4'));
+
+    expect(last.rematchId).toBe('rematch-live-retry-next');
+    expect(last.movedOn).toBeUndefined();
+  });
+
+  // Two completing votes at once (a double tap, a second device, a retry) both wait on the
+  // Matchmaker's check. The second must reuse the rematch the first made, and not count it as
+  // another Live game.
+  it('makes one Live rematch when the completing vote arrives twice at once', async () => {
+    const players = ['double-p1', 'double-p2', 'double-p3', 'double-p4'];
+    const stub = await seed('rematch-live-double', { ...finishedMatch('rematch-live-double', players), mode: 'live' });
+    for (const id of players.slice(0, 3)) await stub.rematch(id);
+
+    const results = (await Promise.all([stub.rematch('double-p4'), stub.rematch('double-p4')])).map(valueOf);
+
+    const stored = valueOf(await stub.getMatch());
+    expect(stored.rematchId).toBeTruthy();
+    expect(results.map((r) => r.rematchId)).toEqual([stored.rematchId, stored.rematchId]);
+    expect(stored.movedOn).toBeUndefined();
+    const seatedAt = await testEnv.DB.prepare('SELECT DISTINCT match_id FROM match_players WHERE player_id = ? AND match_id != ?')
+      .bind('double-p1', 'rematch-live-double')
+      .all<{ match_id: string }>();
+    expect(seatedAt.results.map((r) => r.match_id)).toEqual([stored.rematchId]);
+  });
+
+  // The other completing vote's rematch is made, and listed with all four, while this vote's check
+  // is in flight: the check must be asked again without it, not move all four on.
+  it('does not count a rematch made during the check as another Live game', async () => {
+    const players = ['during-p1', 'during-p2', 'during-p3', 'during-p4'];
+    const finished: MatchState = { ...finishedMatch('rematch-live-during', players), mode: 'live' };
+    const stub = await seed('rematch-live-during', finished);
+    for (const id of players.slice(0, 3)) await stub.rematch(id);
+    const otherId = 'rematch-live-during-next';
+
+    const last = await runInDurableObject(stub, async (instance: MatchDO, state) => {
+      // Stubs made inside the DO, which can only do I/O through its own.
+      const own = (instance as unknown as { env: Env }).env;
+      const matchmaker = own.MATCHMAKER.get(own.MATCHMAKER.idFromName('global'));
+      const other = own.MATCH_DO.get(own.MATCH_DO.idFromName(otherId));
+      let first = true;
+      (instance as unknown as { matchmaker: () => unknown }).matchmaker = () => ({
+        liveBusy: async (ids: string[], except?: string) => {
+          if (first) {
+            first = false;
+            // What the other vote does meanwhile: mint the id, make the rematch, list it.
+            await state.storage.put('pendingRematchId', otherId);
+            await other.createRematch(otherId, finished, shuffledDominoOrder());
+            await matchmaker.report(otherId, 'live', (await other.getListing()).listing);
+          }
+          return matchmaker.liveBusy(ids, except);
+        },
+      });
+      return valueOf(await instance.rematch('during-p4'));
+    });
+
+    expect(last.rematchId).toBe(otherId);
+    expect(last.movedOn).toBeUndefined();
+  });
+
   it('still creates the rematch when the lobby index is down, and lists it when retried', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     const previous = finishedMatch('rematch-no-db-previous', ['nodb-p1', 'nodb-p2', 'nodb-p3', 'nodb-p4']);

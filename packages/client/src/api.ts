@@ -157,6 +157,17 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
     rematch: (id: string): Promise<MatchState> =>
       request<MatchState>(`/api/matches/${id}/rematch`, { method: 'POST' }),
 
+    // At the end of a Live game: offer to search together with your partner, take the offer back,
+    // or go and find a game of your own.
+    partyUp: (id: string): Promise<MatchState> =>
+      request<MatchState>(`/api/matches/${id}/party`, { method: 'POST' }),
+
+    cancelParty: (id: string): Promise<MatchState> =>
+      request<MatchState>(`/api/matches/${id}/party`, { method: 'DELETE' }),
+
+    moveOn: (id: string): Promise<MatchState> =>
+      request<MatchState>(`/api/matches/${id}/move-on`, { method: 'POST' }),
+
     setTrump: (id: string, suit: number): Promise<MatchState> =>
       request<MatchState>(`/api/matches/${id}/games/current`, {
         method: 'PATCH',

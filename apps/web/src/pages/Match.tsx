@@ -17,7 +17,7 @@
 // Once the player whose turn it is has sat on it for 30 minutes, anyone else at the table gets a
 // Poke button (match/usePoke.ts); a player poked while they have this page open gets a toast, and
 // TurnAlerts calls them back as for a new turn.
-import type { JSX } from 'react';
+import type { JSX, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
@@ -40,9 +40,10 @@ import {
   isOnAutopilot,
   isPresent,
   matchMode,
+  teamForPosition,
   LIVE_FILL_MS,
 } from '@fortytwo/rules';
-import { formatClock, lobbyCards, suggestedBid, suggestedDominoIds, suggestedTrump, lobbyRoster, nextHandClock, searchState, shuffledTips, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
+import { endChoices, formatClock, lobbyCards, suggestedBid, suggestedDominoIds, suggestedTrump, lobbyRoster, nextHandClock, searchState, shuffledTips, seatChanges, serverNow, turnClock, viewerRole, watchAnchor } from '@fortytwo/client';
 import { useOnline } from '../api/presence';
 import { useStats } from '../api/useStats';
 import { SearchLobby } from '../components/SearchLobby';
@@ -57,6 +58,7 @@ import { useHint } from '../match/useHint';
 import { HouseRulesDialog } from '../components/HouseRulesDialog';
 import { HowToPlayDialog } from '../components/HowToPlayDialog';
 import { InviteDialog } from '../people/InviteDialog';
+import { MatchOverActions } from '../components/MatchOverActions';
 import { MatchSummary } from '../components/MatchSummary';
 import { NameSkeleton } from '../components/NameSkeleton';
 import { Hand } from '../components/Hand';
@@ -165,6 +167,13 @@ export function Match(): JSX.Element {
   // (re)connecting).
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
+  // The cached match follows the socket, so coming back to this page later starts from the match as
+  // last seen here, not as first fetched: a finished Live game would flash its search lobby.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (socketMatch) queryClient.setQueryData(['match', matchId], socketMatch);
+  }, [queryClient, matchId, socketMatch]);
+
   // How this player stands at the table. In a Live Play game under way, a newcomer waits
   // for a bot's seat (claiming) and watches meanwhile; one whose wait came to nothing is bumped
   // and looks again; one away a whole hand was replaced by a bot.
@@ -205,7 +214,6 @@ export function Match(): JSX.Element {
   });
   // Taking a seat from this page - opened from an invite link, say. The match's broadcast then
   // seats the player here; the lobby's lists change too.
-  const queryClient = useQueryClient();
   const joinMutation = useMutation({
     mutationFn: (position: number) => client.joinMatch(matchId!, position),
     onSuccess: (joined) => {
@@ -220,6 +228,16 @@ export function Match(): JSX.Element {
   });
   const rematchMutation = useMutation({
     mutationFn: () => client.rematch(matchId!),
+    onError: toastError,
+  });
+  // The end-of-game choices for a Live match (see endChoices). Each one answers with the match as it
+  // now stands, which the socket would bring anyway, so none of them needs to write it back.
+  const partyUpMutation = useMutation({
+    mutationFn: () => client.partyUp(matchId!),
+    onError: toastError,
+  });
+  const cancelPartyMutation = useMutation({
+    mutationFn: () => client.cancelParty(matchId!),
     onError: toastError,
   });
   // The summary only opens when asked for, from the rail's button: the end of the match plays out
@@ -312,6 +330,16 @@ export function Match(): JSX.Element {
     onSuccess: (found) => navigate(`/match/${found.id}`, { replace: true }),
   });
   const { mutate: findAnother } = findAnotherMutation;
+  // "Find a game" at the end of a Live match: step out of this one's party first, so the partner
+  // isn't left waiting on me, then look for another and go to it.
+  const findGameMutation = useMutation({
+    mutationFn: async () => {
+      await client.moveOn(matchId!);
+      return client.play('live');
+    },
+    onSuccess: (found) => navigate(`/match/${found.id}`, { replace: true }),
+    onError: toastError,
+  });
   const searchedAgainRef = useRef(false);
   useEffect(() => {
     if (!bumped || searchedAgainRef.current) return;
@@ -421,7 +449,7 @@ export function Match(): JSX.Element {
   // Everyone asked for a rematch and it now exists (MatchDO creates it before recording the id),
   // so take this player there - but only when that happens while they're on the page. A match
   // whose rematch already existed when the page opened (from Game History, or Back from the
-  // rematch) stays put and links to it instead; following it then would make the finished match
+  // rematch) stays put and, outside Live, links to it instead; following it then would make the finished match
   // unviewable and trap the Back button. `replace` keeps the finished match out of history for
   // the same reason. MatchRoute keys the page by match id, so the rematch starts fresh.
   const rematchId = liveMatch?.rematchId;
@@ -434,6 +462,38 @@ export function Match(): JSX.Element {
     }
     if (rematchId && rematchId !== rematchIdAtLoadRef.current) navigate(`/match/${rematchId}`, { replace: true });
   }, [liveMatch, rematchId, navigate]);
+
+  // Parting up can turn out to be a game I'm already in (a Live player is in one at a time), which
+  // the server notes as "busy". The same search that finds a game for anyone returns that game, so
+  // go there. Only after I pressed Party up on this page, never for a match opened already busy.
+  // When this page opened: a Live game that had ended well before then is history, with nothing to
+  // offer (endChoices). MatchRoute keys the page by match id, so each match gets its own.
+  const [openedAt] = useState(() => serverNow());
+  const choices = liveMatch && myPlayerId ? endChoices(liveMatch, myPlayerId, openedAt) : null;
+  const pressedPartyRef = useRef(false);
+  const sentBusyRef = useRef(false);
+  const iAmBusy = choices?.iAmBusy ?? false;
+  useEffect(() => {
+    if (!iAmBusy || !pressedPartyRef.current || sentBusyRef.current) return;
+    sentBusyRef.current = true;
+    // Said out loud: the player is waiting to be taken somewhere, so a failure can't be silent.
+    findAnother(undefined, { onError: toastError });
+  }, [iAmBusy, findAnother]);
+
+  // The party's new match appears while I'm here: take me there, as for a rematch above, and for
+  // the same reasons only when it appears while the page is open. Noted once I'm seated, since
+  // before that my team's id can't be read and one already there would look new.
+  const myTeamKey = liveMatch?.players.find((p) => p.playerId === myPlayerId);
+  const partyMatchId = myTeamKey ? liveMatch?.partyMatchIds?.[teamForPosition(myTeamKey.position)] : undefined;
+  const partyIdAtLoadRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!liveMatch || !myTeamKey) return;
+    if (partyIdAtLoadRef.current === undefined) {
+      partyIdAtLoadRef.current = partyMatchId ?? null;
+      return;
+    }
+    if (partyMatchId && partyMatchId !== partyIdAtLoadRef.current) navigate(`/match/${partyMatchId}`, { replace: true });
+  }, [liveMatch, myTeamKey, partyMatchId, navigate]);
 
   // A cue that the next hand is out, for anyone who readied up and looked away: bidding has
   // started without them. Only on a change of hand - never for the one the page opened on.
@@ -647,6 +707,36 @@ export function Match(): JSX.Element {
   }
 
   const myPosition = match.players.find((p) => p.playerId === viewerId)!.position;
+
+  // The match-over buttons share these; they sit still while any of the choices is in flight so a
+  // second press can't race the first.
+  const overBusy =
+    partyUpMutation.isPending ||
+    cancelPartyMutation.isPending ||
+    findGameMutation.isPending ||
+    rematchMutation.isPending;
+  function pressPartyUp() {
+    pressedPartyRef.current = true;
+    partyUpMutation.mutate();
+  }
+  // The rematch vote, or the link to the rematch once it exists. A Live match shows it beside the
+  // other choices, as an outline so Party up and Find a game lead.
+  function rematchControl(extraClass: string): ReactNode {
+    return match!.rematchId ? (
+      <Link to={`/match/${match!.rematchId}`} className={`action-button ${extraClass}`.trim()}>
+        Go to rematch
+      </Link>
+    ) : (
+      <button
+        type="button"
+        className={`action-button ${extraClass}`.trim()}
+        disabled={iVotedRematch || !connected || rematchMutation.isPending || (choices?.live === true && choices.rematchDisabled)}
+        onClick={() => rematchMutation.mutate()}
+      >
+        {iVotedRematch ? `Waiting for rematch (${rematchAgreed(match!).length} of 4)` : 'Rematch'}
+      </button>
+    );
+  }
   // A parked bot whose seat has opened is drawn as an open seat, not a player.
   const seatedOthers = seatedPlayers(match)
     .filter((p) => p.playerId !== viewerId)
@@ -983,7 +1073,10 @@ export function Match(): JSX.Element {
 
           <div className={`player${!watching && me.isActive && !isHandPlayedOut && isTableReady ? ' active' : ''}`}>
             {showHandOver && !watching && (
-              <section className="hand-result" aria-label="Hand over">
+              <section
+                className={`hand-result${isMatchOver && choices?.live ? ' hand-result-stacked' : ''}`}
+                aria-label="Hand over"
+              >
                 <p className="hand-result-title">
                   {isMatchOver
                     ? match.winningTeam === me.team
@@ -1002,19 +1095,20 @@ export function Match(): JSX.Element {
                     >
                       Match summary
                     </button>
-                    {match.rematchId ? (
-                      <Link to={`/match/${match.rematchId}`} className="action-button">
-                        Go to rematch
-                      </Link>
+                    {choices?.live ? (
+                      <MatchOverActions
+                        choices={choices}
+                        partnerName={choices.partnerId ? nameFor(choices.partnerId) : ''}
+                        layout="stack"
+                        rematch={rematchControl('action-button-outline')}
+                        busy={!connected}
+                        pending={overBusy}
+                        onPartyUp={pressPartyUp}
+                        onCancelParty={() => cancelPartyMutation.mutate()}
+                        onFindGame={() => findGameMutation.mutate()}
+                      />
                     ) : (
-                      <button
-                        type="button"
-                        className="action-button"
-                        disabled={iVotedRematch || !connected || rematchMutation.isPending}
-                        onClick={() => rematchMutation.mutate()}
-                      >
-                        {iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
-                      </button>
+                      rematchControl('')
                     )}
                   </>
                 ) : (
@@ -1130,6 +1224,19 @@ export function Match(): JSX.Element {
           iVoted={iVotedRematch}
           rematchDisabled={!connected || rematchMutation.isPending}
           onRematch={() => rematchMutation.mutate()}
+          live={
+            choices?.live
+              ? {
+                  choices,
+                  partnerName: choices.partnerId ? nameFor(choices.partnerId) : '',
+                  busy: !connected,
+                  pending: overBusy,
+                  onPartyUp: pressPartyUp,
+                  onCancelParty: () => cancelPartyMutation.mutate(),
+                  onFindGame: () => findGameMutation.mutate(),
+                }
+              : undefined
+          }
           onClose={() => setSummaryOpen(false)}
         />
       )}

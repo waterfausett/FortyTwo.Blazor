@@ -27,6 +27,7 @@ import {
   tableWait,
   assertIsMatchPlayer,
   claimSeat,
+  claimTeam,
   releaseClaim,
   replaceWithBot,
   isPresent,
@@ -36,6 +37,15 @@ import {
   openPositions,
   hasBeenDealt,
   shuffledDominoOrder,
+  offerParty,
+  cancelParty,
+  partyAgreed,
+  partnerOf,
+  moveOn,
+  recordParty,
+  teamForPosition,
+  setAway,
+  PARTY_GRACE_MS,
   ValidationError,
   type Bid,
   type Domino,
@@ -125,10 +135,9 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   private report(match: MatchState, listing: Listing | null): void {
-    const matchmaker = this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
     const mode = matchMode(match) as QueueMode;
     this.ctx.waitUntil(
-      matchmaker.report(match.id, mode, listing).catch((error: unknown) => console.error(`REPORT FAILED for ${match.id}`, error))
+      this.matchmaker().report(match.id, mode, listing).catch((error: unknown) => console.error(`REPORT FAILED for ${match.id}`, error))
     );
   }
 
@@ -182,6 +191,19 @@ export class MatchDO extends DurableObject<Env> {
   // `create`, for the Matchmaker: a Live or Async table, with its first listing.
   async createListed(firstPlayerId: string, matchId: string, mode: QueueMode): Promise<Placement> {
     return this.placement({ ok: true, value: await this.create(firstPlayerId, matchId, mode) });
+  }
+
+  // `createListed` for a pair who searched together: a at seat 0 and b at seat 2, so they're
+  // partners from the start. Saved once with both seated, so there's never a table holding only one
+  // of them. Neither has a socket open yet, so both are named as on their way and aren't pushed.
+  async createTeamListed(a: string, b: string, matchId: string): Promise<Placement> {
+    const first = { ...createMatch(a, 'live'), id: matchId };
+    const match = takeSeat(first, b, 2);
+    await this.save(match, false);
+    this.publish(null, match, [a, b]);
+    // The fill deadline starts now, as for any new Live table.
+    await this.schedule(match);
+    return this.placement({ ok: true, value: match });
   }
 
   // A match against three bots (the 'bots' mode): the player in seat 0 and bots in the rest, so
@@ -255,6 +277,13 @@ export class MatchDO extends DurableObject<Env> {
     return this.placement(await this.update(playerId, (match) => takeSeat(match, playerId, position, dealOrder), false));
   }
 
+  // `takeSeat` for a pair, in one update: both are seated or neither is. `dealOrder` goes with
+  // both, since only the engine knows which of them sits down fourth and deals.
+  async takeTeamListed(a: string, b: string, positions: [number, number], dealOrder: Domino[]): Promise<Placement> {
+    const seat = (match: MatchState) => takeSeat(takeSeat(match, a, positions[0], dealOrder), b, positions[1], dealOrder);
+    return this.placement(await this.update(a, seat, false, [a, b]));
+  }
+
   // A newcomer asks for the next bot seat at this Live Play game. They're seated at the next hand
   // break; until then they watch.
   claimSeat(playerId: string): Promise<MatchResult<MatchState>> {
@@ -264,6 +293,11 @@ export class MatchDO extends DurableObject<Env> {
   // `claimSeat`, for the Matchmaker.
   async claimSeatListed(playerId: string): Promise<Placement> {
     return this.placement(await this.update(playerId, (match) => claimSeat(match, playerId), false));
+  }
+
+  // `claimTeam` for the Matchmaker: both claim their pinned seats, or neither does.
+  async claimTeamListed(a: string, b: string, positions: [number, number]): Promise<Placement> {
+    return this.placement(await this.update(a, (match) => claimTeam(match, a, b, positions), false, [a, b]));
   }
 
   // Leaving: before the deal, takes the player back out (the last human out deletes the match -
@@ -381,13 +415,37 @@ export class MatchDO extends DurableObject<Env> {
   // only gated on storage, not on an outgoing call, so another completing vote can run while it's
   // in flight and must reuse the id rather than mint a second match. If creation fails, this
   // throws before the vote is saved, so the voter's Rematch button stays live and trying again
-  // finishes the job against the same (idempotent) id.
+  // finishes the job against the same (idempotent) id. For the same reason, whatever is saved
+  // after an outgoing call is built on the match as stored by then (`reload`), not as first read.
   rematch(playerId: string): Promise<MatchResult<MatchState>> {
     return this.update(playerId, async (match) => {
-      const next = voteRematch(match, playerId);
+      let next = voteRematch(match, playerId);
       if (next.rematchId !== undefined || rematchAgreed(next).length < next.players.length) return next;
 
-      let rematchId = await this.ctx.storage.get<string>('pendingRematchId');
+      const pendingRematchId = () => this.ctx.storage.get<string>('pendingRematchId');
+      let rematchId = await pendingRematchId();
+      // Nobody may be in two Live games. Anyone who has gone on to one is moved on, and no rematch
+      // is made. The rematch a retried vote may already have made, with all four in it, isn't
+      // another game.
+      if (matchMode(next) === 'live') {
+        const humans = next.players.map((p) => p.playerId).filter((id) => !isBot(id));
+        let busy = await this.matchmaker().liveBusy(humans, rematchId);
+        // Another completing vote (a double tap, a second device) may have minted the id and made
+        // the rematch while that check ran. Its id is the one to use from here, and the rematch
+        // isn't another game, so they're asked about again without it. The id is only ever set
+        // once, so one more check is enough.
+        const minted = await pendingRematchId();
+        if (minted !== rematchId) {
+          rematchId = minted;
+          busy = await this.matchmaker().liveBusy(humans, rematchId);
+        }
+        const latest = await this.reload();
+        if (busy.length > 0) return busy.reduce((moved, id) => moveOn(moved, id, 'busy'), latest);
+        // Someone may have moved on meanwhile, which refuses the vote, or the rematch may already
+        // be made.
+        next = voteRematch(latest, playerId);
+        if (next.rematchId !== undefined || rematchAgreed(next).length < next.players.length) return next;
+      }
       if (rematchId === undefined) {
         rematchId = crypto.randomUUID();
         await this.ctx.storage.put('pendingRematchId', rematchId);
@@ -396,8 +454,61 @@ export class MatchDO extends DurableObject<Env> {
       const rematchDO = this.env.MATCH_DO.get(this.env.MATCH_DO.idFromName(rematchId));
       const onTheWay = [...new Set([playerId, ...this.watchingPlayers()])];
       await rematchDO.createRematch(rematchId, next, shuffledDominoOrder(), onTheWay);
-      return { ...next, rematchId };
+      // The rematch exists now, so its id goes on the match even if someone moved on meanwhile:
+      // they can still follow it, and the Matchmaker finds them seated there if they search.
+      const latest = await this.reload();
+      const votes = latest.rematchVotes ?? [];
+      return { ...latest, rematchVotes: votes.includes(playerId) ? votes : [...votes, playerId], rematchId };
     });
+  }
+
+  // Offers to party up with the player's partner at the end of a Live game. The offer that
+  // completes the pair has the Matchmaker seat them together, and only then does the new match's
+  // id go on this one, so it never names a match that doesn't exist. If either of them is already
+  // in another Live game, they're moved on instead and nobody is seated. A Matchmaker failure
+  // throws before anything is saved, so the button stays live to try again.
+  //
+  // Other calls run while the Matchmaker works (the other team partying up, say), so the result
+  // goes on the match as stored by then (`reload`). The pair is recorded even if one of them has
+  // since pressed Find a game: they're seated at the new match all the same, and the Matchmaker
+  // takes them back to it.
+  partyUp(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, async (match) => {
+      const next = offerParty(match, playerId);
+      if (!partyAgreed(next, playerId)) return next;
+
+      const placed = await this.matchmaker().playPair(playerId, partnerOf(next, playerId)!);
+      if (placed.kind === 'busy') {
+        return placed.playerIds.reduce((moved, id) => moveOn(moved, id, 'busy'), await this.reload());
+      }
+
+      const seat = next.players.find((p) => p.playerId === playerId)!.position;
+      // No route touches the new match, so its lobby rows are written here, as for a rematch.
+      await bestEffort(placed.match.id, () => syncLobbyIndex(this.env.DB, placed.match));
+      return recordParty(await this.reload(), teamForPosition(seat), placed.match.id);
+    });
+  }
+
+  cancelParty(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, (match) => cancelParty(assertLiveOver(match, playerId), playerId));
+  }
+
+  // The player went to find a game of their own (Find a game): they're done with this one.
+  moveOn(playerId: string): Promise<MatchResult<MatchState>> {
+    return this.update(playerId, (match) => moveOn(assertLiveOver(match, playerId), playerId, 'left'));
+  }
+
+  // The stored match, read again after an outgoing call: DO input is only gated on storage, so other
+  // calls may have changed it while the call was out. Storage reads hold the gate, so nothing else
+  // runs between this and `update`'s save.
+  private async reload(): Promise<MatchState> {
+    const match = await this.load();
+    if (match === null) throw new ValidationError('Match not found!');
+    return match;
+  }
+
+  private matchmaker() {
+    return this.env.MATCHMAKER.get(this.env.MATCHMAKER.idFromName('global'));
   }
 
   // Nudges the player whose turn it is once they've sat on it a while (poke.ts): over their socket
@@ -477,20 +588,26 @@ export class MatchDO extends DurableObject<Env> {
   // the bots in case one of them moves next. `actorId` made the change, so is on the match screen
   // whether or not its socket is open yet - it isn't when a notification's button opened the app
   // to make it - and isn't pushed about it. `report` is false for the Matchmaker's own calls (save).
+  // `onTheWay` is everyone who is on the screen, when it's more than the actor (a pair seated together).
+  // An action that calls out of this DO builds its result on the match as stored after the call
+  // (`reload`), so the change is published against that, not the match first read.
   private update(
     actorId: string,
     action: (match: MatchState) => MatchState | Promise<MatchState>,
-    report = true
+    report = true,
+    onTheWay: string[] = [actorId]
   ): Promise<MatchResult<MatchState>> {
     return this.read(async (match) => {
       const acted = await action(match);
+      const previous = (await this.load()) ?? match;
       // Acting is taking your seat back from the bot (live.ts).
       const next = isOnAutopilot(acted, actorId) ? setAutopilot(acted, [actorId], false) : acted;
       await this.save(next, report);
-      await this.recordStatsIfWon(match, next);
-      this.publish(match, next, [actorId]);
+      await this.recordStatsIfWon(previous, next);
+      this.publish(previous, next, onTheWay);
       await this.schedule(next);
-      await this.syncIfSeatsChanged(match, next);
+      await this.lapseIfWon(previous, next, onTheWay);
+      await this.syncIfSeatsChanged(previous, next);
       return next;
     });
   }
@@ -522,11 +639,79 @@ export class MatchDO extends DurableObject<Env> {
     }
   }
 
+  // A Live match that is over keeps each player's party offer and rematch vote only while they're
+  // on its screen, or come back to it within PARTY_GRACE_MS: then they're marked away (setAway), so
+  // their partner isn't left waiting on someone who has gone. Other modes never lapse - a Daily
+  // rematch vote stands however long the others take.
+  private lapses(match: MatchState): boolean {
+    return matchMode(match) === 'live' && match.winningTeam !== null;
+  }
+
+  // Starts the grace period for each of `playerIds` that is a person seated at the match. Kept in
+  // storage, not memory, since a socket's close can wake a hibernated DO that goes away again.
+  // `inAlarm` as for scheduleLapse.
+  private async startLapses(match: MatchState, playerIds: Iterable<string>, inAlarm = false): Promise<void> {
+    const seated = new Set(match.players.map((p) => p.playerId).filter((id) => !isBot(id)));
+    const starting = [...playerIds].filter((id) => seated.has(id));
+    if (starting.length === 0) return;
+    const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
+    for (const id of starting) lapses[id] = Date.now() + PARTY_GRACE_MS;
+    await this.ctx.storage.put('lapses', lapses);
+    await this.scheduleLapse(inAlarm);
+  }
+
+  // The winning play: everyone not on the screen to see it starts their grace period now.
+  private async lapseIfWon(previous: MatchState, next: MatchState, onTheWay: string[] = [], inAlarm = false): Promise<void> {
+    if (previous.winningTeam !== null || !this.lapses(next)) return;
+    const watching = this.watchingPlayers();
+    for (const id of onTheWay) watching.add(id);
+    await this.startLapses(next, next.players.map((p) => p.playerId).filter((id) => !watching.has(id)), inAlarm);
+  }
+
+  // Sets the one alarm for the earliest pending lapse, unless it's already set to go off sooner -
+  // alarm() handles whatever is due when it fires, and sets it again for the rest. Inside alarm()
+  // (`inAlarm`) it's set outright: the alarm already set may be the one firing now, which won't
+  // fire again.
+  private async scheduleLapse(inAlarm = false): Promise<void> {
+    const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
+    const times = Object.values(lapses);
+    if (times.length === 0) return;
+    const earliest = Math.min(...times);
+    const current = inAlarm ? null : await this.ctx.storage.getAlarm();
+    if (current !== null && current <= earliest) return;
+    await this.ctx.storage.setAlarm(earliest);
+  }
+
+  // Marks away everyone whose grace period has run out. True when there are lapses at all, so the
+  // alarm was theirs - even with none due yet: it was set for a lapse that was since cancelled (the
+  // player came back), and a later one may be waiting behind it.
+  private async runDueLapses(): Promise<boolean> {
+    const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
+    const ids = Object.keys(lapses);
+    if (ids.length === 0) return false;
+    const now = Date.now();
+    const due = ids.filter((id) => lapses[id] <= now);
+    const later = ids.filter((id) => lapses[id] > now).map((id) => lapses[id]);
+    // Set before anything below can throw, so the lapses still to come always have an alarm.
+    if (later.length > 0) await this.ctx.storage.setAlarm(Math.min(...later));
+    if (due.length === 0) return true;
+    // The match is saved before the due lapses are taken off, so a retried alarm can't lose them.
+    const match = await this.load();
+    const next = match === null ? null : due.reduce((marked, id) => setAway(marked, id, true), match);
+    if (next !== null && next !== match) await this.save(next);
+    for (const id of due) delete lapses[id];
+    await this.ctx.storage.put('lapses', lapses);
+    if (match !== null && next !== null && next !== match) this.publish(match, next);
+    return true;
+  }
+
   // Runs one thing per firing: the next bot move, or a Live deadline that has come due (live.ts).
   // Alarm-driven changes never pass through routes/matches.ts, which syncs the D1 lobby index for
   // everything else, so it's synced here - by the same rules: a bot's ready-up or play refreshes
   // the summary row, and its bid or trump call (which the routes don't sync either) writes nothing.
   async alarm(): Promise<void> {
+    // A won Live match has no bot moves or deadlines, only lapses; they never need the ML bot.
+    if (await this.runDueLapses()) return;
     // Resolved before the match is read: the first call in an isolate makes outgoing ASSETS fetches,
     // which don't hold input gates, so a request could change the match between load and save.
     // With the kill switch off (BOTS_ENABLED 'false') bots already seated play on by the simple
@@ -551,6 +736,7 @@ export class MatchDO extends DurableObject<Env> {
       // once its retries ran out a match waiting on a bot would be stuck.
       await this.schedule(next);
       await this.recordStatsIfWon(match, next);
+      await this.lapseIfWon(match, next, [], true);
       this.publish(match, next);
       await this.syncIfSeatsChanged(match, next);
       if (action.kind === 'ready' || action.kind === 'play') {
@@ -627,8 +813,24 @@ export class MatchDO extends DurableObject<Env> {
     // No match here means it was deleted (a match is stored before anyone learns its id): a client
     // that was away when that happened missed destroy()'s close, so it gets the same close now
     // rather than sitting on the dead match's last state.
+    //
+    // Back at a Live match that is over, the player's grace period stops, and if it had already run
+    // out they're no longer away - everyone hears, this socket with them.
     const existing = await this.load();
-    if (existing !== null) {
+    if (existing !== null && this.lapses(existing)) {
+      const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
+      if (user.sub in lapses) {
+        delete lapses[user.sub];
+        await this.ctx.storage.put('lapses', lapses);
+      }
+      const back = setAway(existing, user.sub, false);
+      if (back !== existing) {
+        await this.save(back);
+        this.broadcast(back);
+      } else {
+        pair[1].send(matchMessageFor(existing, user.sub));
+      }
+    } else if (existing !== null) {
       pair[1].send(matchMessageFor(existing, user.sub));
     } else {
       pair[1].close(MATCH_DELETED_CLOSE_CODE, 'Match deleted');
@@ -652,6 +854,13 @@ export class MatchDO extends DurableObject<Env> {
     } else {
       ws.close();
     }
+
+    // The player's last socket on a Live match that is over: they've left its screen (or put the
+    // app in the background), and their grace period starts.
+    const attachment = ws.deserializeAttachment() as { playerId: string } | null;
+    if (!attachment || this.socketsOf(attachment.playerId).some((other) => other !== ws)) return;
+    const match = await this.load();
+    if (match !== null && this.lapses(match)) await this.startLapses(match, [attachment.playerId]);
   }
 
   // Tells everyone about a change: each open socket gets the new match, and players who don't
@@ -697,6 +906,15 @@ export class MatchDO extends DurableObject<Env> {
       ws.send(matchMessageFor(match, attachment?.playerId ?? ''));
     }
   }
+}
+
+// Party offers and moving on are only for the players of a Live match that is over; the rules'
+// own functions for them don't check, since they're also used where that's already known.
+function assertLiveOver(match: MatchState, playerId: string): MatchState {
+  if (matchMode(match) !== 'live') throw new ValidationError('Only a Live game can do this');
+  if (match.winningTeam === null) throw new ValidationError('This match is still being played');
+  assertIsMatchPlayer(match, playerId);
+  return match;
 }
 
 function matchMessageFor(match: MatchState, viewerId: string): string {

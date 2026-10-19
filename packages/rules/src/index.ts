@@ -91,12 +91,24 @@ export {
   replaceWithBot,
   renamePlayer,
   claimSeat,
+  claimTeam,
   releaseClaim,
   isAwayAllHand,
   seatChangesAtBreak,
   letClaimsGo,
 } from './live';
 export { isParked, openPositions, seatedPlayers, parkSeat, takeParkedSeat, unpark } from './parked';
+export {
+  PARTY_GRACE_MS,
+  partnerOf,
+  offerParty,
+  cancelParty,
+  partyAgreed,
+  moveOn,
+  setAway,
+  recordParty,
+  rematchBlocked,
+} from './party';
 export { BOT_MARK, botDisplayName, isBot, mintBotId, withoutBotMark } from './botIds';
 export { matchViewFor, handSize } from './view';
 export type { PlayerMatchStats, TrumpCounts, TrumpKey } from './stats';

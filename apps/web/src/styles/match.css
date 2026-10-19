@@ -896,6 +896,17 @@
   text-align: center;
 }
 
+/* The end of a Live match: one column, so the choices don't sit beside the title while their labels
+   are short and jump below it when they grow. */
+.hand-result.hand-result-stacked {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.hand-result-stacked .match-over-actions-stack {
+  width: min(100%, 20rem);
+}
+
 .hand-result-title {
   margin: 0;
   font-family: var(--font-display);
@@ -1371,6 +1382,57 @@
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.6rem;
+}
+
+/* The Live end-of-game choices: stacked on the game screen, two rows on the summary sheet. Party up
+   takes the team colour, Find a game keeps the brass of .action-button, Rematch is an outline. */
+.match-over-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.match-over-actions-stack {
+  min-width: 12rem;
+}
+
+.match-over-actions-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.match-over-actions-row > * {
+  flex: 1 1 0;
+}
+
+.action-button.action-button-team {
+  background: var(--us);
+  color: var(--walnut-deep);
+}
+
+.action-button.action-button-team:hover:not(:disabled) {
+  background: #5cc9bb;
+}
+
+.action-button.action-button-team:disabled {
+  background: transparent;
+  color: var(--us);
+  box-shadow: inset 0 0 0 1px var(--us);
+}
+
+.action-button.action-button-outline,
+.action-button.action-button-outline:hover:not(:disabled) {
+  background: transparent;
+  color: var(--bone);
+  box-shadow: inset 0 0 0 1px rgba(242, 234, 219, 0.4);
+}
+
+.action-button.action-button-outline:disabled {
+  color: var(--ink-muted);
+  box-shadow: inset 0 0 0 1px rgba(242, 234, 219, 0.2);
 }
 
 @media (max-width: 575.98px) {

@@ -11,6 +11,7 @@ import { houseRules, type HouseRules } from './houseRules';
 import { letClaimsGo, seatChangesAtBreak, type MatchMode } from './live';
 import { MatchPlayerRef, selectNextPlayer } from './match';
 import { openPositions, takeParkedSeat } from './parked';
+import { rematchBlocked } from './party';
 import { nextPosition, Positions } from './positions';
 import { Suit } from './suit';
 import { Teams, teamForPosition } from './teams';
@@ -59,6 +60,8 @@ export interface MatchState {
   currentGame: Game;
   games: Partial<Record<Teams, Game[]>>;
   winningTeam: Teams | null;
+  // When the match was won. Absent until then, and on matches won before it was recorded.
+  wonOn?: string;
   players: MatchPlayerState[];
   // Who has asked to play the same four again, once the match is over. Optional, like rematchId,
   // because matches stored before rematches existed have neither.
@@ -76,6 +79,8 @@ export interface MatchState {
   awaySince?: Record<string, string>;
   // Players waiting to take a bot's seat at the next hand break, in the order they asked.
   claims?: string[];
+  // The bot seat a claim is pinned to, by claimant: a pair taking over one team. An unpinned claim takes any.
+  claimPositions?: Record<string, number>;
   // A bot has sat at this table at some point, so its stats count as a bots game even after
   // people have taken every bot's seat.
   hadBots?: boolean;
@@ -87,6 +92,15 @@ export interface MatchState {
   bumped?: string[];
   // The house rules a custom table was created with (houseRules.ts). Absent means the defaults.
   rules?: HouseRules;
+  // Players who asked to search together with their partner after a Live game (party.ts).
+  partyOffers?: string[];
+  // Players who went on from a finished Live match: pressed Find a game, or turned up in another
+  // Live game. Final, unlike `away`.
+  movedOn?: Record<string, 'left' | 'busy'>;
+  // Players who lapsed at the end of a Live game, cleared when they come back.
+  away?: string[];
+  // The match each team that partied up is searching in.
+  partyMatchIds?: Partial<Record<Teams, string>>;
 }
 
 function now(): string {
@@ -489,7 +503,8 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
   if (matchWinningTeam === null) return result;
   // The match is over, so a parked seat has nothing left to wait for.
   const { parked: _parked, ...ended } = letClaimsGo(result);
-  return ended;
+  // Playing out the winning hand passes through here again; the first win's time stands.
+  return { ...ended, wonOn: match.wonOn ?? result.updatedOn };
 }
 
 // Asks to play the same four again. Only once the match is over, and only from someone seated;
@@ -498,9 +513,19 @@ export function voteRematch(match: MatchState, playerId: string): MatchState {
   if (match.winningTeam === null) throw new ValidationError('This match is still being played');
   assertIsMatchPlayer(match, playerId);
 
+  // Live tables can lose a player or a pair at the end of a game (party.ts); then there is no
+  // four left to play again. Voting also withdraws a party offer, as the two are alternatives.
+  if (rematchBlocked(match)) throw new ValidationError('No rematch: someone has already gone');
+  const offers = match.partyOffers?.filter((id) => id !== playerId);
+
   const votes = match.rematchVotes ?? [];
   if (votes.includes(playerId)) return match;
-  return { ...match, rematchVotes: [...votes, playerId], updatedOn: now() };
+  return {
+    ...match,
+    rematchVotes: [...votes, playerId],
+    ...(offers ? { partyOffers: offers } : {}),
+    updatedOn: now(),
+  };
 }
 
 // Everyone who counts as wanting a rematch: those who voted, plus the bots, which never vote but
