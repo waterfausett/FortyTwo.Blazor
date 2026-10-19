@@ -160,6 +160,20 @@ describe('MatchSummary at the end of a Live game', () => {
     expect(screen.getByText(/^Rematch/)).toBeTruthy();
   });
 
+  // Find a game and Rematch could only lead back to the same new game.
+  it('offers only the new game once my team has partied up', async () => {
+    await show({ ...finished('live'), partyMatchIds: { [Teams.TeamA]: 'm2' } } as MatchState);
+    expect(screen.getByText('Go to your new game')).toBeTruthy();
+    expect(screen.queryByText('Find a game')).toBeNull();
+    expect(screen.queryByText(/^Rematch/)).toBeNull();
+    expect(screen.getByText('Back to lobby')).toBeTruthy();
+  });
+
+  it('hides Party up once the rematch is made', async () => {
+    await show({ ...finished('live'), rematchId: 'm3' } as MatchState);
+    expect(screen.queryByText(/Party up with/)).toBeNull();
+  });
+
   it('leaves a won Daily match with only Rematch', async () => {
     await show(finished('daily'));
     expect(screen.queryByText(/Party up with/)).toBeNull();

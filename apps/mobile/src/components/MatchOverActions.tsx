@@ -37,7 +37,8 @@ export function MatchOverActions({
   onExtraHeight,
 }: MatchOverActionsProps) {
   const party = partyControl();
-  const findGame = (
+  // Once partied, these could only lead back to the new game, so it stands alone.
+  const findGame = choices.showFindGame && (
     <Pressable
       style={[styles.button, styles.brass, busy && styles.disabled]}
       disabled={busy}
@@ -53,7 +54,7 @@ export function MatchOverActions({
       <View style={styles.rows}>
         <View style={styles.row}>
           {lobby}
-          {rematch}
+          {choices.showRematch && rematch}
         </View>
         <View style={styles.row}>
           {findGame}
@@ -65,10 +66,11 @@ export function MatchOverActions({
   return (
     <View style={styles.stack}>
       <View style={styles.stack} onLayout={(e) => onExtraHeight?.(e.nativeEvent.layout.height)}>
-        {party}
+        {choices.showRematch && party}
         {findGame}
       </View>
-      {rematch}
+      {/* Without Rematch, the party's way to its new game takes Rematch's place. */}
+      {choices.showRematch ? rematch : party}
     </View>
   );
 
