@@ -161,6 +161,29 @@ describe('GET /api/config', () => {
     expect(await config('yes')).toBe(false);
     expect(await config('true')).toBe(true);
   });
+
+  it('reports hints on unless HINTS_ENABLED is exactly "false", and off with bots off', async () => {
+    const token = await signToken('cfg-3');
+    const config = async (HINTS_ENABLED?: string, BOTS_ENABLED = 'true') => {
+      const res = await app.request('/api/config', { headers: { Authorization: `Bearer ${token}` } }, { ...testEnv, BOTS_ENABLED, HINTS_ENABLED });
+      return ((await res.json()) as { hints: boolean }).hints;
+    };
+    expect(await config()).toBe(true);
+    expect(await config('no')).toBe(true);
+    expect(await config('false')).toBe(false);
+    expect(await config(undefined, 'false')).toBe(false);
+  });
+
+  it('reports hint details off unless HINT_DETAILS is exactly "true"', async () => {
+    const token = await signToken('cfg-2');
+    const config = async (HINT_DETAILS?: string) => {
+      const res = await app.request('/api/config', { headers: { Authorization: `Bearer ${token}` } }, { ...testEnv, HINT_DETAILS });
+      return ((await res.json()) as { hintDetails: boolean }).hintDetails;
+    };
+    expect(await config()).toBe(false);
+    expect(await config('yes')).toBe(false);
+    expect(await config('true')).toBe(true);
+  });
 });
 
 describe('Active turn status', () => {

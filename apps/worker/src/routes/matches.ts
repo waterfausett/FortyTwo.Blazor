@@ -236,6 +236,14 @@ matches.post('/:id/poke', async (c) => {
   return result.ok ? c.json(result.value) : refusal(c, result);
 });
 
+// What the ML bot would do in the caller's seat, in a practice match (MatchDO's `hint`). The
+// reply may be { status: 'warming' } while the model loads; the client asks again.
+matches.get('/:id/games/current/hint', async (c) => {
+  const result = await matchStub(c.env, c.req.param('id')).hint(c.get('user').sub);
+  if (!result.ok) return refusal(c, result);
+  return c.json(result.value);
+});
+
 matches.patch('/:id/games/current', async (c) => {
   const suit = field.suit(await readBody(c));
   return replyWithMatch(c, await matchStub(c.env, c.req.param('id')).setTrump(c.get('user').sub, suit));

@@ -709,15 +709,25 @@ describe('match routes', () => {
       );
     }
 
+    it('refuses a hint outside a practice match, in the error shape the client shows', async () => {
+      const p1 = await signToken('p1');
+      const created = (await (await api('/api/matches', p1, { method: 'POST' })).json()) as { id: string };
+
+      const res = await apiWithBots(`/api/matches/${created.id}/games/current/hint`, p1);
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ title: 'Practice matches only' });
+    });
+
     it('tells the client whether bots are available', async () => {
       const p1 = await signToken('p1');
 
-      expect(await (await apiWithBots('/api/config', p1)).json()).toEqual({ bots: true, presence: false });
-      expect(await (await apiWithBots('/api/config', p1, {}, 'false')).json()).toEqual({ bots: false, presence: false });
+      expect(await (await apiWithBots('/api/config', p1)).json()).toEqual({ bots: true, presence: false, hints: true, hintDetails: false });
+      expect(await (await apiWithBots('/api/config', p1, {}, 'false')).json()).toEqual({ bots: false, presence: false, hints: false, hintDetails: false });
       // Unset means on: BOTS_ENABLED is a kill switch.
       const { BOTS_ENABLED: _pinned, ...unset } = testEnv;
       const res = await app.request('/api/config', { headers: { Authorization: `Bearer ${p1}` } }, unset);
-      expect(await res.json()).toEqual({ bots: true, presence: false });
+      expect(await res.json()).toEqual({ bots: true, presence: false, hints: true, hintDetails: false });
     });
 
     it('seats a bot at a picked seat, then fills the rest and syncs the lobby', async () => {

@@ -20,6 +20,9 @@ import {
   describeMatch,
   isHighBidder,
   isTrickStarted,
+  suggestedBid,
+  suggestedDominoIds,
+  suggestedTrump,
   isValidPlay,
   matchStatus,
   nameText,
@@ -70,6 +73,8 @@ import { useProfile } from '@/api/useProfile';
 import { useMatchSocket } from '@/api/useMatchSocket';
 import { useGetToken } from '@/auth/useGetToken';
 import { BiddingPanel } from '@/components/BiddingPanel';
+import { HintButton, HintDetails } from '@/components/HintPanel';
+import { useHint } from '@/match/useHint';
 import { DoublesRuleModal } from '@/components/DoublesRuleModal';
 import { InviteSheet } from '@/people/InviteSheet';
 import { Fade, FADE_IN_MS } from '@/components/Fade';
@@ -308,6 +313,11 @@ export default function MatchScreen() {
       toastError(error);
     },
   });
+  // No hint while a move of mine is already on its way (until the broadcast moves the turn on), nor
+  // while a pre-play is queued (Hand's double-tap), since that domino plays itself.
+  const [preselecting, setPreselecting] = useState(false);
+  const moving = preselecting || playing != null || bid.isPending || trump.isPending;
+  const hint = useHint(liveMatch ?? null, myPlayerId, config.data?.hints ?? false, () => api.getHint(id), moving);
   useEffect(() => {
     pokedRef.current = {
       nameOf: (playerId) => nameText(names.nameFor(playerId)),
@@ -851,11 +861,24 @@ export default function MatchScreen() {
           // Fades out as soon as a bid is picked (and back, should it be turned away), rather than
           // dimming until the server answers and then vanishing.
           <Fade key="bid" visible={!bidSent}>
-            <BiddingPanel game={game} myPlayerId={myPlayerId} onBid={(b) => bid.mutate(b)} disabled={!connected} />
+            <BiddingPanel
+              game={game}
+              myPlayerId={myPlayerId}
+              onBid={(b) => bid.mutate(b)}
+              disabled={!connected}
+              suggested={suggestedBid(hint.hint)}
+              hint={<HintButton hint={hint} />}
+            />
           </Fade>
         ) : view.canSelectTrump && !watching ? (
           <Fade key="trump" visible={!trumpSent}>
-            <TrumpPicker game={game} onSelect={(s) => trump.mutate(s)} disabled={!connected} />
+            <TrumpPicker
+              game={game}
+              onSelect={(s) => trump.mutate(s)}
+              disabled={!connected}
+              suggested={suggestedTrump(hint.hint)}
+              hint={<HintButton hint={hint} />}
+            />
           </Fade>
         ) : (
           status != null && (
@@ -863,9 +886,13 @@ export default function MatchScreen() {
             // status doesn't flicker.
             <Fade key={view.isPlayingPhase ? 'play' : 'wait'}>
               <View style={styles.statusLine}>
-                <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
-                  {names.ready ? status : null}
-                </Text>
+                <View style={styles.statusRow}>
+                  <Text style={view.isSittingOut ? styles.muted : styles.status} accessibilityRole="text">
+                    {names.ready ? status : null}
+                  </Text>
+                  {/* My turn to play: the Hint button rides along with "Your turn". */}
+                  {!watching && <HintButton hint={hint} />}
+                </View>
                 {!names.ready && <NameSkeleton width={160} />}
                 {poke.target != null && !watching && (
                   <Pressable
@@ -881,6 +908,8 @@ export default function MatchScreen() {
             </Fade>
           )
         )}
+
+        {!watching && <HintDetails hint={hint} show={config.data?.hintDetails ?? false} />}
 
         {/* Takes up whatever room is left, keeping the hand at the bottom of the screen: when the
             choices above grow or shrink (a status line, the bids, the trumps), only this changes,
@@ -914,6 +943,8 @@ export default function MatchScreen() {
             highlightPlayable={highlightPlayable}
             dropZone={tableRef}
             onDragChange={setDrag}
+            suggestedIds={suggestedDominoIds(hint.hint)}
+            onPreselectChange={(preselected) => setPreselecting(preselected !== null)}
           />
         )}
         {/* Laid out whenever there's a hand, and only shown on the player's turn, so it coming and
@@ -1092,6 +1123,7 @@ const styles = StyleSheet.create({
   handOverTitle: { color: colors.bone, fontFamily: fonts.display, fontSize: 20 },
   handOverDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
   statusLine: { alignItems: 'center', gap: 8 },
+  statusRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 10, rowGap: 6 },
   status: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   muted: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center' },
   spacer: { flexGrow: 1 },
