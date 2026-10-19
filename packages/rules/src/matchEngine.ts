@@ -11,6 +11,7 @@ import { houseRules, type HouseRules } from './houseRules';
 import { letClaimsGo, seatChangesAtBreak, type MatchMode } from './live';
 import { MatchPlayerRef, selectNextPlayer } from './match';
 import { openPositions, takeParkedSeat } from './parked';
+import { rematchBlocked } from './party';
 import { nextPosition, Positions } from './positions';
 import { Suit } from './suit';
 import { Teams, teamForPosition } from './teams';
@@ -87,6 +88,15 @@ export interface MatchState {
   bumped?: string[];
   // The house rules a custom table was created with (houseRules.ts). Absent means the defaults.
   rules?: HouseRules;
+  // Players who asked to search together with their partner after a Live game (party.ts).
+  partyOffers?: string[];
+  // Players who went on from a finished Live match: pressed Find a game, or turned up in another
+  // Live game. Final, unlike `away`.
+  movedOn?: Record<string, 'left' | 'busy'>;
+  // Players who lapsed at the end of a Live game, cleared when they come back.
+  away?: string[];
+  // The match each team that partied up is searching in.
+  partyMatchIds?: Partial<Record<Teams, string>>;
 }
 
 function now(): string {
@@ -498,9 +508,19 @@ export function voteRematch(match: MatchState, playerId: string): MatchState {
   if (match.winningTeam === null) throw new ValidationError('This match is still being played');
   assertIsMatchPlayer(match, playerId);
 
+  // Live tables can lose a player or a pair at the end of a game (party.ts); then there is no
+  // four left to play again. Voting also withdraws a party offer, as the two are alternatives.
+  if (rematchBlocked(match)) throw new ValidationError('No rematch: someone has already gone');
+  const offers = match.partyOffers?.filter((id) => id !== playerId);
+
   const votes = match.rematchVotes ?? [];
   if (votes.includes(playerId)) return match;
-  return { ...match, rematchVotes: [...votes, playerId], updatedOn: now() };
+  return {
+    ...match,
+    rematchVotes: [...votes, playerId],
+    ...(offers ? { partyOffers: offers } : {}),
+    updatedOn: now(),
+  };
 }
 
 // Everyone who counts as wanting a rematch: those who voted, plus the bots, which never vote but

@@ -764,6 +764,28 @@ describe('rematch', () => {
     });
   });
 
+  describe('voteRematch with party state', () => {
+    it('throws in Live once someone has moved on', () => {
+      const match = finishedMatch({ mode: 'live', movedOn: { p2: 'left' } });
+      expect(() => voteRematch(match, 'p1')).toThrow(ValidationError);
+    });
+
+    it('throws in Live once a party match exists', () => {
+      const match = finishedMatch({ mode: 'live', partyMatchIds: { [Teams.TeamA]: 'x' } });
+      expect(() => voteRematch(match, 'p2')).toThrow(ValidationError);
+    });
+
+    it("removes the voter's party offer in Live", () => {
+      const match = finishedMatch({ mode: 'live', partyOffers: ['p1', 'p3'] });
+      expect(voteRematch(match, 'p1').partyOffers).toEqual(['p3']);
+    });
+
+    it('still accepts votes in a daily match with someone moved on', () => {
+      const match = finishedMatch({ mode: 'daily', movedOn: { p2: 'left' } });
+      expect(voteRematch(match, 'p1').rematchVotes).toEqual(['p1']);
+    });
+  });
+
   describe('rematchAgreed', () => {
     it('counts voters and every bot, in seat order', () => {
       const match = finishedMatch({
