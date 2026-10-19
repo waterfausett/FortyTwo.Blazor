@@ -44,6 +44,8 @@ import {
   moveOn,
   recordParty,
   teamForPosition,
+  setAway,
+  PARTY_GRACE_MS,
   ValidationError,
   type Bid,
   type Domino,
@@ -576,6 +578,7 @@ export class MatchDO extends DurableObject<Env> {
       await this.recordStatsIfWon(previous, next);
       this.publish(previous, next, onTheWay);
       await this.schedule(next);
+      await this.lapseIfWon(previous, next, onTheWay);
       await this.syncIfSeatsChanged(previous, next);
       return next;
     });
@@ -608,11 +611,73 @@ export class MatchDO extends DurableObject<Env> {
     }
   }
 
+  // A Live match that is over keeps each player's party offer and rematch vote only while they're
+  // on its screen, or come back to it within PARTY_GRACE_MS: then they're marked away (setAway), so
+  // their partner isn't left waiting on someone who has gone. Other modes never lapse - a Daily
+  // rematch vote stands however long the others take.
+  private lapses(match: MatchState): boolean {
+    return matchMode(match) === 'live' && match.winningTeam !== null;
+  }
+
+  // Starts the grace period for each of `playerIds` that is a person seated at the match. Kept in
+  // storage, not memory, since a socket's close can wake a hibernated DO that goes away again.
+  private async startLapses(match: MatchState, playerIds: Iterable<string>): Promise<void> {
+    const seated = new Set(match.players.map((p) => p.playerId).filter((id) => !isBot(id)));
+    const starting = [...playerIds].filter((id) => seated.has(id));
+    if (starting.length === 0) return;
+    const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
+    for (const id of starting) lapses[id] = Date.now() + PARTY_GRACE_MS;
+    await this.ctx.storage.put('lapses', lapses);
+    await this.scheduleLapse();
+  }
+
+  // The winning play: everyone not on the screen to see it starts their grace period now.
+  private async lapseIfWon(previous: MatchState, next: MatchState, onTheWay: string[] = []): Promise<void> {
+    if (previous.winningTeam !== null || !this.lapses(next)) return;
+    const watching = this.watchingPlayers();
+    for (const id of onTheWay) watching.add(id);
+    await this.startLapses(next, next.players.map((p) => p.playerId).filter((id) => !watching.has(id)));
+  }
+
+  // Sets the one alarm for the earliest pending lapse, unless it's already set to go off sooner -
+  // alarm() handles whatever is due when it fires, and sets it again for the rest.
+  private async scheduleLapse(): Promise<void> {
+    const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
+    const times = Object.values(lapses);
+    if (times.length === 0) return;
+    const earliest = Math.min(...times);
+    const current = await this.ctx.storage.getAlarm();
+    if (current !== null && current <= earliest) return;
+    await this.ctx.storage.setAlarm(earliest);
+  }
+
+  // Marks away everyone whose grace period has run out. True when any had, so the alarm was theirs.
+  private async runDueLapses(): Promise<boolean> {
+    const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
+    const now = Date.now();
+    const due = Object.keys(lapses).filter((id) => lapses[id] <= now);
+    if (due.length === 0) return false;
+    for (const id of due) delete lapses[id];
+    await this.ctx.storage.put('lapses', lapses);
+    const match = await this.load();
+    if (match !== null) {
+      const next = due.reduce((marked, id) => setAway(marked, id, true), match);
+      if (next !== match) {
+        await this.save(next);
+        this.publish(match, next);
+      }
+    }
+    await this.scheduleLapse();
+    return true;
+  }
+
   // Runs one thing per firing: the next bot move, or a Live deadline that has come due (live.ts).
   // Alarm-driven changes never pass through routes/matches.ts, which syncs the D1 lobby index for
   // everything else, so it's synced here - by the same rules: a bot's ready-up or play refreshes
   // the summary row, and its bid or trump call (which the routes don't sync either) writes nothing.
   async alarm(): Promise<void> {
+    // A won Live match has no bot moves or deadlines, only lapses; they never need the ML bot.
+    if (await this.runDueLapses()) return;
     // Resolved before the match is read: the first call in an isolate makes outgoing ASSETS fetches,
     // which don't hold input gates, so a request could change the match between load and save.
     // With the kill switch off (BOTS_ENABLED 'false') bots already seated play on by the simple
@@ -637,6 +702,7 @@ export class MatchDO extends DurableObject<Env> {
       // once its retries ran out a match waiting on a bot would be stuck.
       await this.schedule(next);
       await this.recordStatsIfWon(match, next);
+      await this.lapseIfWon(match, next);
       this.publish(match, next);
       await this.syncIfSeatsChanged(match, next);
       if (action.kind === 'ready' || action.kind === 'play') {
@@ -713,8 +779,24 @@ export class MatchDO extends DurableObject<Env> {
     // No match here means it was deleted (a match is stored before anyone learns its id): a client
     // that was away when that happened missed destroy()'s close, so it gets the same close now
     // rather than sitting on the dead match's last state.
+    //
+    // Back at a Live match that is over, the player's grace period stops, and if it had already run
+    // out they're no longer away - everyone hears, this socket with them.
     const existing = await this.load();
-    if (existing !== null) {
+    if (existing !== null && this.lapses(existing)) {
+      const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
+      if (user.sub in lapses) {
+        delete lapses[user.sub];
+        await this.ctx.storage.put('lapses', lapses);
+      }
+      const back = setAway(existing, user.sub, false);
+      if (back !== existing) {
+        await this.save(back);
+        this.broadcast(back);
+      } else {
+        pair[1].send(matchMessageFor(existing, user.sub));
+      }
+    } else if (existing !== null) {
       pair[1].send(matchMessageFor(existing, user.sub));
     } else {
       pair[1].close(MATCH_DELETED_CLOSE_CODE, 'Match deleted');
@@ -738,6 +820,13 @@ export class MatchDO extends DurableObject<Env> {
     } else {
       ws.close();
     }
+
+    // The player's last socket on a Live match that is over: they've left its screen (or put the
+    // app in the background), and their grace period starts.
+    const attachment = ws.deserializeAttachment() as { playerId: string } | null;
+    if (!attachment || this.socketsOf(attachment.playerId).some((other) => other !== ws)) return;
+    const match = await this.load();
+    if (match !== null && this.lapses(match)) await this.startLapses(match, [attachment.playerId]);
   }
 
   // Tells everyone about a change: each open socket gets the new match, and players who don't
