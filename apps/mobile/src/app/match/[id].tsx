@@ -148,6 +148,11 @@ export default function MatchScreen() {
 
   // Leaving, the lobby's row for this match takes on its turn as last seen here (api/lobbyRow.ts).
   const queryClient = useQueryClient();
+  // The cached match follows the socket, so coming back to this screen later starts from the match
+  // as last seen here, not as first fetched: a finished Live game would flash its search lobby.
+  useEffect(() => {
+    if (socketMatch) queryClient.setQueryData(['match', id], socketMatch);
+  }, [queryClient, id, socketMatch]);
   const lastSeenRef = useRef<MatchState | null>(null);
   useEffect(() => {
     lastSeenRef.current = liveMatch;

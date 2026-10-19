@@ -133,6 +133,7 @@ describe('MatchSummary', () => {
     const live = {
       choices: {
         live: true,
+        expired: false,
         partnerId: 'p3',
         party: { kind: 'offer' as const, partnerOffered: false },
         rematchDisabled: false,

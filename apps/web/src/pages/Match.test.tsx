@@ -163,8 +163,10 @@ afterEach(() => {
 // Every test player is already named after their id ('p2', ...), as if looked up before, so seats
 // show at once - most tests assert on those. `{ names: false }` starts with nothing looked up, for
 // the tests about loading names.
-function renderMatch({ names = true }: { names?: boolean } = {}) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+function renderMatch({
+  names = true,
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }),
+}: { names?: boolean; queryClient?: QueryClient } = {}) {
   if (names) {
     const ids = ['p1', 'p2', 'p3', 'p4', 'bot-1'];
     queryClient.setQueryData([PLAYER_NAMES_KEY, 'seeded'], new Map(ids.map((id) => [id, id])));
@@ -343,6 +345,27 @@ describe('Match', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Leave table' }));
 
         expect(leaveMatchMock).not.toHaveBeenCalled();
+      });
+
+      // Coming back later, the page starts from the cache before the socket connects.
+      it('keeps the cached match as last seen, not as first fetched, for the next visit', async () => {
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        getMatchMock.mockResolvedValue(waitingMatch());
+        useMatchSocketMock.mockReturnValue({ match: null, connected: false });
+        const { unmount, rerender } = renderMatch({ queryClient });
+        await waitFor(() => expect(queryClient.getQueryData(['match', 'match-1'])).toEqual(waitingMatch()));
+
+        const dealt = baseMatch();
+        useMatchSocketMock.mockReturnValue({ match: dealt, connected: true });
+        rerender(
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter>
+              <Match />
+            </MemoryRouter>
+          </QueryClientProvider>
+        );
+        unmount();
+        expect(queryClient.getQueryData(['match', 'match-1'])).toEqual(dealt);
       });
 
       it('is not offered once the hand is dealt', () => {

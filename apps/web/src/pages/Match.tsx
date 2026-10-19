@@ -167,6 +167,13 @@ export function Match(): JSX.Element {
   // (re)connecting).
   const liveMatch = socketMatch ?? matchQuery.data ?? null;
 
+  // The cached match follows the socket, so coming back to this page later starts from the match as
+  // last seen here, not as first fetched: a finished Live game would flash its search lobby.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (socketMatch) queryClient.setQueryData(['match', matchId], socketMatch);
+  }, [queryClient, matchId, socketMatch]);
+
   // How this player stands at the table. In a Live Play game under way, a newcomer waits
   // for a bot's seat (claiming) and watches meanwhile; one whose wait came to nothing is bumped
   // and looks again; one away a whole hand was replaced by a bot.
@@ -207,7 +214,6 @@ export function Match(): JSX.Element {
   });
   // Taking a seat from this page - opened from an invite link, say. The match's broadcast then
   // seats the player here; the lobby's lists change too.
-  const queryClient = useQueryClient();
   const joinMutation = useMutation({
     mutationFn: (position: number) => client.joinMatch(matchId!, position),
     onSuccess: (joined) => {
