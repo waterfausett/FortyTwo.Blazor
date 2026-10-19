@@ -19,6 +19,9 @@ export interface MatchOverActionsProps {
   onPartyUp: () => void;
   onCancelParty: () => void;
   onFindGame: () => void;
+  // The stack reports how tall Party up and Find a game are together, so the game screen can let
+  // them grow the panel upward without moving the hand.
+  onExtraHeight?: (height: number) => void;
 }
 
 export function MatchOverActions({
@@ -31,6 +34,7 @@ export function MatchOverActions({
   onPartyUp,
   onCancelParty,
   onFindGame,
+  onExtraHeight,
 }: MatchOverActionsProps) {
   const party = partyControl();
   const findGame = (
@@ -60,8 +64,10 @@ export function MatchOverActions({
   }
   return (
     <View style={styles.stack}>
-      {party}
-      {findGame}
+      <View style={styles.stack} onLayout={(e) => onExtraHeight?.(e.nativeEvent.layout.height)}>
+        {party}
+        {findGame}
+      </View>
       {rematch}
     </View>
   );

@@ -396,8 +396,9 @@ export default function MatchScreen() {
   const tableRef = useRef<View>(null);
   const [drag, setDrag] = useState<DragState>({ dragging: false, overDropZone: false });
   const [viewportHeight, setViewportHeight] = useState(0);
-  // The match-over panel's own height, for a Live match's to grow upward (see its style below).
-  const [overPanelHeight, setOverPanelHeight] = useState(0);
+  // How tall the Live match-over panel's extra buttons (Party up, Find a game) are, null until
+  // measured: the panel grows upward by that much (see its style below).
+  const [overExtraHeight, setOverExtraHeight] = useState<number | null>(null);
 
   // Follow the rematch once everyone has agreed - but only if it's created while this screen is
   // open. A finished match opened later stays viewable.
@@ -615,7 +616,7 @@ export default function MatchScreen() {
       <ActionButton
         label={view.iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
         outline={outline}
-        disabled={view.iVotedRematch || !connected || rematch.isPending || (choices?.rematchDisabled ?? false)}
+        disabled={view.iVotedRematch || !connected || rematch.isPending || (choices?.live === true && choices.rematchDisabled)}
         onPress={() => rematch.mutate()}
       />
     );
@@ -872,14 +873,17 @@ export default function MatchScreen() {
           <Fade key="handOver">
             {view.isMatchOver ? (
               <View
-                // A Live panel is taller than the one it replaces. Pulling it up by the extra height
-                // takes it out of the layout, so the hand stays where it was and the panel grows
-                // upward over the table instead.
+                // A Live panel is taller than the one it replaces by its extra buttons. Pulling it up
+                // by their height (and the gap after them) takes it out of the layout, so the hand
+                // stays where it was and the panel grows upward over the table instead. Hidden until
+                // they are measured, so it doesn't push the hand down for a frame first.
                 style={[
                   styles.matchOver,
-                  choices?.live && { marginTop: -Math.max(0, overPanelHeight - MATCH_OVER_FLOW_HEIGHT) },
+                  choices?.live && {
+                    marginTop: -((overExtraHeight ?? 0) + MATCH_OVER_GAP),
+                    opacity: overExtraHeight === null ? 0 : 1,
+                  },
                 ]}
-                onLayout={(e) => setOverPanelHeight(e.nativeEvent.layout.height)}
                 accessibilityLabel="Match over"
               >
                 <Text style={styles.handOverTitle}>
@@ -898,6 +902,7 @@ export default function MatchScreen() {
                     onPartyUp={pressPartyUp}
                     onCancelParty={() => cancelParty.mutate()}
                     onFindGame={() => findGame.mutate()}
+                    onExtraHeight={setOverExtraHeight}
                   />
                 ) : (
                   rematchControl(false)
@@ -1112,9 +1117,8 @@ function ActionButton({
 const CONTAINER_PADDING = 12;
 const CONTAINER_GAP = 14;
 const HAND_COLLAPSE_MS = 420;
-// About what the match-over panel takes in the layout: its title, summary button and one button.
-// A Live match's panel is taller, and only this much of it counts, so the rest rises over the table.
-const MATCH_OVER_FLOW_HEIGHT = 150;
+// The gap between a match-over panel's buttons (styles.matchOver's, and MatchOverActions' stack).
+const MATCH_OVER_GAP = 8;
 // How much of the trick history shows below the play area: the top of each pile, with its points.
 const HISTORY_PEEK = 40;
 
@@ -1203,8 +1207,9 @@ const styles = StyleSheet.create({
   hidden: { opacity: 0 },
   hint: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center', fontSize: 12 },
   button: { backgroundColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 8 },
-  buttonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.boneEdge },
-  buttonOutlineText: { color: colors.bone },
+  // Only the Live stack uses it, where the button is stretched across the panel.
+  buttonOutline: { alignItems: 'center', backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.boneEdge },
+  buttonOutlineText: { color: colors.bone, textAlign: 'center' },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 16 },
 });
