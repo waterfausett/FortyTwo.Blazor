@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { fetchMock } from './fetchMock';
 import { SignJWT, generateKeyPair, exportJWK, type KeyLike } from 'jose';
-import { PARTY_GRACE_MS, createDomino, type MatchMode, type MatchState } from '@fortytwo/rules';
+import { PARTY_GRACE_MS, createDomino, mintBotId, type MatchMode, type MatchState } from '@fortytwo/rules';
 import type { Env } from '../src/index';
 import type { MatchDO } from '../src/matchDO';
 import { finishedMatch } from './finishedMatch';
@@ -116,6 +116,10 @@ async function lapsesOf(stub: ReturnType<typeof stubFor>) {
   return runInDurableObject(stub, (_instance, state) => state.storage.get<Record<string, number>>('lapses'));
 }
 
+async function alarmOf(stub: ReturnType<typeof stubFor>) {
+  return runInDurableObject(stub, (_instance, state) => state.storage.getAlarm());
+}
+
 // Brings every pending lapse due now, as if the grace period had run out.
 async function makeLapsesDue(stub: ReturnType<typeof stubFor>) {
   await runInDurableObject(stub, async (_instance, state) => {
@@ -186,6 +190,43 @@ describe('MatchDO party lapses', () => {
     } finally {
       ws.close();
     }
+  });
+
+  // Coming back leaves the first lapse's alarm set; when it fires with nothing due, it must be set
+  // again for the lapse started by leaving a second time, or that one never fires.
+  it('fires a lapse started after an earlier one was cancelled', async () => {
+    const stub = await seed('lapse-again', finished('lapse-again', 'live'));
+    await openAndLeave(stub, 'p1');
+    const back = await openSocket(stub, 'p1');
+    back.close();
+    for (let i = 0; i < 100 && (await lapsesOf(stub))?.p1 === undefined; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    const due = (await lapsesOf(stub))?.p1;
+    expect(due).toBeDefined();
+
+    // The first lapse's alarm, firing with nothing due yet.
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await alarmOf(stub)).toBe(due);
+    expect(valueOf(await stub.getMatch()).away).toBeUndefined();
+
+    await makeLapsesDue(stub);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(valueOf(await stub.getMatch()).away).toEqual(['p1']);
+  });
+
+  it('starts lapses with an alarm for them when a bot makes the winning play', async () => {
+    const bot = mintBotId('lapse-bot-win', [])!;
+    const stub = await seed('lapse-bot-win', { ...almostWonMatch('lapse-bot-win', ['p1', 'p2', 'p3', bot]), mode: 'live' });
+    // The bot's move, set well ahead so only runDurableObjectAlarm below fires it.
+    await runInDurableObject(stub, (_instance, state) => state.storage.setAlarm(Date.now() + 60_000));
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+
+    expect(valueOf(await stub.getMatch()).winningTeam).not.toBeNull();
+    const lapses = (await lapsesOf(stub)) ?? {};
+    expect(Object.keys(lapses).sort()).toEqual(['p1', 'p2', 'p3']);
+    expect(await alarmOf(stub)).toBe(Math.min(...Object.values(lapses)));
   });
 
   it('never lapses a Daily match', async () => {

@@ -621,53 +621,59 @@ export class MatchDO extends DurableObject<Env> {
 
   // Starts the grace period for each of `playerIds` that is a person seated at the match. Kept in
   // storage, not memory, since a socket's close can wake a hibernated DO that goes away again.
-  private async startLapses(match: MatchState, playerIds: Iterable<string>): Promise<void> {
+  // `inAlarm` as for scheduleLapse.
+  private async startLapses(match: MatchState, playerIds: Iterable<string>, inAlarm = false): Promise<void> {
     const seated = new Set(match.players.map((p) => p.playerId).filter((id) => !isBot(id)));
     const starting = [...playerIds].filter((id) => seated.has(id));
     if (starting.length === 0) return;
     const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
     for (const id of starting) lapses[id] = Date.now() + PARTY_GRACE_MS;
     await this.ctx.storage.put('lapses', lapses);
-    await this.scheduleLapse();
+    await this.scheduleLapse(inAlarm);
   }
 
   // The winning play: everyone not on the screen to see it starts their grace period now.
-  private async lapseIfWon(previous: MatchState, next: MatchState, onTheWay: string[] = []): Promise<void> {
+  private async lapseIfWon(previous: MatchState, next: MatchState, onTheWay: string[] = [], inAlarm = false): Promise<void> {
     if (previous.winningTeam !== null || !this.lapses(next)) return;
     const watching = this.watchingPlayers();
     for (const id of onTheWay) watching.add(id);
-    await this.startLapses(next, next.players.map((p) => p.playerId).filter((id) => !watching.has(id)));
+    await this.startLapses(next, next.players.map((p) => p.playerId).filter((id) => !watching.has(id)), inAlarm);
   }
 
   // Sets the one alarm for the earliest pending lapse, unless it's already set to go off sooner -
-  // alarm() handles whatever is due when it fires, and sets it again for the rest.
-  private async scheduleLapse(): Promise<void> {
+  // alarm() handles whatever is due when it fires, and sets it again for the rest. Inside alarm()
+  // (`inAlarm`) it's set outright: the alarm already set may be the one firing now, which won't
+  // fire again.
+  private async scheduleLapse(inAlarm = false): Promise<void> {
     const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
     const times = Object.values(lapses);
     if (times.length === 0) return;
     const earliest = Math.min(...times);
-    const current = await this.ctx.storage.getAlarm();
+    const current = inAlarm ? null : await this.ctx.storage.getAlarm();
     if (current !== null && current <= earliest) return;
     await this.ctx.storage.setAlarm(earliest);
   }
 
-  // Marks away everyone whose grace period has run out. True when any had, so the alarm was theirs.
+  // Marks away everyone whose grace period has run out. True when there are lapses at all, so the
+  // alarm was theirs - even with none due yet: it was set for a lapse that was since cancelled (the
+  // player came back), and a later one may be waiting behind it.
   private async runDueLapses(): Promise<boolean> {
     const lapses = (await this.ctx.storage.get<Record<string, number>>('lapses')) ?? {};
+    const ids = Object.keys(lapses);
+    if (ids.length === 0) return false;
     const now = Date.now();
-    const due = Object.keys(lapses).filter((id) => lapses[id] <= now);
-    if (due.length === 0) return false;
+    const due = ids.filter((id) => lapses[id] <= now);
+    const later = ids.filter((id) => lapses[id] > now).map((id) => lapses[id]);
+    // Set before anything below can throw, so the lapses still to come always have an alarm.
+    if (later.length > 0) await this.ctx.storage.setAlarm(Math.min(...later));
+    if (due.length === 0) return true;
+    // The match is saved before the due lapses are taken off, so a retried alarm can't lose them.
+    const match = await this.load();
+    const next = match === null ? null : due.reduce((marked, id) => setAway(marked, id, true), match);
+    if (next !== null && next !== match) await this.save(next);
     for (const id of due) delete lapses[id];
     await this.ctx.storage.put('lapses', lapses);
-    const match = await this.load();
-    if (match !== null) {
-      const next = due.reduce((marked, id) => setAway(marked, id, true), match);
-      if (next !== match) {
-        await this.save(next);
-        this.publish(match, next);
-      }
-    }
-    await this.scheduleLapse();
+    if (match !== null && next !== null && next !== match) this.publish(match, next);
     return true;
   }
 
@@ -702,7 +708,7 @@ export class MatchDO extends DurableObject<Env> {
       // once its retries ran out a match waiting on a bot would be stuck.
       await this.schedule(next);
       await this.recordStatsIfWon(match, next);
-      await this.lapseIfWon(match, next);
+      await this.lapseIfWon(match, next, [], true);
       this.publish(match, next);
       await this.syncIfSeatsChanged(match, next);
       if (action.kind === 'ready' || action.kind === 'play') {
