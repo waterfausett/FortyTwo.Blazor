@@ -1092,7 +1092,8 @@ export function Match(): JSX.Element {
                         partnerName={choices.partnerId ? nameFor(choices.partnerId) : ''}
                         layout="stack"
                         rematch={rematchControl('action-button-outline')}
-                        busy={!connected || overBusy}
+                        busy={!connected}
+                        pending={overBusy}
                         onPartyUp={pressPartyUp}
                         onCancelParty={() => cancelPartyMutation.mutate()}
                         onFindGame={() => findGameMutation.mutate()}
@@ -1219,7 +1220,8 @@ export function Match(): JSX.Element {
               ? {
                   choices,
                   partnerName: choices.partnerId ? nameFor(choices.partnerId) : '',
-                  busy: !connected || overBusy,
+                  busy: !connected,
+                  pending: overBusy,
                   onPartyUp: pressPartyUp,
                   onCancelParty: () => cancelPartyMutation.mutate(),
                   onFindGame: () => findGameMutation.mutate(),

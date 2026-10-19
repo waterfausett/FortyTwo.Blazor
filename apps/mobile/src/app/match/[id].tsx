@@ -915,7 +915,8 @@ export default function MatchScreen() {
                     partnerName={choices.partnerId ? nameFor(choices.partnerId) : ''}
                     layout="stack"
                     rematch={rematchControl(true)}
-                    busy={!connected || overBusy}
+                    busy={!connected}
+                    pending={overBusy}
                     onPartyUp={pressPartyUp}
                     onCancelParty={() => cancelParty.mutate()}
                     onFindGame={() => findGame.mutate()}
@@ -1094,7 +1095,8 @@ export default function MatchScreen() {
               ? {
                   choices,
                   partnerName: choices.partnerId ? nameFor(choices.partnerId) : '',
-                  busy: !connected || overBusy,
+                  busy: !connected,
+                  pending: overBusy,
                   onPartyUp: pressPartyUp,
                   onCancelParty: () => cancelParty.mutate(),
                   onFindGame: () => findGame.mutate(),

@@ -30,6 +30,7 @@ function renderActions(party: PartyButton, props: Partial<Parameters<typeof Matc
         rematch={<button type="button">Rematch</button>}
         lobby={<a href="/">Lobby</a>}
         busy={false}
+        pending={false}
         {...handlers}
         {...props}
       />
@@ -110,5 +111,18 @@ describe('MatchOverActions', () => {
     renderActions({ kind: 'offer', partnerOffered: false }, { busy: true });
     expect((screen.getByRole('button', { name: 'Find a game' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Party up with Cal' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('ignores presses while a choice is pending, without looking disabled', () => {
+    const { onCancelParty, onFindGame } = renderActions({ kind: 'waiting' }, { pending: true });
+    const waiting = screen.getByRole('button', { name: 'Waiting for Cal…' }) as HTMLButtonElement;
+    const findGame = screen.getByRole('button', { name: 'Find a game' }) as HTMLButtonElement;
+    expect(waiting.disabled).toBe(false);
+    expect(findGame.disabled).toBe(false);
+    expect(waiting.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(waiting);
+    fireEvent.click(findGame);
+    expect(onCancelParty).not.toHaveBeenCalled();
+    expect(onFindGame).not.toHaveBeenCalled();
   });
 });

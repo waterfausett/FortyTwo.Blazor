@@ -15,7 +15,11 @@ export interface MatchOverActionsProps {
   layout: 'stack' | 'rows';
   rematch: ReactNode;
   lobby?: ReactNode;
+  // Offline: the choices can't be made, and look it.
   busy: boolean;
+  // A choice is on its way: further presses are ignored until it lands, but nothing changes look,
+  // so the buttons don't flicker for the moment it takes.
+  pending: boolean;
   onPartyUp: () => void;
   onCancelParty: () => void;
   onFindGame: () => void;
@@ -31,6 +35,7 @@ export function MatchOverActions({
   rematch,
   lobby,
   busy,
+  pending,
   onPartyUp,
   onCancelParty,
   onFindGame,
@@ -41,7 +46,7 @@ export function MatchOverActions({
   const findGame = choices.showFindGame && (
     <Pressable
       style={[styles.button, styles.brass, busy && styles.disabled]}
-      disabled={busy}
+      disabled={busy || pending}
       onPress={onFindGame}
       accessibilityRole="button"
     >
@@ -78,7 +83,7 @@ export function MatchOverActions({
     const button = (label: string, onPress: (() => void) | null) => (
       <Pressable
         style={[styles.button, styles.team, (onPress === null || busy) && styles.disabled]}
-        disabled={onPress === null || busy}
+        disabled={onPress === null || busy || pending}
         onPress={onPress ?? undefined}
         accessibilityRole="button"
       >

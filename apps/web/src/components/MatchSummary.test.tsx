@@ -142,6 +142,7 @@ describe('MatchSummary', () => {
       },
       partnerName: 'Cal',
       busy: false,
+      pending: false,
       onPartyUp: vi.fn(),
       onCancelParty: vi.fn(),
       onFindGame: vi.fn(),

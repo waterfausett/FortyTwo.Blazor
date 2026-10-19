@@ -134,6 +134,7 @@ describe('MatchSummary at the end of a Live game', () => {
                   choices,
                   partnerName: choices.partnerId ? (names[choices.partnerId] ?? choices.partnerId) : '',
                   busy: false,
+                  pending: false,
                   onPartyUp: jest.fn(),
                   onCancelParty: jest.fn(),
                   onFindGame: jest.fn(),
