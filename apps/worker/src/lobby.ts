@@ -3,7 +3,7 @@
 // match state; this index is synced from it after each change - by routes/matches.ts, or by
 // MatchDO itself for the changes no route makes (bot moves, a rematch). Every sync runs through
 // `bestEffort`: by then the match is already saved, so a D1 failure must not fail the change.
-import { isDefaultHouseRules, matchMode, teamForPosition, type MatchPlayerState, type MatchState, type Teams } from '@fortytwo/rules';
+import { isDefaultHouseRules, matchMode, seatedPlayers, teamForPosition, type MatchPlayerState, type MatchState, type Teams } from '@fortytwo/rules';
 import type { MatchMode, MatchSummary } from '@fortytwo/api-types';
 
 // One row of the `matches` table. GET /api/matches adds each match's teams, seats and (for
@@ -43,15 +43,17 @@ export async function bestEffort(matchId: string, write: () => Promise<void>): P
 // Brings a match's summary row and seated players up to date. For a change to who's seated: a
 // create, join, leave, bots or rematch. Anything else uses refreshMatchSummary, which writes far less.
 export async function syncLobbyIndex(db: D1Database, match: MatchState): Promise<void> {
+  // An open parked seat isn't counted or listed: the bot holding it is leaving, so it's a seat to sit in.
+  const seated = seatedPlayers(match);
   await upsertMatchSummary(db, {
     id: match.id,
     status: matchStatus(match),
-    playerCount: match.players.length,
+    playerCount: seated.length,
     updatedOn: match.updatedOn,
     mode: matchMode(match),
     rules: rulesColumn(match),
   });
-  await syncMatchPlayers(db, match.id, match.players);
+  await syncMatchPlayers(db, match.id, seated);
 }
 
 // D1 bills every row (and index entry) written, and a match changes on every play, so a change
@@ -64,25 +66,27 @@ export const SUMMARY_REFRESH_MS = 5 * 60 * 1000;
 // Also restores a match missing from the lobby altogether - one whose seats-changing sync failed
 // (see `bestEffort`), such as a rematch, which no later change of seats would ever re-sync. The
 // INSERT OR IGNORE writes nothing for a match that's already listed; when it does add the row,
-// the seats are written too.
+// the seats are written too. So are they when the player count changed, which a play can do by
+// deciding a hand at a table with a parked bot: its seat opens, so the bot must leave the seat list.
 export async function refreshMatchSummary(db: D1Database, match: MatchState): Promise<void> {
   const status = matchStatus(match);
+  const seated = seatedPlayers(match);
   const refreshBefore = new Date(Date.parse(match.updatedOn) - SUMMARY_REFRESH_MS).toISOString();
-  const [restored] = await db.batch([
+  const [restored, changed] = await db.batch([
     db
       .prepare('INSERT OR IGNORE INTO matches (id, status, player_count, updated_on, mode, rules) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind(match.id, status, match.players.length, match.updatedOn, matchMode(match), rulesColumn(match)),
+      .bind(match.id, status, seated.length, match.updatedOn, matchMode(match), rulesColumn(match)),
     db
       .prepare(
         `UPDATE matches SET status = ?2, player_count = ?3, updated_on = ?4
          WHERE id = ?1 AND (status IS NOT ?2 OR player_count IS NOT ?3)`
       )
-      .bind(match.id, status, match.players.length, match.updatedOn),
+      .bind(match.id, status, seated.length, match.updatedOn),
     db
       .prepare('UPDATE matches SET updated_on = ?2 WHERE id = ?1 AND updated_on < ?3')
       .bind(match.id, match.updatedOn, refreshBefore),
   ]);
-  if (restored.meta.changes > 0) await syncMatchPlayers(db, match.id, match.players);
+  if (restored.meta.changes > 0 || changed.meta.changes > 0) await syncMatchPlayers(db, match.id, seated);
 }
 
 // The `rules` column for a match: its house rules as JSON, or null on the default rules.

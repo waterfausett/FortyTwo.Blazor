@@ -30,6 +30,10 @@ import {
   releaseClaim,
   replaceWithBot,
   isPresent,
+  isBot,
+  parkSeat,
+  unpark,
+  openPositions,
   hasBeenDealt,
   shuffledDominoOrder,
   ValidationError,
@@ -264,8 +268,10 @@ export class MatchDO extends DurableObject<Env> {
   // Leaving: before the deal, takes the player back out (the last human out deletes the match -
   // how a creator cancels a match nobody joined). A claimant gives up their claim. In an Over the
   // table game under way a bot takes the seat, unless nobody else is present, which drops the
-  // match - as leaving a bots match under way always does, since bots never count as present. The
-  // caller drops the lobby rows when it's deleted (routes/matches.ts).
+  // match - as leaving a bots match under way always does, since bots never count as present. In a
+  // Custom game under way a bot parks in the seat (parkSeat) to finish the hand and open it for
+  // someone else, unless no other person is seated, which drops the match - connected or not.
+  // Async games can't be left once dealt (removePlayer refuses). The caller drops the lobby rows when it's deleted (routes/matches.ts).
   leave(playerId: string): Promise<MatchResult<LeaveResult>> {
     return this.read(async (match): Promise<LeaveResult> => {
       if ((match.claims ?? []).includes(playerId)) {
@@ -283,6 +289,18 @@ export class MatchDO extends DurableObject<Env> {
           return { deleted: true };
         }
         const next = replaceWithBot(match, playerId);
+        await this.save(next);
+        this.publish(match, next);
+        await this.schedule(next);
+        return { deleted: false, match: next };
+      }
+      if (mode === 'custom' && hasBeenDealt(match) && match.winningTeam === null) {
+        assertIsMatchPlayer(match, playerId);
+        if (!match.players.some((p) => p.playerId !== playerId && !isBot(p.playerId))) {
+          await this.drop(match);
+          return { deleted: true };
+        }
+        const next = parkSeat(match, playerId);
         await this.save(next);
         this.publish(match, next);
         await this.schedule(next);
@@ -320,7 +338,10 @@ export class MatchDO extends DurableObject<Env> {
       if (matchMode(match) === 'daily') {
         throw new ValidationError('No bots at Async tables', 'Async tables only fill with people.');
       }
-      return seatBots(match, positions);
+      // A parked bot in an open seat takes it for good; only seats nobody holds get a new bot.
+      const parkedOpen = openPositions(match).filter((position) => match.players.some((p) => p.position === position));
+      const unparked = unpark(match, positions ? positions.filter((position) => parkedOpen.includes(position)) : parkedOpen);
+      return seatBots(unparked, positions?.filter((position) => !parkedOpen.includes(position)));
     });
   }
 

@@ -136,7 +136,7 @@ describe('lobby', () => {
     const indexed = { id: 'm1', status: 'active' as const, playerCount: 4, updatedOn: '2026-09-24T01:00:00.000Z' };
     // Just the fields the summary row is built from.
     const matchAt = (updatedOn: string, winningTeam: Teams | null = null) =>
-      ({ id: 'm1', players: seat('p1', 'p2', 'p3', 'p4'), winningTeam, updatedOn }) as unknown as MatchState;
+      ({ id: 'm1', players: seat('p1', 'p2', 'p3', 'p4'), winningTeam, updatedOn, currentGame: { biddingPlayerId: null } }) as unknown as MatchState;
     const msAfterIndexed = (ms: number) => new Date(Date.parse(indexed.updatedOn) + ms).toISOString();
     const row = () =>
       testEnv.DB.prepare('SELECT id, status, player_count AS playerCount, updated_on AS updatedOn FROM matches WHERE id = ?')

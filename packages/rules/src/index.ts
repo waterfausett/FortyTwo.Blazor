@@ -89,12 +89,14 @@ export {
   setAutopilot,
   resumeControl,
   replaceWithBot,
+  renamePlayer,
   claimSeat,
   releaseClaim,
   isAwayAllHand,
   seatChangesAtBreak,
   letClaimsGo,
 } from './live';
+export { isParked, openPositions, seatedPlayers, parkSeat, takeParkedSeat, unpark } from './parked';
 export { BOT_MARK, botDisplayName, isBot, mintBotId, withoutBotMark } from './botIds';
 export { matchViewFor, handSize } from './view';
 export type { PlayerMatchStats, TrumpCounts, TrumpKey } from './stats';

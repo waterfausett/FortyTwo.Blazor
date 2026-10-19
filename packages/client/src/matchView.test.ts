@@ -9,6 +9,7 @@ import {
   createDomino,
   createMatch,
   matchViewFor,
+  parkSeat,
   placeBid,
   playDomino,
   setTrump,
@@ -198,5 +199,27 @@ describe('trick piles', () => {
     const split = [trick(Teams.TeamA, 1), trick(Teams.TeamA, 2), trick(Teams.TeamB, 3), trick(Teams.TeamA, 4)];
     expect(teamTricksForDisplay(split, Teams.TeamA, true).map((t) => t.playerId)).toEqual(['p4']);
     expect(teamTricksForDisplay(split, Teams.TeamB, true).map((t) => t.playerId)).toEqual(['p3']);
+  });
+});
+
+describe('openSeatCount', () => {
+  it('counts a parked seat once its hand is decided, not before', () => {
+    let match = createMatch('p1', 'custom');
+    match = takeSeat(match, 'p2', 1);
+    match = takeSeat(match, 'p3', 2);
+    match = parkSeat(takeSeat(match, 'p4', 3, deck()), 'p2');
+    expect(describeMatch(match, 'p1').openSeatCount).toBe(0);
+    const counts = [createDomino(5, 5), createDomino(6, 4), createDomino(5, 0), createDomino(4, 1)];
+    const decided = {
+      ...match,
+      currentGame: {
+        ...match.currentGame,
+        biddingPlayerId: 'p1',
+        bid: Bid.Thirty,
+        trump: Suit.Sixes,
+        tricks: [{ playerId: 'p2', team: Teams.TeamB, suit: Suit.Sixes, dominoes: counts }],
+      },
+    };
+    expect(describeMatch(decided, 'p1').openSeatCount).toBe(1);
   });
 });
