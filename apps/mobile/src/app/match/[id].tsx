@@ -11,6 +11,7 @@ import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, Styl
 import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  endChoices,
   houseRuleLabels,
   lobbyCards,
   lobbyRoster,
@@ -58,6 +59,7 @@ import {
   rematchAgreed,
   seatedPlayers,
   suitToPrettyString,
+  teamForPosition,
   type Domino as DominoType,
   type MatchState,
   Suit,
@@ -78,6 +80,7 @@ import { HelpButton } from '@/components/HelpButton';
 import { JoinMatchPanel } from '@/components/JoinMatchPanel';
 import { MatchMenu } from '@/components/MatchMenu';
 import { HouseRulesButton, HouseRulesModal } from '@/components/HouseRulesModal';
+import { MatchOverActions } from '@/components/MatchOverActions';
 import { MatchSummary } from '@/components/MatchSummary';
 import { NameSkeleton } from '@/components/NameSkeleton';
 import { PipFace } from '@/components/PipFace';
@@ -187,6 +190,10 @@ export default function MatchScreen() {
   const trump = useMutation({ mutationFn: (suit: Suit) => api.setTrump(id, suit), ...sent('trump') });
   const readyUp = useMutation({ mutationFn: () => api.readyUp(id, true), ...sent('ready') });
   const rematch = useMutation({ mutationFn: () => api.rematch(id), onError: toastError });
+  // The end-of-game choices for a Live match (see endChoices). Each one answers with the match as it
+  // now stands, which the socket brings anyway, so none of them needs to write it back.
+  const partyUp = useMutation({ mutationFn: () => api.partyUp(id), onError: toastError });
+  const cancelParty = useMutation({ mutationFn: () => api.cancelParty(id), onError: toastError });
   const addBots = useMutation({ mutationFn: () => api.addBots(id), onError: toastError });
   const resume = useMutation({ mutationFn: () => api.resume(id), onError: toastError });
   const online = useOnline();
@@ -257,6 +264,16 @@ export default function MatchScreen() {
     onSuccess: (found) => router.replace(`/match/${found.id}`),
   });
   const { mutate: searchAgain } = findAnother;
+  // "Find a game" at the end of a Live match: step out of this one's party first, so the partner
+  // isn't left waiting on me, then look for another and go to it.
+  const findGame = useMutation({
+    mutationFn: async () => {
+      await api.moveOn(id);
+      return api.play('live');
+    },
+    onSuccess: (found) => router.replace(`/match/${found.id}`),
+    onError: toastError,
+  });
   const searchedAgainRef = useRef(false);
   useEffect(() => {
     if (!bumped || searchedAgainRef.current) return;
@@ -379,6 +396,8 @@ export default function MatchScreen() {
   const tableRef = useRef<View>(null);
   const [drag, setDrag] = useState<DragState>({ dragging: false, overDropZone: false });
   const [viewportHeight, setViewportHeight] = useState(0);
+  // The match-over panel's own height, for a Live match's to grow upward (see its style below).
+  const [overPanelHeight, setOverPanelHeight] = useState(0);
 
   // Follow the rematch once everyone has agreed - but only if it's created while this screen is
   // open. A finished match opened later stays viewable.
@@ -392,6 +411,39 @@ export default function MatchScreen() {
     }
     if (rematchId && rematchId !== rematchIdAtLoad.current) router.replace(`/match/${rematchId}`);
   }, [liveMatch, rematchId]);
+
+  // Parting up can turn out to be a game I'm already in (a Live player is in one at a time), which
+  // the server notes as "busy". The same search that finds a game for anyone returns that game, so
+  // go there. Only after I pressed Party up on this screen, never for a match opened already busy.
+  const choices = liveMatch && myPlayerId ? endChoices(liveMatch, myPlayerId) : null;
+  const pressedPartyRef = useRef(false);
+  const sentBusyRef = useRef(false);
+  const iAmBusy = choices?.iAmBusy ?? false;
+  useEffect(() => {
+    if (!iAmBusy || !pressedPartyRef.current || sentBusyRef.current) return;
+    sentBusyRef.current = true;
+    // Said out loud: the player is waiting to be taken somewhere, so a failure can't be silent.
+    searchAgain(undefined, { onError: toastError });
+  }, [iAmBusy, searchAgain]);
+  const pressPartyUp = () => {
+    pressedPartyRef.current = true;
+    partyUp.mutate();
+  };
+
+  // The party's new match appears while I'm here: take me there, as for a rematch above, and for
+  // the same reasons only when it appears while the screen is open. Noted once I'm seated, since
+  // before that my team's id can't be read and one already there would look new.
+  const myPlayer = liveMatch?.players.find((p) => p.playerId === myPlayerId);
+  const partyMatchId = myPlayer ? liveMatch?.partyMatchIds?.[teamForPosition(myPlayer.position)] : undefined;
+  const partyIdAtLoad = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!liveMatch || !myPlayer) return;
+    if (partyIdAtLoad.current === undefined) {
+      partyIdAtLoad.current = partyMatchId ?? null;
+      return;
+    }
+    if (partyMatchId && partyMatchId !== partyIdAtLoad.current) router.replace(`/match/${partyMatchId}`);
+  }, [liveMatch, myPlayer, partyMatchId]);
 
   if (!liveMatch || !liveGame || !myPlayerId) {
     return (
@@ -554,6 +606,19 @@ export default function MatchScreen() {
 
   const myPosition = match.players.find((p) => p.playerId === viewerId)!.position;
   const showReady = view.isHandOver && !view.isMatchOver;
+  // A tap on any end-of-game choice is in flight, so the others wait for its answer.
+  const overBusy = partyUp.isPending || cancelParty.isPending || findGame.isPending || rematch.isPending;
+  const rematchControl = (outline: boolean) =>
+    match.rematchId ? (
+      <ActionButton label="Go to rematch" outline={outline} onPress={() => router.replace(`/match/${match.rematchId}`)} />
+    ) : (
+      <ActionButton
+        label={view.iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
+        outline={outline}
+        disabled={view.iVotedRematch || !connected || rematch.isPending || (choices?.rematchDisabled ?? false)}
+        onPress={() => rematch.mutate()}
+      />
+    );
   function seatInfo(playerId: string): SeatInfo {
     const player = match!.players.find((p) => p.playerId === playerId)!;
     const hand = game!.hands.find((h) => h.playerId === playerId);
@@ -806,21 +871,36 @@ export default function MatchScreen() {
           // Takes the status line's place, so it fits above the hand without moving it.
           <Fade key="handOver">
             {view.isMatchOver ? (
-              <View style={styles.matchOver} accessibilityLabel="Match over">
+              <View
+                // A Live panel is taller than the one it replaces. Pulling it up by the extra height
+                // takes it out of the layout, so the hand stays where it was and the panel grows
+                // upward over the table instead.
+                style={[
+                  styles.matchOver,
+                  choices?.live && { marginTop: -Math.max(0, overPanelHeight - MATCH_OVER_FLOW_HEIGHT) },
+                ]}
+                onLayout={(e) => setOverPanelHeight(e.nativeEvent.layout.height)}
+                accessibilityLabel="Match over"
+              >
                 <Text style={styles.handOverTitle}>
                   {match.winningTeam === myTeam ? 'You won the match' : 'They won the match'}
                 </Text>
                 <Pressable style={styles.smallButton} onPress={() => setSummaryOpen(true)} accessibilityRole="button">
                   <Text style={styles.smallButtonText}>Match summary</Text>
                 </Pressable>
-                {match.rematchId ? (
-                  <ActionButton label="Go to rematch" onPress={() => router.replace(`/match/${match.rematchId}`)} />
-                ) : (
-                  <ActionButton
-                    label={view.iVotedRematch ? `Waiting for rematch (${rematchAgreed(match).length} of 4)` : 'Rematch'}
-                    disabled={view.iVotedRematch || !connected || rematch.isPending}
-                    onPress={() => rematch.mutate()}
+                {choices?.live ? (
+                  <MatchOverActions
+                    choices={choices}
+                    partnerName={choices.partnerId ? nameFor(choices.partnerId) : ''}
+                    layout="stack"
+                    rematch={rematchControl(true)}
+                    busy={!connected || overBusy}
+                    onPartyUp={pressPartyUp}
+                    onCancelParty={() => cancelParty.mutate()}
+                    onFindGame={() => findGame.mutate()}
                   />
+                ) : (
+                  rematchControl(false)
                 )}
               </View>
             ) : (
@@ -966,6 +1046,18 @@ export default function MatchScreen() {
             router.dismissTo('/');
           }}
           onClose={() => setSummaryOpen(false)}
+          live={
+            choices?.live
+              ? {
+                  choices,
+                  partnerName: choices.partnerId ? nameFor(choices.partnerId) : '',
+                  busy: !connected || overBusy,
+                  onPartyUp: pressPartyUp,
+                  onCancelParty: () => cancelParty.mutate(),
+                  onFindGame: () => findGame.mutate(),
+                }
+              : undefined
+          }
         />
       )}
     </ScrollView>
@@ -994,15 +1086,25 @@ function Score({ label, marks, total, color }: { label: string; marks: number; t
   );
 }
 
-function ActionButton({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
+function ActionButton({
+  label,
+  onPress,
+  disabled = false,
+  outline = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  outline?: boolean;
+}) {
   return (
     <Pressable
-      style={[styles.button, disabled && styles.buttonDisabled]}
+      style={[styles.button, outline && styles.buttonOutline, disabled && styles.buttonDisabled]}
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
     >
-      <Text style={styles.buttonText}>{label}</Text>
+      <Text style={[styles.buttonText, outline && styles.buttonOutlineText]}>{label}</Text>
     </Pressable>
   );
 }
@@ -1010,6 +1112,9 @@ function ActionButton({ label, onPress, disabled = false }: { label: string; onP
 const CONTAINER_PADDING = 12;
 const CONTAINER_GAP = 14;
 const HAND_COLLAPSE_MS = 420;
+// About what the match-over panel takes in the layout: its title, summary button and one button.
+// A Live match's panel is taller, and only this much of it counts, so the rest rises over the table.
+const MATCH_OVER_FLOW_HEIGHT = 150;
 // How much of the trick history shows below the play area: the top of each pile, with its points.
 const HISTORY_PEEK = 40;
 
@@ -1098,6 +1203,8 @@ const styles = StyleSheet.create({
   hidden: { opacity: 0 },
   hint: { color: colors.inkMuted, fontFamily: fonts.ui, textAlign: 'center', fontSize: 12 },
   button: { backgroundColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 8 },
+  buttonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.boneEdge },
+  buttonOutlineText: { color: colors.bone },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: colors.walnutDeep, fontFamily: fonts.uiBold, fontSize: 16 },
 });

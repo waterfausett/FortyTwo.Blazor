@@ -14,6 +14,7 @@ import {
   teamForPosition,
   type MatchState,
 } from '@fortytwo/rules';
+import { MatchOverActions } from './MatchOverActions';
 import { colors, fonts } from './theme';
 
 export interface MatchSummaryProps {
@@ -27,6 +28,8 @@ export interface MatchSummaryProps {
   onGoToRematch: () => void;
   onLobby: () => void;
   onClose: () => void;
+  // Set for a Live match: the sheet then offers Party up and Find a game beside Lobby and Rematch.
+  live?: Omit<Parameters<typeof MatchOverActions>[0], 'layout' | 'rematch' | 'lobby'>;
 }
 
 export function MatchSummary({
@@ -40,6 +43,7 @@ export function MatchSummary({
   onGoToRematch,
   onLobby,
   onClose,
+  live,
 }: MatchSummaryProps) {
   const insets = useSafeAreaInsets();
   const theirTeam = myTeam === Teams.TeamA ? Teams.TeamB : Teams.TeamA;
@@ -50,6 +54,29 @@ export function MatchSummary({
       .map((p) => nameFor(p.playerId))
       .join(' & ');
   const agreed = rematchAgreed(match).length;
+
+  const lobbyButton = (
+    <Pressable style={[styles.button, styles.secondary]} onPress={onLobby} accessibilityRole="button">
+      <Text style={styles.secondaryText}>Back to lobby</Text>
+    </Pressable>
+  );
+  const rematchOff = iVoted || rematchDisabled || (live?.choices.rematchDisabled ?? false);
+  const rematchButton = match.rematchId ? (
+    <Pressable style={styles.button} onPress={onGoToRematch} accessibilityRole="button">
+      <Text style={styles.buttonText}>Go to rematch</Text>
+    </Pressable>
+  ) : (
+    <Pressable
+      style={[styles.button, rematchOff && styles.disabled]}
+      disabled={rematchOff}
+      onPress={onRematch}
+      accessibilityRole="button"
+    >
+      <Text style={styles.buttonText}>
+        {iVoted ? `Waiting (${agreed} of 4)` : agreed > 0 ? `Rematch (${agreed} of 4)` : 'Rematch'}
+      </Text>
+    </Pressable>
+  );
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -92,27 +119,14 @@ export function MatchSummary({
           ))}
         </ScrollView>
 
-        <View style={styles.actions}>
-          <Pressable style={[styles.button, styles.secondary]} onPress={onLobby} accessibilityRole="button">
-            <Text style={styles.secondaryText}>Back to lobby</Text>
-          </Pressable>
-          {match.rematchId ? (
-            <Pressable style={styles.button} onPress={onGoToRematch} accessibilityRole="button">
-              <Text style={styles.buttonText}>Go to rematch</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={[styles.button, (iVoted || rematchDisabled) && styles.disabled]}
-              disabled={iVoted || rematchDisabled}
-              onPress={onRematch}
-              accessibilityRole="button"
-            >
-              <Text style={styles.buttonText}>
-                {iVoted ? `Waiting (${agreed} of 4)` : agreed > 0 ? `Rematch (${agreed} of 4)` : 'Rematch'}
-              </Text>
-            </Pressable>
-          )}
-        </View>
+        {live ? (
+          <MatchOverActions {...live} layout="rows" lobby={lobbyButton} rematch={rematchButton} />
+        ) : (
+          <View style={styles.actions}>
+            {lobbyButton}
+            {rematchButton}
+          </View>
+        )}
       </View>
     </Modal>
   );
