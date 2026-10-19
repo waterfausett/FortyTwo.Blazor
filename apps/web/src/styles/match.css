@@ -896,6 +896,17 @@
   text-align: center;
 }
 
+/* The end of a Live match: one column, so the choices don't sit beside the title while their labels
+   are short and jump below it when they grow. */
+.hand-result.hand-result-stacked {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.hand-result-stacked .match-over-actions-stack {
+  width: min(100%, 20rem);
+}
+
 .hand-result-title {
   margin: 0;
   font-family: var(--font-display);

@@ -1064,7 +1064,10 @@ export function Match(): JSX.Element {
 
           <div className={`player${!watching && me.isActive && !isHandPlayedOut && isTableReady ? ' active' : ''}`}>
             {showHandOver && !watching && (
-              <section className="hand-result" aria-label="Hand over">
+              <section
+                className={`hand-result${isMatchOver && choices?.live ? ' hand-result-stacked' : ''}`}
+                aria-label="Hand over"
+              >
                 <p className="hand-result-title">
                   {isMatchOver
                     ? match.winningTeam === me.team
