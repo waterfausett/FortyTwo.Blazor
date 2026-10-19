@@ -426,7 +426,11 @@ export default function MatchScreen() {
   // Parting up can turn out to be a game I'm already in (a Live player is in one at a time), which
   // the server notes as "busy". The same search that finds a game for anyone returns that game, so
   // go there. Only after I pressed Party up on this screen, never for a match opened already busy.
-  const choices = liveMatch && myPlayerId ? endChoices(liveMatch, myPlayerId) : null;
+  // When this screen opened: a Live game that had ended well before then is history, with nothing
+  // to offer (endChoices), so it shows just its title and Match summary.
+  const [openedAt] = useState(() => serverNow());
+  const choices = liveMatch && myPlayerId ? endChoices(liveMatch, myPlayerId, openedAt) : null;
+  const liveChoices = choices?.live === true && !choices.expired;
   const pressedPartyRef = useRef(false);
   const sentBusyRef = useRef(false);
   const iAmBusy = choices?.iAmBusy ?? false;
@@ -884,7 +888,7 @@ export default function MatchScreen() {
             key="handOver"
             // A Live panel overlaps the table, so it has to be drawn above the seat cards: a
             // later sibling isn't enough on Android, where elevation decides the order.
-            style={view.isMatchOver && choices?.live ? styles.overlap : undefined}
+            style={view.isMatchOver && liveChoices ? styles.overlap : undefined}
           >
             {view.isMatchOver ? (
               <View
@@ -894,7 +898,7 @@ export default function MatchScreen() {
                 // they are measured, so it doesn't push the hand down for a frame first.
                 style={[
                   styles.matchOver,
-                  choices?.live && {
+                  liveChoices && {
                     // Opaque, or the seat cards beneath would show through.
                     backgroundColor: colors.walnutDeep,
                     marginTop: -((overExtraHeight ?? 0) + MATCH_OVER_GAP),
@@ -910,18 +914,20 @@ export default function MatchScreen() {
                   <Text style={styles.smallButtonText}>Match summary</Text>
                 </Pressable>
                 {choices?.live ? (
-                  <MatchOverActions
-                    choices={choices}
-                    partnerName={choices.partnerId ? nameFor(choices.partnerId) : ''}
-                    layout="stack"
-                    rematch={rematchControl(true)}
-                    busy={!connected}
-                    pending={overBusy}
-                    onPartyUp={pressPartyUp}
-                    onCancelParty={() => cancelParty.mutate()}
-                    onFindGame={() => findGame.mutate()}
-                    onExtraHeight={setOverExtraHeight}
-                  />
+                  liveChoices && (
+                    <MatchOverActions
+                      choices={choices}
+                      partnerName={choices.partnerId ? nameFor(choices.partnerId) : ''}
+                      layout="stack"
+                      rematch={rematchControl(true)}
+                      busy={!connected}
+                      pending={overBusy}
+                      onPartyUp={pressPartyUp}
+                      onCancelParty={() => cancelParty.mutate()}
+                      onFindGame={() => findGame.mutate()}
+                      onExtraHeight={setOverExtraHeight}
+                    />
+                  )
                 ) : (
                   rematchControl(false)
                 )}

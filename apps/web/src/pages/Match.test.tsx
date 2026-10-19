@@ -1875,7 +1875,8 @@ describe('Match', () => {
         ],
       };
       const base = baseMatch({ winningTeam: Teams.TeamA }, lastHand);
-      return { ...base, games: { [Teams.TeamA]: [base.currentGame] }, ...overrides };
+      // Won just now: a Live game's choices are for the moment it ends.
+      return { ...base, games: { [Teams.TeamA]: [base.currentGame] }, wonOn: new Date().toISOString(), ...overrides };
     }
 
     // The summary waits to be asked for, from the hand-over rail.
@@ -2051,7 +2052,9 @@ describe('Match', () => {
         expect(navigateMock).toHaveBeenCalledWith('/match/match-5', { replace: true });
       });
 
-      it('links to a party match that already existed when the page opened', () => {
+      // No link to a game that may since have finished or been dropped: Find a game takes me back to
+      // the party's game while it's still going.
+      it('offers only Find a game for a party match that already existed when the page opened', () => {
         useMatchSocketMock.mockReturnValue({
           match: finishedMatch({ mode: 'live', partyMatchIds: { [Teams.TeamA]: 'match-5' } }),
           connected: true,
@@ -2059,9 +2062,29 @@ describe('Match', () => {
         renderMatch();
 
         expect(navigateMock).not.toHaveBeenCalled();
-        expect(within(rail()).getByRole('link', { name: 'Go to your new game' }).getAttribute('href')).toBe(
-          '/match/match-5'
-        );
+        expect(within(rail()).queryByRole('link')).toBeNull();
+        expect(railLabels()).toEqual(['Match summary', 'Find a game']);
+      });
+
+      it('offers only Find a game, not a link, once a Live rematch is made', () => {
+        useMatchSocketMock.mockReturnValue({ match: finishedMatch({ mode: 'live', rematchId: 'match-2' }), connected: true });
+        renderMatch();
+
+        expect(navigateMock).not.toHaveBeenCalled();
+        expect(within(rail()).queryByRole('link')).toBeNull();
+        expect(railLabels()).toEqual(['Match summary', 'Find a game']);
+      });
+
+      it('offers nothing but the summary for a Live game that ended long before the page opened', () => {
+        const longAgo = new Date(Date.now() - 60 * 60_000).toISOString();
+        useMatchSocketMock.mockReturnValue({
+          match: finishedMatch({ mode: 'live', wonOn: longAgo, partyMatchIds: { [Teams.TeamA]: 'match-5' } }),
+          connected: true,
+        });
+        renderMatch();
+
+        expect(within(rail()).queryByRole('link')).toBeNull();
+        expect(railLabels()).toEqual(['Match summary']);
       });
 
       it('sends me back to my other game once I turn up busy after pressing Party up', async () => {
@@ -2113,16 +2136,6 @@ describe('Match', () => {
 
         await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
         expect(toastErrorMock.mock.calls[0][0]).toBe(error);
-      });
-
-      it('offers only the new game once my team has partied up', () => {
-        useMatchSocketMock.mockReturnValue({
-          match: finishedMatch({ mode: 'live', partyMatchIds: { [Teams.TeamA]: 'match-5' } }),
-          connected: true,
-        });
-        renderMatch();
-
-        expect(railLabels()).toEqual(['Match summary']);
       });
     });
   });

@@ -656,6 +656,16 @@ describe('playDomino', () => {
       expect(match.winningTeam).toBe(Teams.TeamA);
     });
 
+    it('notes when the match was won, and keeps that time while the hand is played out', () => {
+      const unwon = withEarlierWins(9, 1);
+      expect(playDomino(unwon, 'p1', createDomino(6, 6)).wonOn).toBeUndefined();
+
+      const won = playDomino(withEarlierWins(3, 2), 'p1', createDomino(6, 6));
+      expect(won.wonOn).toBe(won.updatedOn);
+      const later = playDomino({ ...won, wonOn: '2026-01-01T00:00:00.000Z' }, 'p2', won.currentGame.hands[1].dominoes[0]);
+      expect(later.wonOn).toBe('2026-01-01T00:00:00.000Z');
+    });
+
     it('does not end the match at 7 when marksToWin is higher', () => {
       const match = playDomino(withEarlierWins(9, 6), 'p1', createDomino(6, 6));
       expect(matchScores(match)[Teams.TeamA]).toBe(7);

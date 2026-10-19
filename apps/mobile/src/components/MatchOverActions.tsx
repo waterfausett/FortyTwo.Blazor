@@ -1,11 +1,10 @@
 // What a finished Live match offers next: Party up with the partner, Find a game, and Rematch (as on
 // the web, apps/web/src/components/MatchOverActions.tsx). The game screen stacks them; the summary
 // sheet lays them in two rows beside its Lobby button. Rematch and Lobby come in as nodes because
-// each screen already has its own (vote count, the way to the rematch once it exists); the state of
-// the party button comes from endChoices.
+// each screen already has its own (vote count); which of them show, and the state of the party
+// button, come from endChoices.
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
 import type { EndChoices } from '@fortytwo/client';
 import { colors, fonts } from './theme';
 
@@ -42,7 +41,6 @@ export function MatchOverActions({
   onExtraHeight,
 }: MatchOverActionsProps) {
   const party = partyControl();
-  // Once partied, these could only lead back to the new game, so it stands alone.
   const findGame = choices.showFindGame && (
     <Pressable
       style={[styles.button, styles.brass, busy && styles.disabled]}
@@ -61,21 +59,23 @@ export function MatchOverActions({
           {lobby}
           {choices.showRematch && rematch}
         </View>
-        <View style={styles.row}>
-          {findGame}
-          {party}
-        </View>
+        {(findGame || party) && (
+          <View style={styles.row}>
+            {findGame}
+            {party}
+          </View>
+        )}
       </View>
     );
   }
   return (
     <View style={styles.stack}>
       <View style={styles.stack} onLayout={(e) => onExtraHeight?.(e.nativeEvent.layout.height)}>
-        {choices.showRematch && party}
-        {findGame}
+        {party}
+        {choices.showRematch && findGame}
       </View>
-      {/* Without Rematch, the party's way to its new game takes Rematch's place. */}
-      {choices.showRematch ? rematch : party}
+      {/* Without Rematch (partied, or the rematch made), Find a game stands alone in its place. */}
+      {choices.showRematch ? rematch : findGame}
     </View>
   );
 
@@ -102,8 +102,6 @@ export function MatchOverActions({
         return button(`${partnerName} left`, null);
       case 'partnerBusy':
         return button(`${partnerName} is in another game`, null);
-      case 'partied':
-        return button('Go to your new game', () => router.replace(`/match/${party.matchId}`));
     }
   }
 }

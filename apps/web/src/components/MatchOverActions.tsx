@@ -1,9 +1,8 @@
 // What a finished Live match offers next: Party up with the partner, Find a game, and Rematch. The
 // game screen stacks them; the summary sheet lays them in two rows beside its Lobby link. Rematch
-// and Lobby come in as nodes because each screen already has its own (vote count, link to the
-// rematch once it exists); the state of the party button comes from endChoices.
+// and Lobby come in as nodes because each screen already has its own (vote count); which of them
+// show, and the state of the party button, come from endChoices.
 import type { JSX, ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import type { EndChoices } from '@fortytwo/client';
 
 interface MatchOverActionsProps {
@@ -33,9 +32,8 @@ export function MatchOverActions({
   onPartyUp,
   onCancelParty,
   onFindGame,
-}: MatchOverActionsProps): JSX.Element {
+}: MatchOverActionsProps): JSX.Element | null {
   const party = partyControl();
-  // Once partied, these could only lead back to the new game, so it stands alone.
   const findGame = choices.showFindGame && (
     <button
       type="button"
@@ -56,13 +54,16 @@ export function MatchOverActions({
           {lobby}
           {rematchControl}
         </div>
-        <div className="match-over-actions-row">
-          {findGame}
-          {party}
-        </div>
+        {(findGame || party) && (
+          <div className="match-over-actions-row">
+            {findGame}
+            {party}
+          </div>
+        )}
       </div>
     );
   }
+  if (!party && !findGame && !rematchControl) return null;
   return (
     <div className="match-over-actions match-over-actions-stack">
       {party}
@@ -95,12 +96,6 @@ export function MatchOverActions({
         return button(`${partnerName} left`, null);
       case 'partnerBusy':
         return button(`${partnerName} is in another game`, null);
-      case 'partied':
-        return (
-          <Link to={`/match/${party.matchId}`} className="action-button action-button-team">
-            Go to your new game
-          </Link>
-        );
     }
   }
 }

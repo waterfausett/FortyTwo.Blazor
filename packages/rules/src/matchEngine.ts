@@ -60,6 +60,8 @@ export interface MatchState {
   currentGame: Game;
   games: Partial<Record<Teams, Game[]>>;
   winningTeam: Teams | null;
+  // When the match was won. Absent until then, and on matches won before it was recorded.
+  wonOn?: string;
   players: MatchPlayerState[];
   // Who has asked to play the same four again, once the match is over. Optional, like rematchId,
   // because matches stored before rematches existed have neither.
@@ -501,7 +503,8 @@ export function playDomino(match: MatchState, playerId: string, domino: Domino):
   if (matchWinningTeam === null) return result;
   // The match is over, so a parked seat has nothing left to wait for.
   const { parked: _parked, ...ended } = letClaimsGo(result);
-  return ended;
+  // Playing out the winning hand passes through here again; the first win's time stands.
+  return { ...ended, wonOn: match.wonOn ?? result.updatedOn };
 }
 
 // Asks to play the same four again. Only once the match is over, and only from someone seated;

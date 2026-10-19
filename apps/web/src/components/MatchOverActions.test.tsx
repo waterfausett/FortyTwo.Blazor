@@ -6,16 +6,17 @@ import { MatchOverActions } from './MatchOverActions';
 
 afterEach(cleanup);
 
-function choices(party: PartyButton): EndChoices {
-  const partied = party.kind === 'partied';
+function choices(party: PartyButton, overrides: Partial<EndChoices> = {}): EndChoices {
   return {
     live: true,
+    expired: false,
     partnerId: 'p3',
     party,
     rematchDisabled: false,
     iAmBusy: false,
-    showFindGame: !partied,
-    showRematch: !partied,
+    showFindGame: true,
+    showRematch: true,
+    ...overrides,
   };
 }
 
@@ -89,18 +90,24 @@ describe('MatchOverActions', () => {
     expect(onCancelParty).not.toHaveBeenCalled();
   });
 
-  it('links to the new game once the party has one', () => {
-    renderActions({ kind: 'partied', matchId: 'match-9' });
-    expect(screen.getByRole('link', { name: 'Go to your new game' }).getAttribute('href')).toBe('/match/match-9');
+  // Partied, or the rematch made: Find a game takes me back to that game while it's still going.
+  it('offers only Find a game once the team has gone on, beside the Lobby link in rows', () => {
+    const goneOn = choices({ kind: 'hidden' }, { showRematch: false });
+    renderActions({ kind: 'hidden' }, { choices: goneOn });
+    expect(labels()).toEqual(['Find a game']);
+    cleanup();
+    renderActions({ kind: 'hidden' }, { choices: goneOn, layout: 'rows' });
+    expect(labels()).toEqual(['Lobby', 'Find a game']);
   });
 
-  // Find a game and Rematch could only lead back to that same new game.
-  it('offers only the new game once partied, beside the Lobby link in rows', () => {
-    renderActions({ kind: 'partied', matchId: 'match-9' });
-    expect(labels()).toEqual(['Go to your new game']);
+  // Opened long after the game ended: history, with nothing to choose.
+  it('shows nothing once expired, and only the Lobby link in rows', () => {
+    const expired = choices({ kind: 'hidden' }, { expired: true, showFindGame: false, showRematch: false });
+    const { container } = renderActions({ kind: 'hidden' }, { choices: expired });
+    expect(container.querySelector('.match-over-actions')).toBeNull();
     cleanup();
-    renderActions({ kind: 'partied', matchId: 'match-9' }, { layout: 'rows' });
-    expect(labels()).toEqual(['Lobby', 'Go to your new game']);
+    renderActions({ kind: 'hidden' }, { choices: expired, layout: 'rows' });
+    expect(labels()).toEqual(['Lobby']);
   });
 
   it('calls Find a game, and disables the buttons while busy', () => {

@@ -443,7 +443,7 @@ export function Match(): JSX.Element {
   // Everyone asked for a rematch and it now exists (MatchDO creates it before recording the id),
   // so take this player there - but only when that happens while they're on the page. A match
   // whose rematch already existed when the page opened (from Game History, or Back from the
-  // rematch) stays put and links to it instead; following it then would make the finished match
+  // rematch) stays put and, outside Live, links to it instead; following it then would make the finished match
   // unviewable and trap the Back button. `replace` keeps the finished match out of history for
   // the same reason. MatchRoute keys the page by match id, so the rematch starts fresh.
   const rematchId = liveMatch?.rematchId;
@@ -460,7 +460,10 @@ export function Match(): JSX.Element {
   // Parting up can turn out to be a game I'm already in (a Live player is in one at a time), which
   // the server notes as "busy". The same search that finds a game for anyone returns that game, so
   // go there. Only after I pressed Party up on this page, never for a match opened already busy.
-  const choices = liveMatch && myPlayerId ? endChoices(liveMatch, myPlayerId) : null;
+  // When this page opened: a Live game that had ended well before then is history, with nothing to
+  // offer (endChoices). MatchRoute keys the page by match id, so each match gets its own.
+  const [openedAt] = useState(() => serverNow());
+  const choices = liveMatch && myPlayerId ? endChoices(liveMatch, myPlayerId, openedAt) : null;
   const pressedPartyRef = useRef(false);
   const sentBusyRef = useRef(false);
   const iAmBusy = choices?.iAmBusy ?? false;
