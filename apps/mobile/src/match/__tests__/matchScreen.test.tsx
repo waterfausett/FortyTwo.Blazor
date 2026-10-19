@@ -390,7 +390,7 @@ describe('Match screen, hints', () => {
   afterEach(() => reduceMotion.mockRestore());
 
   it('hides the hint while my bid is on its way to the server', async () => {
-    mockApi.getConfig.mockResolvedValue({ bots: true });
+    mockApi.getConfig.mockResolvedValue({ bots: true, hints: true });
     mockApi.bid.mockReturnValue(new Promise(() => {}));
     try {
       socket(dealtLiveWithBots({ mode: 'bots' }));

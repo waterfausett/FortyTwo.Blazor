@@ -27,11 +27,11 @@ const IDLE: HintState = { status: 'idle' };
 export function useHint(
   match: MatchState | null,
   myPlayerId: string | undefined,
-  botsEnabled: boolean,
+  hintsEnabled: boolean,
   getHint: () => Promise<HintResponse>,
   paused = false
 ): HintController {
-  const available = !paused && canAskForHint(match, myPlayerId, botsEnabled);
+  const available = !paused && canAskForHint(match, myPlayerId, hintsEnabled);
   const key = match ? hintTurnKey(match) : null;
   const [entry, setEntry] = useState<{ key: string | null; state: HintState }>({ key: null, state: IDLE });
   const abortRef = useRef<AbortController | null>(null);

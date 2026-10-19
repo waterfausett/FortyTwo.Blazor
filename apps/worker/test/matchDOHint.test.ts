@@ -37,12 +37,15 @@ async function runAllPendingAlarms(stub: ReturnType<typeof stubFor>): Promise<vo
 
 // A practice match with the bots played up to human-1's first turn. The DO's env is set before the
 // match exists, and its alarms an hour later than asked, so only the test runs them.
-async function practiceOnMyTurn(name: string, { botsEnabled = 'true', assets = modelAssets() } = {}) {
+async function practiceOnMyTurn(
+  name: string,
+  { botsEnabled = 'true', hintsEnabled = undefined as string | undefined, assets = modelAssets() } = {}
+) {
   resetMlBotForTest();
   const stub = stubFor(name);
   await runInDurableObject(stub, async (instance: MatchDO) => {
     const withEnv = instance as unknown as { env: Env; ctx: DurableObjectState };
-    withEnv.env = { ...withEnv.env, BOTS_ENABLED: botsEnabled, ASSETS: assets };
+    withEnv.env = { ...withEnv.env, BOTS_ENABLED: botsEnabled, HINTS_ENABLED: hintsEnabled, ASSETS: assets };
     const storage = withEnv.ctx.storage;
     const setAlarm = storage.setAlarm.bind(storage);
     storage.setAlarm = (time, options) => setAlarm(new Date(time).getTime() + 60 * 60 * 1000, options);
@@ -110,6 +113,11 @@ describe('MatchDO hint', () => {
 
   it('refuses when bots are switched off', async () => {
     const stub = await practiceOnMyTurn('hint-off', { botsEnabled: 'false' });
+    expect(await stub.hint('human-1')).toMatchObject({ ok: false, status: 400, error: { title: 'Hints are off' } });
+  });
+
+  it('refuses when hints are switched off', async () => {
+    const stub = await practiceOnMyTurn('hint-switched-off', { hintsEnabled: 'false' });
     expect(await stub.hint('human-1')).toMatchObject({ ok: false, status: 400, error: { title: 'Hints are off' } });
   });
 

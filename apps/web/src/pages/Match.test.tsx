@@ -2528,7 +2528,7 @@ describe('Match', () => {
 
 describe('Match hints', () => {
     it('offers a hint on my turn in a practice match, and rings the suggested bid', async () => {
-      getConfigMock.mockResolvedValue({ bots: true });
+      getConfigMock.mockResolvedValue({ bots: true, hints: true });
       getHintMock.mockResolvedValue({
         status: 'ready',
         hint: { kind: 'bid', suggestion: { bid: 31, trump: 6, pMake: 0.7 }, options: [{ bid: 31, trump: 6, pMake: 0.7 }] },
@@ -2546,7 +2546,7 @@ describe('Match hints', () => {
     });
 
     it('shows the chances to make and the alternatives with hint details on', async () => {
-      getConfigMock.mockResolvedValue({ bots: true, hintDetails: true });
+      getConfigMock.mockResolvedValue({ bots: true, hints: true, hintDetails: true });
       getHintMock.mockResolvedValue({
         status: 'ready',
         hint: { kind: 'bid', suggestion: { bid: 31, trump: 6, pMake: 0.7 }, options: [{ bid: 31, trump: 6, pMake: 0.7 }] },
@@ -2561,7 +2561,7 @@ describe('Match hints', () => {
     });
 
     it('hides the hint while my move is on its way to the server', async () => {
-      getConfigMock.mockResolvedValue({ bots: true });
+      getConfigMock.mockResolvedValue({ bots: true, hints: true });
       bidMock.mockReturnValue(new Promise(() => {}));
       useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'bots' }), connected: true });
 
@@ -2572,8 +2572,16 @@ describe('Match hints', () => {
       await waitFor(() => expect(screen.queryByRole('button', { name: 'Hint' })).toBeNull());
     });
 
+    it('offers no hint with hints switched off', async () => {
+      getConfigMock.mockResolvedValue({ bots: true, hints: false });
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({ mode: 'bots' }), connected: true });
+      renderMatch();
+      await waitFor(() => expect(getConfigMock).toHaveBeenCalled());
+      expect(screen.queryByRole('button', { name: 'Hint' })).toBeNull();
+    });
+
     it('offers no hint outside a practice match', async () => {
-      getConfigMock.mockResolvedValue({ bots: true });
+      getConfigMock.mockResolvedValue({ bots: true, hints: true });
       useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
       renderMatch();
       await waitFor(() => expect(getConfigMock).toHaveBeenCalled());

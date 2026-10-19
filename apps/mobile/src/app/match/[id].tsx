@@ -317,7 +317,7 @@ export default function MatchScreen() {
   // while a pre-play is queued (Hand's double-tap), since that domino plays itself.
   const [preselecting, setPreselecting] = useState(false);
   const moving = preselecting || playing != null || bid.isPending || trump.isPending;
-  const hint = useHint(liveMatch ?? null, myPlayerId, config.data?.bots ?? false, () => api.getHint(id), moving);
+  const hint = useHint(liveMatch ?? null, myPlayerId, config.data?.hints ?? false, () => api.getHint(id), moving);
   useEffect(() => {
     pokedRef.current = {
       nameOf: (playerId) => nameText(names.nameFor(playerId)),

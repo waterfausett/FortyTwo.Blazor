@@ -70,6 +70,8 @@ export interface ClientConfig {
   bots: boolean;
   // Whether to open the presence socket and show the online count.
   presence: boolean;
+  // Whether to offer the Hint button in practice matches.
+  hints: boolean;
   // Whether a hint's card shows its chances to make and the close alternatives, not just the
   // suggestion.
   hintDetails: boolean;

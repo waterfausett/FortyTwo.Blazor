@@ -53,7 +53,7 @@ import { sendNotices } from './push/send';
 import { tokensFor } from './push/tokens';
 import { pokeNotice, pokeTarget, pokeTurnKey } from './poke';
 import type { HintResponse, PokeResult } from '@fortytwo/api-types';
-import { assertHintable } from './hints';
+import { assertHintable, hintsEnabled } from './hints';
 import { bidAndMaybeRedeal } from './redeal';
 import { mintBotId, applyBotAction, botDelayMs, botsEnabled, findNextBotAction } from './bots';
 import { WARMING, getMlBot } from './mlBot';
@@ -440,7 +440,7 @@ export class MatchDO extends DurableObject<Env> {
   // asks again.
   hint(playerId: string): Promise<MatchResult<HintResponse>> {
     return this.read(async (match): Promise<HintResponse> => {
-      assertHintable(match, playerId, botsEnabled(this.env));
+      assertHintable(match, playerId, hintsEnabled(this.env));
       const ml = await getMlBot(this.env);
       if (ml === WARMING) return { status: 'warming' };
       if (ml === null) return { status: 'unavailable' };

@@ -244,7 +244,7 @@ export function Match(): JSX.Element {
   // while a pre-play is queued (Hand's double-click), since that domino plays itself.
   const [preselecting, setPreselecting] = useState(false);
   const moving = preselecting || playing != null || bidMutation.isPending || setTrumpMutation.isPending;
-  const hint = useHint(liveMatch ?? null, myPlayerId, botsEnabled, () => client.getHint(matchId!), moving);
+  const hint = useHint(liveMatch ?? null, myPlayerId, configQuery.data?.hints ?? false, () => client.getHint(matchId!), moving);
   // No position fills every open seat.
   const addBotsMutation = useMutation({
     mutationFn: (position?: number) => client.addBots(matchId!, position),

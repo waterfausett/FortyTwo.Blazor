@@ -44,10 +44,10 @@ export async function fetchHint(getHint: () => Promise<HintResponse>, signal?: A
   }
 }
 
-// The Hint button shows in a practice match with bots on, on my turn to bid, name trump or play,
+// The Hint button shows in a practice match with hints on, on my turn to bid, name trump or play,
 // while the hand is still open (the Worker's hints.ts makes the final call).
-export function canAskForHint(match: MatchState | null, myPlayerId: string | undefined, botsEnabled: boolean): boolean {
-  if (!match || !myPlayerId || !botsEnabled || matchMode(match) !== 'bots') return false;
+export function canAskForHint(match: MatchState | null, myPlayerId: string | undefined, hintsEnabled: boolean): boolean {
+  if (!match || !myPlayerId || !hintsEnabled || matchMode(match) !== 'bots') return false;
   if (!match.players.some((p) => p.playerId === myPlayerId)) return false;
   const view = describeMatch(match, myPlayerId);
   return !view.isHandOver && (view.canBid || view.canSelectTrump || view.isMyTurnToPlay);
