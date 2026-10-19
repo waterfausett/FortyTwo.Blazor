@@ -53,6 +53,21 @@ describe('MatchDO party up', () => {
     expect(teamForPosition(seat(p1))).toBe(teamForPosition(seat(p3)));
   });
 
+  // Each completing offer waits on the Matchmaker, and other calls reach the match meanwhile: the
+  // two teams' parties must both be kept.
+  it("keeps both teams' parties when they complete at the same time", async () => {
+    const { stub, p1, p2, p3, p4 } = await seedLive('party-race');
+    await stub.partyUp(p1);
+    await stub.partyUp(p2);
+
+    await Promise.all([stub.partyUp(p3), stub.partyUp(p4)]);
+
+    const stored = valueOf(await stub.getMatch());
+    expect(stored.partyMatchIds?.[Teams.TeamA]).toBeTruthy();
+    expect(stored.partyMatchIds?.[Teams.TeamB]).toBeTruthy();
+    expect(stored.partyOffers ?? []).toEqual([]);
+  });
+
   it('moves on a partner already at another Live table, and seats nobody', async () => {
     const { stub, p1, p3 } = await seedLive('party-busy');
     const matchmaker = testEnv.MATCHMAKER.get(testEnv.MATCHMAKER.idFromName('global'));

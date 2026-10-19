@@ -220,6 +220,20 @@ describe('MatchDO rematch', () => {
     expect(valueOf(await stub.getMatch()).movedOn).toEqual({ 'busy-p4': 'busy' });
   });
 
+  // The completing vote waits on the Matchmaker's check; someone moving on meanwhile is kept, and
+  // there's no four left for a rematch.
+  it('makes no Live rematch when someone moves on while the vote is being checked', async () => {
+    const players = ['race-p1', 'race-p2', 'race-p3', 'race-p4'];
+    const stub = await seed('rematch-live-race', { ...finishedMatch('rematch-live-race', players), mode: 'live' });
+    for (const id of players.slice(0, 3)) await stub.rematch(id);
+
+    await Promise.all([stub.rematch('race-p4'), stub.moveOn('race-p2')]);
+
+    const stored = valueOf(await stub.getMatch());
+    expect(stored.movedOn).toEqual({ 'race-p2': 'left' });
+    expect(stored.rematchId).toBeUndefined();
+  });
+
   // A retry after the first attempt made the rematch but didn't save its id: the four now sit at
   // that rematch, which mustn't count as another Live game.
   it('finishes a Live rematch on a retry, though its players already sit at it', async () => {

@@ -412,10 +412,11 @@ export class MatchDO extends DurableObject<Env> {
   // only gated on storage, not on an outgoing call, so another completing vote can run while it's
   // in flight and must reuse the id rather than mint a second match. If creation fails, this
   // throws before the vote is saved, so the voter's Rematch button stays live and trying again
-  // finishes the job against the same (idempotent) id.
+  // finishes the job against the same (idempotent) id. For the same reason, whatever is saved
+  // after an outgoing call is built on the match as stored by then (`reload`), not as first read.
   rematch(playerId: string): Promise<MatchResult<MatchState>> {
     return this.update(playerId, async (match) => {
-      const next = voteRematch(match, playerId);
+      let next = voteRematch(match, playerId);
       if (next.rematchId !== undefined || rematchAgreed(next).length < next.players.length) return next;
 
       let rematchId = await this.ctx.storage.get<string>('pendingRematchId');
@@ -425,7 +426,12 @@ export class MatchDO extends DurableObject<Env> {
       if (matchMode(next) === 'live') {
         const humans = next.players.map((p) => p.playerId).filter((id) => !isBot(id));
         const busy = await this.matchmaker().liveBusy(humans, rematchId);
-        if (busy.length > 0) return busy.reduce((moved, id) => moveOn(moved, id, 'busy'), next);
+        const latest = await this.reload();
+        if (busy.length > 0) return busy.reduce((moved, id) => moveOn(moved, id, 'busy'), latest);
+        // Someone may have moved on meanwhile, which refuses the vote, or the rematch may already
+        // be made.
+        next = voteRematch(latest, playerId);
+        if (next.rematchId !== undefined || rematchAgreed(next).length < next.players.length) return next;
       }
       if (rematchId === undefined) {
         rematchId = crypto.randomUUID();
@@ -435,7 +441,11 @@ export class MatchDO extends DurableObject<Env> {
       const rematchDO = this.env.MATCH_DO.get(this.env.MATCH_DO.idFromName(rematchId));
       const onTheWay = [...new Set([playerId, ...this.watchingPlayers()])];
       await rematchDO.createRematch(rematchId, next, shuffledDominoOrder(), onTheWay);
-      return { ...next, rematchId };
+      // The rematch exists now, so its id goes on the match even if someone moved on meanwhile:
+      // they can still follow it, and the Matchmaker finds them seated there if they search.
+      const latest = await this.reload();
+      const votes = latest.rematchVotes ?? [];
+      return { ...latest, rematchVotes: votes.includes(playerId) ? votes : [...votes, playerId], rematchId };
     });
   }
 
@@ -444,18 +454,25 @@ export class MatchDO extends DurableObject<Env> {
   // id go on this one, so it never names a match that doesn't exist. If either of them is already
   // in another Live game, they're moved on instead and nobody is seated. A Matchmaker failure
   // throws before anything is saved, so the button stays live to try again.
+  //
+  // Other calls run while the Matchmaker works (the other team partying up, say), so the result
+  // goes on the match as stored by then (`reload`). The pair is recorded even if one of them has
+  // since pressed Find a game: they're seated at the new match all the same, and the Matchmaker
+  // takes them back to it.
   partyUp(playerId: string): Promise<MatchResult<MatchState>> {
     return this.update(playerId, async (match) => {
       const next = offerParty(match, playerId);
       if (!partyAgreed(next, playerId)) return next;
 
       const placed = await this.matchmaker().playPair(playerId, partnerOf(next, playerId)!);
-      if (placed.kind === 'busy') return placed.playerIds.reduce((moved, id) => moveOn(moved, id, 'busy'), next);
+      if (placed.kind === 'busy') {
+        return placed.playerIds.reduce((moved, id) => moveOn(moved, id, 'busy'), await this.reload());
+      }
 
       const seat = next.players.find((p) => p.playerId === playerId)!.position;
       // No route touches the new match, so its lobby rows are written here, as for a rematch.
       await bestEffort(placed.match.id, () => syncLobbyIndex(this.env.DB, placed.match));
-      return recordParty(next, teamForPosition(seat), placed.match.id);
+      return recordParty(await this.reload(), teamForPosition(seat), placed.match.id);
     });
   }
 
@@ -466,6 +483,15 @@ export class MatchDO extends DurableObject<Env> {
   // The player went to find a game of their own (Find a game): they're done with this one.
   moveOn(playerId: string): Promise<MatchResult<MatchState>> {
     return this.update(playerId, (match) => moveOn(assertLiveOver(match, playerId), playerId, 'left'));
+  }
+
+  // The stored match, read again after an outgoing call: DO input is only gated on storage, so other
+  // calls may have changed it while the call was out. Storage reads hold the gate, so nothing else
+  // runs between this and `update`'s save.
+  private async reload(): Promise<MatchState> {
+    const match = await this.load();
+    if (match === null) throw new ValidationError('Match not found!');
+    return match;
   }
 
   private matchmaker() {
@@ -533,6 +559,8 @@ export class MatchDO extends DurableObject<Env> {
   // whether or not its socket is open yet - it isn't when a notification's button opened the app
   // to make it - and isn't pushed about it. `report` is false for the Matchmaker's own calls (save).
   // `onTheWay` is everyone who is on the screen, when it's more than the actor (a pair seated together).
+  // An action that calls out of this DO builds its result on the match as stored after the call
+  // (`reload`), so the change is published against that, not the match first read.
   private update(
     actorId: string,
     action: (match: MatchState) => MatchState | Promise<MatchState>,
@@ -541,13 +569,14 @@ export class MatchDO extends DurableObject<Env> {
   ): Promise<MatchResult<MatchState>> {
     return this.read(async (match) => {
       const acted = await action(match);
+      const previous = (await this.load()) ?? match;
       // Acting is taking your seat back from the bot (live.ts).
       const next = isOnAutopilot(acted, actorId) ? setAutopilot(acted, [actorId], false) : acted;
       await this.save(next, report);
-      await this.recordStatsIfWon(match, next);
-      this.publish(match, next, onTheWay);
+      await this.recordStatsIfWon(previous, next);
+      this.publish(previous, next, onTheWay);
       await this.schedule(next);
-      await this.syncIfSeatsChanged(match, next);
+      await this.syncIfSeatsChanged(previous, next);
       return next;
     });
   }
