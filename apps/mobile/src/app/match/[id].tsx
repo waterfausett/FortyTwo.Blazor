@@ -870,7 +870,12 @@ export default function MatchScreen() {
             the bids or the trumps - just the status line. */}
         {tableCompact && !tableFolded ? null : showHandOver && !watching ? (
           // Takes the status line's place, so it fits above the hand without moving it.
-          <Fade key="handOver">
+          <Fade
+            key="handOver"
+            // A Live panel overlaps the table, so it has to be drawn above the seat cards: a
+            // later sibling isn't enough on Android, where elevation decides the order.
+            style={view.isMatchOver && choices?.live ? styles.overlap : undefined}
+          >
             {view.isMatchOver ? (
               <View
                 // A Live panel is taller than the one it replaces by its extra buttons. Pulling it up
@@ -880,6 +885,8 @@ export default function MatchScreen() {
                 style={[
                   styles.matchOver,
                   choices?.live && {
+                    // Opaque, or the seat cards beneath would show through.
+                    backgroundColor: colors.walnutDeep,
                     marginTop: -((overExtraHeight ?? 0) + MATCH_OVER_GAP),
                     opacity: overExtraHeight === null ? 0 : 1,
                   },
@@ -1176,6 +1183,7 @@ const styles = StyleSheet.create({
   notice: { gap: 16 },
   noticeText: { color: colors.bone, fontFamily: fonts.display, fontSize: 18, textAlign: 'center' },
   lobbyLink: { padding: 8 },
+  overlap: { zIndex: 10, elevation: 10 },
   matchOver: {
     alignItems: 'center',
     gap: 8,
