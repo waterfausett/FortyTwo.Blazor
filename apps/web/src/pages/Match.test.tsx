@@ -48,6 +48,9 @@ const {
   pokeMock,
   resumeMock,
   playMock,
+  partyUpMock,
+  cancelPartyMock,
+  moveOnMock,
   getStatsMock,
   currentUserId,
 } =
@@ -73,6 +76,9 @@ const {
     pokeMock: vi.fn(),
     resumeMock: vi.fn(),
     playMock: vi.fn(),
+    partyUpMock: vi.fn(),
+    cancelPartyMock: vi.fn(),
+    moveOnMock: vi.fn(),
     getStatsMock: vi.fn(),
     // Mutable so individual tests can play as someone other than 'p1' (needed for the
     // isTableReady deadlock regression test below, which needs 'me' to be a player whose hand
@@ -98,6 +104,9 @@ vi.mock('../api/client', () => ({
     poke: pokeMock,
     resume: resumeMock,
     play: playMock,
+    partyUp: partyUpMock,
+    cancelParty: cancelPartyMock,
+    moveOn: moveOnMock,
     getStats: getStatsMock,
   }),
 }));
@@ -1963,6 +1972,119 @@ describe('Match', () => {
       const rail = screen.getByRole('region', { name: /hand over/i });
       expect(within(rail).getByRole('link', { name: /go to rematch/i }).getAttribute('href')).toBe('/match/match-2');
       expect(within(rail).queryByRole('button', { name: /rematch/i })).toBeNull();
+    });
+
+    describe('Live end-of-game choices', () => {
+      const rail = () => screen.getByRole('region', { name: /hand over/i });
+      const railLabels = () => within(rail()).getAllByRole('button').map((b) => b.textContent);
+
+      it('stacks Party up, Find a game and Rematch after a won Live match', () => {
+        useMatchSocketMock.mockReturnValue({ match: finishedMatch({ mode: 'live' }), connected: true });
+        renderMatch();
+
+        expect(railLabels()).toEqual(['Match summary', 'Party up with p3', 'Find a game', 'Rematch']);
+      });
+
+      it('keeps only Rematch for a Daily match, as before', () => {
+        useMatchSocketMock.mockReturnValue({ match: finishedMatch({ mode: 'daily' }), connected: true });
+        renderMatch();
+
+        expect(railLabels()).toEqual(['Match summary', 'Rematch']);
+      });
+
+      it('parties up with my partner', async () => {
+        partyUpMock.mockResolvedValue(finishedMatch({ mode: 'live' }));
+        useMatchSocketMock.mockReturnValue({ match: finishedMatch({ mode: 'live' }), connected: true });
+        renderMatch();
+
+        fireEvent.click(within(rail()).getByRole('button', { name: 'Party up with p3' }));
+
+        await waitFor(() => expect(partyUpMock).toHaveBeenCalledWith('match-1'));
+      });
+
+      it('cancels my standing offer', async () => {
+        cancelPartyMock.mockResolvedValue(finishedMatch({ mode: 'live' }));
+        useMatchSocketMock.mockReturnValue({
+          match: finishedMatch({ mode: 'live', partyOffers: ['p1'] }),
+          connected: true,
+        });
+        renderMatch();
+
+        fireEvent.click(within(rail()).getByRole('button', { name: /waiting for p3/i }));
+
+        await waitFor(() => expect(cancelPartyMock).toHaveBeenCalledWith('match-1'));
+      });
+
+      it('moves on, then searches for a Live game and goes to it', async () => {
+        moveOnMock.mockResolvedValue(finishedMatch({ mode: 'live' }));
+        playMock.mockResolvedValue({ ...finishedMatch(), id: 'match-7' });
+        useMatchSocketMock.mockReturnValue({ match: finishedMatch({ mode: 'live' }), connected: true });
+        renderMatch();
+
+        fireEvent.click(within(rail()).getByRole('button', { name: 'Find a game' }));
+
+        await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/match/match-7', { replace: true }));
+        expect(moveOnMock).toHaveBeenCalledWith('match-1');
+        expect(playMock).toHaveBeenCalledWith('live');
+      });
+
+      it('follows the party match when it appears while I am here', () => {
+        useMatchSocketMock.mockReturnValue({ match: finishedMatch({ mode: 'live' }), connected: true });
+        const view = renderMatch();
+        expect(navigateMock).not.toHaveBeenCalled();
+
+        useMatchSocketMock.mockReturnValue({
+          match: finishedMatch({ mode: 'live', partyMatchIds: { [Teams.TeamA]: 'match-5' } }),
+          connected: true,
+        });
+        view.rerender(
+          <QueryClientProvider client={new QueryClient()}>
+            <MemoryRouter>
+              <Match />
+            </MemoryRouter>
+          </QueryClientProvider>
+        );
+
+        expect(navigateMock).toHaveBeenCalledWith('/match/match-5', { replace: true });
+      });
+
+      it('links to a party match that already existed when the page opened', () => {
+        useMatchSocketMock.mockReturnValue({
+          match: finishedMatch({ mode: 'live', partyMatchIds: { [Teams.TeamA]: 'match-5' } }),
+          connected: true,
+        });
+        renderMatch();
+
+        expect(navigateMock).not.toHaveBeenCalled();
+        expect(within(rail()).getByRole('link', { name: 'Go to your new game' }).getAttribute('href')).toBe(
+          '/match/match-5'
+        );
+      });
+
+      it('sends me back to my other game once I turn up busy after pressing Party up', async () => {
+        playMock.mockResolvedValue({ ...finishedMatch(), id: 'match-3' });
+        partyUpMock.mockResolvedValue(finishedMatch({ mode: 'live' }));
+        useMatchSocketMock.mockReturnValue({ match: finishedMatch({ mode: 'live' }), connected: true });
+        const view = renderMatch();
+        fireEvent.click(within(rail()).getByRole('button', { name: 'Party up with p3' }));
+        await waitFor(() => expect(partyUpMock).toHaveBeenCalled());
+        expect(playMock).not.toHaveBeenCalled();
+
+        useMatchSocketMock.mockReturnValue({
+          match: finishedMatch({ mode: 'live', movedOn: { p1: 'busy' } }),
+          connected: true,
+        });
+        view.rerender(
+          <QueryClientProvider client={new QueryClient()}>
+            <MemoryRouter>
+              <Match />
+            </MemoryRouter>
+          </QueryClientProvider>
+        );
+
+        await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/match/match-3', { replace: true }));
+        expect(playMock).toHaveBeenCalledWith('live');
+      });
     });
   });
 

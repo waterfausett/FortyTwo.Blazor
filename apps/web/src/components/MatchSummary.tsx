@@ -12,6 +12,7 @@ import {
   type MatchState,
 } from '@fortytwo/rules';
 import { playedHands } from '@fortytwo/client';
+import { MatchOverActions } from './MatchOverActions';
 
 interface MatchSummaryProps {
   match: MatchState;
@@ -21,6 +22,8 @@ interface MatchSummaryProps {
   rematchDisabled: boolean;
   onRematch: () => void;
   onClose: () => void;
+  // Set for a Live match: the sheet then offers Party up and Find a game beside Lobby and Rematch.
+  live?: Omit<Parameters<typeof MatchOverActions>[0], 'layout' | 'rematch' | 'lobby'>;
 }
 
 function teamOf(position: number): Teams {
@@ -35,6 +38,7 @@ export function MatchSummary({
   rematchDisabled,
   onRematch,
   onClose,
+  live,
 }: MatchSummaryProps): JSX.Element {
   const theirTeam = myTeam === Teams.TeamA ? Teams.TeamB : Teams.TeamA;
   const scores = matchScores(match);
@@ -45,6 +49,26 @@ export function MatchSummary({
       .map((p) => nameFor(p.playerId))
       .join(' & ');
   const agreed = rematchAgreed(match).length;
+
+  const lobbyLink = (
+    <Link to="/" className="btn btn-outline-secondary">
+      Back to lobby
+    </Link>
+  );
+  const rematchControl = match.rematchId ? (
+    <Link to={`/match/${match.rematchId}`} className="action-button">
+      Go to rematch
+    </Link>
+  ) : (
+    <button
+      type="button"
+      className="action-button"
+      disabled={iVoted || rematchDisabled || (live?.choices.rematchDisabled ?? false)}
+      onClick={onRematch}
+    >
+      {iVoted ? `Waiting for rematch (${agreed} of 4)` : agreed > 0 ? `Rematch (${agreed} of 4)` : 'Rematch'}
+    </button>
+  );
 
   return (
     <div className="match-summary-backdrop">
@@ -98,20 +122,19 @@ export function MatchSummary({
           </table>
         </div>
 
-        <div className="match-summary-actions">
-          <Link to="/" className="btn btn-outline-secondary">
-            Back to lobby
-          </Link>
-          {match.rematchId ? (
-            <Link to={`/match/${match.rematchId}`} className="action-button">
-              Go to rematch
-            </Link>
-          ) : (
-            <button type="button" className="action-button" disabled={iVoted || rematchDisabled} onClick={onRematch}>
-              {iVoted ? `Waiting for rematch (${agreed} of 4)` : agreed > 0 ? `Rematch (${agreed} of 4)` : 'Rematch'}
-            </button>
-          )}
-        </div>
+        {live ? (
+          <MatchOverActions
+            {...live}
+            layout="rows"
+            lobby={lobbyLink}
+            rematch={rematchControl}
+          />
+        ) : (
+          <div className="match-summary-actions">
+            {lobbyLink}
+            {rematchControl}
+          </div>
+        )}
       </div>
     </div>
   );
