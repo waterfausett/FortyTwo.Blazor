@@ -182,7 +182,7 @@ function Pulse({ style }: { style: object }) {
 
 const styles = StyleSheet.create({
   lobby: { flexGrow: 1, gap: 12 },
-  heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { color: colors.bone, fontFamily: fonts.display, fontSize: 26 },
   online: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.ok },
