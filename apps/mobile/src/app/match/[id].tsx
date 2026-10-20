@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue, useWindowDimensions } from 'react-native';
 import { useAuth0 } from 'react-native-auth0';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -412,6 +412,26 @@ export default function MatchScreen() {
   const tableRef = useRef<View>(null);
   const [drag, setDrag] = useState<DragState>({ dragging: false, overDropZone: false });
   const [viewportHeight, setViewportHeight] = useState(0);
+  // How tall the play area's top (everything above the hand and the spacer) has been at its
+  // tallest while I've held a hand, and how tall the hand is: the hand is pinned below the one, so
+  // it doesn't move as the phases come and go. Remembered for the screen's width and text size,
+  // so the next match starts out knowing how tall the bids get.
+  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const topKey = `${windowWidth}@${fontScale}`;
+  const [, setTopSeen] = useState(0);
+  const tallestTop = tallestTops.get(topKey) ?? 0;
+  const [handAreaHeight, setHandAreaHeight] = useState(0);
+  // While the table folds for the bids, there's nothing below it yet (the bids wait for the fold),
+  // so that's no measure of how tall the top gets. On the first deal of the session, before the
+  // bids have been seen, the hand waits for the fold too, so it doesn't appear and then drop below
+  // them.
+  const folding = tableCompact && !tableFolded;
+  const handWaits = folding && tallestTop === 0;
+  const noteTopHeight = (height: number) => {
+    if (handEmpty || folding || height <= tallestTop) return;
+    tallestTops.set(topKey, height);
+    setTopSeen(height);
+  };
   // How tall the Live match-over panel's extra buttons (Party up, Find a game) are, null until
   // measured: the panel grows upward by that much (see its style below).
   const [overExtraHeight, setOverExtraHeight] = useState<number | null>(null);
@@ -753,16 +773,27 @@ export default function MatchScreen() {
           ),
         }}
       />
-      {/* The play area fills the screen, less a peek at the trick history below, whatever the
-          phase - so the hand sits in the same place from the deal to the last trick, and the
-          table opening up as play starts only takes up the room between them. */}
+      {/* The play area is as tall as the tallest it's been with a hand - the bids, say - whatever
+          the phase, so the hand sits in the same place from the deal to the last trick, and the
+          table opening up as play starts only takes up the room between them. It's never taller
+          than the screen less a peek at the trick history below; on a tall screen, the room it
+          doesn't need goes to the trick history. */}
       <Animated.View
         style={[
           styles.playArea,
           {
             minHeight: pinned.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, Math.max(0, viewportHeight - CONTAINER_PADDING - CONTAINER_GAP - HISTORY_PEEK)],
+              outputRange: [
+                0,
+                Math.max(
+                  0,
+                  Math.min(
+                    viewportHeight - CONTAINER_PADDING - CONTAINER_GAP - HISTORY_PEEK,
+                    tallestTop + CONTAINER_GAP + handAreaHeight,
+                  ),
+                ),
+              ],
             }),
           },
         ]}
@@ -1018,55 +1049,57 @@ export default function MatchScreen() {
 
         {!watching && <HintDetails hint={hint} show={config.data?.hintDetails ?? false} />}
 
-        {/* Takes up whatever room is left, keeping the hand at the bottom of the screen: when the
-            choices above grow or shrink (a status line, the bids, the trumps), only this changes,
-            so nothing else moves. */}
-        <View style={styles.spacer} />
+        {/* Takes up whatever room is left above the hand: when the choices above grow or shrink (a
+            status line, the bids, the trumps), only this changes, so nothing else moves. Its top is
+            how tall everything above it is (see noteTopHeight). */}
+        <View style={styles.spacer} onLayout={(e) => noteTopHeight(e.nativeEvent.layout.y)} />
 
-        {watching ? (
-          <View style={styles.autopilotBar}>
-            <Text style={styles.autopilotText}>Joining a game in progress. You'll take a seat when this hand ends.</Text>
-            <Pressable
-              style={[styles.smallButton, leave.isPending && styles.buttonDisabled]}
-              disabled={leave.isPending}
-              onPress={() => {
-                leavingRef.current = true;
-                leave.mutate();
-              }}
-              accessibilityRole="button"
+        <View style={[styles.handArea, handWaits && styles.hidden]} onLayout={(e) => setHandAreaHeight(e.nativeEvent.layout.height)}>
+          {watching ? (
+            <View style={styles.autopilotBar}>
+              <Text style={styles.autopilotText}>Joining a game in progress. You'll take a seat when this hand ends.</Text>
+              <Pressable
+                style={[styles.smallButton, leave.isPending && styles.buttonDisabled]}
+                disabled={leave.isPending}
+                onPress={() => {
+                  leavingRef.current = true;
+                  leave.mutate();
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.smallButtonText}>Cancel</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Hand
+              // My live hand, with any domino in flight held back in place (see `playingId`).
+              dominoes={myLiveHand}
+              playingId={inFlight?.id ?? null}
+              canPlay={canPlay}
+              isValidPlay={(domino) => isValidPlay(match, view, domino)}
+              // Rejects when the play is refused, so a domino dropped on the table returns to the hand.
+              onPlay={playDomino}
+              highlightPlayable={highlightPlayable}
+              dropZone={tableRef}
+              onDragChange={setDrag}
+              suggestedIds={suggestedDominoIds(hint.hint)}
+              onPreselectChange={(preselected) => setPreselecting(preselected !== null)}
+            />
+          )}
+          {/* Laid out whenever there's a hand, and only shown on the player's turn, so it coming and
+              going doesn't move anything. */}
+          {!handEmpty && (
+            <Text
+              style={[styles.hint, !canPlay && styles.hidden]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              accessibilityElementsHidden={!canPlay}
+              importantForAccessibility={canPlay ? 'auto' : 'no-hide-descendants'}
             >
-              <Text style={styles.smallButtonText}>Cancel</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Hand
-            // My live hand, with any domino in flight held back in place (see `playingId`).
-            dominoes={myLiveHand}
-            playingId={inFlight?.id ?? null}
-            canPlay={canPlay}
-            isValidPlay={(domino) => isValidPlay(match, view, domino)}
-            // Rejects when the play is refused, so a domino dropped on the table returns to the hand.
-            onPlay={playDomino}
-            highlightPlayable={highlightPlayable}
-            dropZone={tableRef}
-            onDragChange={setDrag}
-            suggestedIds={suggestedDominoIds(hint.hint)}
-            onPreselectChange={(preselected) => setPreselecting(preselected !== null)}
-          />
-        )}
-        {/* Laid out whenever there's a hand, and only shown on the player's turn, so it coming and
-            going doesn't move anything. */}
-        {!handEmpty && (
-          <Text
-            style={[styles.hint, !canPlay && styles.hidden]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            accessibilityElementsHidden={!canPlay}
-            importantForAccessibility={canPlay ? 'auto' : 'no-hide-descendants'}
-          >
-            Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
-          </Text>
-        )}
+              Tap a domino to {isTrickStarted(game.currentTrick) ? 'play' : 'lead'} it, or hold and drag it to the table.
+            </Text>
+          )}
+        </View>
       </Animated.View>
 
       {view.isPlayingPhase && (
@@ -1175,6 +1208,8 @@ const HAND_COLLAPSE_MS = 420;
 const MATCH_OVER_GAP = 8;
 // How much of the trick history shows below the play area: the top of each pile, with its points.
 const HISTORY_PEEK = 40;
+// The tallest the play area's top has been, by screen width and text size (see noteTopHeight).
+const tallestTops = new Map<string, number>();
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.walnut },
@@ -1182,6 +1217,7 @@ const styles = StyleSheet.create({
   lobby: { flexGrow: 1 },
   // Fills its minimum height through the spacer above the hand.
   playArea: { gap: CONTAINER_GAP },
+  handArea: { gap: CONTAINER_GAP },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.walnut },
   text: { color: colors.bone, fontFamily: fonts.ui },
   reconnecting: { color: colors.danger, fontFamily: fonts.uiBold, textAlign: 'center' },
