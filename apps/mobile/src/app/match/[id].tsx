@@ -123,7 +123,8 @@ export default function MatchScreen() {
   const myPlayerId = DEV_BYPASS ? DEV_PLAYER_ID : user?.sub;
   const api = useApi();
   const getToken = useGetToken();
-  // Room at the bottom of the scroll, above the phone's gesture bar or navigation buttons.
+  // The phone's gesture bar or navigation buttons: the lobby pads its scroll above them, and the
+  // match ends its scroll above them.
   const bottomInset = useSafeAreaInsets().bottom;
 
   // What a poke needs when it lands, from state below: the sender's display name, and whether a
@@ -723,9 +724,11 @@ export default function MatchScreen() {
   const trumpLine = game.trump == null ? null : `${suitToPrettyString(game.trump)}${doublesLine ? ` · ${doublesLine}` : ''}`;
 
   return (
+    // Stops above the gesture bar rather than padding under it, so the peeking trick history is cut
+    // off above the bar instead of running beneath it (the stack's walnut shows through below).
     <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[styles.container, { paddingBottom: 32 + bottomInset }]}
+      style={[styles.screen, { marginBottom: bottomInset }]}
+      contentContainerStyle={[styles.container, { paddingBottom: 32 }]}
       scrollEnabled={!drag.dragging}
       onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
     >
@@ -759,7 +762,7 @@ export default function MatchScreen() {
           {
             minHeight: pinned.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, Math.max(0, viewportHeight - CONTAINER_PADDING - CONTAINER_GAP - HISTORY_PEEK - bottomInset)],
+              outputRange: [0, Math.max(0, viewportHeight - CONTAINER_PADDING - CONTAINER_GAP - HISTORY_PEEK)],
             }),
           },
         ]}
