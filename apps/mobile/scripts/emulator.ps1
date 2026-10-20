@@ -13,7 +13,8 @@ lobby and profile data and no Worker. -SignIn runs it for real, signing in with 
 .env.local.
 
 Commands:
-  up [-Rebuild] [-SignIn] [-Avd <name>]   Start everything, then open the app.
+  up [-Rebuild] [-SignIn] [-Avd <name>]   Start everything, then open the app. The emulator is
+                                          Pixel_9_Pro_XL_API_36 when it exists, else the first one.
   build                                   Regenerate android\, rebuild and reinstall the app.
   reload                                  Restart the app against the running Metro.
   shot [<file>]                           Screenshot at full resolution; prints the file's path.
@@ -47,6 +48,8 @@ $StateFile = Join-Path $MobileDir '.expo\emulator.json'
 $MetroLog = Join-Path $MobileDir '.expo\metro.log'
 $BuildLog = Join-Path $MobileDir '.expo\build.log'
 $ShotDir = Join-Path $env:TEMP 'fortytwo-emulator'
+# Matches the phone the app is tested on: a Pixel 9 Pro XL on Android 16.
+$DefaultAvd = 'Pixel_9_Pro_XL_API_36'
 
 # --- Tools --------------------------------------------------------------------------------
 
@@ -122,8 +125,11 @@ function Start-Emulator {
   $serial = Get-EmulatorSerial
   if ($serial) { return $serial }
   $name = $Avd
-  if (-not $name) { $name = & $EmulatorExe -list-avds | Where-Object { $_ } | Select-Object -First 1 }
-  if (-not $name) { throw 'No Android virtual device. Create one in Android Studio (Device Manager).' }
+  if (-not $name) {
+    $avds = @(& $EmulatorExe -list-avds | Where-Object { $_ })
+    $name = if ($avds -contains $DefaultAvd) { $DefaultAvd } else { $avds | Select-Object -First 1 }
+  }
+  if (-not $name) { throw "No Android virtual device. Create $DefaultAvd in Android Studio (Device Manager): a Pixel 9 Pro XL on API 36." }
   Step "Booting emulator $name"
   Start-Process -FilePath $EmulatorExe -ArgumentList '-avd', $name, '-no-snapshot-save' -WindowStyle Hidden | Out-Null
   $deadline = (Get-Date).AddMinutes(3)
