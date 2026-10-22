@@ -615,9 +615,12 @@ export class MatchDO extends DurableObject<Env> {
   // Sets the alarm for whatever this match does next on its own: a bot's move a beat from now
   // (paced like a remote player's, bots.ts's botDelayMs), or a Live deadline (live.ts) - filling
   // the table, or a turn running out. One alarm serves all of them; alarm() works out which is due.
+  // The alarm already set is cleared first: in production, moving a pending Live turn deadline
+  // (60 s out) earlier to a bot's move sometimes went unnoticed, and the bot moved 20-50 s late.
   private async schedule(match: MatchState): Promise<void> {
     const action = findNextBotAction(match);
     if (action !== null) {
+      await this.ctx.storage.deleteAlarm();
       await this.ctx.storage.setAlarm(Date.now() + botDelayMs(match, action));
       return;
     }
