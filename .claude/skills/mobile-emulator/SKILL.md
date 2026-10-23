@@ -14,7 +14,8 @@ whatever's already done. Run it with the PowerShell tool from `apps/mobile`.
 ./scripts/emulator.ps1 up
 ```
 
-This boots the emulator, builds and installs the app if it's missing (5+ minutes; run `up` in
+This boots the emulator (`Pixel_9_Pro_XL_API_36`, Android 16, like the user's phone; `-Avd <name>`
+picks another, such as the older `Pixel_3a_API_30_x86` for checking a small screen), builds and installs the app if it's missing (5+ minutes; run `up` in
 the background the first time), starts Metro for this checkout on a free port, and opens the app.
 Give the first bundle about 30 seconds, then take a screenshot.
 
@@ -39,7 +40,7 @@ Give the first bundle about 30 seconds, then take a screenshot.
 ## Look and drive
 
 ```powershell
-./scripts/emulator.ps1 shot              # prints "<file> (1080x2220)"; then Read the file
+./scripts/emulator.ps1 shot              # prints "<file> (1344x2992)"; then Read the file
 ./scripts/emulator.ps1 tap 540 315       # full-resolution pixels
 ./scripts/emulator.ps1 swipe 540 600 540 1400 400   # pull to refresh
 ./scripts/emulator.ps1 back
