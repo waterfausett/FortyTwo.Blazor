@@ -108,3 +108,16 @@ describe('party up and moving on', () => {
     ]);
   });
 });
+
+describe('deleting the account', () => {
+  it('sends DELETE /api/users/me', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const api = createApiClient(async () => 'token', 'https://w');
+
+    await expect(api.deleteAccount()).resolves.toBeUndefined();
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(`${(init as RequestInit).method} ${url}`).toBe('DELETE https://w/api/users/me');
+  });
+});

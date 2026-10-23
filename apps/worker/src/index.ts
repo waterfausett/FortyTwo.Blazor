@@ -10,6 +10,7 @@ import { BadRequestError } from './requestBody';
 import { expireIdleMatches } from './expiry';
 import { assetLinks } from './appLinks';
 import { privacyPolicyHtml } from './privacy';
+import { accountDeletionHtml } from './accountDeletion';
 import { botsEnabled } from './bots';
 import { presenceEnabled } from './matchmaker';
 import { hintDetailsEnabled, hintsEnabled } from './hints';
@@ -53,8 +54,8 @@ export interface Env {
   // An Expo access token, needed to send push notifications only once "enhanced push security"
   // is turned on for the Expo project (push/send.ts). A secret: `wrangler secret put`.
   EXPO_ACCESS_TOKEN?: string;
-  // Where the privacy policy (privacy.ts) sends questions and deletion requests. Unset, it points
-  // at the project's GitHub issues instead.
+  // Where the privacy policy (privacy.ts) and /account-deletion (accountDeletion.ts) send
+  // questions and deletion requests. Unset, they point at the project's GitHub issues instead.
   CONTACT_EMAIL?: string;
 }
 
@@ -83,6 +84,8 @@ app.get('/.well-known/assetlinks.json', (c) => {
 
 // The privacy policy (privacy.ts): public, for the Play Store listing.
 app.get('/privacy', (c) => c.html(privacyPolicyHtml(c.env.CONTACT_EMAIL)));
+// How to delete an account without the app (accountDeletion.ts): Play Console's deletion URL.
+app.get('/account-deletion', (c) => c.html(accountDeletionHtml(c.env.CONTACT_EMAIL)));
 
 // WebSocket upgrade route for a match's live-state socket (matchDO.ts's `handleWebSocketUpgrade`).
 // Deliberately mounted OUTSIDE the `/api/*` `requireAuth()` middleware below: a WebSocket upgrade

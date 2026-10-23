@@ -2,10 +2,11 @@
 // with a live preview, their email (read-only), and their game settings. Name and picture save
 // together with the button; a setting saves as soon as it's flipped. All of it is stored on their
 // profile, so it applies on the web too. Below them, their stats (components/PlayerStats.tsx), loaded on
-// their own. Signing out is here too, at the bottom.
+// their own. Signing out is here too, at the bottom, and deleting the account below it.
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -25,7 +26,7 @@ import { useProfile, useSaveProfile } from '@/api/useProfile';
 import { PlayerStats } from '@/components/PlayerStats';
 import { MAX_DISPLAY_NAME_LENGTH, profileErrors } from '@/components/profileErrors';
 import { colors, fonts } from '@/components/theme';
-import { toastInfo } from '@/components/toast';
+import { toastError, toastInfo } from '@/components/toast';
 import { registerDevice, unregisterDevice } from '@/notifications/push';
 
 export default function Profile() {
@@ -41,6 +42,32 @@ export default function Profile() {
     clearCachedToken();
     await clearSession();
   };
+
+  // Deleting the account (DELETE /api/users/me) also drops this device's push token, so it only
+  // has to end the session after. A failure leaves the account as it was, to try again.
+  const [deleting, setDeleting] = useState(false);
+  async function deleteAccount() {
+    setDeleting(true);
+    try {
+      await api.deleteAccount();
+    } catch (error) {
+      setDeleting(false);
+      toastError(error);
+      return;
+    }
+    clearCachedToken();
+    await clearSession();
+  }
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Delete your account?',
+      "Your friends, stats and invites are removed and bots take your seats in unfinished matches. Finished matches stay in other players' history as \"Unknown\". This can't be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void deleteAccount() },
+      ],
+    );
+  }
 
   // Turning notifications on asks for the OS permission if it hasn't been asked yet. Off, the
   // device is unregistered as the setting saves (usePushNotifications).
@@ -205,6 +232,19 @@ export default function Profile() {
         >
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.deleteAccount, pressed && styles.deleteAccountPressed, deleting && styles.disabled]}
+          onPress={confirmDeleteAccount}
+          disabled={deleting}
+          accessibilityRole="button"
+        >
+          {deleting ? (
+            <ActivityIndicator color={colors.danger} />
+          ) : (
+            <Text style={styles.deleteAccountText}>Delete account</Text>
+          )}
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -247,4 +287,7 @@ const styles = StyleSheet.create({
   signOut: { marginTop: 10, paddingVertical: 14, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.danger },
   signOutPressed: { backgroundColor: 'rgba(224, 122, 95, 0.12)' },
   signOutText: { color: colors.danger, fontFamily: fonts.uiBold, fontSize: 16 },
+  deleteAccount: { paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  deleteAccountPressed: { backgroundColor: 'rgba(224, 122, 95, 0.12)' },
+  deleteAccountText: { color: colors.danger, fontFamily: fonts.ui, fontSize: 14, textDecorationLine: 'underline' },
 });

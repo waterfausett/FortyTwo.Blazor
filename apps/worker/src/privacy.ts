@@ -4,29 +4,30 @@
 // what's stored should change this page too.
 //
 // Questions and deletion requests go to CONTACT_EMAIL when it's set; without it, the page points
-// at the project's GitHub issues.
+// at the project's GitHub issues. Account deletion has its own page (accountDeletion.ts).
 
-export const PRIVACY_UPDATED_ON = '2026-10-22';
+export const PRIVACY_UPDATED_ON = '2026-10-23';
 const ISSUES_URL = 'https://github.com/waterfausett/FortyTwo.Blazor/issues';
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 }
 
-function contactHtml(contactEmail: string | undefined): string {
+export function contactHtml(contactEmail: string | undefined): string {
   const email = contactEmail?.trim();
   if (email) return `email <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>`;
   return `open an issue at <a href="${ISSUES_URL}">${ISSUES_URL}</a>`;
 }
 
-export function privacyPolicyHtml(contactEmail: string | undefined): string {
-  const contact = contactHtml(contactEmail);
+// The page around /privacy and /account-deletion (accountDeletion.ts): self-contained, light or
+// dark with the system, readable at phone width.
+export function publicPage(title: string, body: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Forty-Two privacy policy</title>
+<title>${title}</title>
 <style>
   :root { color-scheme: light dark; --bg: #faf7f2; --fg: #2b211a; --muted: #6b5d52; --link: #8a4b1f; }
   @media (prefers-color-scheme: dark) { :root { --bg: #1f1813; --fg: #efe6dc; --muted: #b3a597; --link: #e0a56e; } }
@@ -41,7 +42,15 @@ export function privacyPolicyHtml(contactEmail: string | undefined): string {
 </head>
 <body>
 <main>
-<h1>Forty-Two privacy policy</h1>
+${body}</main>
+</body>
+</html>
+`;
+}
+
+export function privacyPolicyHtml(contactEmail: string | undefined): string {
+  const contact = contactHtml(contactEmail);
+  return publicPage('Forty-Two privacy policy', `<h1>Forty-Two privacy policy</h1>
 <p class="updated">Last updated ${PRIVACY_UPDATED_ON}</p>
 
 <p>Forty-Two is a dominoes game for Android and the web. This page explains what it stores about
@@ -82,13 +91,17 @@ turn-alert settings, on your device.</p>
 <p>We don't share your data with anyone else, except where the law requires it.</p>
 
 <h2>How long we keep it</h2>
-<p>Your account and game history stay until you delete your account. Unfinished matches nobody has
+<p>Your account and game history stay until you delete your account. When you do, finished
+matches stay in the other players' history, with you shown as "Unknown". Unfinished matches nobody has
 played for 14 days are deleted automatically. Push tokens are removed when you sign out, turn notifications
 off, or the push service tells us the token no longer works.</p>
 
 <h2>Deleting your account</h2>
-<p>To delete your account and the data tied to it, ${contact} from the email address you sign in
-with. We'll confirm when it's done.</p>
+<p>You can delete your account and the data tied to it at any time: in the app or on the web,
+open <strong>Profile</strong> and choose <strong>Delete account</strong>. If you can't sign in,
+${contact} from the email address you sign in with. See
+<a href="/account-deletion">Deleting your Forty-Two account</a> for what's deleted and what's
+kept.</p>
 
 <h2>Children</h2>
 <p>Forty-Two isn't directed at children under 13, and we don't knowingly collect data from them.</p>
@@ -98,8 +111,5 @@ with. We'll confirm when it's done.</p>
 
 <h2>Contact</h2>
 <p>For questions about this policy or your data, ${contact}.</p>
-</main>
-</body>
-</html>
-`;
+`);
 }

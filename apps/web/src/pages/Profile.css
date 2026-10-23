@@ -278,3 +278,24 @@ fieldset.form-group legend {
 .stat-partner-record {
   color: var(--ink-muted);
 }
+
+/* Delete account, quiet at the very bottom: a danger-coloured link, not another brass button. */
+.profile-delete {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.profile-delete-button {
+  padding: 0.4rem 0.8rem;
+  border: 0;
+  background: none;
+  color: var(--danger);
+  font: 500 0.9rem var(--font-ui);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.profile-delete-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

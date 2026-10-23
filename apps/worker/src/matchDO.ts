@@ -308,18 +308,21 @@ export class MatchDO extends DurableObject<Env> {
   // someone else, unless no other person is seated, which drops the match - connected or not.
   // Async games can't be left once dealt (removePlayer refuses). The caller drops the lobby rows when it's deleted (routes/matches.ts).
   leave(playerId: string): Promise<MatchResult<LeaveResult>> {
+    return this.read((match) => this.leaveMatch(match, playerId));
+  }
+
+  // A player deleting their account (routes/users.ts): they leave as above, except that a finished
+  // match keeps them (it's history, theirs only by an id that no longer names anyone) and an Async
+  // game under way, which Leave refuses, hands their seat to a bot for good - or is dropped when no
+  // other person is seated, as a Live one is. The caller syncs or drops the lobby rows.
+  removeAccount(playerId: string): Promise<MatchResult<LeaveResult>> {
     return this.read(async (match): Promise<LeaveResult> => {
-      if ((match.claims ?? []).includes(playerId)) {
-        const next = releaseClaim(match, playerId);
-        await this.save(next);
-        this.broadcast(next);
-        return { deleted: false, match: next };
+      const seated = match.players.some((p) => p.playerId === playerId);
+      if (match.winningTeam !== null || (!seated && !(match.claims ?? []).includes(playerId))) {
+        return { deleted: false, match };
       }
-      const mode = matchMode(match);
-      if ((mode === 'live' || mode === 'bots') && hasBeenDealt(match) && match.winningTeam === null) {
-        assertIsMatchPlayer(match, playerId);
-        const othersPresent = match.players.some((p) => p.playerId !== playerId && isPresent(match, p.playerId));
-        if (!othersPresent) {
+      if (matchMode(match) === 'daily' && hasBeenDealt(match)) {
+        if (!match.players.some((p) => p.playerId !== playerId && !isBot(p.playerId))) {
           await this.drop(match);
           return { deleted: true };
         }
@@ -329,28 +332,52 @@ export class MatchDO extends DurableObject<Env> {
         await this.schedule(next);
         return { deleted: false, match: next };
       }
-      if (mode === 'custom' && hasBeenDealt(match) && match.winningTeam === null) {
-        assertIsMatchPlayer(match, playerId);
-        if (!match.players.some((p) => p.playerId !== playerId && !isBot(p.playerId))) {
-          await this.drop(match);
-          return { deleted: true };
-        }
-        const next = parkSeat(match, playerId);
-        await this.save(next);
-        this.publish(match, next);
-        await this.schedule(next);
-        return { deleted: false, match: next };
-      }
-      const next = removePlayer(match, playerId);
-      if (!hasHumanPlayers(next)) {
-        await this.destroy(match);
-        return { deleted: true };
-      }
+      return this.leaveMatch(match, playerId);
+    });
+  }
+
+  private async leaveMatch(match: MatchState, playerId: string): Promise<LeaveResult> {
+    if ((match.claims ?? []).includes(playerId)) {
+      const next = releaseClaim(match, playerId);
       await this.save(next);
       this.broadcast(next);
+      return { deleted: false, match: next };
+    }
+    const mode = matchMode(match);
+    if ((mode === 'live' || mode === 'bots') && hasBeenDealt(match) && match.winningTeam === null) {
+      assertIsMatchPlayer(match, playerId);
+      const othersPresent = match.players.some((p) => p.playerId !== playerId && isPresent(match, p.playerId));
+      if (!othersPresent) {
+        await this.drop(match);
+        return { deleted: true };
+      }
+      const next = replaceWithBot(match, playerId);
+      await this.save(next);
+      this.publish(match, next);
       await this.schedule(next);
       return { deleted: false, match: next };
-    });
+    }
+    if (mode === 'custom' && hasBeenDealt(match) && match.winningTeam === null) {
+      assertIsMatchPlayer(match, playerId);
+      if (!match.players.some((p) => p.playerId !== playerId && !isBot(p.playerId))) {
+        await this.drop(match);
+        return { deleted: true };
+      }
+      const next = parkSeat(match, playerId);
+      await this.save(next);
+      this.publish(match, next);
+      await this.schedule(next);
+      return { deleted: false, match: next };
+    }
+    const next = removePlayer(match, playerId);
+    if (!hasHumanPlayers(next)) {
+      await this.destroy(match);
+      return { deleted: true };
+    }
+    await this.save(next);
+    this.broadcast(next);
+    await this.schedule(next);
+    return { deleted: false, match: next };
   }
 
   // Deletes this match if it is still active and was last changed before `cutoff`. This DO, not

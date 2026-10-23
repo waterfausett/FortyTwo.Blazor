@@ -9,7 +9,8 @@ import { getUsers, MAX_USER_IDS, type Auth0User } from '../auth0Management';
 import { toPublicUser } from './profile';
 
 // Saves each player's name and picture. A row that already says the same is left alone - D1 bills
-// every row written, and the apps fetch the profile on every launch.
+// every row written, and the apps fetch the profile on every launch. A deleted account's tombstone
+// (users/deleteAccount.ts) is brought back to life: a Google sign-in comes back with the same id.
 export async function saveUsers(db: D1Database, users: PublicUser[], now: Date = new Date()): Promise<void> {
   if (users.length === 0) return;
   await db.batch(
@@ -17,8 +18,8 @@ export async function saveUsers(db: D1Database, users: PublicUser[], now: Date =
       db
         .prepare(
           `INSERT INTO users (id, display_name, picture, updated_on) VALUES (?1, ?2, ?3, ?4)
-           ON CONFLICT (id) DO UPDATE SET display_name = ?2, picture = ?3, updated_on = ?4
-           WHERE display_name IS NOT ?2 OR picture IS NOT ?3`
+           ON CONFLICT (id) DO UPDATE SET display_name = ?2, picture = ?3, updated_on = ?4, deleted_on = NULL
+           WHERE display_name IS NOT ?2 OR picture IS NOT ?3 OR deleted_on IS NOT NULL`
         )
         .bind(user.user_id, user.displayName, user.picture ?? null, now.toISOString())
     )

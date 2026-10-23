@@ -153,3 +153,10 @@ export async function updateUser(env: Env, userId: string, patch: ProfilePatch):
   });
   return response.json();
 }
+
+// Deletes the user from Auth0 for good (account deletion, users/deleteAccount.ts). Needs the
+// Management API client to hold the delete:users scope. Auth0 answers 204 for a user that's
+// already gone too, so it's safe to repeat.
+export async function deleteUser(env: Env, userId: string): Promise<void> {
+  await authorizedFetch(env, `api/v2/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+}

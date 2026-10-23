@@ -78,6 +78,7 @@ const handled: Partial<Api> = {
   // Nothing to tell a server about this device.
   registerPushToken: () => answer(undefined),
   removePushToken: () => answer(undefined),
+  deleteAccount: () => answer(undefined),
   // Creating or joining "works", landing on a match screen that can't load.
   createMatch: () => answer({ id: 'dev-new' } as MatchState),
   play: () => answer({ id: 'dev-new' } as MatchState),
