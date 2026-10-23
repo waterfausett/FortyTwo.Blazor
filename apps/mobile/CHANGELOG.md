@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.6.0...mobile-v0.6.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **mobile:** keep the match score panels above the gesture bar ([#185](https://github.com/waterfausett/FortyTwo.Blazor/issues/185)) ([b5fe4c9](https://github.com/waterfausett/FortyTwo.Blazor/commit/b5fe4c97f328679772b1bd36ab715683818ffe74))
+* **mobile:** stop the search lobby jumping up on the first clock tick ([#182](https://github.com/waterfausett/FortyTwo.Blazor/issues/182)) ([5b78ecc](https://github.com/waterfausett/FortyTwo.Blazor/commit/5b78ecc0097c468fd63046007504fd972d6111db))
+
 ## [0.6.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.5.0...mobile-v0.6.0) (2026-10-19)
 
 
