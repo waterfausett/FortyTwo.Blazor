@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.5.0...worker-v1.5.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **worker:** clear the pending alarm before scheduling a bot move ([#186](https://github.com/waterfausett/FortyTwo.Blazor/issues/186)) ([e70266f](https://github.com/waterfausett/FortyTwo.Blazor/commit/e70266f3e9aaa638c8db0f67e0f9e067cc017ec3))
+
 ## [1.5.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.4.1...worker-v1.5.0) (2026-10-19)
 
 
