@@ -368,6 +368,12 @@ for each release:
   through Expo's GitHub app, which builds the tagged commit. The build is on expo.dev, which has the
   install link.
 
+The Google Play build (an `.aab` from the `production` profile) isn't tied to the tag, so a release
+doesn't spend a second cloud build. Run `apps/mobile/.eas/workflows/create-production-build.yml` by
+hand from `apps/mobile` with `npx eas-cli@latest workflow:run .eas/workflows/create-production-build.yml`;
+add `-F submit=true` to send it to the Play internal track (`submit.production` in `eas.json`). The
+first `.aab` has to be uploaded by hand in Play Console, since Google doesn't allow it through the API.
+
 The mobile app stays on 0.x while it's in preview: a breaking change (`feat!:`) raises the minor
 version, not the major. For the store launch, set `"release-as": "1.0.0"` on the mobile package in
 `release-please-config.json` for that one release, then remove it. Android installs an update by
