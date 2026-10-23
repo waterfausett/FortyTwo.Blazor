@@ -1,0 +1,30 @@
+name: Create Production Build
+
+# Builds the Play Store .aab from the `production` profile. Not tied to the mobile-v* tag, so a
+# release doesn't spend a second cloud build; run it by hand when a build should go to Play:
+#   npx eas-cli@latest workflow:run .eas/workflows/create-production-build.yml
+#   npx eas-cli@latest workflow:run .eas/workflows/create-production-build.yml -F submit=true
+# Google doesn't accept the first upload through the API, so the first .aab goes up by hand in
+# Play Console; after that, submit=true sends it to the track set in eas.json (submit.production).
+on:
+  workflow_dispatch:
+    inputs:
+      submit:
+        type: boolean
+        required: false
+        default: false
+        description: 'Submit the build to Google Play (internal track)'
+
+jobs:
+  build_android:
+    type: build
+    params:
+      platform: android
+      profile: production
+  submit_android:
+    needs: [build_android]
+    if: ${{ inputs.submit }}
+    type: submit
+    params:
+      build_id: ${{ needs.build_android.outputs.build_id }}
+      profile: production
