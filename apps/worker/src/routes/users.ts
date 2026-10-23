@@ -8,6 +8,7 @@ import { isExpoPushToken, removeToken, saveToken } from '../push/tokens';
 import { toPublicUser, toUserResponse } from '../users/profile';
 import { publicUsers, rememberUser } from '../users/publicUsers';
 import { readPlayerStats } from '../stats';
+import { deleteAccount } from '../users/deleteAccount';
 
 // They live in users/profile.ts (so users/publicUsers.ts can use them without importing the routes);
 // re-exported here for the tests that import them from this module.
@@ -36,6 +37,13 @@ users.post('/search', async (c) => {
     return c.json({ title: 'Try again', detail: "Some players' names couldn't be looked up just now." }, 503);
   }
   return c.json(found);
+});
+
+// Deletes the caller's account and the data tied to it (users/deleteAccount.ts). Safe to retry:
+// a step that fails leaves the account in place to try again.
+users.delete('/me', async (c) => {
+  await deleteAccount(c.env, c.get('user').sub);
+  return c.body(null, 204);
 });
 
 users.patch('/', async (c) => {

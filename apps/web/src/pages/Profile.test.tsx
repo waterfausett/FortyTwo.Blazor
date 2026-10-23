@@ -11,22 +11,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { UserProfile } from '../api/client';
 import { Profile } from './Profile';
 
-const { getProfileMock, patchProfileMock } = vi.hoisted(() => ({
+const { getProfileMock, patchProfileMock, deleteAccountMock, logoutMock } = vi.hoisted(() => ({
   getProfileMock: vi.fn(),
   patchProfileMock: vi.fn(),
+  deleteAccountMock: vi.fn(),
+  logoutMock: vi.fn(),
 }));
 
 vi.mock('../api/client', () => ({
   apiClient: () => ({
     getProfile: getProfileMock,
     patchProfile: patchProfileMock,
+    deleteAccount: deleteAccountMock,
     // The Stats card loads on its own; these tests leave it loading.
     getStats: vi.fn(() => new Promise(() => {})),
   }),
 }));
 
 vi.mock('@auth0/auth0-react', () => ({
-  useAuth0: () => ({ getAccessTokenSilently: vi.fn(async () => 'test-token') }),
+  useAuth0: () => ({ getAccessTokenSilently: vi.fn(async () => 'test-token'), logout: logoutMock }),
 }));
 
 const PROFILE_FIXTURE: UserProfile = {
@@ -51,6 +54,7 @@ function renderProfile() {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe('Profile', () => {
@@ -152,5 +156,43 @@ describe('Profile', () => {
     getProfileMock.mockResolvedValue(PROFILE_FIXTURE);
     renderProfile();
     expect(await screen.findByRole('region', { name: /turn alerts/i })).not.toBeNull();
+  });
+});
+
+describe('Profile - Delete account', () => {
+  it('deletes the account once confirmed, then signs out', async () => {
+    getProfileMock.mockResolvedValue(PROFILE_FIXTURE);
+    deleteAccountMock.mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderProfile();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete account' }));
+
+    expect(confirmSpy.mock.calls[0][0]).toContain("This can't be undone.");
+    await waitFor(() => expect(logoutMock).toHaveBeenCalledWith({ logoutParams: { returnTo: window.location.origin } }));
+    expect(deleteAccountMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing when the confirmation is cancelled', async () => {
+    getProfileMock.mockResolvedValue(PROFILE_FIXTURE);
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderProfile();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete account' }));
+
+    expect(deleteAccountMock).not.toHaveBeenCalled();
+    expect(logoutMock).not.toHaveBeenCalled();
+  });
+
+  it('shows the error and stays signed in when deleting fails', async () => {
+    getProfileMock.mockResolvedValue(PROFILE_FIXTURE);
+    deleteAccountMock.mockRejectedValue(new Error('Something went wrong'));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderProfile();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete account' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Something went wrong');
+    expect(logoutMock).not.toHaveBeenCalled();
   });
 });

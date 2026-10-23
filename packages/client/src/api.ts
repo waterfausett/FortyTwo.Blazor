@@ -236,6 +236,9 @@ export function createApiClient(getToken: () => Promise<string>, origin: string)
     removePushToken: (token: string): Promise<void> =>
       request<void>('/api/users/push-tokens', { method: 'DELETE', body: JSON.stringify({ token }) }, false),
 
+    // Deletes the caller's account for good (DELETE /api/users/me). Safe to retry if it fails.
+    deleteAccount: (): Promise<void> => request<void>('/api/users/me', { method: 'DELETE' }, false),
+
     // The People list: friends, then recent players, or just one of the two (GET /api/people).
     getPeople: (show?: PeopleView): Promise<Person[]> => request<Person[]>(show ? `/api/people?show=${show}` : '/api/people'),
 

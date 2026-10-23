@@ -57,6 +57,7 @@ export async function searchPeople(db: D1Database, userId: string, q: string): P
        LEFT JOIN friends f ON f.user_id = ?1 AND f.friend_id = u.id
        LEFT JOIN played_with pw ON pw.user_id = ?1 AND pw.other_id = u.id
        WHERE u.display_name >= ?2 COLLATE NOCASE AND u.display_name < ?3 COLLATE NOCASE AND u.id <> ?1
+         AND u.deleted_on IS NULL
        ORDER BY u.display_name COLLATE NOCASE LIMIT ${SEARCH_LIMIT}`
     )
     .bind(userId, q, `${q}\uffff`)

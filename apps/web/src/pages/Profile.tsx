@@ -10,14 +10,21 @@
 //
 // A save confirms with a brief inline "Saved" message near the button, and an error shows as an
 // inline banner.
+//
+// At the bottom, Delete account (DELETE /api/users/me): confirmed first, then the session ends and
+// Auth0 sends the browser back to the start. A failure shows as the banner, to try again.
 import { useEffect, useState } from 'react';
 import type { FormEvent, JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth0 } from '@auth0/auth0-react';
 import { useGetToken } from '../auth/useGetToken';
 import { apiClient } from '../api/client';
 import { PlayerStats } from '../components/PlayerStats';
 import { TurnAlertSettings } from '../components/TurnAlertSettings';
 import './Profile.css';
+
+const DELETE_ACCOUNT_CONFIRM =
+  "Delete your account? Your friends, stats and invites are removed and bots take your seats in unfinished matches. Finished matches stay in other players' history as \"Unknown\". This can't be undone.";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.';
@@ -59,6 +66,15 @@ export function Profile(): JSX.Element {
     },
   });
 
+  const { logout } = useAuth0();
+  const deleteMutation = useMutation({
+    mutationFn: () => client.deleteAccount(),
+    onSuccess: () => logout({ logoutParams: { returnTo: window.location.origin } }),
+  });
+  const confirmDeleteAccount = (): void => {
+    if (window.confirm(DELETE_ACCOUNT_CONFIRM)) deleteMutation.mutate();
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     setJustSaved(false);
@@ -88,6 +104,11 @@ export function Profile(): JSX.Element {
       {saveMutation.isError && (
         <p role="alert" className="page-error">
           {errorMessage(saveMutation.error)}
+        </p>
+      )}
+      {deleteMutation.isError && (
+        <p role="alert" className="page-error">
+          {errorMessage(deleteMutation.error)}
         </p>
       )}
 
@@ -161,6 +182,12 @@ export function Profile(): JSX.Element {
       <PlayerStats />
 
       <TurnAlertSettings />
+
+      <div className="profile-delete">
+        <button type="button" className="profile-delete-button" onClick={confirmDeleteAccount} disabled={deleteMutation.isPending}>
+          {deleteMutation.isPending ? 'Deleting…' : 'Delete account'}
+        </button>
+      </div>
     </div>
   );
 }
