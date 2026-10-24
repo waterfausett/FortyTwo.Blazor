@@ -1,0 +1,33 @@
+# What EAS Build leaves out of the project archive it uploads. When this file exists EAS uses it
+# instead of .gitignore, so everything those files ignore is repeated here.
+
+# Dependencies and build output (EAS installs and generates its own)
+node_modules/
+*.tsbuildinfo
+*.log
+.expo/
+dist/
+web-build/
+.wrangler/
+.dev.vars
+.env.local
+
+# apps/mobile/android is a local prebuild; EAS generates it fresh
+/apps/mobile/android/
+/apps/mobile/ios/
+
+# Python (ml/)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Nothing the mobile build reads
+/ml/
+/docs/
+/.github/
+/.claude/
+/.git/
+.idea/
+.superpowers/
+.DS_Store
