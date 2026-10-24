@@ -1219,6 +1219,7 @@ export function Match(): JSX.Element {
       {showHandOver && isMatchOver && summaryOpen && (
         <MatchSummary
           match={match}
+          myPlayerId={me.playerId}
           myTeam={me.team}
           nameFor={nameFor}
           iVoted={iVotedRematch}
