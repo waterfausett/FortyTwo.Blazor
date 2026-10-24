@@ -48,9 +48,14 @@ function HeldHand({ match, game, myPlayerId }: { match: MatchState; game: Game; 
   return (
     <>
       <p className="match-summary-held-note">{details.join(' · ')}</p>
+      {/* Laid out like a dealt hand: four over three. */}
       <div className="match-summary-held-dominoes" aria-label={`Your hand: ${dominoes.map((d) => d.id).join(', ')}`}>
-        {dominoes.map((d) => (
-          <Domino key={d.id} top={d.top} bottom={d.bottom} direction="vertical" />
+        {[dominoes.slice(0, 4), dominoes.slice(4)].map((row, index) => (
+          <div key={index} className="match-summary-held-row">
+            {row.map((d) => (
+              <Domino key={d.id} top={d.top} bottom={d.bottom} />
+            ))}
+          </div>
         ))}
       </div>
     </>

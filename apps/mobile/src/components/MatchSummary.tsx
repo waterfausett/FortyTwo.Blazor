@@ -162,9 +162,14 @@ function HeldHand({ match, game, myPlayerId }: { match: MatchState; game: Game; 
   return (
     <View style={styles.held}>
       <Text style={styles.heldNote}>{details.join(' · ')}</Text>
+      {/* Laid out like a dealt hand (Hand.tsx): four over three. */}
       <View style={styles.heldDominoes} accessibilityLabel={`Your hand: ${dominoes.map((d) => d.id).join(', ')}`}>
-        {dominoes.map((d) => (
-          <Domino key={d.id} top={d.top} bottom={d.bottom} width={22} accessible={false} />
+        {[dominoes.slice(0, 4), dominoes.slice(4)].map((row, index) => (
+          <View key={index} style={styles.heldRow}>
+            {row.map((d) => (
+              <Domino key={d.id} top={d.top} bottom={d.bottom} width={28} direction="horizontal" accessible={false} />
+            ))}
+          </View>
         ))}
       </View>
     </View>
@@ -205,9 +210,10 @@ const styles = StyleSheet.create({
   handRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   handMain: { flex: 1 },
   chevron: { color: colors.inkMuted },
-  held: { gap: 6, paddingTop: 8 },
-  heldNote: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13, paddingTop: 4 },
-  heldDominoes: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  held: { gap: 8, paddingTop: 8, paddingBottom: 4 },
+  heldNote: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13, paddingTop: 4, textAlign: 'center' },
+  heldDominoes: { alignItems: 'center', gap: 6 },
+  heldRow: { flexDirection: 'row', gap: 6 },
   handName: { color: colors.bone, fontFamily: fonts.uiBold },
   handDetail: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
   result: { fontFamily: fonts.uiBold },
