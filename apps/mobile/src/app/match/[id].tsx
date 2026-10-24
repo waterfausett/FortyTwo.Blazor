@@ -1123,6 +1123,7 @@ export default function MatchScreen() {
         <MatchSummary
           visible={summaryOpen}
           match={match}
+          myPlayerId={view.me.playerId}
           myTeam={myTeam}
           nameFor={nameFor}
           iVoted={view.iVotedRematch}
