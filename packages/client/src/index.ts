@@ -15,6 +15,7 @@ export * from './matchSocket';
 export * from './matchView';
 export * from './optimistic';
 export * from './people';
+export * from './pipColors';
 export * from './playerNames';
 export * from './poke';
 export * from './presenceSocket';

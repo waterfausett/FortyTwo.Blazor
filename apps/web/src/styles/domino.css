@@ -60,22 +60,22 @@
     }
 
         .domino div[data-value="1"] span {
-            background-color: var(--domino-1-color, lightblue);
+            background-color: var(--domino-1-color, #5fa8d3);
         }
         .domino div[data-value="2"] span {
-            background-color: var(--domino-2-color, green);
+            background-color: var(--domino-2-color, #3f8f3a);
         }
         .domino div[data-value="3"] span {
-            background-color: var(--domino-3-color, indianred);
+            background-color: var(--domino-3-color, #cd5c5c);
         }
         .domino div[data-value="4"] span {
-            background-color: var(--domino-4-color, sandybrown);
+            background-color: var(--domino-4-color, #e0915a);
         }
         .domino div[data-value="5"] span {
-            background-color: var(--domino-5-color, darkblue);
+            background-color: var(--domino-5-color, #2b3f8f);
         }
         .domino div[data-value="6"] span {
-            background-color: var(--domino-6-color, gold);
+            background-color: var(--domino-6-color, #d4a514);
         }
 
         .domino .line {

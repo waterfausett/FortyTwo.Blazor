@@ -4,7 +4,8 @@
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Suit, isLow, suitToPrettyString } from '@fortytwo/rules';
-import { PIP_COLORS, pipCenters } from './Domino';
+import { PIP_COLORS } from '@fortytwo/client';
+import { pipCenters } from './Domino';
 import { colors, fonts } from './theme';
 
 export const PipFace = memo(function PipFace({ suit, size = 26 }: { suit: Suit; size?: number }) {
