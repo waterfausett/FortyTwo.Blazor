@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Bid, Positions, Suit, Teams, type Game, type MatchState } from '@fortytwo/rules';
+import { Bid, Positions, Suit, Teams, createDomino, type Game, type MatchState } from '@fortytwo/rules';
 import { MatchSummary } from './MatchSummary';
 
 afterEach(cleanup);
@@ -50,6 +50,7 @@ function renderSummary(props: Partial<Parameters<typeof MatchSummary>[0]> = {}) 
     <MemoryRouter>
       <MatchSummary
         match={finishedMatch()}
+        myPlayerId="p1"
         myTeam={Teams.TeamA}
         nameFor={(id) => (id == null ? '' : names[id])}
         iVoted={false}
@@ -86,6 +87,32 @@ describe('MatchSummary', () => {
       expect.stringMatching(/Game 1.*You.*84.*Fives.*Made.*\+2/),
       expect.stringMatching(/Game 2.*You.*30.*Aces.*Set.*\+1/),
     ]);
+  });
+
+  it("opens a hand's row to show the dominoes I held, my bid and trump", () => {
+    const held = [createDomino(6, 6), createDomino(5, 5), createDomino(0, 5), createDomino(1, 4), createDomino(2, 3), createDomino(1, 1), createDomino(0, 0)];
+    const first = game('Game 1', 'p1', Bid.EightyFour, Suit.Fives, Teams.TeamA);
+    first.hands[0].dominoes = held;
+    renderSummary({ match: finishedMatch({ games: { [Teams.TeamA]: [first] } }) });
+
+    const toggle = screen.getByRole('button', { name: /game 1/i });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryAllByTestId('domino')).toHaveLength(0);
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByTestId('domino')).toHaveLength(7);
+    expect(screen.getByText('You bid 84 · Fives trump')).not.toBeNull();
+
+    fireEvent.click(toggle);
+    expect(screen.queryAllByTestId('domino')).toHaveLength(0);
+  });
+
+  it("says so when I wasn't at the table for a hand", () => {
+    renderSummary({ myPlayerId: 'newcomer' });
+    fireEvent.click(screen.getByRole('button', { name: /game 2/i }));
+    expect(screen.getByText("You weren't at the table for this hand.")).not.toBeNull();
+    expect(screen.queryAllByTestId('domino')).toHaveLength(0);
   });
 
   it('links back to the lobby', () => {

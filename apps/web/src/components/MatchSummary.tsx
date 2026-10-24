@@ -1,21 +1,26 @@
 // The match-over dialog: who won, each team and its final marks, every hand played, and the way
 // on - back to the lobby, or a rematch with the same four once everyone asks for one (or a link to
-// it, once it exists). Everything here comes from the MatchState the page already holds.
-import type { JSX } from 'react';
+// it, once it exists). Opening a hand's row shows the dominoes I held for it. Everything here
+// comes from the MatchState the page already holds.
+import { Fragment, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  Bid,
   Teams,
   bidToPrettyString,
   matchScores,
   rematchAgreed,
   suitToPrettyString,
+  type Game,
   type MatchState,
 } from '@fortytwo/rules';
-import { playedHands } from '@fortytwo/client';
+import { playedHands, startingHand } from '@fortytwo/client';
+import { Domino } from './Domino';
 import { MatchOverActions } from './MatchOverActions';
 
 interface MatchSummaryProps {
   match: MatchState;
+  myPlayerId: string;
   myTeam: Teams;
   nameFor: (playerId: string | null) => string;
   iVoted: boolean;
@@ -30,8 +35,31 @@ function teamOf(position: number): Teams {
   return position % 2 === 0 ? Teams.TeamA : Teams.TeamB;
 }
 
+// The hand I held for one game, under its row: my bid, the trump, and the 7 dominoes - or a note
+// when I took my seat after it was played.
+function HeldHand({ match, game, myPlayerId }: { match: MatchState; game: Game; myPlayerId: string }): JSX.Element {
+  const dominoes = startingHand(match, game, myPlayerId);
+  if (dominoes == null) return <p className="match-summary-held-note">You weren't at the table for this hand.</p>;
+  const myBid = game.hands.find((h) => h.playerId === myPlayerId)?.bid ?? null;
+  const details = [
+    myBid == null ? null : myBid === Bid.Pass ? 'You passed' : `You bid ${bidToPrettyString(myBid)}`,
+    game.trump == null ? null : `${suitToPrettyString(game.trump)} trump`,
+  ].filter((d): d is string => d != null);
+  return (
+    <>
+      <p className="match-summary-held-note">{details.join(' · ')}</p>
+      <div className="match-summary-held-dominoes" aria-label={`Your hand: ${dominoes.map((d) => d.id).join(', ')}`}>
+        {dominoes.map((d) => (
+          <Domino key={d.id} top={d.top} bottom={d.bottom} direction="vertical" />
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function MatchSummary({
   match,
+  myPlayerId,
   myTeam,
   nameFor,
   iVoted,
@@ -49,6 +77,7 @@ export function MatchSummary({
       .map((p) => nameFor(p.playerId))
       .join(' & ');
   const agreed = rematchAgreed(match).length;
+  const [openHandId, setOpenHandId] = useState<string | null>(null);
 
   const lobbyLink = (
     <Link to="/" className="btn btn-outline-secondary">
@@ -107,17 +136,46 @@ export function MatchSummary({
               </tr>
             </thead>
             <tbody>
-              {playedHands(match).map(({ game, winner, made, marks }) => (
-                <tr key={game.id} className={winner === myTeam ? 'hand-us' : 'hand-them'}>
-                  <td>{game.name}</td>
-                  <td>{nameFor(game.biddingPlayerId)}</td>
-                  <td>{game.bid == null ? '' : bidToPrettyString(game.bid)}</td>
-                  <td>{game.trump == null ? '' : suitToPrettyString(game.trump)}</td>
-                  <td>
-                    {made ? 'Made' : 'Set'} <span className="match-summary-hand-marks">+{marks}</span>
-                  </td>
-                </tr>
-              ))}
+              {playedHands(match).map(({ game, winner, made, marks }) => {
+                const open = openHandId === game.id;
+                const toggle = () => setOpenHandId(open ? null : game.id);
+                return (
+                  <Fragment key={game.id}>
+                    <tr className={`match-summary-hand ${winner === myTeam ? 'hand-us' : 'hand-them'}`} onClick={toggle}>
+                      <td>
+                        <button
+                          type="button"
+                          className="match-summary-hand-toggle"
+                          aria-expanded={open}
+                          aria-controls={`held-${game.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggle();
+                          }}
+                        >
+                          <span className="match-summary-chevron" aria-hidden="true">
+                            {open ? '▾' : '▸'}
+                          </span>
+                          {game.name}
+                        </button>
+                      </td>
+                      <td>{nameFor(game.biddingPlayerId)}</td>
+                      <td>{game.bid == null ? '' : bidToPrettyString(game.bid)}</td>
+                      <td>{game.trump == null ? '' : suitToPrettyString(game.trump)}</td>
+                      <td>
+                        {made ? 'Made' : 'Set'} <span className="match-summary-hand-marks">+{marks}</span>
+                      </td>
+                    </tr>
+                    {open && (
+                      <tr id={`held-${game.id}`} className="match-summary-held">
+                        <td colSpan={5}>
+                          <HeldHand match={match} game={game} myPlayerId={myPlayerId} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

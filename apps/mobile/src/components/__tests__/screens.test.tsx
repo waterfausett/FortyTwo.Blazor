@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Bid, Suit, Teams, type Game, type MatchState } from '@fortytwo/rules';
+import { Bid, Suit, Teams, createDomino, type Game, type MatchState } from '@fortytwo/rules';
 import { endChoices } from '@fortytwo/client';
 import { MatchSummary } from '../MatchSummary';
 import { profileErrors } from '../profileErrors';
@@ -53,6 +53,7 @@ describe('MatchSummary', () => {
     const props = {
       visible: true,
       match,
+      myPlayerId: 'p1',
       myTeam: Teams.TeamA,
       nameFor: (id: string | null) => (id ? names[id] : ''),
       iVoted: false,
@@ -72,6 +73,27 @@ describe('MatchSummary', () => {
     );
     return props;
   }
+
+  it('opens a hand to show the dominoes I held, my bid and trump', async () => {
+    const held = [[6, 6], [5, 5], [0, 5], [1, 4], [2, 3], [1, 1], [0, 0]].map(([a, b]) => createDomino(a, b));
+    const first = game(1, 'p1', Bid.Thirty, Teams.TeamA);
+    first.hands[0].dominoes = held;
+    await show({ match: { ...match, games: { [Teams.TeamA]: [first] } } });
+
+    expect(screen.queryByLabelText(/^Your hand/)).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Game 1: You bid 30, made, 1 mark'));
+    expect(screen.getByLabelText('Your hand: 6/6, 5/5, 0/5, 1/4, 2/3, 1/1, 0/0')).toBeTruthy();
+    expect(screen.getByText('You bid 30 · Sixes trump')).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText('Game 1: You bid 30, made, 1 mark'));
+    expect(screen.queryByLabelText(/^Your hand/)).toBeNull();
+  });
+
+  it("says so when I wasn't at the table for a hand", async () => {
+    await show({ myPlayerId: 'newcomer' });
+    await fireEvent.press(screen.getByLabelText('Game 3: Di bid 32, made, 1 mark'));
+    expect(screen.getByText("You weren't at the table for this hand.")).toBeTruthy();
+  });
 
   it('shows the winner, both teams with their marks, and every hand in order', async () => {
     await show();
@@ -121,6 +143,7 @@ describe('MatchSummary at the end of a Live game', () => {
         <MatchSummary
           visible
           match={match}
+          myPlayerId="p1"
           myTeam={Teams.TeamA}
           nameFor={(id) => (id ? (names[id] ?? id) : '')}
           iVoted={false}

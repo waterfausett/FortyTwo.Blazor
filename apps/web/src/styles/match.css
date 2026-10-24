@@ -1377,6 +1377,49 @@
   color: var(--them);
 }
 
+/* A hand's row opens to show the dominoes I held for it. */
+.match-summary-hand {
+  cursor: pointer;
+}
+
+.match-summary-hand:hover td {
+  background: rgba(242, 234, 219, 0.05);
+}
+
+.match-summary-hand-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.match-summary-chevron {
+  width: 0.8em;
+  color: var(--ink-muted);
+}
+
+.match-summary-held td {
+  padding: 0.2rem 0.4rem 0.6rem 1.5rem;
+  border-bottom: 1px solid rgba(242, 234, 219, 0.08);
+}
+
+.match-summary-held-note {
+  margin: 0 0 0.35rem;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.match-summary-held-dominoes {
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 4.5px;
+}
+
 .match-summary-actions {
   display: flex;
   justify-content: center;
