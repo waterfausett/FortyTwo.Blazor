@@ -5,17 +5,8 @@
 // offset shadow is a separate layer behind the face so it can't pull the pips off centre.
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { PIP_COLORS } from '@fortytwo/client';
 import { colors } from './theme';
-
-// Pip colours by count, as on the web.
-export const PIP_COLORS: Record<number, string> = {
-  1: '#5fa8d3',
-  2: '#3f8f3a',
-  3: '#cd5c5c',
-  4: '#e0915a',
-  5: '#2b3f8f',
-  6: '#d4a514',
-};
 
 // Pip centres within one half, in units of a sixth of the face's width (a half is 6 x 6 units).
 // Symmetric about the half's centre (3, 3), so the pips sit in the middle of the tile.

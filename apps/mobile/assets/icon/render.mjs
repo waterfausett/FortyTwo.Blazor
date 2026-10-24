@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const assets = join(here, '..');
 
-// apps/mobile/src/components/theme.ts and Domino.tsx's PIP_COLORS.
+// apps/mobile/src/components/theme.ts and packages/client's PIP_COLORS.
 const WALNUT = '#3a2a20';
 const WALNUT_DEEP = '#241913';
 const MAT = '#4b3627';

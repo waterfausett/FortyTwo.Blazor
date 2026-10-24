@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { PIP_COLORS } from '@fortytwo/client'
 import './styles/theme.css'
 import './styles/app.css'
 import './styles/domino.css'
@@ -20,6 +21,12 @@ import { Profile } from './pages/Profile.tsx'
 import { unlockChimeOnGesture } from './ui/chime.ts'
 
 const queryClient = new QueryClient()
+
+// Pip colours come from @fortytwo/client so tiles match the mobile app; domino.css and hall.css
+// read them as --domino-N-color.
+for (const [count, color] of Object.entries(PIP_COLORS)) {
+  document.documentElement.style.setProperty(`--domino-${count}-color`, color)
+}
 
 // Browsers hold audio until the page gets a click or key press - catch the first one, so the turn
 // chime can play later while the player is away.
