@@ -75,6 +75,7 @@ import { TurnAlerts } from '../match/TurnAlerts';
 import {
   assertPlayable,
   describeMatch,
+  isMyTurn,
   houseRuleLabels,
   marksToWin,
   isHighBidder as holdsHighBid,
@@ -240,9 +241,21 @@ export function Match(): JSX.Element {
     mutationFn: () => client.cancelParty(matchId!),
     onError: toastError,
   });
-  // The summary only opens when asked for, from the rail's button: the end of the match plays out
-  // on the table like any other hand.
+  // The summary only opens when asked for: from the scoreboard at any time, or the rail's button
+  // once the match is over (the end of the match plays out on the table like any other hand). It
+  // covers the table, so it closes when my turn comes, before the clock runs down unseen.
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const myTurnNow =
+    !watching &&
+    liveMatch != null &&
+    myPlayerId != null &&
+    liveMatch.players.some((p) => p.playerId === myPlayerId) &&
+    isMyTurn(describeMatch(liveMatch, myPlayerId));
+  const [turnSeen, setTurnSeen] = useState(myTurnNow);
+  if (myTurnNow !== turnSeen) {
+    setTurnSeen(myTurnNow);
+    if (myTurnNow) setSummaryOpen(false);
+  }
   // The rules, over the table, from the scoreboard's "?". Opening them counts as having seen them.
   const [rulesOpen, setRulesOpen] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -848,11 +861,17 @@ export function Match(): JSX.Element {
         </p>
       )}
       <header className="scoreboard" aria-label="Scores">
-        <div className="score score-us">
+        <button
+          type="button"
+          className="score score-us"
+          title="Match summary"
+          aria-label={`Us: ${scores[me.team] ?? 0} of ${marksToWin(match)} marks - match summary`}
+          onClick={() => setSummaryOpen(true)}
+        >
           <span className="score-label">Us</span>
           <span className="score-value">{scores[me.team] ?? 0}</span>
           <MarkTally marks={scores[me.team] ?? 0} total={marksToWin(match)} />
-        </div>
+        </button>
 
         <div className="contract">
           <span className="contract-game">{game.name}</span>
@@ -928,11 +947,17 @@ export function Match(): JSX.Element {
           )}
         </div>
 
-        <div className="score score-them">
+        <button
+          type="button"
+          className="score score-them"
+          title="Match summary"
+          aria-label={`Them: ${scores[opponentTeam] ?? 0} of ${marksToWin(match)} marks - match summary`}
+          onClick={() => setSummaryOpen(true)}
+        >
           <span className="score-label">Them</span>
           <span className="score-value">{scores[opponentTeam] ?? 0}</span>
           <MarkTally marks={scores[opponentTeam] ?? 0} total={marksToWin(match)} />
-        </div>
+        </button>
       </header>
       {match.currentGame.redealt && isBiddingPhase && (
         <p className="redeal-line" role="status">Everyone passed, so the hands were dealt again.</p>
@@ -1216,7 +1241,7 @@ export function Match(): JSX.Element {
         </PlayDndContext>
       </div>
 
-      {showHandOver && isMatchOver && summaryOpen && (
+      {summaryOpen && (
         <MatchSummary
           match={match}
           myPlayerId={me.playerId}

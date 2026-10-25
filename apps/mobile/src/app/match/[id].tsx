@@ -19,6 +19,7 @@ import {
   marksToWin,
   assertPlayable,
   describeMatch,
+  isMyTurn,
   isHighBidder,
   isTrickStarted,
   suggestedBid,
@@ -400,9 +401,17 @@ export default function MatchScreen() {
   const isHandOver = early?.isHandOver ?? false;
   const showHandOver = useLatch(isHandOver && heldTrick == null, isHandOver);
 
-  // The match summary only opens when asked for, from the hand-over panel's button: the end of
-  // the match plays out on the table like any other hand.
+  // The match summary only opens when asked for: from the scoreboard at any time, or the hand-over
+  // panel's button once the match is over (the end of the match plays out on the table like any
+  // other hand). It covers the table, so it closes when my turn comes, before the clock runs down
+  // unseen.
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const myTurnNow = early != null && !watching && isMyTurn(early);
+  const [turnSeen, setTurnSeen] = useState(myTurnNow);
+  if (myTurnNow !== turnSeen) {
+    setTurnSeen(myTurnNow);
+    if (myTurnNow) setSummaryOpen(false);
+  }
   const [doublesOpen, setDoublesOpen] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -801,7 +810,7 @@ export default function MatchScreen() {
         {reconnecting && <Text style={styles.reconnecting}>Reconnecting…</Text>}
 
         <View style={styles.scoreboard} accessibilityLabel="Scores">
-          <Score label="Us" total={total} marks={scores[myTeam] ?? 0} color={colors.us} />
+          <Score label="Us" total={total} marks={scores[myTeam] ?? 0} color={colors.us} onPress={() => setSummaryOpen(true)} />
           <View style={styles.contract}>
             {contractBid && (names.ready ? <Text style={styles.contractText}>{contractBid}</Text> : <NameSkeleton width={120} />)}
             {trumpLine && game.trump != null && (
@@ -825,7 +834,7 @@ export default function MatchScreen() {
               </View>
             )}
           </View>
-          <Score label="Them" total={total} marks={scores[opponentTeam] ?? 0} color={colors.them} />
+          <Score label="Them" total={total} marks={scores[opponentTeam] ?? 0} color={colors.them} onPress={() => setSummaryOpen(true)} />
         </View>
         {match.currentGame.redealt && view.isBiddingPhase && (
           <Text style={styles.redeal} accessibilityLiveRegion="polite">Everyone passed, so the hands were dealt again.</Text>
@@ -1119,40 +1128,38 @@ export default function MatchScreen() {
         seatedIds={match.players.map((p) => p.playerId)}
         onClose={() => setInviting(false)}
       />
-      {view.isMatchOver && (
-        <MatchSummary
-          visible={summaryOpen}
-          match={match}
-          myPlayerId={view.me.playerId}
-          myTeam={myTeam}
-          nameFor={nameFor}
-          iVoted={view.iVotedRematch}
-          rematchDisabled={!connected || rematch.isPending}
-          onRematch={() => rematch.mutate()}
-          onGoToRematch={() => {
-            setSummaryOpen(false);
-            router.replace(`/match/${match.rematchId}`);
-          }}
-          onLobby={() => {
-            setSummaryOpen(false);
-            router.dismissTo('/');
-          }}
-          onClose={() => setSummaryOpen(false)}
-          live={
-            choices?.live
-              ? {
-                  choices,
-                  partnerName: choices.partnerId ? nameFor(choices.partnerId) : '',
-                  busy: !connected,
-                  pending: overBusy,
-                  onPartyUp: pressPartyUp,
-                  onCancelParty: () => cancelParty.mutate(),
-                  onFindGame: () => findGame.mutate(),
-                }
-              : undefined
-          }
-        />
-      )}
+      <MatchSummary
+        visible={summaryOpen}
+        match={match}
+        myPlayerId={view.me.playerId}
+        myTeam={myTeam}
+        nameFor={nameFor}
+        iVoted={view.iVotedRematch}
+        rematchDisabled={!connected || rematch.isPending}
+        onRematch={() => rematch.mutate()}
+        onGoToRematch={() => {
+          setSummaryOpen(false);
+          router.replace(`/match/${match.rematchId}`);
+        }}
+        onLobby={() => {
+          setSummaryOpen(false);
+          router.dismissTo('/');
+        }}
+        onClose={() => setSummaryOpen(false)}
+        live={
+          choices?.live
+            ? {
+                choices,
+                partnerName: choices.partnerId ? nameFor(choices.partnerId) : '',
+                busy: !connected,
+                pending: overBusy,
+                onPartyUp: pressPartyUp,
+                onCancelParty: () => cancelParty.mutate(),
+                onFindGame: () => findGame.mutate(),
+              }
+            : undefined
+        }
+      />
     </ScrollView>
   );
 }
@@ -1165,17 +1172,36 @@ function seatedView(match: MatchState | null, myPlayerId: string | undefined): M
 }
 
 // A team's marks as a tally of `total` notches, like the web scoreboard - no number, to save
-// room on a phone.
-function Score({ label, marks, total, color }: { label: string; marks: number; total: number; color: string }) {
+// room on a phone. Tapping it opens the match summary.
+function Score({
+  label,
+  marks,
+  total,
+  color,
+  onPress,
+}: {
+  label: string;
+  marks: number;
+  total: number;
+  color: string;
+  onPress: () => void;
+}) {
   return (
-    <View style={styles.score} accessibilityLabel={`${label}: ${marks} of ${total} marks`}>
+    <Pressable
+      style={styles.score}
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${marks} of ${total} marks`}
+      accessibilityHint="Shows the hands played so far"
+    >
       <Text style={[styles.scoreLabel, { color }]}>{label}</Text>
       <View style={styles.tally}>
         {Array.from({ length: total }, (_, i) => (
           <View key={i} style={[styles.notch, i < marks && { backgroundColor: color, borderColor: color }]} />
         ))}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

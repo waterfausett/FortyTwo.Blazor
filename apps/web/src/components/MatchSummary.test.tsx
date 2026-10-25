@@ -194,4 +194,21 @@ describe('MatchSummary', () => {
     fireEvent.click(screen.getByRole('button', { name: /close/i }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  describe('before the match is over', () => {
+    it('shows the match so far, with the marks to win and no way on', () => {
+      renderSummary({ match: finishedMatch({ winningTeam: null }) });
+
+      const dialog = screen.getByRole('dialog', { name: /the match so far/i });
+      expect(within(dialog).getByText('First to 7 marks')).not.toBeNull();
+      expect(within(dialog).getByText('Game 1')).not.toBeNull();
+      expect(within(dialog).queryByRole('button', { name: /rematch/i })).toBeNull();
+      expect(within(dialog).queryByRole('link', { name: /back to lobby/i })).toBeNull();
+    });
+
+    it('says so when no hand has been decided yet', () => {
+      renderSummary({ match: finishedMatch({ winningTeam: null, games: {} }) });
+      expect(screen.getByText('No hands decided yet.')).not.toBeNull();
+    });
+  });
 });

@@ -1,7 +1,8 @@
-// The match-over dialog: who won, each team and its final marks, every hand played, and the way
+// The match summary dialog: who won, each team and its final marks, every hand played, and the way
 // on - back to the lobby, or a rematch with the same four once everyone asks for one (or a link to
-// it, once it exists). Opening a hand's row shows the dominoes I held for it. Everything here
-// comes from the MatchState the page already holds.
+// it, once it exists). Opening a hand's row shows the dominoes I held for it. Opened from the
+// scoreboard before the match is over, it's the match so far: the hands decided yet, and no way
+// on. Everything here comes from the MatchState the page already holds.
 import { Fragment, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -14,7 +15,7 @@ import {
   type Game,
   type MatchState,
 } from '@fortytwo/rules';
-import { playedHands, startingHand } from '@fortytwo/client';
+import { marksToWin, playedHands, startingHand } from '@fortytwo/client';
 import { Domino } from './Domino';
 import { MatchOverActions } from './MatchOverActions';
 
@@ -75,7 +76,9 @@ export function MatchSummary({
 }: MatchSummaryProps): JSX.Element {
   const theirTeam = myTeam === Teams.TeamA ? Teams.TeamB : Teams.TeamA;
   const scores = matchScores(match);
-  const title = match.winningTeam === myTeam ? 'You won the match' : 'They won the match';
+  const over = match.winningTeam != null;
+  const title = !over ? 'The match so far' : match.winningTeam === myTeam ? 'You won the match' : 'They won the match';
+  const hands = playedHands(match);
   const namesOn = (team: Teams) =>
     match.players
       .filter((p) => teamOf(p.position) === team)
@@ -113,6 +116,7 @@ export function MatchSummary({
         <h2 id="match-summary-title" className="match-summary-title">
           {title}
         </h2>
+        {!over && <p className="match-summary-subtitle">First to {marksToWin(match)} marks</p>}
 
         <div className="match-summary-teams">
           <div className="match-summary-team match-summary-us">
@@ -141,7 +145,14 @@ export function MatchSummary({
               </tr>
             </thead>
             <tbody>
-              {playedHands(match).map(({ game, winner, made, marks }) => {
+              {hands.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="match-summary-held-note">
+                    No hands decided yet.
+                  </td>
+                </tr>
+              )}
+              {hands.map(({ game, winner, made, marks }) => {
                 const open = openHandId === game.id;
                 const toggle = () => setOpenHandId(open ? null : game.id);
                 return (
@@ -185,7 +196,7 @@ export function MatchSummary({
           </table>
         </div>
 
-        {live ? (
+        {!over ? null : live ? (
           <MatchOverActions
             {...live}
             layout="rows"

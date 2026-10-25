@@ -153,6 +153,12 @@ export function describeMatch(match: MatchState, myPlayerId: string): MatchView 
   };
 }
 
+// My turn to bid, name trump or play while the hand is still open - the turns a table waits on me
+// for. Play-out tricks after the hand is decided don't count.
+export function isMyTurn(view: MatchView): boolean {
+  return !view.isHandOver && (view.canBid || view.canSelectTrump || view.isMyTurnToPlay);
+}
+
 // How long a pre-selected domino (picked before it's this player's turn) stays marked once the
 // turn arrives, before it's played - a moment to notice, and to play a different one instead.
 export const PRESELECT_AUTO_PLAY_DELAY_MS = 400;

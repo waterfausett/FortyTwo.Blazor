@@ -300,6 +300,32 @@ describe('Match screen, house rules', () => {
   });
 });
 
+describe('Match screen, summary while the match is on', () => {
+  function onTurn(playerId: string): MatchState {
+    const match = dealtLiveWithBots({ mode: 'custom' });
+    return { ...match, currentGame: { ...match.currentGame, currentPlayerId: playerId } };
+  }
+
+  it('opens the match so far from the scoreboard', async () => {
+    socket(onTurn('p4'));
+    await renderScreen();
+    fireEvent.press(await screen.findByLabelText('Them: 0 of 7 marks'));
+    expect(await screen.findByText('The match so far')).toBeTruthy();
+    expect(screen.getByText('No hands decided yet.')).toBeTruthy();
+  });
+
+  it('closes it when my turn comes', async () => {
+    socket(onTurn('p4'));
+    const view = await renderScreen();
+    fireEvent.press(await screen.findByLabelText('Us: 0 of 7 marks'));
+    expect(await screen.findByText('The match so far')).toBeTruthy();
+
+    socket(onTurn('p1'));
+    await view.rerender();
+    expect(screen.queryByText('The match so far')).toBeNull();
+  });
+});
+
 describe('Live search lobby', () => {
   // With reduce motion on, the lobby starts no looping animations to outlive each test.
   let reduceMotion: jest.SpyInstance;

@@ -1,11 +1,13 @@
-// The match-over summary, as on the web (apps/web/src/components/MatchSummary.tsx): who won, each
-// team with its final marks, every hand played, and the way on - back to the lobby, or a rematch
-// with the same four once everyone asks for one (or the way to it, once it exists). Tapping a hand
-// shows the dominoes I held for it. Everything comes from the MatchState the screen already holds.
+// The match summary, as on the web (apps/web/src/components/MatchSummary.tsx): who won, each team
+// with its final marks, every hand played, and the way on - back to the lobby, or a rematch with
+// the same four once everyone asks for one (or the way to it, once it exists). Tapping a hand shows
+// the dominoes I held for it. Opened from the scoreboard before the match is over, it's the match
+// so far: the hands decided yet, and no way on. Everything comes from the MatchState the screen
+// already holds.
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { playedHands, startingHand } from '@fortytwo/client';
+import { marksToWin, playedHands, startingHand } from '@fortytwo/client';
 import {
   Bid,
   Teams,
@@ -61,6 +63,8 @@ export function MatchSummary({
       .join(' & ');
   const agreed = rematchAgreed(match).length;
   const [openHandId, setOpenHandId] = useState<string | null>(null);
+  const over = match.winningTeam != null;
+  const hands = playedHands(match);
 
   const lobbyButton = (
     <Pressable style={[styles.button, styles.secondary]} onPress={onLobby} accessibilityRole="button">
@@ -89,9 +93,12 @@ export function MatchSummary({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.sheet, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.header}>
-          <Text style={styles.title} accessibilityRole="header">
-            {match.winningTeam === myTeam ? 'You won the match' : 'They won the match'}
-          </Text>
+          <View style={styles.headerText}>
+            <Text style={styles.title} accessibilityRole="header">
+              {!over ? 'The match so far' : match.winningTeam === myTeam ? 'You won the match' : 'They won the match'}
+            </Text>
+            {!over && <Text style={styles.subtitle}>First to {marksToWin(match)} marks</Text>}
+          </View>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={12}>
             <Text style={styles.close}>×</Text>
           </Pressable>
@@ -103,7 +110,8 @@ export function MatchSummary({
         </View>
 
         <ScrollView style={styles.hands} contentContainerStyle={styles.handsContent}>
-          {playedHands(match).map(({ game, winner, made, marks }) => {
+          {hands.length === 0 && <Text style={styles.heldNote}>No hands decided yet.</Text>}
+          {hands.map(({ game, winner, made, marks }) => {
             const open = openHandId === game.id;
             return (
               <View key={game.id} style={[styles.hand, { borderLeftColor: winner === myTeam ? colors.us : colors.them }]}>
@@ -136,7 +144,7 @@ export function MatchSummary({
           })}
         </ScrollView>
 
-        {live ? (
+        {!over ? null : live ? (
           <MatchOverActions {...live} layout="rows" lobby={lobbyButton} rematch={rematchButton} />
         ) : (
           <View style={styles.actions}>
@@ -191,7 +199,9 @@ function TeamTotal({ names, marks, color, label }: { names: string; marks: numbe
 const styles = StyleSheet.create({
   sheet: { flex: 1, backgroundColor: colors.walnut, paddingHorizontal: 16, gap: 14 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerText: { flex: 1 },
   title: { color: colors.bone, fontFamily: fonts.display, fontSize: 28 },
+  subtitle: { color: colors.inkMuted, fontFamily: fonts.ui, fontSize: 13 },
   close: { color: colors.inkMuted, fontSize: 32, lineHeight: 34 },
   teams: { flexDirection: 'row', gap: 10 },
   team: { flex: 1, alignItems: 'center', gap: 2, padding: 12, borderRadius: 10, borderWidth: 2, backgroundColor: 'rgba(20, 13, 9, 0.45)' },

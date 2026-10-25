@@ -118,6 +118,19 @@ describe('MatchSummary', () => {
     await fireEvent.press(screen.getByText('Back to lobby'));
     expect(props.onLobby).toHaveBeenCalled();
   });
+  it('shows the match so far before it is over, with the marks to win and no way on', async () => {
+    await show({ match: { ...match, winningTeam: null } });
+    expect(screen.getByText('The match so far')).toBeTruthy();
+    expect(screen.getByText('First to 7 marks')).toBeTruthy();
+    expect(screen.getAllByText(/^Game \d$/)).toHaveLength(3);
+    expect(screen.queryByText('Rematch')).toBeNull();
+    expect(screen.queryByText('Back to lobby')).toBeNull();
+  });
+
+  it('says so when no hand has been decided yet', async () => {
+    await show({ match: { ...match, winningTeam: null, games: {} } });
+    expect(screen.getByText('No hands decided yet.')).toBeTruthy();
+  });
 });
 
 describe('MatchSummary at the end of a Live game', () => {

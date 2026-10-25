@@ -1920,10 +1920,32 @@ describe('Match', () => {
       expect(within(dialog).getByText('Game 1')).not.toBeNull();
     });
 
-    it('does not show the summary while the match is on', () => {
-      useMatchSocketMock.mockReturnValue({ match: baseMatch(), connected: true });
+    it("doesn't show the summary by itself while the match is on, but opens it from the scoreboard", () => {
+      useMatchSocketMock.mockReturnValue({ match: finishedMatch({ winningTeam: null }), connected: true });
       renderMatch();
+      expect(screen.queryByRole('dialog')).toBeNull();
 
+      fireEvent.click(screen.getByRole('button', { name: /^them: .* match summary/i }));
+      const dialog = screen.getByRole('dialog', { name: /the match so far/i });
+      expect(within(dialog).getByText('Game 1')).not.toBeNull();
+      expect(within(dialog).queryByRole('button', { name: /rematch/i })).toBeNull();
+    });
+
+    it('closes the summary when my turn comes', () => {
+      const ui = (
+        <QueryClientProvider client={new QueryClient()}>
+          <MemoryRouter>
+            <Match />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({}, { currentPlayerId: 'p4' }), connected: true });
+      const { rerender } = renderMatch();
+      fireEvent.click(screen.getByRole('button', { name: /^us: .* match summary/i }));
+      expect(screen.getByRole('dialog', { name: /the match so far/i })).not.toBeNull();
+
+      useMatchSocketMock.mockReturnValue({ match: baseMatch({}, { currentPlayerId: 'p1' }), connected: true });
+      rerender(ui);
       expect(screen.queryByRole('dialog')).toBeNull();
     });
 
