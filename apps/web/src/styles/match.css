@@ -85,6 +85,25 @@
   gap: 0.6rem;
 }
 
+/* Each team's score is a button that opens the match summary, dressed as plain text. */
+button.score {
+  padding: 0.15rem 0.3rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.score:hover,
+button.score:focus-visible {
+  background: rgba(242, 234, 219, 0.08);
+}
+
+.score-us {
+  justify-self: start;
+}
+
 .score-them {
   justify-self: end;
   flex-direction: row-reverse;
@@ -1312,6 +1331,13 @@
   font-weight: 700;
   font-size: 1.6rem;
   color: var(--brass);
+}
+
+.match-summary-subtitle {
+  margin: -0.4rem 0 0;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
 }
 
 .match-summary-teams {

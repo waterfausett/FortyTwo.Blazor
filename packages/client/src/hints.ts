@@ -5,7 +5,7 @@ import {
 } from '@fortytwo/rules';
 import type { BidSuggestion, Hint, HintDomino, HintResponse } from '@fortytwo/api-types';
 import { ApiError } from './api';
-import { describeMatch } from './matchView';
+import { describeMatch, isMyTurn } from './matchView';
 
 // A cold Worker loads its model one piece per call (about 7 calls); spaced this far apart.
 export const HINT_RETRY_MS = 400;
@@ -49,8 +49,7 @@ export async function fetchHint(getHint: () => Promise<HintResponse>, signal?: A
 export function canAskForHint(match: MatchState | null, myPlayerId: string | undefined, hintsEnabled: boolean): boolean {
   if (!match || !myPlayerId || !hintsEnabled || matchMode(match) !== 'bots') return false;
   if (!match.players.some((p) => p.playerId === myPlayerId)) return false;
-  const view = describeMatch(match, myPlayerId);
-  return !view.isHandOver && (view.canBid || view.canSelectTrump || view.isMyTurnToPlay);
+  return isMyTurn(describeMatch(match, myPlayerId));
 }
 
 // Names the decision a hint was asked for: any change to the match is a new one, so a hint never
