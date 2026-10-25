@@ -203,12 +203,12 @@ div.spinner:empty {
   background: #000;
 }
 
-.pip-face[data-value='1'] .pip { background: var(--domino-1-color, lightblue); }
-.pip-face[data-value='2'] .pip { background: var(--domino-2-color, green); }
-.pip-face[data-value='3'] .pip { background: var(--domino-3-color, indianred); }
-.pip-face[data-value='4'] .pip { background: var(--domino-4-color, sandybrown); }
-.pip-face[data-value='5'] .pip { background: var(--domino-5-color, darkblue); }
-.pip-face[data-value='6'] .pip { background: var(--domino-6-color, gold); }
+.pip-face[data-value='1'] .pip { background: var(--domino-1-color, #5fa8d3); }
+.pip-face[data-value='2'] .pip { background: var(--domino-2-color, #3f8f3a); }
+.pip-face[data-value='3'] .pip { background: var(--domino-3-color, #cd5c5c); }
+.pip-face[data-value='4'] .pip { background: var(--domino-4-color, #e0915a); }
+.pip-face[data-value='5'] .pip { background: var(--domino-5-color, #2b3f8f); }
+.pip-face[data-value='6'] .pip { background: var(--domino-6-color, #d4a514); }
 
 .pip-face-word {
   display: inline-flex;
