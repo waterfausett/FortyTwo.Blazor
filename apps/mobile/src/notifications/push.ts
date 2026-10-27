@@ -160,6 +160,18 @@ export function notificationRoute(notification: Notifications.Notification): str
   return typeof url === 'string' && url.startsWith('/') ? url : null;
 }
 
+// Takes out of the shade every notice about the route, now that the player has the match open: it
+// would only be stale. Those for other matches stay. Notices the app drew itself (drawNotice.ts)
+// are listed with the rest; their identifier is the tag, which dismissing by it also covers.
+export async function clearNoticesFor(route: string): Promise<void> {
+  const presented = await Notifications.getPresentedNotificationsAsync();
+  await Promise.all(
+    presented
+      .filter((notification) => notificationRoute(notification) === route)
+      .map((notification) => Notifications.dismissNotificationAsync(notification.request.identifier)),
+  );
+}
+
 // Does what a notice's button asks, for the match the notice is about: readies up, or asks for a
 // rematch. Returns whether there was anything to do - not for a plain tap. The match screen, which
 // the button also opens, shows how it went.
