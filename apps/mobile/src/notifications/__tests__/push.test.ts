@@ -5,6 +5,7 @@ import type { Api } from '@/api/useApi';
 import {
   addPushTokenChangeListener,
   askOnceForPush,
+  clearNoticesFor,
   isNewTap,
   notificationRoute,
   noteRouteOnScreen,
@@ -24,6 +25,8 @@ jest.mock('expo-notifications', () => ({
   getExpoPushTokenAsync: jest.fn(async () => ({ type: 'expo', data: 'ExponentPushToken[device]' })),
   addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })),
   setNotificationCategoryAsync: jest.fn(async () => ({})),
+  getPresentedNotificationsAsync: jest.fn(),
+  dismissNotificationAsync: jest.fn(async () => {}),
   DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
   AndroidImportance: { HIGH: 4 },
 }));
@@ -237,5 +240,27 @@ describe('takeNotificationAction', () => {
     expect(await takeNotificationAction(a, pressed('ready', '/profile'))).toBe(false);
     expect(a.readyUp).not.toHaveBeenCalled();
     expect(a.rematch).not.toHaveBeenCalled();
+  });
+});
+
+describe('clearNoticesFor', () => {
+  const notice = (id: string, url?: string) =>
+    ({ request: { identifier: id, content: { data: url == null ? {} : { url } } } }) as unknown as Notifications.Notification;
+
+  it('dismisses the notices about that match and leaves the others', async () => {
+    mocked.getPresentedNotificationsAsync.mockResolvedValue([
+      notice('a', '/match/m1'),
+      notice('b', '/match/m2'),
+      notice('c', '/match/m1'),
+      notice('d'),
+    ]);
+    await clearNoticesFor('/match/m1');
+    expect(mocked.dismissNotificationAsync.mock.calls.map(([id]) => id)).toEqual(['a', 'c']);
+  });
+
+  it('does nothing when none are about it', async () => {
+    mocked.getPresentedNotificationsAsync.mockResolvedValue([notice('b', '/match/m2')]);
+    await clearNoticesFor('/match/m1');
+    expect(mocked.dismissNotificationAsync).not.toHaveBeenCalled();
   });
 });

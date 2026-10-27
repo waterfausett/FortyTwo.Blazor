@@ -2,6 +2,7 @@
 // push.ts), and opens the match a tapped notification is about - taking the action too, when it was
 // one of its buttons.
 import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { type Href, router, usePathname } from 'expo-router';
 import { useApi } from '@/api/useApi';
@@ -9,6 +10,7 @@ import { useProfile } from '@/api/useProfile';
 import { noteIncomingLink } from '@/linking/incomingLink';
 import {
   addPushTokenChangeListener,
+  clearNoticesFor,
   isNewTap,
   noteRouteOnScreen,
   notificationRoute,
@@ -29,6 +31,16 @@ export function usePushNotifications(signedIn: boolean): void {
     // And when one arrives, so one about the match on screen doesn't show (push.ts).
     noteRouteOnScreen(onScreen);
   }, [onScreen]);
+
+  // Notices about the match on screen are stale: clear them when it opens, and again whenever the
+  // app returns to the foreground on it (opened from the icon, say, with a notice waiting).
+  useEffect(() => {
+    if (!signedIn || !onScreen.startsWith('/match/')) return;
+    const clear = () => void clearNoticesFor(onScreen).catch(() => {});
+    if (AppState.currentState === 'active') clear();
+    const subscription = AppState.addEventListener('change', (state) => state === 'active' && clear());
+    return () => subscription.remove();
+  }, [signedIn, onScreen]);
 
   // On each launch (and whenever the setting changes), register or unregister this device to
   // match the player's setting - without asking for permission; that waits for a match. Expo can
