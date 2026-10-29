@@ -17,9 +17,12 @@ body {
 /* Lets a page's own root element (e.g. Match.tsx's `.match` - see match.css) opt into filling
    the rest of the viewport below NavBar by giving itself `flex: 1`. Pages that don't (Lobby,
    Profile) are unaffected - a flex column's non-stretched items just take their natural content
-   height, identical to normal block layout. */
+   height, identical to normal block layout.
+   svh is the height with a mobile browser's toolbars showing. 100vh is the height with them
+   hidden, which leaves every page that much taller than the screen, so it scrolls. */
 #root {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100svh;
 }
