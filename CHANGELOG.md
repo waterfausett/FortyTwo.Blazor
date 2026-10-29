@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.5.1...worker-v1.6.0) (2026-10-29)
+
+
+### Features
+
+* a signed-out home screen on web and mobile ([#202](https://github.com/waterfausett/FortyTwo.Blazor/issues/202)) ([0fcc84e](https://github.com/waterfausett/FortyTwo.Blazor/commit/0fcc84eda0ca585e26767127cbe687faa9e511dd))
+* open the match summary from the scoreboard, mid-match too ([#199](https://github.com/waterfausett/FortyTwo.Blazor/issues/199)) ([e5e6447](https://github.com/waterfausett/FortyTwo.Blazor/commit/e5e6447dab458bd4a8aa480fd5152a7f8b637fea))
+* show the hand you held for each game in the match summary ([#195](https://github.com/waterfausett/FortyTwo.Blazor/issues/195)) ([fc3fdaf](https://github.com/waterfausett/FortyTwo.Blazor/commit/fc3fdafd2a7a30bc4f04a65693b2ac8b4157104b))
+
+
+### Bug Fixes
+
+* **web:** use the mobile app's domino pip colours ([#197](https://github.com/waterfausett/FortyTwo.Blazor/issues/197)) ([23ced65](https://github.com/waterfausett/FortyTwo.Blazor/commit/23ced652795991ab62929c611f69bec096d53e82))
+
 ## [1.5.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.5.0...worker-v1.5.1) (2026-10-23)
 
 
