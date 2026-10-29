@@ -12,7 +12,10 @@
   align-items: center;
   gap: 2rem;
   max-width: 28rem;
+  /* svh: the height with a mobile browser's toolbars showing. 100vh is the height with them
+     hidden, which pins Sign in to the bottom of the page behind them. */
   min-height: 100vh;
+  min-height: 100svh;
   box-sizing: border-box;
   margin: 0 auto;
   padding: 4rem 16px 3rem;
