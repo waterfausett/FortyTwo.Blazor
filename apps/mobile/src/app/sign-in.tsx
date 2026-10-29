@@ -26,9 +26,9 @@ const DEAL_STAGGER_MS = 90;
 const CONTENT_DELAY_MS = DEAL_STAGGER_MS * (FAN.length - 1) + DEAL_MS / 2;
 
 const FEATURES = [
-  'Partner up against two rivals - friends, or bots that play to win',
-  'Live tables, or async games at your own pace',
-  'Track your stats and keep up with friends',
+  'Play with friends, rivals, or AI 🤖',
+  'Live tables, or turns at your own pace',
+  'Keep track of your stats and the folks you play with',
 ];
 
 function FanTile({ index, top, bottom }: { index: number; top: number; bottom: number }) {
@@ -96,7 +96,7 @@ export default function SignIn() {
           <Text style={styles.title} accessibilityRole="header">
             Forty-Two
           </Text>
-          <Text style={styles.tagline}>The Texas domino game, at a table for four.</Text>
+          <Text style={styles.tagline}>{'The Texas domino game, at a table for four.\nPull up a chair.'}</Text>
         </Fade>
       </View>
 

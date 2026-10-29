@@ -14,9 +14,9 @@ const FAN = [
 ];
 
 const FEATURES = [
-  'Partner up against two rivals - friends, or bots that play to win',
-  'Live tables, or async games at your own pace',
-  'Track your stats and keep up with friends',
+  'Play with friends, rivals, or AI 🤖',
+  'Live tables, or turns at your own pace',
+  'Keep track of your stats and the folks you play with',
 ];
 
 export function SignIn({ onSignIn, signingIn }: { onSignIn: () => void; signingIn: boolean }): JSX.Element {
@@ -38,7 +38,7 @@ export function SignIn({ onSignIn, signingIn }: { onSignIn: () => void; signingI
         </div>
         <div className="sign-in-heading">
           <h1 className="sign-in-title">Forty-Two</h1>
-          <p className="sign-in-tagline">The Texas domino game, at a table for four.</p>
+          <p className="sign-in-tagline">The Texas domino game, at a table for four.<br />Pull up a chair.</p>
         </div>
       </div>
 
