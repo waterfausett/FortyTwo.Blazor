@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.6.0...worker-v1.7.0) (2026-10-29)
+
+
+### Features
+
+* **web:** sign out from the profile page ([#203](https://github.com/waterfausett/FortyTwo.Blazor/issues/203)) ([890d847](https://github.com/waterfausett/FortyTwo.Blazor/commit/890d8473dfb809fee723afa4c4b7eedf86787e9a))
+
 ## [1.6.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.5.1...worker-v1.6.0) (2026-10-29)
 
 
