@@ -278,3 +278,23 @@ fieldset.form-group legend {
 .stat-partner-record {
   color: var(--ink-muted);
 }
+
+/* Outlined in the danger colour, like the mobile profile's Sign out. */
+.profile-sign-out {
+  display: block;
+  width: 100%;
+  margin-top: 1.5rem;
+  padding: 0.85rem;
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.profile-sign-out:hover,
+.profile-sign-out:focus-visible {
+  background: rgba(224, 122, 95, 0.12);
+}

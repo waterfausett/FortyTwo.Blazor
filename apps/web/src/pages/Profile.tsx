@@ -6,13 +6,15 @@
 //
 // Below it, the Turn alerts card (components/TurnAlertSettings.tsx) - kept per browser and saved
 // as it changes, not with this form. Above it, the Stats card (components/PlayerStats.tsx) - the
-// player's own record, loaded on its own.
+// player's own record, loaded on its own. Last, Sign out: Auth0 ends the session and sends the
+// browser back to the site root, where AuthGate shows the signed-out home page.
 //
 // A save confirms with a brief inline "Saved" message near the button, and an error shows as an
 // inline banner.
 import { useEffect, useState } from 'react';
 import type { FormEvent, JSX } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth0 } from '@auth0/auth0-react';
 import { useGetToken } from '../auth/useGetToken';
 import { apiClient } from '../api/client';
 import { PlayerStats } from '../components/PlayerStats';
@@ -25,6 +27,7 @@ function errorMessage(error: unknown): string {
 
 export function Profile(): JSX.Element {
   const client = apiClient(useGetToken());
+  const { logout } = useAuth0();
 
   const profileQuery = useQuery({ queryKey: ['profile'], queryFn: () => client.getProfile() });
 
@@ -161,6 +164,14 @@ export function Profile(): JSX.Element {
       <PlayerStats />
 
       <TurnAlertSettings />
+
+      <button
+        type="button"
+        className="profile-sign-out"
+        onClick={() => void logout({ logoutParams: { returnTo: window.location.origin } })}
+      >
+        Sign out
+      </button>
     </div>
   );
 }

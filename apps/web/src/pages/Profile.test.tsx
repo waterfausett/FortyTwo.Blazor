@@ -11,9 +11,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { UserProfile } from '../api/client';
 import { Profile } from './Profile';
 
-const { getProfileMock, patchProfileMock } = vi.hoisted(() => ({
+const { getProfileMock, patchProfileMock, logoutMock } = vi.hoisted(() => ({
   getProfileMock: vi.fn(),
   patchProfileMock: vi.fn(),
+  logoutMock: vi.fn(),
 }));
 
 vi.mock('../api/client', () => ({
@@ -26,7 +27,7 @@ vi.mock('../api/client', () => ({
 }));
 
 vi.mock('@auth0/auth0-react', () => ({
-  useAuth0: () => ({ getAccessTokenSilently: vi.fn(async () => 'test-token') }),
+  useAuth0: () => ({ getAccessTokenSilently: vi.fn(async () => 'test-token'), logout: logoutMock }),
 }));
 
 const PROFILE_FIXTURE: UserProfile = {
@@ -152,5 +153,14 @@ describe('Profile', () => {
     getProfileMock.mockResolvedValue(PROFILE_FIXTURE);
     renderProfile();
     expect(await screen.findByRole('region', { name: /turn alerts/i })).not.toBeNull();
+  });
+
+  it('signs out back to the site root', async () => {
+    getProfileMock.mockResolvedValue(PROFILE_FIXTURE);
+    renderProfile();
+
+    fireEvent.click(await screen.findByRole('button', { name: /sign out/i }));
+
+    expect(logoutMock).toHaveBeenCalledWith({ logoutParams: { returnTo: window.location.origin } });
   });
 });
