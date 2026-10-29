@@ -4,7 +4,9 @@
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background-color: var(--theme-background-color);
+    /* svh, not vh: see #root in index.css. */
     min-height: 100vh;
+    min-height: 100svh;
 }
 
 a, .btn-link {
