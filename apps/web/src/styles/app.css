@@ -260,9 +260,6 @@ button .spinner-border {
     flex: 1;
 }
 
-.swal-logout-bg {
-    background-color: var(--swal-bg-color, #ffffff);
-}
 .swal2-popup {
     background-color: var(--swal-bg-color, #ffffff);
 }
