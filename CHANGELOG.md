@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.7.0...worker-v1.7.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* **web:** keep Sign in above the fold on mobile browsers ([#205](https://github.com/waterfausett/FortyTwo.Blazor/issues/205)) ([6e27ec5](https://github.com/waterfausett/FortyTwo.Blazor/commit/6e27ec53ac6a25161c8b16fdd70de7646f43f6c3))
+
 ## [1.7.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.6.0...worker-v1.7.0) (2026-10-29)
 
 
