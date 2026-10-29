@@ -48,11 +48,16 @@ export function centerOf(rect: DOMRect): Point {
 }
 
 // Where the trick will land in a team's side pile: the top of our newest-first pile, or just past
-// the last row of theirs (clamped to the pile's box in case it has scrolled).
+// the last row of theirs (clamped to the pile's box in case it has scrolled). Small screens hide
+// the side piles for TrickPiles' below the hand, newest first for both teams: there it lands just
+// under the pile's header.
 export function pileLandingPoint(root: ParentNode, side: 'us' | 'them'): Point | null {
   const history = root.querySelector(side === 'us' ? '.player-team-tricks .trick-history' : '.opponent-tricks .trick-history');
-  if (!history) return null;
-  const box = history.getBoundingClientRect();
+  const box = history?.getBoundingClientRect();
+  if (!history || !box || (box.width === 0 && box.height === 0)) {
+    const header = root.querySelector(`.trick-pile-${side} .trick-pile-header`)?.getBoundingClientRect();
+    return header ? { x: header.left + header.width / 2, y: header.bottom } : null;
+  }
   const x = box.left + box.width / 2;
   if (side === 'us') return { x, y: box.top };
   const last = history.lastElementChild?.getBoundingClientRect();

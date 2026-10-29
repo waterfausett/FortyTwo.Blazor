@@ -69,6 +69,7 @@ import { Seat } from '../components/Seat';
 import { SeatPicker } from '../components/SeatPicker';
 import { TrickDisplay } from '../components/TrickDisplay';
 import { TrickHistory } from '../components/TrickHistory';
+import { TrickPiles } from '../components/TrickPiles';
 import { toastError, toastInfo } from '../ui/toast';
 import type { TableCall } from '../match/TurnAlerts';
 import { TurnAlerts } from '../match/TurnAlerts';
@@ -1239,6 +1240,18 @@ export function Match(): JSX.Element {
 
           </div>
         </PlayDndContext>
+
+        {isPlayingPhase && (
+          <TrickPiles
+            us={{ tricks: myTricks, points: myTrickPoints, target: bidderTeam === me.team ? target : null }}
+            them={{
+              tricks: opponentTricks,
+              points: opponentTrickPoints,
+              target: bidderTeam === opponentTeam ? target : null,
+            }}
+            stacked={stackTricks}
+          />
+        )}
       </div>
 
       {summaryOpen && (
