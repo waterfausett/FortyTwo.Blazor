@@ -376,6 +376,110 @@ button.score:focus-visible {
   }
 }
 
+/* Small screens' piles, below the hand as in the mobile app (TrickPiles) - hidden until the
+   breakpoint below swaps them in for the side piles. */
+.trick-piles {
+  display: none;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 16px 1rem;
+  background: #1b120d;
+}
+
+.trick-piles-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.trick-pile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border-radius: 0.6rem;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.trick-pile-us {
+  --team: var(--us);
+}
+
+.trick-pile-them {
+  --team: var(--them);
+}
+
+.trick-pile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--team);
+}
+
+.trick-pile-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--team);
+}
+
+.trick-pile-points {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.1;
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+}
+
+.trick-pile-target {
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.trick-pile-empty,
+.trick-piles-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.trick-piles-note {
+  text-align: center;
+}
+
+.trick-pile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  animation: pile-in 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Four tiles (7em each with their margins) and the points beside them, filling half the screen. */
+.trick-pile-dominoes {
+  display: flex;
+  font-size: clamp(2.5px, calc((50vw - 5rem) / 28), 3.6px);
+}
+
+.trick-pile-dominoes .domino {
+  --face-shift: 0em;
+  box-shadow: none;
+}
+
+.trick-pile-dominoes .domino::before {
+  border: solid 1px var(--bone-edge);
+}
+
+.trick-pile-value {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
 /* ---------- The table ---------- */
 
 .table {
@@ -1188,32 +1292,33 @@ button.score:focus-visible {
     font-size: 1.7rem;
   }
 
+  /* The piles move below the hand (TrickPiles), as in the mobile app. */
   .gameboard {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas:
-      'us them'
-      'table table';
-    gap: 0.6rem;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'table';
     padding: 0.6rem 16px;
   }
 
   .player-team-tricks,
   .opponent-tricks {
-    flex-direction: row;
-    align-items: center;
-    padding: 0.4rem 0.6rem;
+    display: none;
   }
 
-  .trick-history {
-    flex-direction: row;
-    flex-wrap: wrap;
-    font-size: 2.5px;
-    overflow: hidden;
+  /* As in the mobile app, the table and hand keep the screen, less a peek at the piles' points,
+     and the piles hang below it - so a new trick grows them down the page instead of pushing
+     the hand up. */
+  .match:has(.trick-piles) {
+    --pile-peek: 3.3rem;
+    position: relative;
+    padding-bottom: var(--pile-peek);
   }
 
-  .player-team-tricks .trick-history {
-    margin-top: 0;
+  .trick-piles {
+    display: flex;
+    position: absolute;
+    top: calc(100% - var(--pile-peek));
+    left: 0;
+    right: 0;
   }
 
   .table {
