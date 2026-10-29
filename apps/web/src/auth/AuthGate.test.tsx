@@ -52,16 +52,28 @@ describe('AuthGate', () => {
     expect(loginWithRedirectMock).not.toHaveBeenCalled();
   });
 
-  it('keeps the splash up while redirecting to Auth0, carrying the current path along', () => {
+  it('shows the sign-in page when signed out, without redirecting on its own', () => {
     Object.assign(authState, { isLoading: false, isAuthenticated: false });
     renderGate();
 
-    expect(splashIsUp()).toBe(true);
+    expect(splashIsUp()).toBe(false);
+    expect(screen.getByRole('heading', { name: 'Forty-Two' })).toBeTruthy();
     expect(screen.queryByText('app chrome')).toBeNull();
+    expect(loginWithRedirectMock).not.toHaveBeenCalled();
+  });
+
+  it('redirects to Auth0 from Sign in, carrying the current path along', () => {
+    Object.assign(authState, { isLoading: false, isAuthenticated: false });
+    renderGate();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
     expect(loginWithRedirectMock).toHaveBeenCalledTimes(1);
     expect(loginWithRedirectMock).toHaveBeenCalledWith({
       appState: { returnTo: '/match/abc?seat=2' },
     });
+    const button = screen.getByRole('button', { name: 'Signing in…' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
   });
 
   it('renders the app and removes the splash once authenticated', () => {
