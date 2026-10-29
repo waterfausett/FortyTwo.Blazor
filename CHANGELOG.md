@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.7.1...worker-v1.8.0) (2026-10-29)
+
+
+### Features
+
+* **web:** show trick piles below the hand on small screens ([#208](https://github.com/waterfausett/FortyTwo.Blazor/issues/208)) ([5b9889d](https://github.com/waterfausett/FortyTwo.Blazor/commit/5b9889d4e36774a47626ed46959ad5b01c634ecc))
+
+
+### Bug Fixes
+
+* **web:** size the page to the visible screen on mobile browsers ([#207](https://github.com/waterfausett/FortyTwo.Blazor/issues/207)) ([8cd8de5](https://github.com/waterfausett/FortyTwo.Blazor/commit/8cd8de5e5de5b0f8fd46d0fca0677f1db6f5046e))
+
 ## [1.7.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.7.0...worker-v1.7.1) (2026-10-29)
 
 
