@@ -1,0 +1,168 @@
+/* SignIn.tsx: the count dominoes deal up into a fan, then the name, the three lines and Sign in
+   fade in as the last tile lands. Timings match the mobile screen. */
+
+.sign-in {
+  --deal-ms: 420ms;
+  --deal-stagger-ms: 90ms;
+  /* The last tile's start plus half its deal. */
+  --content-delay: calc(var(--deal-stagger-ms) * 4 + var(--deal-ms) / 2);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  max-width: 28rem;
+  min-height: 100vh;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 4rem 16px 3rem;
+}
+
+.sign-in-hero {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+}
+
+/* domino.css sizes tiles in em (6em x 12em), so the fan is laid out in em too and scales with
+   its font-size. */
+.sign-in-fan {
+  position: relative;
+  width: 100%;
+  height: 17em;
+  font-size: 0.5rem;
+}
+
+.sign-in-fan-tile {
+  --angle: calc(var(--offset) * 11deg);
+  --x: calc(var(--offset) * 4.8em);
+  /* The outer tiles sit a little lower, so the fan curves like a hand held up. */
+  --y: calc(var(--offset) * var(--offset) * 0.5em);
+
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) translate(var(--x), var(--y)) rotate(var(--angle));
+  animation: sign-in-deal var(--deal-ms) cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--i) * var(--deal-stagger-ms));
+}
+
+/* Tiles here aren't laid out in a row: no float or gap. */
+.sign-in-fan .domino {
+  float: none;
+  margin: 0;
+}
+
+/* Each tile slides up from a stack below the fan, turning out to its place as it comes. */
+@keyframes sign-in-deal {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateY(7.5em);
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+.sign-in-heading,
+.sign-in-features,
+.sign-in-button {
+  animation: sign-in-fade 260ms ease-out both;
+  animation-delay: var(--content-delay);
+}
+
+.sign-in-features {
+  animation-delay: calc(var(--content-delay) + 120ms);
+}
+
+.sign-in-button {
+  animation-delay: calc(var(--content-delay) + 240ms);
+}
+
+@keyframes sign-in-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.sign-in-heading {
+  text-align: center;
+}
+
+.sign-in-title {
+  margin: 0 0 0.5rem;
+  font: 700 3rem var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+.sign-in-tagline {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.sign-in-features {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 1.1rem 1.25rem;
+  border-radius: 12px;
+  background: var(--mat);
+  list-style: none;
+  line-height: 1.4;
+}
+
+/* A pip, in the brass of the button below. */
+.sign-in-features li {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.sign-in-features li::before {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-top: 0.45rem;
+  border-radius: 50%;
+  background: var(--brass);
+  content: '';
+}
+
+.sign-in-button {
+  width: 100%;
+  padding: 0.85rem 1.4rem;
+  border-radius: 10px;
+  font-size: 1.1rem;
+}
+
+/* On a wide screen there's no phone-tall column to fill: the lot sits together in the middle,
+   with bigger tiles. */
+@media (min-width: 40rem) {
+  .sign-in {
+    justify-content: center;
+  }
+
+  .sign-in-hero {
+    flex: none;
+  }
+
+  .sign-in-fan {
+    font-size: 0.65rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sign-in-fan-tile,
+  .sign-in-heading,
+  .sign-in-features,
+  .sign-in-button {
+    animation: none;
+  }
+}

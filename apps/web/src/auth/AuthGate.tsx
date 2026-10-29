@@ -1,27 +1,28 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import type { JSX, ReactNode } from 'react';
-import { useEffect, useLayoutEffect } from 'react';
+import { useLayoutEffect, useState } from 'react';
+import { SignIn } from '../pages/SignIn.tsx';
 
-// Guards the whole app, chrome included: nothing renders until Auth0 has a user. Until then -
-// while it checks for a session, and while loginWithRedirect is on its way out to Auth0 - the
-// gate renders nothing and leaves index.html's splash (#app-splash) up; it removes the splash
-// once there is something to show instead. The redirect carries the current path as
-// `appState.returnTo` so a deep link (a shared match URL) survives the trip through Auth0
-// (AppAuth0Provider's onRedirectCallback navigates back to it).
+// Guards the whole app, chrome included: nothing renders until Auth0 has a user. While it checks
+// for a session the gate renders nothing and leaves index.html's splash (#app-splash) up; it
+// removes the splash once there is something to show instead. Signed out, that's the SignIn
+// page. Its Sign in redirects to Auth0 carrying the current path as `appState.returnTo`, so a deep
+// link (a shared match URL) survives the trip (AppAuth0Provider's onRedirectCallback navigates
+// back to it). Once clicked, the button says so while the redirect is on its way out.
 //
 // If Auth0 reports an error (a denied or declined login, a stale callback URL, Auth0 unreachable)
-// the gate stops and says so instead of redirecting again: bouncing straight back to the login
-// page hides the reason, and a denial that recurs on every round trip would loop forever.
+// the gate says so instead of showing Sign in again: the reason would be lost, and a denial that
+// recurs on every round trip would loop.
 export function AuthGate({ children }: { children: ReactNode }): JSX.Element | null {
   const { isAuthenticated, isLoading, error, loginWithRedirect } = useAuth0();
-  const ready = !isLoading && (isAuthenticated || error != null);
+  const [redirecting, setRedirecting] = useState(false);
+  const ready = !isLoading;
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated && !error) {
-      const { pathname, search, hash } = window.location;
-      loginWithRedirect({ appState: { returnTo: pathname + search + hash } });
-    }
-  }, [isLoading, isAuthenticated, error, loginWithRedirect]);
+  function signIn() {
+    setRedirecting(true);
+    const { pathname, search, hash } = window.location;
+    loginWithRedirect({ appState: { returnTo: pathname + search + hash } });
+  }
 
   // Layout effect, so the splash is gone in the same frame the app (or error) first paints.
   useLayoutEffect(() => {
@@ -47,6 +48,10 @@ export function AuthGate({ children }: { children: ReactNode }): JSX.Element | n
 
   if (!ready) {
     return null;
+  }
+
+  if (!isAuthenticated) {
+    return <SignIn onSignIn={signIn} signingIn={redirecting} />;
   }
 
   return <>{children}</>;
