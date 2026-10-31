@@ -38,7 +38,7 @@ const EMPTY: Record<Filter, { title: string; detail: string }> = {
   Completed: { title: 'Nothing finished yet', detail: 'Finished games will show up here.' },
 };
 
-// Coming back to the lobby (from a match, say) fetches the Active list again if it's older than this.
+// Coming back to the lobby (from a match, say) fetches what it's showing again if older than this.
 const REFRESH_ON_FOCUS_MS = 30_000;
 
 // Room under the list for the floating New match button.
@@ -74,13 +74,24 @@ export default function Lobby() {
     void queryClient.invalidateQueries({ queryKey: ['invites'] });
   }
 
-  // Back on the lobby with the Active list showing, a list that hasn't been fetched for a while is
-  // refreshed. Read through a ref, so only coming back runs it - not every change to the list.
+  // Back on the lobby, whatever it's showing is refreshed if it hasn't been fetched for a while.
+  // Read through a ref, so only coming back runs it - not every change to the list.
   const refreshOnFocusRef = useRef(() => {});
   useEffect(() => {
     refreshOnFocusRef.current = () => {
-      const stale = Date.now() - matches.dataUpdatedAt > REFRESH_ON_FOCUS_MS;
-      if (segment === 'Active' && matches.isSuccess && !matches.isFetching && stale) refresh();
+      const old = (updatedAt: number) => Date.now() - updatedAt > REFRESH_ON_FOCUS_MS;
+      if (segment === 'People') {
+        const lists = queryClient.getQueryCache().findAll({ queryKey: ['people', 'list'], type: 'active' });
+        if (lists.some(({ state }) => state.status === 'success' && state.fetchStatus === 'idle' && old(state.dataUpdatedAt))) void refreshPeople();
+      } else if (matches.isSuccess && !matches.isFetching && old(matches.dataUpdatedAt)) {
+        if (segment === 'Active') {
+          refresh();
+        } else {
+          // History keeps its pages: someone back from a game far down the list stays where they were.
+          void matches.refetch();
+          void queryClient.invalidateQueries({ queryKey: ['invites'] });
+        }
+      }
     };
   });
   useFocusEffect(
