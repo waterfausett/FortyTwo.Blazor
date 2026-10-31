@@ -143,6 +143,9 @@ export default function MatchScreen() {
   const matchQuery = useQuery({
     queryKey: ['match', id],
     queryFn: () => api.getMatch(id),
+    // Coming back to the app or the network, the socket reconnects and sends the match itself.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     // A match that doesn't exist (deleted, or a stale link) won't appear on a retry - say so now.
     retry: (failureCount, error) => (error as { status?: number }).status !== 404 && failureCount < 3,
   });

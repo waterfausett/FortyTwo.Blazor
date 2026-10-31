@@ -14,6 +14,7 @@ import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Auth0Provider, useAuth0 } from 'react-native-auth0';
 import { PresenceProvider } from '@/api/presence';
+import { connectQueryFocus, refetchIfShowing, setLobbyShowing } from '@/api/queryFocus';
 import { colors, fonts } from '@/components/theme';
 import { ToastHost } from '@/components/ToastHost';
 import { config } from '@/config';
@@ -21,7 +22,10 @@ import { DEV_BYPASS } from '@/dev/devBypass';
 import { setSignedIn, takePendingLink } from '@/linking/incomingLink';
 import { usePushNotifications } from '@/notifications/usePushNotifications';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { refetchOnWindowFocus: refetchIfShowing, refetchOnReconnect: refetchIfShowing } },
+});
+connectQueryFocus();
 
 // The splash (the domino on walnut, from app.json) stays up until the fonts are loaded and any
 // stored session is restored, so launching goes straight from it to the app with no spinner.
@@ -42,6 +46,7 @@ function RootStack() {
   // player has signed in - unless the router already opened it, as it does at launch when the
   // stored session turns out to be signed in.
   setSignedIn(signedIn);
+  setLobbyShowing(pathname === '/');
   usePushNotifications(!DEV_BYPASS && ready && signedIn);
   useEffect(() => {
     if (!ready || !signedIn) return;
