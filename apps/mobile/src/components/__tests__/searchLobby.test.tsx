@@ -47,14 +47,12 @@ describe('SearchLobby', () => {
     expect(screen.getByText('Them')).toBeTruthy();
     expect(screen.getByText('You')).toBeTruthy();
     expect(screen.getByText('Grandma Jo')).toBeTruthy();
-    expect(screen.getByText('Partner · searching…')).toBeTruthy();
-    expect(screen.getAllByText('Searching…')).toHaveLength(1);
+    expect(screen.getAllByText('Searching…')).toHaveLength(2);
   });
 
-  it('has no You or Partner row for a viewer without a seat', async () => {
+  it('has no You row for a viewer without a seat', async () => {
     await render(<SearchLobby {...props({ roster: roster([null, null], ['jo', null], false), viewerId: 'stranger' })} />);
     expect(screen.queryByText('You')).toBeNull();
-    expect(screen.queryByText(/Partner/)).toBeNull();
     expect(screen.getAllByText('Searching…')).toHaveLength(3);
   });
 

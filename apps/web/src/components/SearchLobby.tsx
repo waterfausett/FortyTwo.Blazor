@@ -59,12 +59,12 @@ export function SearchLobby({
   });
 
   const progress = elapsedMs === null ? null : fillProgress(elapsedMs);
-  const row = (playerId: string | null, partnerSeat: boolean) => (
+  const row = (playerId: string | null) => (
     <RosterRow
       playerId={playerId}
       you={playerId !== null && playerId === viewerId}
       name={playerId === null ? null : nameOf(playerId)}
-      emptyText={partnerSeat && roster.seated ? 'Partner · searching…' : 'Searching…'}
+      emptyText="Searching…"
     />
   );
 
@@ -98,16 +98,16 @@ export function SearchLobby({
       <div className="search-lobby-roster">
         <h3 className="search-lobby-group search-lobby-us">Us</h3>
         <ul>
-          <li>{row(roster.us[0], false)}</li>
-          <li>{row(roster.us[1], true)}</li>
+          <li>{row(roster.us[0])}</li>
+          <li>{row(roster.us[1])}</li>
         </ul>
         <p className="search-lobby-vs" aria-hidden="true">
           vs
         </p>
         <h3 className="search-lobby-group search-lobby-them">Them</h3>
         <ul>
-          <li>{row(roster.them[0], false)}</li>
-          <li>{row(roster.them[1], false)}</li>
+          <li>{row(roster.them[0])}</li>
+          <li>{row(roster.them[1])}</li>
         </ul>
       </div>
 

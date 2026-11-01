@@ -348,8 +348,7 @@ describe('Live search lobby', () => {
     expect(screen.getByText('Us')).toBeTruthy();
     expect(screen.getByText('Them')).toBeTruthy();
     expect(screen.getByText('You')).toBeTruthy();
-    expect(screen.getByText('Partner · searching…')).toBeTruthy();
-    expect(screen.getAllByText('Searching…')).toHaveLength(2);
+    expect(screen.getAllByText('Searching…')).toHaveLength(3);
     expect(screen.getByText('Start with bots')).toBeTruthy();
     expect(screen.getByText('Cancel')).toBeTruthy();
     expect(screen.queryByLabelText('Scores')).toBeNull();

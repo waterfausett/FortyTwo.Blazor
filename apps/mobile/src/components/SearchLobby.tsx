@@ -49,13 +49,12 @@ export function SearchLobby({
   });
 
   const progress = elapsedMs === null ? null : fillProgress(elapsedMs);
-  const row = (playerId: string | null, partnerSeat: boolean) => (
+  const row = (playerId: string | null) => (
     <RosterRow
-      key={partnerSeat ? 'partner' : undefined}
       playerId={playerId}
       you={playerId !== null && playerId === viewerId}
       name={playerId === null ? null : nameOf(playerId)}
-      emptyText={partnerSeat && roster.seated ? 'Partner · searching…' : 'Searching…'}
+      emptyText="Searching…"
     />
   );
 
@@ -83,12 +82,12 @@ export function SearchLobby({
 
       <View style={styles.roster}>
         <Text style={[styles.group, { color: colors.us }]}>Us</Text>
-        {row(roster.us[0], false)}
-        {row(roster.us[1], true)}
+        {row(roster.us[0])}
+        {row(roster.us[1])}
         <Text style={styles.vs}>vs</Text>
         <Text style={[styles.group, { color: colors.them }]}>Them</Text>
-        {row(roster.them[0], false)}
-        {row(roster.them[1], false)}
+        {row(roster.them[0])}
+        {row(roster.them[1])}
       </View>
 
       <LobbyCarousel cards={cards} />
