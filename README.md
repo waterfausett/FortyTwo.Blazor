@@ -239,6 +239,46 @@ installs from that source the first time.
   while CI uses Node 24. If a cloud build fails at installing dependencies, try pinning Node to
   match with `"node": "<version>"` in the profile.
 
+### Phone builds from WSL
+
+`eas build --local` builds the same preview APK on your own machine. It doesn't use any of the
+EAS plan's cloud builds, and it still uses the EAS keystore and versionCode, so it installs over
+a cloud-built app. EAS only runs local builds on Linux or macOS, so on Windows the build runs in
+WSL. `apps/mobile/scripts/phone-build.ps1` builds a branch there and installs it on a phone over
+adb:
+
+```powershell
+pwsh apps/mobile/scripts/phone-build.ps1 -Device <ip:port>
+```
+
+`-Device` is the address on the phone's Wireless debugging screen (Developer options), needed
+when the phone isn't already in `adb devices`. `Get-Help apps/mobile/scripts/phone-build.ps1`
+lists the options. The build takes about 45 minutes the first time and about 10 once Gradle's
+cache is warm. If a step's output stops for a few minutes, the script restarts it.
+
+One-time setup. The WSL distro is Ubuntu, and nothing in it needs sudo:
+
+1. Mirrored networking for WSL: put `networkingMode=mirrored` under `[wsl2]` in
+   `%USERPROFILE%\.wslconfig`, then run `wsl --shutdown`. Under the default NAT mode, with
+   Tailscale running on Windows, about 1 in 4 new connections from WSL to Expo's API were lost,
+   and EAS waits on a lost one for good.
+2. Node 24 with nvm, then `npm install -g eas-cli`.
+3. JDK 17, unpacked to `~/jdk17`.
+4. The Android SDK command-line tools in `~/Android/Sdk/cmdline-tools/latest`, then
+   `yes | ~/Android/Sdk/cmdline-tools/latest/bin/sdkmanager --licenses "platform-tools"`.
+5. `~/.buildenv`, which the script sources:
+
+   ```sh
+   source ~/.nvm/nvm.sh
+   export JAVA_HOME=~/jdk17 ANDROID_HOME=~/Android/Sdk
+   export PATH=~/jdk17/bin:$ANDROID_HOME/platform-tools:$PATH
+   ```
+
+6. Sign in to Expo with `eas login`, or copy `%USERPROFILE%\.expo\state.json` to `~/.expo/`.
+7. Clone the Windows checkout, so WSL builds whatever branches it has:
+   `git clone /mnt/c/git/FortyTwo.Blazor ~/fortytwo`. The build runs from this clone because
+   npm and Gradle are many times slower on `/mnt/c`.
+
 ### Invite links
 
 A match waiting for players has an **Invite friends** button, which shares
