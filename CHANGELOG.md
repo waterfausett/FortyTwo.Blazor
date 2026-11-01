@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.8.0...worker-v1.8.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* drop "Partner" from the search lobby's empty row ([#212](https://github.com/waterfausett/FortyTwo.Blazor/issues/212)) ([1ea52e4](https://github.com/waterfausett/FortyTwo.Blazor/commit/1ea52e4c3b1386460beb75be6376900d19ce287b))
+
 ## [1.8.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/worker-v1.7.1...worker-v1.8.0) (2026-10-29)
 
 
