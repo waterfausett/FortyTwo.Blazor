@@ -160,6 +160,15 @@ export function notificationRoute(notification: Notifications.Notification): str
   return typeof url === 'string' && url.startsWith('/') ? url : null;
 }
 
+// The route of a notice in the shade. One Android drew itself comes back without its data, but Expo
+// builds its identifier from the tag the Worker gave it (push/send.ts): match-<id> or invite-<id>.
+function presentedRoute(notification: Notifications.Notification): string | null {
+  const route = notificationRoute(notification);
+  if (route) return route;
+  const matchId = /^expo-notifications:.*[?&]tag=(?:match|invite)-([^&]+)/.exec(notification.request.identifier)?.[1];
+  return matchId ? `/match/${matchId}` : null;
+}
+
 // Takes out of the shade every notice about the route, now that the player has the match open: it
 // would only be stale. Those for other matches stay. Notices the app drew itself (drawNotice.ts)
 // are listed with the rest; their identifier is the tag, which dismissing by it also covers.
@@ -167,7 +176,7 @@ export async function clearNoticesFor(route: string): Promise<void> {
   const presented = await Notifications.getPresentedNotificationsAsync();
   await Promise.all(
     presented
-      .filter((notification) => notificationRoute(notification) === route)
+      .filter((notification) => presentedRoute(notification) === route)
       .map((notification) => Notifications.dismissNotificationAsync(notification.request.identifier)),
   );
 }

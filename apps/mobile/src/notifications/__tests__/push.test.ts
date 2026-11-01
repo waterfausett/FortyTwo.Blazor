@@ -258,6 +258,16 @@ describe('clearNoticesFor', () => {
     expect(mocked.dismissNotificationAsync.mock.calls.map(([id]) => id)).toEqual(['a', 'c']);
   });
 
+  it('finds a notice Android drew by its tag, as it has no data', async () => {
+    const foreign = (tag: string) => notice(`expo-notifications://foreign_notifications?tag=${tag}&id=0`);
+    mocked.getPresentedNotificationsAsync.mockResolvedValue([foreign('match-m1'), foreign('invite-m1'), foreign('match-m2'), foreign('other')]);
+    await clearNoticesFor('/match/m1');
+    expect(mocked.dismissNotificationAsync.mock.calls.map(([id]) => id)).toEqual([
+      'expo-notifications://foreign_notifications?tag=match-m1&id=0',
+      'expo-notifications://foreign_notifications?tag=invite-m1&id=0',
+    ]);
+  });
+
   it('does nothing when none are about it', async () => {
     mocked.getPresentedNotificationsAsync.mockResolvedValue([notice('b', '/match/m2')]);
     await clearNoticesFor('/match/m1');
