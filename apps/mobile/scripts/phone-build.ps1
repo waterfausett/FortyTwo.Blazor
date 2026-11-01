@@ -67,11 +67,11 @@ function Get-Phone {
 if ($Apk) {
   if (-not (Test-Path $Apk)) { throw "No APK at $Apk." }
 } else {
-  if (-not $Branch) { $Branch = (git -C $MobileDir branch --show-current).Trim() }
+  if (-not $Branch) { $Branch = "$(git -C $MobileDir branch --show-current)".Trim() }
   if (-not $Branch) { throw 'This checkout has no branch checked out; pass -Branch.' }
   $Commit = (git -C $MobileDir rev-parse "refs/heads/$Branch").Trim()
   if ($LASTEXITCODE -ne 0) { throw "No local branch $Branch." }
-  $current = (git -C $MobileDir branch --show-current).Trim()
+  $current = "$(git -C $MobileDir branch --show-current)".Trim()
   if ($current -eq $Branch -and (git -C $MobileDir status --porcelain --untracked-files=no)) {
     Write-Warning 'This checkout has uncommitted changes. The build only includes what is committed.'
   }
