@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.7.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.6.0...mobile-v0.7.0) (2026-11-03)
+
+
+### Features
+
+* a signed-out home screen on web and mobile ([#202](https://github.com/waterfausett/FortyTwo.Blazor/issues/202)) ([0fcc84e](https://github.com/waterfausett/FortyTwo.Blazor/commit/0fcc84eda0ca585e26767127cbe687faa9e511dd))
+* **mobile:** refetch queries when the app returns to the foreground ([#210](https://github.com/waterfausett/FortyTwo.Blazor/issues/210)) ([2f0cb95](https://github.com/waterfausett/FortyTwo.Blazor/commit/2f0cb95fe2811c9ef165653e6380162cdbfdf890)), closes [#162](https://github.com/waterfausett/FortyTwo.Blazor/issues/162)
+* open the match summary from the scoreboard, mid-match too ([#199](https://github.com/waterfausett/FortyTwo.Blazor/issues/199)) ([e5e6447](https://github.com/waterfausett/FortyTwo.Blazor/commit/e5e6447dab458bd4a8aa480fd5152a7f8b637fea))
+* show the hand you held for each game in the match summary ([#195](https://github.com/waterfausett/FortyTwo.Blazor/issues/195)) ([fc3fdaf](https://github.com/waterfausett/FortyTwo.Blazor/commit/fc3fdafd2a7a30bc4f04a65693b2ac8b4157104b))
+
+
+### Bug Fixes
+
+* drop "Partner" from the search lobby's empty row ([#212](https://github.com/waterfausett/FortyTwo.Blazor/issues/212)) ([1ea52e4](https://github.com/waterfausett/FortyTwo.Blazor/commit/1ea52e4c3b1386460beb75be6376900d19ce287b))
+* **mobile:** clear a match's notifications when it is opened ([#201](https://github.com/waterfausett/FortyTwo.Blazor/issues/201)) ([58aea81](https://github.com/waterfausett/FortyTwo.Blazor/commit/58aea816e9a77e931189675f551525771b977ed6)), closes [#200](https://github.com/waterfausett/FortyTwo.Blazor/issues/200)
+* **mobile:** clear notices Android drew when their match opens ([#214](https://github.com/waterfausett/FortyTwo.Blazor/issues/214)) ([0b0d067](https://github.com/waterfausett/FortyTwo.Blazor/commit/0b0d067452ac3f7ccf7d3a214885f6c04c3ea21b))
+* **mobile:** keep the match score panels above the gesture bar ([#185](https://github.com/waterfausett/FortyTwo.Blazor/issues/185)) ([b5fe4c9](https://github.com/waterfausett/FortyTwo.Blazor/commit/b5fe4c97f328679772b1bd36ab715683818ffe74))
+* **mobile:** let phone-build run from a detached HEAD ([#211](https://github.com/waterfausett/FortyTwo.Blazor/issues/211)) ([91c8b9e](https://github.com/waterfausett/FortyTwo.Blazor/commit/91c8b9edd1774d0b04208beaba648eeb7e57f41c))
+* **mobile:** stop the search lobby jumping up on the first clock tick ([#182](https://github.com/waterfausett/FortyTwo.Blazor/issues/182)) ([5b78ecc](https://github.com/waterfausett/FortyTwo.Blazor/commit/5b78ecc0097c468fd63046007504fd972d6111db))
+* **web:** use the mobile app's domino pip colours ([#197](https://github.com/waterfausett/FortyTwo.Blazor/issues/197)) ([23ced65](https://github.com/waterfausett/FortyTwo.Blazor/commit/23ced652795991ab62929c611f69bec096d53e82))
+
 ## [0.6.0](https://github.com/waterfausett/FortyTwo.Blazor/compare/mobile-v0.5.0...mobile-v0.6.0) (2026-10-19)
 
 
